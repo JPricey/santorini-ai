@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use santorini_ai::{
     board::{FullChoice, MAIN_SECTION_MASK, PartialAction, Player, SantoriniState},
     search::{AlphaBetaSearch, NUM_SEARCHES, WINNING_SCORE},

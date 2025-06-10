@@ -1,4 +1,4 @@
-use colored::{ColoredString, Colorize};
+use colored::{Colorize};
 
 use super::search::{Hueristic, judge_state};
 
@@ -31,7 +31,7 @@ impl Player {
 }
 
 pub type BitmapType = u32;
-const NUM_LEVELS: usize = 4;
+// const NUM_LEVELS: usize = 4;
 const BOARD_WIDTH: usize = 5;
 const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
 
@@ -83,10 +83,12 @@ fn position_to_coord(position: usize) -> Coord {
     Coord::new(x, y)
 }
 
+#[allow(unused)]
 fn coord_to_position(coord: Coord) -> usize {
     coord.x + coord.y * BOARD_WIDTH
 }
 
+#[allow(unused)]
 fn print_full_bitmap(mut mask: BitmapType) {
     for _ in 0..5 {
         let lower = mask & 0b11111;

@@ -1,14 +1,12 @@
 use super::{
-    board::{BitmapType, Player, SantoriniState, IS_WINNER_MASK, NEIGHBOR_MAP},
-    transposition_table::{SearchScore, TTValue, TranspositionTable},
+    board::{BitmapType, IS_WINNER_MASK, NEIGHBOR_MAP, Player, SantoriniState},
+    transposition_table::TranspositionTable,
 };
 
 struct MortalAgent {}
 
 pub type Hueristic = i32;
 pub const WINNING_SCORE: Hueristic = 1000;
-const WINNING_SCORE_BUFFER: Hueristic = 300;
-const WINNING_SCORE_MIN: Hueristic = WINNING_SCORE - WINNING_SCORE_BUFFER;
 
 impl MortalAgent {
     pub fn hueristic(state: &SantoriniState, player: Player) -> Hueristic {
@@ -119,9 +117,9 @@ impl AlphaBetaSearch {
         if track_used {
             tt.stats.used_value += 1;
         }
-        */
 
         let alpha_orig = alpha;
+        */
 
         let mut children = state.get_next_states_with_scores();
         if color == 1 {
