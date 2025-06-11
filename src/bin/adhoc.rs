@@ -1,7 +1,10 @@
 #![allow(unused)]
-use santorini_ai::board::{
-    BOARD_WIDTH, BitmapType, Coord, NUM_SQUARES, SantoriniState, coord_to_position,
-    position_to_coord,
+use santorini_ai::{
+    board::{
+        BOARD_WIDTH, BitmapType, Coord, NUM_SQUARES, SantoriniState, coord_to_position,
+        position_to_coord,
+    },
+    transposition_table::TTEntry,
 };
 use std::{collections::HashMap, hint::black_box};
 
@@ -189,6 +192,14 @@ fn _inner_search(
 }
 
 fn main() {
+    println!("State size: {:?}", size_of::<SantoriniState>());
+    println!("TTEntry size: {:?}", size_of::<TTEntry>());
+    println!("Option<TTEntry> size: {:?}", size_of::<Option<TTEntry>>());
+    // 48 bytes
+    // 128 * 1000000 / 48
+    // =2_666_666
+    // 22_633_363*48. yeah it's about a gig
+
     // println!("Search outcome: {:?}", search());
     benchmark_vec_allocations_empty();
     benchmark_vec_allocations_keep();

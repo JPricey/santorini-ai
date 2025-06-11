@@ -13,25 +13,26 @@ pub enum SearchScore {
 
 #[derive(Clone)]
 pub struct TTValue {
-    // TODO: should be best action? 
+    // TODO: should be best action?
     pub best_child: SantoriniState,
     pub search_depth: u8,
     pub score: SearchScore,
 }
 
 #[derive(Clone)]
-pub struct Entry {
+pub struct TTEntry {
     pub hash_code: HashCodeType,
     pub value: TTValue,
 }
 
 pub struct TranspositionTable {
-    pub entries: Vec<Option<Entry>>,
+    pub entries: Vec<Option<TTEntry>>,
     pub stats: TTStats,
 }
 
 // const TABLE_SIZE: HashCodeType = 999983;
-const TABLE_SIZE: HashCodeType = 22633363;
+const TABLE_SIZE: HashCodeType = 22_633_363; // 1 GB
+// const TABLE_SIZE: HashCodeType = 100_000_007; // too big
 
 fn hash_obj<T>(obj: T) -> u64
 where
@@ -70,7 +71,7 @@ impl TranspositionTable {
         let hash_code = hash_obj(state);
         let destination = hash_code % TABLE_SIZE;
 
-        self.entries[destination as usize] = Some(Entry { hash_code, value });
+        self.entries[destination as usize] = Some(TTEntry { hash_code, value });
     }
 
     pub fn fetch(&mut self, state: &SantoriniState) -> Option<&TTValue> {

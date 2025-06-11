@@ -225,5 +225,6 @@ fn main() {
     // play(Some(WIN_FASTER));
     // play(Some(WTF));
 
+    // play(Some("0002000000010000010300001/1/2,24/11,13"));
     play(None);
 }

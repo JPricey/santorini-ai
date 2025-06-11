@@ -258,9 +258,7 @@ impl SantoriniState {
         &self,
         mut result: Vec<StateWithScore>,
     ) -> Vec<StateWithScore> {
-        self.get_next_states_interactive_v2::<StateWithScore, HueristicMapper>(
-            &mut result,
-        );
+        self.get_next_states_interactive_v2::<StateWithScore, HueristicMapper>(&mut result);
         result
     }
 
