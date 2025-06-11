@@ -69,10 +69,8 @@ fn benchmark_vec_allocations_keep() {
 fn benchmark_finding_children_with_hueristic() {
     let state = SantoriniState::new_basic_state();
     benchmark_fn("with scores", || {
-        let mut result = Vec::new();
         for _ in 0..1000000 {
-            result = black_box(state.get_next_states_with_scores(result));
-            result.truncate(0);
+            black_box(state.get_next_states_with_scores());
         }
     });
 }

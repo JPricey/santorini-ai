@@ -49,6 +49,7 @@ impl MortalAgent {
     }
 }
 
+/*
 struct VecAgg<T> {
     default_capacity: usize,
     vecs: Vec<Vec<T>>,
@@ -75,9 +76,10 @@ impl<T> VecAgg<T> {
         }
     }
 }
+*/
 
 pub struct AlphaBetaSearch {
-    vec_agg: VecAgg<StateWithScore>,
+    // vec_agg: VecAgg<StateWithScore>,
     tt: TranspositionTable,
 }
 
@@ -95,7 +97,7 @@ pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
 impl AlphaBetaSearch {
     pub fn new() -> Self {
         AlphaBetaSearch {
-            vec_agg: VecAgg::new(),
+            // vec_agg: VecAgg::new(),
             tt: TranspositionTable::new(),
         }
     }
@@ -192,7 +194,7 @@ impl AlphaBetaSearch {
 
         let alpha_orig = alpha;
 
-        let mut children = state.get_next_states_with_scores(self.vec_agg.request());
+        let mut children = state.get_next_states_with_scores();
 
         if let Some(tt_value) = tt_entry {
             children.sort_by(|a, b| {
@@ -230,7 +232,6 @@ impl AlphaBetaSearch {
                     alpha = score;
 
                     if alpha >= beta {
-                        // println!("prune");
                         break;
                     }
                 }
@@ -253,7 +254,7 @@ impl AlphaBetaSearch {
 
         self.tt.insert(state, tt_value);
 
-        self.vec_agg.reclaim(children);
+        // self.vec_agg.reclaim(children);
 
         best_score
     }

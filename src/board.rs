@@ -243,30 +243,22 @@ impl SantoriniState {
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<FullChoice> {
-        let mut result = Vec::with_capacity(128);
-        self.get_next_states_interactive_v2::<FullChoice, FullChoiceMapper>(&mut result);
-        result
+        self.get_next_states_interactive_v2::<FullChoice, FullChoiceMapper>()
     }
 
     pub fn get_valid_next_states(&self) -> Vec<SantoriniState> {
-        let mut result = Vec::with_capacity(128);
-        self.get_next_states_interactive_v2::<SantoriniState, StateOnlyMapper>(&mut result);
-        result
+        self.get_next_states_interactive_v2::<SantoriniState, StateOnlyMapper>()
     }
 
-    pub fn get_next_states_with_scores(
-        &self,
-        mut result: Vec<StateWithScore>,
-    ) -> Vec<StateWithScore> {
-        self.get_next_states_interactive_v2::<StateWithScore, HueristicMapper>(&mut result);
-        result
+    pub fn get_next_states_with_scores(&self) -> Vec<StateWithScore> {
+        self.get_next_states_interactive_v2::<StateWithScore, HueristicMapper>()
     }
 
-    fn get_next_states_interactive_v2<T, M>(&self, result: &mut Vec<T>)
+    fn get_next_states_interactive_v2<T, M>(&self) -> Vec<T>
     where
         M: ResultsMapper<T>,
     {
-        // let mut result: Vec<T> = Vec::with_capacity(128);
+        let mut result: Vec<T> = Vec::with_capacity(128);
 
         let current_player_idx = self.current_player as usize;
         let starting_current_workers = self.workers[current_player_idx] & MAIN_SECTION_MASK;
@@ -347,6 +339,8 @@ impl SantoriniState {
             mapper.add_action(PartialAction::NoMoves);
             result.push(mapper.map_result(next_state));
         }
+
+        result
     }
 
     pub fn get_path_to_outcome(&self, other: &SantoriniState) -> Option<FullAction> {
