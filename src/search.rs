@@ -1,3 +1,5 @@
+use crate::transposition_table::{SearchScore, TTValue};
+
 use super::{
     board::{BitmapType, IS_WINNER_MASK, NEIGHBOR_MAP, Player, SantoriniState},
     transposition_table::TranspositionTable,
@@ -66,9 +68,16 @@ impl AlphaBetaSearch {
             return (root.clone(), color * judge_state(root, 100));
         }
 
-        let res = Self::_inner_search(root, &mut tt, depth, color, Hueristic::MIN, Hueristic::MAX);
+        let res = Self::_inner_search(
+            root,
+            &mut tt,
+            depth,
+            color,
+            Hueristic::MIN + 1,
+            Hueristic::MAX,
+        );
 
-        // println!("TT stats: {:?}", tt.stats);
+        println!("TT stats: {:?}", tt.stats);
 
         res
     }
@@ -85,7 +94,6 @@ impl AlphaBetaSearch {
             return (state.clone(), color * judge_state(state, remaining_depth));
         }
 
-        /*
         let mut track_used = false;
         let tt_entry = tt.fetch(state);
         if let Some(tt_value) = tt_entry {
@@ -119,7 +127,6 @@ impl AlphaBetaSearch {
         }
 
         let alpha_orig = alpha;
-        */
 
         let mut children = state.get_next_states_with_scores();
         if color == 1 {
@@ -156,7 +163,6 @@ impl AlphaBetaSearch {
             }
         }
 
-        /*
         let tt_score = if best_score <= alpha_orig {
             SearchScore::UpperBound(best_score)
         } else if best_score >= beta {
@@ -171,7 +177,6 @@ impl AlphaBetaSearch {
         };
 
         tt.insert(state, tt_value);
-        */
 
         (best_board.clone(), best_score)
     }

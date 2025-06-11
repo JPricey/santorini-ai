@@ -3,7 +3,7 @@ use santorini_ai::board::{
     BOARD_WIDTH, BitmapType, Coord, NUM_SQUARES, SantoriniState, coord_to_position,
     position_to_coord,
 };
-use std::hint::black_box;
+use std::{collections::HashMap, hint::black_box};
 
 fn output_neighbor_mask() {
     for p in 0..NUM_SQUARES {
@@ -65,6 +65,102 @@ fn benchmark_finding_children_interactive() {
     println!("interactive: {} ms", elapsed.as_millis());
 }
 
+type TestNode = i32;
+type TestHueristic = i32;
+
+pub fn search() -> (TestNode, TestHueristic) {
+    let mut node_tree = HashMap::new();
+
+    let a = 100;
+    let b = 101;
+    let c = 102;
+    let d = 103;
+    let e = 104;
+    let f = 105;
+    let g = 106;
+
+    node_tree.insert(a, vec![b, c]);
+    node_tree.insert(b, vec![d, e]);
+    node_tree.insert(d, vec![3, 5]);
+    node_tree.insert(e, vec![6, 9]);
+    node_tree.insert(c, vec![f, g]);
+    node_tree.insert(f, vec![1, 2]);
+    node_tree.insert(g, vec![0, -1]);
+
+    let root = a;
+    let depth = 4;
+
+    let color = 1;
+    let res = _inner_search(
+        &node_tree,
+        &root,
+        depth,
+        color,
+        TestHueristic::MIN + 1,
+        TestHueristic::MAX,
+    );
+
+    res
+}
+
+fn _inner_search(
+    node_tree: &HashMap<TestNode, Vec<TestNode>>,
+    state: &TestNode,
+    remaining_depth: usize,
+    color: TestHueristic,
+    mut alpha: TestHueristic,
+    beta: TestHueristic,
+) -> (TestNode, TestHueristic) {
+    println!("Visiting {} a: {} b: {}", state, alpha, beta);
+
+    let children = node_tree.get(&state).map_or_else(|| Vec::new(), Vec::clone);
+    let is_terminal = children.len() == 0;
+
+    if remaining_depth == 0 || is_terminal {
+        return (state.clone(), color * state);
+    }
+
+    // if color == 1 {
+    //     children.sort_by(|a, b| (b.1).partial_cmp(&a.1).unwrap());
+    // } else {
+    //     children.sort_by(|a, b| (a.1).partial_cmp(&b.1).unwrap());
+    // }
+
+    let mut best_board = children[0];
+    let mut best_score = TestHueristic::MIN;
+
+    for child in &children {
+        let (_, score) =
+            _inner_search(node_tree, child, remaining_depth - 1, -color, -beta, -alpha);
+        let score = -score;
+
+        if score > best_score {
+            println!(
+                "{}: new best score: {} > {} : {}",
+                state, score, best_score, *child
+            );
+
+            best_score = score;
+            best_board = *child;
+
+            if score > alpha {
+                alpha = score;
+
+                if alpha >= beta {
+                    println!(
+                        "{}: pruning after {}. a: {} b: {}",
+                        state, child, alpha, beta
+                    );
+                    break;
+                }
+            }
+        }
+    }
+
+    println!("Returning {}, {}", best_board, best_score);
+    (best_board.clone(), best_score)
+}
+
 fn main() {
-    println!("Hello world")
+    println!("Search outcome: {:?}", search());
 }

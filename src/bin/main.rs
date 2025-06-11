@@ -6,13 +6,6 @@ use santorini_ai::{
 };
 use std::io;
 
-const WIN_IN_1_STRING: &str = "0000011111222223333322222/10,11/0,1";
-const PREVENT_WIN_IN_1_STRING: &str = "3200000000000000000022222/24,12/1,4";
-const FORCE_WIN_IN_2_STRING: &str = "2200020000000000000011111/1,12/11,20";
-const WIN_FASTER: &str = "2223222222000000444444400/0/20,24";
-
-const WTF: &str = "1110021320210000000000000/2,10/5,8";
-
 fn narrow_options(
     options: &Vec<FullChoice>,
     action_to_string: impl Fn(&FullChoice) -> String,
@@ -215,33 +208,22 @@ fn test(case: &str, depth: usize) {
 }
 
 fn main() {
-    // test(FORCE_WIN_IN_2_STRING, 6);
-    // test(WTF, 8);
+    // test("0000011111222223333322222/10,11/0,1", 4); // win in 1
+    // test("3200000000000000000022222/24,12/1,4", 4); // prevent win in 1
+    // test("2200020000000000000011111/1,12/11,20", 4); // force win in 2
+    // test("2223222222000000444444400/0/20,24", 4); // win fast
+    // test("1110021320210000000000000/2,10/5,8", 4); // bug
+    // test("1120011100400000000000000/1/0,5/1,7", 4); // other bug/?
+
+    // test("1120011100400000000000000/2/0,5/1,7", 6);
+
+    // test("1120011200400000000000000/1/0,5/1,2", 5);
+
+    // test("1120011200400000100000000/2/0,11/1,2", 6);
+
     // play(Some(FORCE_WIN_IN_2_STRING));
     // play(Some(WIN_FASTER));
     // play(Some(WTF));
-    test("1120011100400000000000000/0,5/1,7", 4);
-    // play(None);
-    // test(PREVENT_WIN_IN_1_STRING);
-    // test(FORCE_WIN_IN_2_STRING);
-    // test(WIN_FASTER, 12);
-    // alpha_beta_test();
-    // play();
 
-    return;
-
-    println!("{}, {}", MAIN_SECTION_MASK, MAIN_SECTION_MASK.count_ones());
-
-    let board_string = "0020322300000003333300000/5,10/12,23";
-    let s = SantoriniState::try_from(board_string).unwrap();
-
-    s.print_to_console();
-
-    let (child, score) = AlphaBetaSearch::search(&s, 5);
-    let outcome = s.get_path_to_outcome(&child);
-    println!("{:?}", outcome);
-
-    child.print_to_console();
-
-    println!("Score: {score}");
+    play(None);
 }
