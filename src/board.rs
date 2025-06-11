@@ -198,6 +198,8 @@ pub struct SantoriniState {
     pub workers: [BitmapType; 2],
 }
 
+pub type StateWithScore = (SantoriniState, Hueristic);
+
 impl SantoriniState {
     pub fn new_basic_state() -> Self {
         let mut result = Self::default();
@@ -241,22 +243,32 @@ impl SantoriniState {
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<FullChoice> {
-        self.get_next_states_interactive_v2::<FullChoice, FullChoiceMapper>()
+        let mut result = Vec::with_capacity(128);
+        self.get_next_states_interactive_v2::<FullChoice, FullChoiceMapper>(&mut result);
+        result
     }
 
     pub fn get_valid_next_states(&self) -> Vec<SantoriniState> {
-        self.get_next_states_interactive_v2::<SantoriniState, StateOnlyMapper>()
+        let mut result = Vec::with_capacity(128);
+        self.get_next_states_interactive_v2::<SantoriniState, StateOnlyMapper>(&mut result);
+        result
     }
 
-    pub fn get_next_states_with_scores(&self) -> Vec<(SantoriniState, Hueristic)> {
-        self.get_next_states_interactive_v2::<(SantoriniState, Hueristic), HueristicMapper>()
+    pub fn get_next_states_with_scores(
+        &self,
+        mut result: Vec<StateWithScore>,
+    ) -> Vec<StateWithScore> {
+        self.get_next_states_interactive_v2::<StateWithScore, HueristicMapper>(
+            &mut result,
+        );
+        result
     }
 
-    fn get_next_states_interactive_v2<T, M>(&self) -> Vec<T>
+    fn get_next_states_interactive_v2<T, M>(&self, result: &mut Vec<T>)
     where
         M: ResultsMapper<T>,
     {
-        let mut result: Vec<T> = Vec::with_capacity(128);
+        // let mut result: Vec<T> = Vec::with_capacity(128);
 
         let current_player_idx = self.current_player as usize;
         let starting_current_workers = self.workers[current_player_idx] & MAIN_SECTION_MASK;
@@ -335,10 +347,8 @@ impl SantoriniState {
             next_state.flip_current_player();
             let mut mapper = M::new();
             mapper.add_action(PartialAction::NoMoves);
-            return vec![mapper.map_result(next_state)];
+            result.push(mapper.map_result(next_state));
         }
-
-        result
     }
 
     pub fn get_path_to_outcome(&self, other: &SantoriniState) -> Option<FullAction> {

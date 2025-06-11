@@ -35,34 +35,61 @@ fn output_neighbor_mask() {
     }
 }
 
+fn benchmark_fn(msg: &str, f: impl Fn()) {
+    let start_time = std::time::Instant::now();
+    f();
+    let elapsed = start_time.elapsed();
+    println!("{}: {} ms", msg, elapsed.as_millis());
+}
+
+fn benchmark_vec_allocations_empty() {
+    benchmark_fn("vec_allocations_empty", || {
+        for _ in 0..1000000 {
+            black_box(Vec::<u32>::with_capacity(100));
+        }
+    });
+}
+
+fn benchmark_vec_allocations_keep() {
+    benchmark_fn("vec_allocations_empty", || {
+        fn get_thingy() -> Vec<Vec<u32>> {
+            let mut res = Vec::new();
+            for _ in 0..1000000 {
+                res.push(Vec::<u32>::with_capacity(100));
+            }
+            res
+        }
+        black_box(get_thingy());
+    });
+}
+
 fn benchmark_finding_children_with_hueristic() {
     let state = SantoriniState::new_basic_state();
-    let start_time = std::time::Instant::now();
-    for _ in 0..1000000 {
-        black_box(state.get_next_states_with_scores());
-    }
-    let elapsed = start_time.elapsed();
-    println!("v2: {} ms", elapsed.as_millis());
+    benchmark_fn("with scores", || {
+        let mut result = Vec::new();
+        for _ in 0..1000000 {
+            result = black_box(state.get_next_states_with_scores(result));
+            result.truncate(0);
+        }
+    });
 }
 
 fn benchmark_finding_children_fast() {
     let state = SantoriniState::new_basic_state();
-    let start_time = std::time::Instant::now();
-    for _ in 0..1000000 {
-        black_box(state.get_valid_next_states());
-    }
-    let elapsed = start_time.elapsed();
-    println!("fast: {} ms", elapsed.as_millis());
+    benchmark_fn("fast", || {
+        for _ in 0..1000000 {
+            black_box(state.get_valid_next_states());
+        }
+    });
 }
 
 fn benchmark_finding_children_interactive() {
     let state = SantoriniState::new_basic_state();
-    let start_time = std::time::Instant::now();
-    for _ in 0..1000000 {
-        black_box(state.get_next_states_interactive());
-    }
-    let elapsed = start_time.elapsed();
-    println!("interactive: {} ms", elapsed.as_millis());
+    benchmark_fn("interactive", || {
+        for _ in 0..1000000 {
+            black_box(state.get_next_states_interactive());
+        }
+    });
 }
 
 type TestNode = i32;
@@ -162,5 +189,10 @@ fn _inner_search(
 }
 
 fn main() {
-    println!("Search outcome: {:?}", search());
+    // println!("Search outcome: {:?}", search());
+    benchmark_vec_allocations_empty();
+    benchmark_vec_allocations_keep();
+    benchmark_finding_children_fast();
+    benchmark_finding_children_with_hueristic();
+    benchmark_finding_children_interactive();
 }

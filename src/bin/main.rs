@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use santorini_ai::{
-    board::{FullChoice, PartialAction, Player, SantoriniState, MAIN_SECTION_MASK},
+    board::{FullChoice, MAIN_SECTION_MASK, PartialAction, Player, SantoriniState},
     search::{AlphaBetaSearch, NUM_SEARCHES, WINNING_SCORE_BUFFER},
 };
 use std::io;
@@ -112,7 +112,7 @@ impl Default for ComputerAgent {
 impl Agent for ComputerAgent {
     fn make_move(&mut self, state: &SantoriniState) -> SantoriniState {
         let start_time = std::time::Instant::now();
-        let (child, score) = AlphaBetaSearch::search(state, self.depth);
+        let (child, score) = AlphaBetaSearch::search(state, 3.0);
         let outcome = state.get_path_to_outcome(&child);
 
         if score.abs() < WINNING_SCORE_BUFFER
@@ -151,8 +151,8 @@ impl Agent for HumanAgent {
     }
 }
 
-fn get_computer_action(state: &SantoriniState, depth: usize) -> SantoriniState {
-    let (child, score) = AlphaBetaSearch::search(&state, depth);
+fn get_computer_action(state: &SantoriniState) -> SantoriniState {
+    let (child, score) = AlphaBetaSearch::search(&state, 5.0);
     let outcome = state.get_path_to_outcome(&child);
     println!(
         "Computer player {:?} choosing move: {:?} with score: {}",
@@ -171,7 +171,7 @@ fn alpha_beta_test() {
     state.current_player = Player::Two;
 
     state.print_to_console();
-    get_computer_action(&state, 5);
+    get_computer_action(&state);
 }
 
 fn play(starting_string: Option<&str>) {
@@ -201,10 +201,10 @@ fn play(starting_string: Option<&str>) {
     }
 }
 
-fn test(case: &str, depth: usize) {
+fn test(case: &str) {
     let state = SantoriniState::try_from(case).unwrap();
     state.print_to_console();
-    get_computer_action(&state, depth).print_to_console();
+    get_computer_action(&state).print_to_console();
 }
 
 fn main() {

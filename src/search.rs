@@ -1,4 +1,7 @@
-use crate::transposition_table::{SearchScore, TTValue};
+use crate::{
+    board::StateWithScore,
+    transposition_table::{SearchScore, TTValue},
+};
 
 use super::{
     board::{BitmapType, IS_WINNER_MASK, NEIGHBOR_MAP, Player, SantoriniState},
@@ -46,7 +49,37 @@ impl MortalAgent {
     }
 }
 
-pub struct AlphaBetaSearch {}
+struct VecAgg<T> {
+    default_capacity: usize,
+    vecs: Vec<Vec<T>>,
+}
+
+impl<T> VecAgg<T> {
+    pub fn new() -> Self {
+        Self {
+            default_capacity: 128,
+            vecs: Vec::new(),
+        }
+    }
+
+    pub fn reclaim(&mut self, mut vector: Vec<T>) {
+        vector.truncate(0);
+        self.vecs.push(vector);
+    }
+
+    pub fn request(&mut self) -> Vec<T> {
+        if let Some(result) = self.vecs.pop() {
+            result
+        } else {
+            Vec::with_capacity(self.default_capacity)
+        }
+    }
+}
+
+pub struct AlphaBetaSearch {
+    vec_agg: VecAgg<StateWithScore>,
+    tt: TranspositionTable,
+}
 
 pub static mut NUM_SEARCHES: usize = 0;
 
@@ -60,8 +93,16 @@ pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
 }
 
 impl AlphaBetaSearch {
-    pub fn search(root: &SantoriniState, depth: usize) -> (SantoriniState, Hueristic) {
-        let mut tt = TranspositionTable::new();
+    pub fn new() -> Self {
+        AlphaBetaSearch {
+            vec_agg: VecAgg::new(),
+            tt: TranspositionTable::new(),
+        }
+    }
+
+    pub fn search(root: &SantoriniState, duration_secs: f32) -> StateWithScore {
+        let mut search = Self::new();
+
         let color = root.current_player.color();
 
         if root.get_winner().is_some() {
@@ -69,28 +110,47 @@ impl AlphaBetaSearch {
             return (root.clone(), color * judge_state(root, 0));
         }
 
-        let score = Self::_inner_search(
-            root,
-            &mut tt,
-            0,
-            depth,
-            color,
-            Hueristic::MIN + 1,
-            Hueristic::MAX,
-        );
+        let start_time = std::time::Instant::now();
+        let starting_depth = 3;
+        let mut best_score = Hueristic::MIN;
 
-        println!("TT stats: {:?}", tt.stats);
+        for depth in starting_depth.. {
+            if depth > starting_depth {
+                let elapsed = start_time.elapsed();
+                if elapsed.as_secs_f32() > duration_secs {
+                    println!(
+                        "Time limit reached after depth {}. {} > {} seconds",
+                        depth - 1,
+                        elapsed.as_secs_f32(),
+                        duration_secs
+                    );
+                    break;
+                }
 
-        let tt_entry = tt
+                // println!(
+                //     "Elapsed: {}. Starting depth {}",
+                //     elapsed.as_secs_f32(),
+                //     depth,
+                // );
+            }
+
+            best_score =
+                search._inner_search(root, 0, depth, color, Hueristic::MIN + 1, Hueristic::MAX);
+        }
+
+        println!("TT stats: {:?}", search.tt.stats);
+
+        let tt_entry = search
+            .tt
             .fetch(root)
             .expect("Couldn't find final outcome in transposition table");
 
-        (tt_entry.best_child.clone(), score)
+        (tt_entry.best_child.clone(), best_score)
     }
 
     fn _inner_search(
+        &mut self,
         state: &SantoriniState,
-        tt: &mut TranspositionTable,
         depth: Hueristic,
         remaining_depth: usize,
         color: Hueristic,
@@ -102,7 +162,8 @@ impl AlphaBetaSearch {
         }
 
         let mut track_used = false;
-        let tt_entry = tt.fetch(state);
+        let mut track_unused = false;
+        let tt_entry = self.tt.fetch(state);
         if let Some(tt_value) = tt_entry {
             if tt_value.search_depth >= remaining_depth as u8 {
                 if TranspositionTable::IS_TRACKING_STATS {
@@ -125,36 +186,41 @@ impl AlphaBetaSearch {
                     }
                 }
             } else if TranspositionTable::IS_TRACKING_STATS {
-                tt.stats.unused_value += 1;
+                track_unused = true;
             }
-        }
-
-        if track_used {
-            tt.stats.used_value += 1;
         }
 
         let alpha_orig = alpha;
 
-        let mut children = state.get_next_states_with_scores();
-        if color == 1 {
-            children.sort_by(|a, b| (b.1).partial_cmp(&a.1).unwrap());
+        let mut children = state.get_next_states_with_scores(self.vec_agg.request());
+
+        if let Some(tt_value) = tt_entry {
+            children.sort_by(|a, b| {
+                if a.0 == tt_value.best_child {
+                    std::cmp::Ordering::Less
+                } else if b.0 == tt_value.best_child {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+                .then((color * b.1).partial_cmp(&(color * a.1)).unwrap())
+            });
         } else {
-            children.sort_by(|a, b| (a.1).partial_cmp(&b.1).unwrap());
+            children.sort_by(|a, b| (color * b.1).partial_cmp(&(color * a.1)).unwrap())
+        }
+
+        if track_used {
+            self.tt.stats.used_value += 1;
+        } else if track_unused {
+            self.tt.stats.unused_value += 1;
         }
 
         let mut best_board = &children[0].0;
         let mut best_score = Hueristic::MIN;
 
         for (child, _) in &children {
-            let score = -Self::_inner_search(
-                child,
-                tt,
-                depth + 1,
-                remaining_depth - 1,
-                -color,
-                -beta,
-                -alpha,
-            );
+            let score =
+                -self._inner_search(child, depth + 1, remaining_depth - 1, -color, -beta, -alpha);
 
             if score > best_score {
                 best_score = score;
@@ -185,7 +251,9 @@ impl AlphaBetaSearch {
             score: tt_score,
         };
 
-        tt.insert(state, tt_value);
+        self.tt.insert(state, tt_value);
+
+        self.vec_agg.reclaim(children);
 
         best_score
     }
