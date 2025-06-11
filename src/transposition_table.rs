@@ -13,7 +13,8 @@ pub enum SearchScore {
 
 #[derive(Clone)]
 pub struct TTValue {
-    // pub best_child: SantoriniState,
+    // TODO: should be best action? 
+    pub best_child: SantoriniState,
     pub search_depth: u8,
     pub score: SearchScore,
 }

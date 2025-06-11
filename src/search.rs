@@ -9,6 +9,7 @@ struct MortalAgent {}
 
 pub type Hueristic = i32;
 pub const WINNING_SCORE: Hueristic = 1000;
+pub const WINNING_SCORE_BUFFER: Hueristic = 900;
 
 impl MortalAgent {
     pub fn hueristic(state: &SantoriniState, player: Player) -> Hueristic {
@@ -49,9 +50,9 @@ pub struct AlphaBetaSearch {}
 
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub fn judge_state(state: &SantoriniState, depth_bonus: usize) -> Hueristic {
+pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
     if let Some(winner) = state.get_winner() {
-        let new_score = winner.color() * (WINNING_SCORE + depth_bonus as Hueristic);
+        let new_score = winner.color() * (WINNING_SCORE - depth as Hueristic);
         return new_score;
     }
 
@@ -65,12 +66,13 @@ impl AlphaBetaSearch {
 
         if root.get_winner().is_some() {
             println!("Passed an already won state?");
-            return (root.clone(), color * judge_state(root, 100));
+            return (root.clone(), color * judge_state(root, 0));
         }
 
-        let res = Self::_inner_search(
+        let score = Self::_inner_search(
             root,
             &mut tt,
+            0,
             depth,
             color,
             Hueristic::MIN + 1,
@@ -79,19 +81,24 @@ impl AlphaBetaSearch {
 
         println!("TT stats: {:?}", tt.stats);
 
-        res
+        let tt_entry = tt
+            .fetch(root)
+            .expect("Couldn't find final outcome in transposition table");
+
+        (tt_entry.best_child.clone(), score)
     }
 
     fn _inner_search(
         state: &SantoriniState,
         tt: &mut TranspositionTable,
+        depth: Hueristic,
         remaining_depth: usize,
         color: Hueristic,
         mut alpha: Hueristic,
         beta: Hueristic,
-    ) -> (SantoriniState, Hueristic) {
+    ) -> Hueristic {
         if remaining_depth == 0 || state.get_winner().is_some() {
-            return (state.clone(), color * judge_state(state, remaining_depth));
+            return color * judge_state(state, depth);
         }
 
         let mut track_used = false;
@@ -104,16 +111,16 @@ impl AlphaBetaSearch {
 
                 match tt_value.score {
                     SearchScore::Exact(score) => {
-                        return (state.clone(), score);
+                        return score;
                     }
                     SearchScore::LowerBound(score) => {
                         if score >= beta {
-                            return (state.clone(), score);
+                            return score;
                         }
                     }
                     SearchScore::UpperBound(score) => {
                         if score <= alpha {
-                            return (state.clone(), score);
+                            return score;
                         }
                     }
                 }
@@ -135,18 +142,19 @@ impl AlphaBetaSearch {
             children.sort_by(|a, b| (a.1).partial_cmp(&b.1).unwrap());
         }
 
-        // for (child, child_guess) in &children {
-        //     child.print_to_console();
-        //     println!("score^ {}", child_guess);
-        // }
-
         let mut best_board = &children[0].0;
         let mut best_score = Hueristic::MIN;
 
         for (child, _) in &children {
-            let (_, score) =
-                Self::_inner_search(child, tt, remaining_depth - 1, -color, -beta, -alpha);
-            let score = -score;
+            let score = -Self::_inner_search(
+                child,
+                tt,
+                depth + 1,
+                remaining_depth - 1,
+                -color,
+                -beta,
+                -alpha,
+            );
 
             if score > best_score {
                 best_score = score;
@@ -172,12 +180,13 @@ impl AlphaBetaSearch {
         };
 
         let tt_value = TTValue {
+            best_child: best_board.clone(),
             search_depth: remaining_depth as u8,
             score: tt_score,
         };
 
         tt.insert(state, tt_value);
 
-        (best_board.clone(), best_score)
+        best_score
     }
 }

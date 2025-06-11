@@ -1,8 +1,8 @@
 #![allow(unused)]
 
 use santorini_ai::{
-    board::{FullChoice, MAIN_SECTION_MASK, PartialAction, Player, SantoriniState},
-    search::{AlphaBetaSearch, NUM_SEARCHES, WINNING_SCORE},
+    board::{FullChoice, PartialAction, Player, SantoriniState, MAIN_SECTION_MASK},
+    search::{AlphaBetaSearch, NUM_SEARCHES, WINNING_SCORE_BUFFER},
 };
 use std::io;
 
@@ -115,7 +115,7 @@ impl Agent for ComputerAgent {
         let (child, score) = AlphaBetaSearch::search(state, self.depth);
         let outcome = state.get_path_to_outcome(&child);
 
-        if score.abs() < WINNING_SCORE
+        if score.abs() < WINNING_SCORE_BUFFER
             && start_time.elapsed().as_secs_f32() < 2.0
             && self.depth < 25
         {
