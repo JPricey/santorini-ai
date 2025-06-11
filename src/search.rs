@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use rand::seq::SliceRandom;
-
 use crate::{
     board::StateWithScore,
     transposition_table::{SearchScore, TTValue},
@@ -64,41 +62,44 @@ pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
     MortalAgent::hueristic(state, Player::One) - MortalAgent::hueristic(state, Player::Two)
 }
 
-struct SearchState {
-    tt: TranspositionTable,
+pub struct SearchState<'a> {
+    tt: &'a mut TranspositionTable,
     start_time: std::time::Instant,
     duration: Duration,
     last_fully_completed_depth: usize,
     best_move: Option<StateWithScore>,
 }
 
-impl SearchState {
+impl<'a> SearchState<'a> {
     pub fn should_stop(&self) -> bool {
         self.start_time.elapsed() > self.duration
+    }
+
+    pub fn new(tt: &'a mut TranspositionTable, duration_secs: f32) -> Self {
+        SearchState {
+            tt,
+            start_time: std::time::Instant::now(),
+            duration: Duration::from_secs_f32(duration_secs),
+            last_fully_completed_depth: 0,
+            best_move: None,
+        }
     }
 }
 
 pub fn santorini_search(root: &SantoriniState, duration_secs: f32) -> StateWithScore {
-    let mut search_state = SearchState {
-        tt: TranspositionTable::new(),
-        start_time: std::time::Instant::now(),
-        duration: Duration::from_secs_f32(duration_secs),
-        last_fully_completed_depth: 0,
-        best_move: None,
-    };
+    let mut tt = TranspositionTable::new();
+    let mut search_state = SearchState::new(&mut tt, duration_secs);
 
     search_with_state(&mut search_state, root)
 }
 
-fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) -> StateWithScore {
+pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) -> StateWithScore {
     let color = root.current_player.color();
 
     if root.get_winner().is_some() {
-        println!("Passed an already won state?");
         return (root.clone(), color * judge_state(root, 0));
     }
 
-    let start_time = std::time::Instant::now();
     let starting_depth = 3;
 
     for depth in starting_depth.. {
@@ -106,7 +107,7 @@ fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) -> S
             println!(
                 "Stopping search. Last completed depth {}. Duration: {} seconds",
                 search_state.last_fully_completed_depth,
-                start_time.elapsed().as_secs_f32()
+                search_state.start_time.elapsed().as_secs_f32()
             );
             break;
         }
