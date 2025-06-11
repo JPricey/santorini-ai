@@ -6,7 +6,7 @@ use santorini_ai::{
     },
     transposition_table::TTEntry,
 };
-use std::{collections::HashMap, hint::black_box};
+use std::{collections::HashMap, hint::black_box, time::Duration};
 
 fn output_neighbor_mask() {
     for p in 0..NUM_SQUARES {
@@ -43,6 +43,45 @@ fn benchmark_fn(msg: &str, f: impl Fn()) {
     f();
     let elapsed = start_time.elapsed();
     println!("{}: {} ms", msg, elapsed.as_millis());
+}
+
+const LOOP: usize = 10_000_000;
+fn testing_loop_exists() {
+    /*
+    benchmark_fn("asdf", || {
+        let mut i = 0;
+        for _ in 0..LOOP {
+            i = black_box(i + 1);
+        }
+        println!("{i}");
+    });
+    */
+
+    let dur: Duration = Duration::from_secs(5);
+
+    {
+        let start = std::time::Instant::now();
+        let mut i = 0;
+        loop {
+            if start.elapsed() > dur {
+                break;
+            }
+            i = black_box(i + 1);
+        }
+        println!("time check: {i}");
+    }
+
+    {
+        let start = std::time::Instant::now();
+        let mut i = 0;
+        loop {
+            if i % 1 << 8 == 0 && start.elapsed() > dur {
+                break;
+            }
+            i = black_box(i + 1);
+        }
+        println!("check every {}: {i}", 1 << 8);
+    }
 }
 
 fn benchmark_vec_allocations_empty() {
@@ -190,18 +229,24 @@ fn _inner_search(
 }
 
 fn main() {
-    println!("State size: {:?}", size_of::<SantoriniState>());
-    println!("TTEntry size: {:?}", size_of::<TTEntry>());
-    println!("Option<TTEntry> size: {:?}", size_of::<Option<TTEntry>>());
+    /*
     // 48 bytes
     // 128 * 1000000 / 48
     // =2_666_666
     // 22_633_363*48. yeah it's about a gig
+    println!("State size: {:?}", size_of::<SantoriniState>());
+    println!("TTEntry size: {:?}", size_of::<TTEntry>());
+    println!("Option<TTEntry> size: {:?}", size_of::<Option<TTEntry>>());
+    */
 
     // println!("Search outcome: {:?}", search());
+    testing_loop_exists();
+
+    /*
     benchmark_vec_allocations_empty();
     benchmark_vec_allocations_keep();
     benchmark_finding_children_fast();
     benchmark_finding_children_with_hueristic();
     benchmark_finding_children_interactive();
+    */
 }

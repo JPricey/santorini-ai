@@ -1,3 +1,5 @@
+cargo-features = ["profile-rustflags"]
+
 [package]
 name = "santorini-ai"
 version = "0.1.0"
@@ -6,3 +8,13 @@ edition = "2024"
 [dependencies]
 colored = "2.0.4"
 rand = "0.8.5"
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+debug-assertions = false
+codegen-units = 1
+lto = true
+panic = "abort"
+rustflags = ["-C", "target-cpu=native"]

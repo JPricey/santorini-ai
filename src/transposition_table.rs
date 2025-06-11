@@ -94,4 +94,24 @@ impl TranspositionTable {
         }
         None
     }
+
+    pub fn count_filled_entries(&self) -> usize {
+        self.entries.iter().filter(|e| e.is_none()).count()
+    }
+
+    pub fn reset(&mut self) {
+        self.entries.fill(None);
+        self.stats = Default::default();
+    }
+}
+
+impl std::fmt::Debug for TranspositionTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let fill_pct = (self.count_filled_entries() * 100 / self.entries.len()) as f32 / 100.0;
+
+        f.debug_struct("TTable")
+            .field("stats", &self.stats)
+            .field("fill_pct", &fill_pct)
+            .finish()
+    }
 }

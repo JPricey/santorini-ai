@@ -2,7 +2,7 @@
 
 use santorini_ai::{
     board::{FullChoice, MAIN_SECTION_MASK, PartialAction, Player, SantoriniState},
-    search::{AlphaBetaSearch, NUM_SEARCHES, WINNING_SCORE_BUFFER},
+    search::{NUM_SEARCHES, WINNING_SCORE_BUFFER, santorini_search},
 };
 use std::io;
 
@@ -99,41 +99,26 @@ trait Agent {
     fn make_move(&mut self, state: &SantoriniState) -> SantoriniState;
 }
 
-struct ComputerAgent {
-    depth: usize,
-}
+struct ComputerAgent {}
 
 impl Default for ComputerAgent {
     fn default() -> Self {
-        ComputerAgent { depth: 6 }
+        ComputerAgent {}
     }
 }
 
 impl Agent for ComputerAgent {
     fn make_move(&mut self, state: &SantoriniState) -> SantoriniState {
         let start_time = std::time::Instant::now();
-        let (child, score) = AlphaBetaSearch::search(state, 3.0);
+        let (child, score) = santorini_search(state, 30.0);
         let outcome = state.get_path_to_outcome(&child);
 
-        if score.abs() < WINNING_SCORE_BUFFER
-            && start_time.elapsed().as_secs_f32() < 2.0
-            && self.depth < 25
-        {
-            self.depth += 1;
-            println!(
-                "Computer thought for {:?}. Expanding depth to {}. (score: {score})",
-                start_time.elapsed(),
-                self.depth
-            );
-            return self.make_move(state);
-        } else {
-            let elapsed = start_time.elapsed();
-            println!(
-                "Computer player {:?} thought for {:?} at depth {}. Choosing move: {:?} with score: {}",
-                state.current_player, elapsed, self.depth, outcome, score
-            );
-            return child;
-        }
+        let elapsed = start_time.elapsed();
+        println!(
+            "Computer player {:?}: Choosing move: {:?} with score: {}",
+            state.current_player, outcome, score
+        );
+        return child;
     }
 }
 
@@ -152,7 +137,7 @@ impl Agent for HumanAgent {
 }
 
 fn get_computer_action(state: &SantoriniState) -> SantoriniState {
-    let (child, score) = AlphaBetaSearch::search(&state, 5.0);
+    let (child, score) = santorini_search(&state, 5.0);
     let outcome = state.get_path_to_outcome(&child);
     println!(
         "Computer player {:?} choosing move: {:?} with score: {}",

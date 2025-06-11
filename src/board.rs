@@ -354,13 +354,13 @@ impl SantoriniState {
     }
 
     pub fn print_to_console(&self) {
+        println!("{:?}", self);
+
         if let Some(winner) = self.get_winner() {
             println!("Player {:?} wins!", winner);
         } else {
             println!("Player {:?} to play", self.current_player);
         }
-
-        println!("{:?}", self);
 
         for row in 0..5 {
             print!("{}", 5 - row);
