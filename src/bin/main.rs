@@ -220,7 +220,8 @@ fn main() {
     // play(Some(FORCE_WIN_IN_2_STRING));
     // play(Some(WIN_FASTER));
     // play(Some(WTF));
-    play(None);
+    test("1120011100400000000000000/0,5/1,7", 4);
+    // play(None);
     // test(PREVENT_WIN_IN_1_STRING);
     // test(FORCE_WIN_IN_2_STRING);
     // test(WIN_FASTER, 12);
