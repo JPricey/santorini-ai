@@ -120,8 +120,18 @@ impl EngineThreadWrapper {
         }
     }
 
+    fn clear_active_state_if_already_stopped(&mut self) {
+        if let Some(active_execution) = &self.active_execution {
+            if active_execution.stop_flag.load(Ordering::Relaxed) {
+                self.active_execution = None;
+                self.spin_for_pending_state();
+            }
+        }
+    }
+
     fn spin_for_pending_state(&self) {
         while self.worker_state.lock().unwrap().clone() == EngineThreadState::Pending {
+            println!("spinning");
             thread::sleep(Duration::from_millis(1));
         }
     }
@@ -135,6 +145,8 @@ impl EngineThreadWrapper {
         if self.is_ending {
             panic!("Tried to start a search when engine thread is already ended");
         }
+
+        self.clear_active_state_if_already_stopped();
 
         if self.active_execution.is_some() {
             return Err("A search is already in progress".to_owned());
@@ -182,7 +194,7 @@ impl EngineThreadWrapper {
         state: &SantoriniState,
         duration_secs: f32,
     ) -> Result<NewBestMove, String> {
-        let message_receiver = self.start_search(state)?;
+        let _message_receiver = self.start_search(state)?;
 
         let start_time = Instant::now();
         let end_time = start_time + Duration::from_secs_f32(duration_secs);
@@ -195,12 +207,7 @@ impl EngineThreadWrapper {
                 true
             };
 
-            if is_already_over {
-                println!("Ended early")
-            }
-
             if is_over_on_time || is_already_over {
-                println!("triggering stop");
                 let result = self.stop();
 
                 self.spin_for_pending_state();
