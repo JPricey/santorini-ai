@@ -7,6 +7,7 @@ from tkinter import scrolledtext
 import signal
 from dataclasses import dataclass, field
 import json
+from frozendict import frozendict
 
 BASIC_START_STRING = "0000000000000000000000000/1/11,13/7,17"
 
@@ -61,7 +62,7 @@ class EngineProcess:
         while self.process.poll() is None:
             output = self.process.stdout.readline()
             if output:
-                print("[engine stdout]:", output)
+                # print("[engine stdout]:", output.strip())
                 self.output_callback(output.strip())
             else:
                 time.sleep(0.1)
@@ -91,11 +92,10 @@ def parse_game_state(game_state_string):
         print('height string is wrong length: ', height_str, len(height_str))
         return None
 
-    idx = 0
     for i in range(5*5):
         h = height_str[i]
         if h.isdigit():
-            height = int(height_str[idx])
+            height = int(h)
             if height >= 0 and height <= 4:
                 result.height_map[i] = height
                 continue
@@ -160,17 +160,17 @@ class BoardSquare(tk.Frame):
             text="0",
             bg="white",
             fg="lightgray",
-            font=("Arial", 24)
+            font=("Arial", 36)
         )
-        self.height_label.place(relx=0.5, rely=0.5, anchor="center")
+        self.height_label.place(relx=0.3, rely=0.5, anchor="center")
 
         self.worker_label = tk.Label(
             self,
             text="",
             bg="white",
-            font=("Arial", 16, "bold")
+            font=("Arial", 24, "bold")
         )
-        self.worker_label.place(relx=0.5, rely=0.5, anchor="center")
+        self.worker_label.place(relx=0.7, rely=0.5, anchor="center")
 
         self.bind("<Button-1>", self._on_click)
         for child in self.winfo_children():
@@ -217,14 +217,12 @@ class GameBoardPanel(tk.Frame):
 
         self.buttons = []
         for i in range(5):
-            row_squares = []
             for j in range(5):
                 idx = i*5+j
                 square = BoardSquare(
                     self, idx, click_callback=self.on_cell_click)
                 square.grid(row=i+1, column=j+1, sticky="nsew", padx=2, pady=2)
-                row_squares.append(square)
-            self.buttons.append(row_squares)
+                self.buttons.append(square)
 
         self.columnconfigure(0, weight=0)
         for j in range(1, 6):
@@ -255,7 +253,15 @@ class GameBoardPanel(tk.Frame):
         self.draw_board()
 
     def draw_board(self):
-        print('draw board', self.game_state_string)
+        for idx in range(25):
+            height = self.game_state.height_map[idx]
+            worker = None
+            if idx in self.game_state.player_1_workers:
+                worker = 1
+            elif idx in self.game_state.player_2_workers:
+                worker = 2
+
+            self.buttons[idx].update_state(height=height, worker=worker)
 
 
 def pretty_string_for_action(action):
@@ -271,15 +277,63 @@ def pretty_string_for_action(action):
     print('ERROR: Unknown action type', action_type)
 
 
+def longer_string_for_action(action):
+    action_type = action['type']
+
+    if action_type == 'select_worker':
+        return f"Select {action['value']}"
+    elif action_type == 'move_worker':
+        return f"Move to {action['value']}"
+    elif action_type == 'build':
+        return f"Build at {action['value']}"
+
+    print('ERROR: Unknown action type', action_type)
+
+
 def pretty_string_for_action_sequence(actions):
     return ' '.join(pretty_string_for_action(a) for a in actions)
+
+
+@dataclass
+class ActionSelector():
+    current_position: str = None
+    all_futures: list = None
+    current_action_choices: list = None
+    next_possible_actions: list = None
+
+    def add_partial_action(self, partial_action):
+        self.current_action_choices.append(partial_action)
+
+    def get_all_possible_futures(self):
+        result = []
+        for future in self.all_futures:
+            if self.current_action_choices == future['actions'][:len(self.current_action_choices)]:
+                result.append(future)
+
+        return result
+
+    def update_next_possible_actions(self):
+        result = set()
+        possible_futures = self.get_all_possible_futures()
+
+        for future in possible_futures:
+            if len(future['actions']) > len(self.current_action_choices):
+                next_action = future['actions'][len(
+                    self.current_action_choices)]
+                result.add(frozendict(next_action))
+
+        self.next_possible_actions = list(result)
 
 
 class RootPanel:
     def __init__(self, root):
         self.root = root
         self.root.title("Game Analysis Engine")
-        self.root.geometry("800x600")
+        self.root.geometry("900x600")
+
+        self.action_selector = None
+
+        self.root.bind("<Control-c>", lambda event: self.on_closing())
 
         self.current_position = None
         self.analysis_results = []
@@ -309,15 +363,20 @@ class RootPanel:
         right_frame.rowconfigure(1, weight=1)  # Output area
         right_frame.columnconfigure(0, weight=1)
 
-        # Analysis area (top of right side)
-        self.analysis_area = scrolledtext.ScrolledText(
-            right_frame, wrap=tk.WORD, width=30, height=10)
-        self.analysis_area.grid(row=0, column=0, pady=(0, 5), sticky="nsew")
+        action_frame = tk.Frame(right_frame)
+        action_frame.grid(row=0, column=0, pady=(0, 5), sticky="nsew")
+        action_frame.rowconfigure(0, weight=1)
+        action_frame.columnconfigure(0, weight=1)
+        self.action_options_panel = tk.Listbox(
+            action_frame, width=30, height=10)
+        self.action_options_panel.grid(row=0, column=0, sticky="nsew")
+        self.action_options_panel.bind(
+            '<<ListboxSelect>>', self.on_action_selected)
 
         # Output area (bottom of right side)
-        self.output_area = scrolledtext.ScrolledText(
+        self.engine_output = scrolledtext.ScrolledText(
             right_frame, wrap=tk.WORD, width=30, height=20)
-        self.output_area.grid(row=1, column=0, pady=(5, 0), sticky="nsew")
+        self.engine_output.grid(row=1, column=0, pady=(5, 0), sticky="nsew")
 
         # Control frame at the bottom
         control_frame = tk.Frame(self.root)
@@ -328,6 +387,13 @@ class RootPanel:
         self.input_field.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         self.input_field.insert(0, BASIC_START_STRING)
 
+        def select_all_text(event):
+            event.widget.select_range(0, tk.END)
+            event.widget.icursor(tk.END)  # Move cursor to the end
+            return "break"  # Prevent default behavior
+        self.input_field.bind(
+            "<Control-a>", lambda event: select_all_text(event))
+
         set_pos_button = tk.Button(
             control_frame, text="Set Position", command=self.pressed_set_position)
         set_pos_button.grid(row=0, column=1, padx=5, pady=5)
@@ -337,14 +403,16 @@ class RootPanel:
         self.update_position(input_field)
 
     def update_position(self, position_string):
-        self.output_area.delete("1.0", tk.END)
-
         position_string = position_string.strip()
         print('update position called', position_string)
+
+        self.engine_output.delete("1.0", tk.END)
         if position_string:
             self.current_position = position_string
             self.game_board.set_position(position_string)
             self.engine.send_command(f'set_position {position_string}')
+            self.action_selector = None
+            self.try_start_action_sequence()
 
     def handle_engine_output(self, message):
         self.root.after(0, lambda: self.handle_message(message))
@@ -364,8 +432,52 @@ class RootPanel:
         else:
             print('Unknown message type', message_type, raw_message)
 
+    def try_start_action_sequence(self):
+        next_moves = self.position_to_action_cache.get(self.current_position)
+        if next_moves is None:
+            print('requesting moves data')
+            self.engine.send_command(f'next_moves {self.current_position}')
+            return
+
+        if self.action_selector is None or self.action_selector.current_position != self.current_position:
+            self.action_selector = ActionSelector(
+                current_position=self.current_position,
+                all_futures=next_moves['next_states'],
+                current_action_choices=[]
+            )
+        else:
+            print('duplicate setting of action sequence?')
+
+        self.set_action_sequence_options()
+
+    def set_action_sequence_options(self):
+        self.action_options_panel.delete(0, tk.END)
+        self.action_selector.update_next_possible_actions()
+        next_options = self.action_selector.next_possible_actions
+        for option in next_options:
+            stringed = longer_string_for_action(option)
+            self.action_options_panel.insert(tk.END, stringed)
+
+    def on_action_selected(self, event):
+        selected_indices = self.action_options_panel.curselection()
+        if selected_indices:
+            index = selected_indices[0]
+            # value = self.action_options_panel.get(index)
+            data = self.action_selector.next_possible_actions[index]
+            self.action_selector.add_partial_action(data)
+
+            all_possible_futures = self.action_selector.get_all_possible_futures()
+            if len(all_possible_futures) == 1:
+                future = all_possible_futures[0]
+                future_state = future['next_state']
+                self.update_position(future_state)
+            else:
+                self.set_action_sequence_options()
+
     def handle_next_moves_message(self, message):
-        print('next_moves')
+        start_state = message['start_state']
+        self.position_to_action_cache[start_state] = message
+        self.try_start_action_sequence()
 
     def handle_best_move_message(self, message):
         if message['start_state'] != self.current_position:
@@ -376,10 +488,8 @@ class RootPanel:
 
         thinking_string = f"{meta['score']}: {action_string} ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']})\n"
 
-        self.output_area.insert('1.0', thinking_string)
-        self.output_area.see('1.0')
-
-        print('best_move')
+        self.engine_output.insert('1.0', thinking_string)
+        self.engine_output.see('1.0')
 
     def check_exit_flag(self):
         self.root.after(100, self.check_exit_flag)
