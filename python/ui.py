@@ -8,6 +8,7 @@ from tkinter import scrolledtext, messagebox
 import signal
 from dataclasses import dataclass, field, asdict
 
+BASIC_START_STRING = "0000000000000000000000000/1/11,13/7,17"
 
 class EngineProcess:
     def __init__(self, output_callback):
@@ -122,6 +123,61 @@ class GameState:
     player_1_turn: bool = True
 
 
+class BoardSquare(tk.Frame):
+    def __init__(self, parent, index, click_callback=None, **kwargs):
+        super().__init__(parent, bg="white", relief="ridge", borderwidth=2, **kwargs)
+
+        self.index = index
+        self.click_callback = click_callback
+
+        # Index label (top-left)
+        self.idx_label = tk.Label(
+            self,
+            text=str(index),
+            bg="white",
+            fg="black",
+            font=("Arial", 8),
+            anchor="nw"
+        )
+        self.idx_label.place(x=2, y=2)
+
+        # Height label (large, centered, background)
+        self.height_label = tk.Label(
+            self,
+            text="0",
+            bg="white",
+            fg="lightgray",
+            font=("Arial", 24)
+        )
+        self.height_label.place(relx=0.5, rely=0.5, anchor="center")
+
+        self.worker_label = tk.Label(
+            self,
+            text="",
+            bg="white",
+            font=("Arial", 16, "bold")
+        )
+        self.worker_label.place(relx=0.5, rely=0.5, anchor="center")
+
+        self.bind("<Button-1>", self._on_click)
+        for child in self.winfo_children():
+            child.bind("<Button-1>", self._on_click)
+
+    def _on_click(self, event):
+        if self.click_callback:
+            self.click_callback(self.index)
+
+    def update_state(self, height=0, worker=None):
+        self.height_label.config(text=str(height))
+
+        if worker == 1:
+            self.worker_label.config(text="X", fg="blue")
+        elif worker == 2:
+            self.worker_label.config(text="O", fg="red")
+        else:
+            self.worker_label.config(text="")
+
+
 class GameBoardPanel(tk.Frame):
     def __init__(self, parent, width=400, height=400, **kwargs):
         super().__init__(parent, **kwargs)
@@ -135,7 +191,7 @@ class GameBoardPanel(tk.Frame):
 
         self.buttons = []
         self.create_grid()
-        self.set_position("0000000000000000000000000/1/11,13/7,17")
+        self.set_position(BASIC_START_STRING)
 
     def create_grid(self):
         for i in range(5):
@@ -146,26 +202,27 @@ class GameBoardPanel(tk.Frame):
             col_label = tk.Label(self, text=chr(65+j))
             col_label.grid(row=6, column=j+1)
 
+        self.buttons = []
         for i in range(5):
+            row_squares = []
             for j in range(5):
-                txt = str(len(self.buttons))
-                btn = tk.Button(
-                    self,
-                    width=5,
-                    height=2,
-                    text=txt,
-                    bg="white",
-                    relief="ridge",
-                    borderwidth=2
-                )
-                btn.grid(row=i+1, column=j+1, sticky="nsew", padx=2, pady=2)
-                self.buttons.append(btn)
-
-                self.columnconfigure(j+1, weight=1)
-            self.rowconfigure(i + 1, weight=1)
+                idx = i*5+j
+                square = BoardSquare(
+                    self, idx, click_callback=self.on_cell_click)
+                square.grid(row=i+1, column=j+1, sticky="nsew", padx=2, pady=2)
+                row_squares.append(square)
+            self.buttons.append(row_squares)
 
         self.columnconfigure(0, weight=0)
+        for j in range(1, 6):
+            self.columnconfigure(j, weight=1, minsize=80, uniform="col")
+
         self.rowconfigure(0, weight=0)
+        for i in range(1, 6):
+            self.rowconfigure(i, weight=1, minsize=80, uniform="row")
+
+    def on_cell_click(self, idx):
+        print(f"Clicked cell at ({idx})")
 
     def set_position(self, game_state_string):
         self.game_state_string = game_state_string
@@ -217,6 +274,7 @@ class RootPanel:
 
         self.input_field = tk.Entry(control_frame, width=60)
         self.input_field.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        self.input_field.insert(0, BASIC_START_STRING)
 
         set_pos_button = tk.Button(
             control_frame, text="Set Position", command=self.pressed_set_position)
@@ -233,7 +291,6 @@ class RootPanel:
             self.current_position = position_string
             self.game_board.set_position(position_string)
             self.engine.send_command(f'set_position {position_string}')
-        # self.input_field.index
 
     def handle_engine_output(self, message):
         self.root.after(0, lambda: self.handle_message(message))
