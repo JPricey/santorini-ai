@@ -1,4 +1,4 @@
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 
 use crate::fen::{board_to_fen, parse_fen};
 
@@ -95,7 +95,7 @@ fn print_full_bitmap(mut mask: BitmapType) {
     for _ in 0..5 {
         let lower = mask & 0b11111;
         let output = format!("{:05b}", lower);
-        println!("{}", output.chars().rev().collect::<String>());
+        eprintln!("{}", output.chars().rev().collect::<String>());
         mask = mask >> 5;
     }
 }
@@ -354,17 +354,16 @@ impl SantoriniState {
     }
 
     pub fn print_to_console(&self) {
-        println!("{:?}", self);
+        eprintln!("{:?}", self);
 
         if let Some(winner) = self.get_winner() {
-            println!("Player {:?} wins!", winner);
+            eprintln!("Player {:?} wins!", winner);
         } else {
-            println!("Player {:?} to play", self.current_player);
+            eprintln!("Player {:?} to play", self.current_player);
         }
 
         for row in 0..5 {
-            print!("{}", 5 - row);
-
+            let mut row_str = format!("{} ", 5 - row);
             for col in 0..5 {
                 let pos = col + row * 5;
                 let mask = 1 << pos;
@@ -387,7 +386,7 @@ impl SantoriniState {
                 }
                 .black();
 
-                let with_color = match height {
+                let elem = match height {
                     0 => char.on_white(),
                     1 => char.on_yellow(),
                     2 => char.on_blue(),
@@ -395,11 +394,12 @@ impl SantoriniState {
                     4 => char.on_black(),
                     _ => panic!("Invalid Height: {}", height),
                 };
-                print!("{}", with_color);
+                row_str = format!("{row_str}{elem}");
             }
-            println!()
+            eprint!("{}", row_str);
+            eprintln!()
         }
-        println!(" ABCDE");
+        eprintln!(" ABCDE");
     }
 
     pub fn get_positions_for_player(&self, player: Player) -> Vec<usize> {

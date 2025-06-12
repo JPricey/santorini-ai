@@ -90,7 +90,7 @@ impl<'a> SearchState<'a> {
 
     pub fn new(tt: &'a mut TranspositionTable) -> Self {
         let new_best_move_callback =
-            Box::new(|new_best_move: NewBestMove| println!("{:?}", new_best_move));
+            Box::new(|new_best_move: NewBestMove| eprintln!("{:?}", new_best_move));
 
         SearchState {
             tt,
@@ -113,7 +113,7 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
 
     for depth in starting_depth.. {
         if search_state.should_stop() {
-            println!(
+            eprintln!(
                 "Stopping search. Last completed depth {}. Duration: {} seconds",
                 search_state.last_fully_completed_depth,
                 start_time.elapsed().as_secs_f32(),
@@ -132,7 +132,7 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
         );
 
         if score.abs() > WINNING_SCORE_BUFFER && !search_state.should_stop() {
-            println!("Mate found, ending search early");
+            eprintln!("Mate found, ending search early");
             break;
         }
     }

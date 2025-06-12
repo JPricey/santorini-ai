@@ -78,17 +78,17 @@ impl EngineThreadWrapper {
                 let mut worker_state = engine_thread_ctx.worker_state.lock().unwrap();
                 *worker_state = EngineThreadState::Pending;
             }
-            println!("Engine thread is pending");
+            eprintln!("Engine thread is pending");
 
             let Ok(msg) = engine_thread_ctx.receiver.recv() else {
-                println!("EngineThread receiver received error");
+                eprintln!("EngineThread receiver received error");
                 thread::sleep(Duration::from_millis(100));
                 continue;
             };
 
             match msg {
                 EngineThreadMessage::Compute(request) => {
-                    println!("Engine thread starting request");
+                    eprintln!("Engine thread starting request");
 
                     let best_move_mutex = request.best_move;
                     let best_move_sender = request.new_best_move_sender;
@@ -133,7 +133,7 @@ impl EngineThreadWrapper {
 
     fn spin_for_pending_state(&self) {
         while self.worker_state.lock().unwrap().clone() == EngineThreadState::Pending {
-            println!("spinning");
+            eprintln!("spinning");
             thread::sleep(Duration::from_millis(1));
         }
     }
@@ -143,8 +143,6 @@ impl EngineThreadWrapper {
         state: &SantoriniState,
         each_move_callback: Option<EachMoveCallback>,
     ) -> Result<Receiver<NewBestMove>, String> {
-        println!("start_search called");
-
         if self.is_ending {
             panic!("Tried to start a search when engine thread is already ended");
         }
