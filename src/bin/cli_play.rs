@@ -72,7 +72,7 @@ fn _inner_get_human_action(mut all_outcomes: Vec<FullChoice>) -> Option<Santorin
     let mut idx = 0;
     while all_outcomes.len() > 1 {
         if let Some(new_options) = narrow_options(&all_outcomes, move |full_choice: &FullChoice| {
-            string_partial_action(full_choice.action[idx])
+            string_partial_action(full_choice.actions[idx])
         }) {
             all_outcomes = new_options;
         } else {

@@ -45,7 +45,9 @@ The UCI must always be ready to accept commands, even while some other computati
 
 `set_position <board_state_fen>`: The engine will stop all other computation and start computing moves for this new position.
 `next_moves <board_state_fen>`: The engine will output all board states reachable from moves board_state_fen, plus the incremental actions required to reach those board states.
-
+`ping`: Returns `pong`
+`stop`: Stops the current calculation, if in progress
+`quit`: Closes the engine
 
 ## Outputs
 Outputs are in JSON format.
@@ -56,15 +58,18 @@ Outputs are in JSON format.
     "type": "best_move",
     "start_state": <board_state_fen>, // The position that this computation started from
     "next_state": <board_state_fen>, // The resulting position after this players action
-    "calculated_depth": <int>, // The depth that this move was calculated at
-    "elapsed_seconds": <float>, // The time in seconds since the start of computation that it took to compute this move
-    "actions": [...<player_action>], // list of interactive player actions to reach this state
+    "meta": {
+        "calculated_depth": <int>, // The depth that this move was calculated at
+        "elapsed_seconds": <float>, // The time in seconds since the start of computation that it took to compute this move
+        "actions": [...<player_action>], // list of interactive player actions to reach this state
+    }
 }
 ```
 
 ```
 {
     "type": 'next_moves',
+    "start_state": <board_state_fen>,
     "next_states": [
         {
             "next_state": <board_state_fen>,
@@ -92,7 +97,7 @@ Here are the set of possible interactive player actions:
 
 {
     type: 'build',
-    selection: [...board_position_index],
+    selection: board_position_index
 }
 ```
 
@@ -107,6 +112,15 @@ Here are the set of possible interactive player actions:
     - Hermes probably requires a fully dedicated action for their turn
     - build needs a height property for Hephastus (or does it just build twice in a row??)
         - For atlas too??
+    - build needs to support multiple destinations
+
+Some gods will have a problem where there's multiple paths to end up in the same state.
+Move generation is a single function with 2 variants to output intermediate actions or not.
+Solutions are:
+    - Separate fast vs slow move generation entirely (error prone, annoying to maintain)
+    - Adhoc jank solutions (ex: for promethius, always move first and then possibly allow building under yourself)
+    - Aggregator is responsible for dedupe, which we can run only in fast mode.
+    - Move generation only finds unique solutions, and then we can add other solutions in post processing for UI only
 
 
 ### Why do input vs output use a different serialization format?

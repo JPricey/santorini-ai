@@ -1,8 +1,9 @@
-use colored::{ColoredString, Colorize};
+use colored::Colorize;
 
 use crate::fen::{board_to_fen, parse_fen};
 
 use super::search::{Hueristic, judge_state};
+use serde::Serialize;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Player {
@@ -50,6 +51,15 @@ pub const NEIGHBOR_MAP: [BitmapType; NUM_SQUARES] = [
 pub struct Coord {
     pub x: usize,
     pub y: usize,
+}
+
+impl Serialize for Coord {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("{:?}", self))
+    }
 }
 
 impl Coord {
@@ -100,7 +110,9 @@ fn print_full_bitmap(mut mask: BitmapType) {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize)]
+#[serde(tag = "type", content = "value")]
+#[serde(rename_all(serialize = "snake_case"))]
 pub enum PartialAction {
     PlaceWorker(Coord),
     SelectWorker(Coord),
@@ -112,14 +124,14 @@ type FullAction = Vec<PartialAction>;
 
 #[derive(Clone)]
 pub struct FullChoice {
-    pub action: FullAction,
+    pub actions: FullAction,
     pub result_state: SantoriniState,
 }
 
 impl FullChoice {
     pub fn new(result_state: SantoriniState, action: FullAction) -> Self {
         FullChoice {
-            action,
+            actions: action,
             result_state,
         }
     }
@@ -196,6 +208,16 @@ pub struct SantoriniState {
     // height_map[L - 1][s] represents if square s is GTE L
     pub height_map: [BitmapType; 4],
     pub workers: [BitmapType; 2],
+}
+
+impl Serialize for SantoriniState {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let fen = board_to_fen(self);
+        serializer.serialize_str(&fen)
+    }
 }
 
 pub type StateWithScore = (SantoriniState, Hueristic);
@@ -346,7 +368,7 @@ impl SantoriniState {
     pub fn get_path_to_outcome(&self, other: &SantoriniState) -> Option<FullAction> {
         for choice in self.get_next_states_interactive() {
             if &choice.result_state == other {
-                return Some(choice.action);
+                return Some(choice.actions);
             }
         }
 
@@ -426,6 +448,14 @@ impl TryFrom<&str> for SantoriniState {
     type Error = String;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
+        parse_fen(s)
+    }
+}
+
+impl TryFrom<&String> for SantoriniState {
+    type Error = String;
+
+    fn try_from(s: &String) -> Result<Self, Self::Error> {
         parse_fen(s)
     }
 }
