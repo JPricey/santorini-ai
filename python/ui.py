@@ -1,14 +1,26 @@
-import os
 import shlex
 import subprocess
 import time
 import threading
 import tkinter as tk
-from tkinter import scrolledtext, messagebox
+from tkinter import scrolledtext
 import signal
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
+import json
 
 BASIC_START_STRING = "0000000000000000000000000/1/11,13/7,17"
+
+COL_LABEL_MAPPING = 'ABCDE'
+ROW_LABEL_MAPPING = '12345'
+
+INDEX_TO_COORD_MAPPING = []
+for i in range(25):
+    row = 4 - i // 5
+    col = i % 5
+    INDEX_TO_COORD_MAPPING.append(
+        f'{COL_LABEL_MAPPING[col]}{ROW_LABEL_MAPPING[row]}')
+
+print(INDEX_TO_COORD_MAPPING)
 
 
 class EngineProcess:
@@ -232,12 +244,35 @@ class GameBoardPanel(tk.Frame):
         if self.game_state is None:
             self.status_bar.config(text=f"Invalid: {self.game_state_string}")
         else:
-            self.status_bar.config(text=f"Position: {self.game_state_string}")
+            if self.game_state.player_1_turn:
+                player_str = '1 (X)'
+            else:
+                player_str = '2 (O)'
+            to_move = f'Player {player_str} to move.'
+            self.status_bar.config(
+                text=f"{to_move} ({self.game_state_string})")
 
         self.draw_board()
 
     def draw_board(self):
         print('draw board', self.game_state_string)
+
+
+def pretty_string_for_action(action):
+    action_type = action['type']
+
+    if action_type == 'select_worker':
+        return action['value']
+    elif action_type == 'move_worker':
+        return f'>{action["value"]}'
+    elif action_type == 'build':
+        return f'@{action["value"]}'
+
+    print('ERROR: Unknown action type', action_type)
+
+
+def pretty_string_for_action_sequence(actions):
+    return ' '.join(pretty_string_for_action(a) for a in actions)
 
 
 class RootPanel:
@@ -254,6 +289,8 @@ class RootPanel:
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+        self.position_to_action_cache = {}
+
     def create_ui(self):
         # Configure grid layout
         self.root.columnconfigure(0, weight=3)  # Game board gets more space
@@ -264,33 +301,35 @@ class RootPanel:
         # Create the game board panel (left side)
         self.game_board = GameBoardPanel(self.root, width=500, height=500)
         self.game_board.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        
+
         # Create right-side frame to contain both text areas
         right_frame = tk.Frame(self.root)
         right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         right_frame.rowconfigure(0, weight=1)  # Analysis area
         right_frame.rowconfigure(1, weight=1)  # Output area
         right_frame.columnconfigure(0, weight=1)
-        
+
         # Analysis area (top of right side)
         self.analysis_area = scrolledtext.ScrolledText(
             right_frame, wrap=tk.WORD, width=30, height=10)
-        self.analysis_area.grid(row=0, column=0, pady=(0,5), sticky="nsew")
+        self.analysis_area.grid(row=0, column=0, pady=(0, 5), sticky="nsew")
 
         # Output area (bottom of right side)
         self.output_area = scrolledtext.ScrolledText(
             right_frame, wrap=tk.WORD, width=30, height=20)
-        self.output_area.grid(row=1, column=0, pady=(5,0), sticky="nsew")
+        self.output_area.grid(row=1, column=0, pady=(5, 0), sticky="nsew")
 
         # Control frame at the bottom
         control_frame = tk.Frame(self.root)
-        control_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
-        
+        control_frame.grid(row=1, column=0, columnspan=2,
+                           padx=10, pady=5, sticky="ew")
+
         self.input_field = tk.Entry(control_frame, width=60)
         self.input_field.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         self.input_field.insert(0, BASIC_START_STRING)
-        
-        set_pos_button = tk.Button(control_frame, text="Set Position", command=self.pressed_set_position)
+
+        set_pos_button = tk.Button(
+            control_frame, text="Set Position", command=self.pressed_set_position)
         set_pos_button.grid(row=0, column=1, padx=5, pady=5)
 
     def pressed_set_position(self):
@@ -298,6 +337,8 @@ class RootPanel:
         self.update_position(input_field)
 
     def update_position(self, position_string):
+        self.output_area.delete("1.0", tk.END)
+
         position_string = position_string.strip()
         print('update position called', position_string)
         if position_string:
@@ -308,9 +349,37 @@ class RootPanel:
     def handle_engine_output(self, message):
         self.root.after(0, lambda: self.handle_message(message))
 
-    def handle_message(self, message):
-        self.output_area.insert(tk.END, f"{message}\n")
-        self.output_area.see(tk.END)
+    def handle_message(self, raw_message):
+        try:
+            message = json.loads(raw_message)
+        except json.JSONDecodeError as e:
+            print(f"JSON parsing error: {e}")
+            return None
+
+        message_type = message['type']
+        if message_type == 'best_move':
+            self.handle_best_move_message(message)
+        elif message_type == 'next_moves':
+            self.handle_next_moves_message(message)
+        else:
+            print('Unknown message type', message_type, raw_message)
+
+    def handle_next_moves_message(self, message):
+        print('next_moves')
+
+    def handle_best_move_message(self, message):
+        if message['start_state'] != self.current_position:
+            print('Skipping best move for non-current position')
+
+        meta = message['meta']
+        action_string = pretty_string_for_action_sequence(meta['actions'])
+
+        thinking_string = f"{meta['score']}: {action_string} ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']})\n"
+
+        self.output_area.insert('1.0', thinking_string)
+        self.output_area.see('1.0')
+
+        print('best_move')
 
     def check_exit_flag(self):
         self.root.after(100, self.check_exit_flag)

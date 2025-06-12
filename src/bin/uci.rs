@@ -9,7 +9,7 @@ use std::{
 use santorini_ai::{
     board::{PartialAction, SantoriniState},
     engine::EngineThreadWrapper,
-    search::NewBestMove,
+    search::{Hueristic, NewBestMove},
 };
 
 #[derive(Serialize)]
@@ -28,6 +28,7 @@ pub struct NextMovesOutput {
 
 #[derive(Serialize)]
 pub struct BestMoveMeta {
+    score: Hueristic,
     calculated_depth: usize,
     elapsed_seconds: f32,
     actions: Vec<PartialAction>,
@@ -105,6 +106,7 @@ fn handle_command(
                     start_state: state_2.clone(),
                     next_state: new_best_move.state.clone(),
                     meta: BestMoveMeta {
+                        score: new_best_move.score,
                         calculated_depth: new_best_move.depth,
                         elapsed_seconds: start_time.elapsed().as_secs_f32(),
                         actions: action_path,
