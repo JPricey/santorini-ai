@@ -1,9 +1,9 @@
-use std::time::Duration;
-
-use crate::{
-    board::StateWithScore,
-    transposition_table::{SearchScore, TTValue},
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    time::Duration,
 };
+
+use crate::transposition_table::{SearchScore, TTValue};
 
 use super::{
     board::{BitmapType, IS_WINNER_MASK, NEIGHBOR_MAP, Player, SantoriniState},
@@ -62,42 +62,63 @@ pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
     MortalAgent::hueristic(state, Player::One) - MortalAgent::hueristic(state, Player::Two)
 }
 
-pub struct SearchState<'a> {
-    tt: &'a mut TranspositionTable,
-    start_time: std::time::Instant,
-    duration: Duration,
-    last_fully_completed_depth: usize,
-    best_move: Option<StateWithScore>,
+#[derive(Clone, Debug)]
+pub struct NewBestMove {
+    pub state: SantoriniState,
+    pub score: Hueristic,
+    pub depth: usize,
 }
 
-impl<'a> SearchState<'a> {
-    pub fn should_stop(&self) -> bool {
-        self.start_time.elapsed() > self.duration
-    }
-
-    pub fn new(tt: &'a mut TranspositionTable, duration_secs: f32) -> Self {
-        SearchState {
-            tt,
-            start_time: std::time::Instant::now(),
-            duration: Duration::from_secs_f32(duration_secs),
-            last_fully_completed_depth: 0,
-            best_move: None,
+impl NewBestMove {
+    pub fn new(state: SantoriniState, score: Hueristic, depth: usize) -> Self {
+        NewBestMove {
+            state,
+            score,
+            depth,
         }
     }
 }
 
+pub struct SearchState<'a> {
+    pub tt: &'a mut TranspositionTable,
+    pub stop_flag: Arc<AtomicBool>,
+    pub new_best_move_callback: Box<dyn FnMut(NewBestMove)>,
+    pub last_fully_completed_depth: usize,
+}
+
+impl<'a> SearchState<'a> {
+    pub fn should_stop(&self) -> bool {
+        self.stop_flag.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn new(tt: &'a mut TranspositionTable, duration_secs: f32) -> Self {
+        let new_best_move_callback =
+            Box::new(|new_best_move: NewBestMove| println!("{:?}", new_best_move));
+
+        SearchState {
+            tt,
+            new_best_move_callback,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+            last_fully_completed_depth: 0,
+        }
+    }
+}
+
+/*
 pub fn santorini_search(root: &SantoriniState, duration_secs: f32) -> StateWithScore {
     let mut tt = TranspositionTable::new();
     let mut search_state = SearchState::new(&mut tt, duration_secs);
 
     search_with_state(&mut search_state, root)
 }
+*/
 
-pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) -> StateWithScore {
+pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) {
+    let start_time = std::time::Instant::now();
     let color = root.current_player.color();
 
     if root.get_winner().is_some() {
-        return (root.clone(), color * judge_state(root, 0));
+        panic!("Can't search on a terminal node");
     }
 
     let starting_depth = 3;
@@ -107,7 +128,7 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
             println!(
                 "Stopping search. Last completed depth {}. Duration: {} seconds",
                 search_state.last_fully_completed_depth,
-                search_state.start_time.elapsed().as_secs_f32()
+                start_time.elapsed().as_secs_f32(),
             );
             break;
         }
@@ -122,13 +143,11 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
             Hueristic::MAX,
         );
 
-        if score.abs() > WINNING_SCORE_BUFFER {
+        if score.abs() > WINNING_SCORE_BUFFER && search_state.should_stop() {
             println!("Mate found, ending search early");
             break;
         }
     }
-
-    search_state.best_move.clone().unwrap()
 }
 
 fn _inner_search(
@@ -219,11 +238,11 @@ fn _inner_search(
             best_board = child;
 
             if depth == 0 && !should_stop {
-                search_state.best_move = Some((best_board.clone(), score));
-                println!(
-                    "Setting next best move: {:?} ({}). depth: {}",
-                    best_board, score, remaining_depth
-                );
+                (search_state.new_best_move_callback)(NewBestMove::new(
+                    best_board.clone(),
+                    score,
+                    remaining_depth,
+                ));
             }
 
             if score > alpha {

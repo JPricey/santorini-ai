@@ -2,7 +2,8 @@
 
 use santorini_ai::{
     board::{FullChoice, MAIN_SECTION_MASK, PartialAction, Player, SantoriniState},
-    search::{NUM_SEARCHES, WINNING_SCORE_BUFFER, santorini_search},
+    engine::Engine,
+    search::{NUM_SEARCHES, WINNING_SCORE_BUFFER},
 };
 use std::io;
 
@@ -99,29 +100,6 @@ trait Agent {
     fn make_move(&mut self, state: &SantoriniState) -> SantoriniState;
 }
 
-struct ComputerAgent {}
-
-impl Default for ComputerAgent {
-    fn default() -> Self {
-        ComputerAgent {}
-    }
-}
-
-impl Agent for ComputerAgent {
-    fn make_move(&mut self, state: &SantoriniState) -> SantoriniState {
-        let start_time = std::time::Instant::now();
-        let (child, score) = santorini_search(state, 30.0);
-        let outcome = state.get_path_to_outcome(&child);
-
-        let elapsed = start_time.elapsed();
-        println!(
-            "Computer player {:?}: Choosing move: {:?} with score: {}",
-            state.current_player, outcome, score
-        );
-        return child;
-    }
-}
-
 struct HumanAgent {}
 
 impl Default for HumanAgent {
@@ -136,34 +114,44 @@ impl Agent for HumanAgent {
     }
 }
 
-fn get_computer_action(state: &SantoriniState) -> SantoriniState {
-    let (child, score) = santorini_search(&state, 5.0);
-    let outcome = state.get_path_to_outcome(&child);
-    println!(
-        "Computer player {:?} choosing move: {:?} with score: {}",
-        state.current_player, outcome, score
-    );
-    return child;
+struct ComputerAgent {
+    engine: Engine,
 }
 
-fn alpha_beta_test() {
-    let mut state = SantoriniState::new_basic_state();
-
-    state.workers[0] ^= 1 << 17;
-    state.workers[0] ^= 1 << 22;
-    state.height_map[0] ^= 1 << 21;
-
-    state.current_player = Player::Two;
-
-    state.print_to_console();
-    get_computer_action(&state);
+impl Default for ComputerAgent {
+    fn default() -> Self {
+        ComputerAgent {
+            engine: Engine::new(),
+        }
+    }
 }
 
-fn play(starting_string: Option<&str>) {
-    let mut p1 = ComputerAgent::default();
-    // let mut p1 = HumanAgent::default();
-    let mut p2 = ComputerAgent::default();
-    // let mut p2 = HumanAgent::default();
+impl Agent for ComputerAgent {
+    fn make_move(&mut self, state: &SantoriniState) -> SantoriniState {
+        let start_time = std::time::Instant::now();
+        let best_move = self.engine.search_for_duration(state, 30.0);
+        let outcome = state.get_path_to_outcome(&best_move.state);
+
+        println!(
+            "Computer player {:?}: Choosing move: {:?} with score: {}. Elapsed: {:.2}",
+            state.current_player,
+            outcome,
+            best_move.score,
+            start_time.elapsed().as_secs_f32()
+        );
+
+        return best_move.state;
+    }
+}
+
+enum AgentType {
+    Human,
+    CPU,
+}
+
+fn play(starting_string: Option<&str>, p1_type: AgentType, p2_type: AgentType) {
+    let mut human: Box<dyn Agent> = Box::new(HumanAgent::default());
+    let mut cpu: Box<dyn Agent> = Box::new(ComputerAgent::default());
 
     let mut state = if let Some(string) = starting_string {
         SantoriniState::try_from(string).unwrap()
@@ -173,23 +161,25 @@ fn play(starting_string: Option<&str>) {
 
     loop {
         state.print_to_console();
-        if state.current_player == Player::One {
-            state = p1.make_move(&state);
-        } else {
-            state = p2.make_move(&state);
+        let agent = match state.current_player {
+            Player::One => match p1_type {
+                AgentType::Human => &mut human,
+                AgentType::CPU => &mut cpu,
+            },
+            Player::Two => match p2_type {
+                AgentType::Human => &mut human,
+                AgentType::CPU => &mut cpu,
+            },
         };
+        state = agent.make_move(&state);
         if let Some(winner) = state.get_winner() {
             println!("Winner: {:?}", winner);
             state.print_to_console();
             break;
         }
-    }
-}
 
-fn test(case: &str) {
-    let state = SantoriniState::try_from(case).unwrap();
-    state.print_to_console();
-    get_computer_action(&state).print_to_console();
+        println!("");
+    }
 }
 
 fn main() {
@@ -211,5 +201,5 @@ fn main() {
     // play(Some(WTF));
 
     // play(Some("0002000000010000010300001/1/2,24/11,13"));
-    play(None);
+    play(None, AgentType::Human, AgentType::CPU);
 }

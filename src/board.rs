@@ -203,10 +203,10 @@ pub type StateWithScore = (SantoriniState, Hueristic);
 impl SantoriniState {
     pub fn new_basic_state() -> Self {
         let mut result = Self::default();
-        result.workers[0] |= 1 << 7;
-        result.workers[0] |= 1 << 17;
-        result.workers[1] |= 1 << 11;
-        result.workers[1] |= 1 << 13;
+        result.workers[1] |= 1 << 7;
+        result.workers[1] |= 1 << 17;
+        result.workers[0] |= 1 << 12;
+        result.workers[0] |= 1 << 13;
         result
     }
 
