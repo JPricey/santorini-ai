@@ -1,6 +1,9 @@
-use std::{error, sync::mpsc, thread};
+use std::{
+    sync::{Arc, mpsc},
+    thread,
+};
 
-use santorini_ai::{engine::EngineThreadWrapper, fen::parse_fen};
+use santorini_ai::{engine::EngineThreadWrapper, fen::parse_fen, search::NewBestMove};
 
 fn handle_command(
     engine: &mut EngineThreadWrapper,
@@ -31,7 +34,10 @@ fn handle_command(
             match parse_fen(&fen) {
                 Ok(state) => {
                     let _ = engine.stop();
-                    engine.start_search(&state)?;
+                    let callback = Arc::new(|new_best_move: NewBestMove| {
+                        println!("New best move v2: {:?}", new_best_move);
+                    });
+                    engine.start_search(&state, Some(callback))?;
                     Ok(None)
                 }
                 Err(e) => Err(format!("Error parsing FEN: {}", e)),

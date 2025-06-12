@@ -14,6 +14,8 @@ use crate::{
     transposition_table::TranspositionTable,
 };
 
+type EachMoveCallback = Arc<dyn Fn(NewBestMove) + Send + Sync>;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EngineThreadState {
     Pending,
@@ -31,6 +33,7 @@ pub struct EngineThreadExecution {
     stop_flag: Arc<AtomicBool>,
     best_move: Arc<Mutex<Option<NewBestMove>>>,
     new_best_move_sender: Sender<NewBestMove>,
+    each_move_callback: Option<EachMoveCallback>,
 }
 
 pub struct EngineThreadCtx {
@@ -94,19 +97,18 @@ impl EngineThreadWrapper {
                         *worker_state = EngineThreadState::Running;
                     }
 
-                    let start_at = Instant::now();
                     let mut search_state = SearchState {
                         tt: &mut transposition_table,
                         stop_flag: request.stop_flag.clone(),
                         new_best_move_callback: Box::new(move |new_best_move: NewBestMove| {
                             let mut best_move_handle = best_move_mutex.lock().unwrap();
                             *best_move_handle = Some(new_best_move.clone());
+
+                            if let Some(each_move_callback) = &request.each_move_callback {
+                                each_move_callback(new_best_move.clone());
+                            }
+
                             let _ = best_move_sender.send(new_best_move.clone());
-                            println!(
-                                "{:.2}: New best move found: {:?}",
-                                start_at.elapsed().as_secs_f32(),
-                                new_best_move
-                            );
                         }),
                         last_fully_completed_depth: 0,
                     };
@@ -139,6 +141,7 @@ impl EngineThreadWrapper {
     pub fn start_search(
         &mut self,
         state: &SantoriniState,
+        each_move_callback: Option<EachMoveCallback>,
     ) -> Result<Receiver<NewBestMove>, String> {
         println!("start_search called");
 
@@ -159,6 +162,7 @@ impl EngineThreadWrapper {
             stop_flag: Arc::new(AtomicBool::new(false)),
             best_move: Arc::new(Mutex::new(None)),
             new_best_move_sender: sender,
+            each_move_callback,
         };
 
         self.request_sender
@@ -194,7 +198,7 @@ impl EngineThreadWrapper {
         state: &SantoriniState,
         duration_secs: f32,
     ) -> Result<NewBestMove, String> {
-        let _message_receiver = self.start_search(state)?;
+        let _message_receiver = self.start_search(state, None)?;
 
         let start_time = Instant::now();
         let end_time = start_time + Duration::from_secs_f32(duration_secs);
