@@ -65,6 +65,8 @@ def parse_game_state(game_state_string):
     result = GameState()
     game_state_string = ''.join(game_state_string.split())
     parts = game_state_string.split('/')
+    for part in parts:
+        print('part', part)
 
     if len(parts) != 4:
         print("Game state has wrong number of parts: ", len(parts))
@@ -133,7 +135,7 @@ class GameBoardPanel(tk.Frame):
 
         self.buttons = []
         self.create_grid()
-        self.set_position("2111202211011420002000100/1/7,14/2,18")
+        self.set_position("0000000000000000000000000/1/11,13/7,17")
 
     def create_grid(self):
         for i in range(5):
@@ -160,18 +162,23 @@ class GameBoardPanel(tk.Frame):
                 self.buttons.append(btn)
 
                 self.columnconfigure(j+1, weight=1)
+            self.rowconfigure(i + 1, weight=1)
 
-        for i in range(1, 6):
-            self.rowconfigure(i, weight=1)
+        self.columnconfigure(0, weight=0)
+        self.rowconfigure(0, weight=0)
 
     def set_position(self, game_state_string):
         self.game_state_string = game_state_string
         self.game_state = parse_game_state(game_state_string)
-        print('game_state', str(self.game_state))
+
+        if self.game_state is None:
+            self.status_bar.config(text=f"Invalid: {self.game_state_string}")
+        else:
+            self.status_bar.config(text=f"Position: {self.game_state_string}")
+
         self.draw_board()
 
     def draw_board(self):
-        self.status_bar.config(text=f"Position: {self.game_state_string}")
         print('draw board', self.game_state_string)
 
 
