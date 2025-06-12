@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, atomic::AtomicBool},
-    time::Duration,
-};
+use std::sync::{Arc, atomic::AtomicBool};
 
 use crate::transposition_table::{SearchScore, TTValue};
 
