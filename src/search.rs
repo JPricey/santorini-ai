@@ -91,7 +91,7 @@ impl<'a> SearchState<'a> {
         self.stop_flag.load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    pub fn new(tt: &'a mut TranspositionTable, duration_secs: f32) -> Self {
+    pub fn new(tt: &'a mut TranspositionTable) -> Self {
         let new_best_move_callback =
             Box::new(|new_best_move: NewBestMove| println!("{:?}", new_best_move));
 
@@ -103,15 +103,6 @@ impl<'a> SearchState<'a> {
         }
     }
 }
-
-/*
-pub fn santorini_search(root: &SantoriniState, duration_secs: f32) -> StateWithScore {
-    let mut tt = TranspositionTable::new();
-    let mut search_state = SearchState::new(&mut tt, duration_secs);
-
-    search_with_state(&mut search_state, root)
-}
-*/
 
 pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) {
     let start_time = std::time::Instant::now();
@@ -143,7 +134,7 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
             Hueristic::MAX,
         );
 
-        if score.abs() > WINNING_SCORE_BUFFER && search_state.should_stop() {
+        if score.abs() > WINNING_SCORE_BUFFER && !search_state.should_stop() {
             println!("Mate found, ending search early");
             break;
         }

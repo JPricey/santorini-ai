@@ -2,7 +2,7 @@
 
 use santorini_ai::{
     board::{FullChoice, MAIN_SECTION_MASK, PartialAction, Player, SantoriniState},
-    engine::Engine,
+    engine::EngineThreadWrapper,
     search::{NUM_SEARCHES, WINNING_SCORE_BUFFER},
 };
 use std::io;
@@ -115,13 +115,13 @@ impl Agent for HumanAgent {
 }
 
 struct ComputerAgent {
-    engine: Engine,
+    engine: EngineThreadWrapper,
 }
 
 impl Default for ComputerAgent {
     fn default() -> Self {
         ComputerAgent {
-            engine: Engine::new(),
+            engine: EngineThreadWrapper::new(),
         }
     }
 }
@@ -129,7 +129,7 @@ impl Default for ComputerAgent {
 impl Agent for ComputerAgent {
     fn make_move(&mut self, state: &SantoriniState) -> SantoriniState {
         let start_time = std::time::Instant::now();
-        let best_move = self.engine.search_for_duration(state, 30.0);
+        let best_move = self.engine.search_for_duration(state, 30.0).unwrap();
         let outcome = state.get_path_to_outcome(&best_move.state);
 
         println!(
@@ -201,5 +201,11 @@ fn main() {
     // play(Some(WTF));
 
     // play(Some("0002000000010000010300001/1/2,24/11,13"));
-    play(None, AgentType::Human, AgentType::CPU);
+    // play(None, AgentType::CPU, AgentType::CPU);
+    play(
+        Some("4112202311011420102000100/2/3,14/1,12"),
+        AgentType::CPU,
+        AgentType::CPU,
+    );
+    println!("bye");
 }
