@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, asdict
 
 BASIC_START_STRING = "0000000000000000000000000/1/11,13/7,17"
 
+
 class EngineProcess:
     def __init__(self, output_callback):
         self.output_callback = output_callback
@@ -254,31 +255,43 @@ class RootPanel:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def create_ui(self):
+        # Configure grid layout
         self.root.columnconfigure(0, weight=3)  # Game board gets more space
-        self.root.columnconfigure(1, weight=1)
+        self.root.columnconfigure(1, weight=1)  # Right side gets less space
         self.root.rowconfigure(0, weight=1)     # Main content area expands
         self.root.rowconfigure(1, weight=0)     # Bottom controls don't expand
 
+        # Create the game board panel (left side)
         self.game_board = GameBoardPanel(self.root, width=500, height=500)
         self.game_board.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        
+        # Create right-side frame to contain both text areas
+        right_frame = tk.Frame(self.root)
+        right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        right_frame.rowconfigure(0, weight=1)  # Analysis area
+        right_frame.rowconfigure(1, weight=1)  # Output area
+        right_frame.columnconfigure(0, weight=1)
+        
+        # Analysis area (top of right side)
+        self.analysis_area = scrolledtext.ScrolledText(
+            right_frame, wrap=tk.WORD, width=30, height=10)
+        self.analysis_area.grid(row=0, column=0, pady=(0,5), sticky="nsew")
 
+        # Output area (bottom of right side)
         self.output_area = scrolledtext.ScrolledText(
-            self.root, wrap=tk.WORD, width=30, height=20)
-        self.output_area.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+            right_frame, wrap=tk.WORD, width=30, height=20)
+        self.output_area.grid(row=1, column=0, pady=(5,0), sticky="nsew")
 
+        # Control frame at the bottom
         control_frame = tk.Frame(self.root)
-        control_frame.grid(row=1, column=0, columnspan=2,
-                           padx=10, pady=5, sticky="ew")
-
-        control_frame.columnconfigure(0, weight=1)  # Input field expands
-
+        control_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+        
         self.input_field = tk.Entry(control_frame, width=60)
         self.input_field.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         self.input_field.insert(0, BASIC_START_STRING)
-
-        set_pos_button = tk.Button(
-            control_frame, text="Set Position", command=self.pressed_set_position)
-        set_pos_button.grid(row=0, column=2, padx=5, pady=5)
+        
+        set_pos_button = tk.Button(control_frame, text="Set Position", command=self.pressed_set_position)
+        set_pos_button.grid(row=0, column=1, padx=5, pady=5)
 
     def pressed_set_position(self):
         input_field = self.input_field.get()
