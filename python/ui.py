@@ -256,7 +256,7 @@ class GameBoardPanel(tk.Frame):
         self.status_bar.config(state="normal")
         self.status_bar.delete(0, tk.END)
         self.status_bar.insert(0, new_text)
-        self.status_bar.config(state="readonly") 
+        self.status_bar.config(state="readonly")
 
         self.draw_board()
 

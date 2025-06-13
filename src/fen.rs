@@ -34,7 +34,7 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
 pub fn parse_fen(s: &str) -> Result<SantoriniState, String> {
     let sections: Vec<&str> = s.split('/').collect();
     if sections.len() != 4 {
-        return Err("Input string must have exactly 3 sections separated by '/'".to_string());
+        return Err("Input string must have exactly 4 sections separated by '/'".to_string());
     }
 
     let mut result = SantoriniState::default();
