@@ -130,12 +130,12 @@ impl Agent for ComputerAgent {
     fn make_move(&mut self, state: &SantoriniState) -> SantoriniState {
         let start_time = std::time::Instant::now();
         let best_move = self.engine.search_for_duration(state, 30.0).unwrap();
-        let outcome = state.get_path_to_outcome(&best_move.state);
+        // let outcome = state.get_path_to_outcome(&best_move.state);
 
         println!(
-            "Computer player {:?}: Choosing move: {:?} with score: {}. Elapsed: {:.2}",
+            "Computer player {:?}: <TODO> with score: {}. Elapsed: {:.2}",
             state.current_player,
-            outcome,
+            // outcome,
             best_move.score,
             start_time.elapsed().as_secs_f32()
         );

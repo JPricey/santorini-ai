@@ -1,13 +1,13 @@
 cargo-features = ["profile-rustflags"]
 
 [package]
-name = "santorini_engine"
+name = "uci"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+santorini_core = { path = "../santorini_core" }
 colored = {workspace=true}
-rand = {workspace=true}
 serde = {workspace=true}
 serde_json = {workspace=true}
 

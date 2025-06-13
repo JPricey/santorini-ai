@@ -1,13 +1,13 @@
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use santorini_engine::board::{Player, SantoriniState};
-use santorini_engine::fen::board_to_fen;
-use santorini_engine::search::{BestMoveTrigger, NewBestMove};
-use santorini_engine::uci_types::{BestMoveOutput, EngineOutput};
+use santorini_core::board::{Player, SantoriniState};
+use santorini_core::fen::board_to_fen;
+use santorini_core::search::BestMoveTrigger;
+use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 
 struct EngineSubprocess {
     #[allow(dead_code)]
@@ -59,7 +59,7 @@ fn prepare_subprocess(engine_path: &str) -> EngineSubprocess {
                 let parsed_msg: EngineOutput = serde_json::from_str(&msg).unwrap();
                 match parsed_msg {
                     EngineOutput::Started(_) => {
-                        println!("Started!");
+                        // println!("Started!");
                         break;
                     }
                     _ => {
@@ -97,6 +97,8 @@ fn do_battle<'a>(
 ) -> BattleResult {
     let mut depth = 0;
     let mut current_state = root.clone();
+
+    root.print_to_console();
 
     loop {
         let (engine, other) = match current_state.current_player {
@@ -142,6 +144,10 @@ fn do_battle<'a>(
                         }
                     }
                 }
+                Err(RecvTimeoutError::Timeout) => {
+                    // eprintln!("timeout reached");
+                    break;
+                }
                 Err(e) => {
                     eprintln!("Error receiving message: {:?}", e);
                 }
@@ -156,13 +162,14 @@ fn do_battle<'a>(
 
         current_state = saved_best_move.next_state.clone();
 
-        current_state.print_to_console();
         println!(
-            "Making move: {:?} | d: {} s: {}",
+            "Making move for Player {:?}: {:?} | d: {} s: {}",
+            saved_best_move.start_state.current_player,
             saved_best_move.meta.actions,
             saved_best_move.meta.calculated_depth,
             saved_best_move.meta.score
         );
+        current_state.print_to_console();
 
         let winner = current_state.get_winner();
         if let Some(winner) = winner {
@@ -179,6 +186,6 @@ fn main() {
     let mut c2 = prepare_subprocess("./all_versions/v1");
 
     let root = SantoriniState::new_basic_state();
-    let outcome = do_battle(&root, &mut c1, &mut c2, 5.0);
+    let outcome = do_battle(&root, &mut c1, &mut c2, 60.0);
     println!("Game has ended {:?}", outcome);
 }

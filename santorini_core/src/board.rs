@@ -1,8 +1,11 @@
 use colored::Colorize;
 
-use crate::fen::{board_to_fen, parse_fen};
+use crate::{
+    fen::{board_to_fen, parse_fen},
+    gods::{mortal::get_mortal_god, FullChoice, GodPower, ALL_GODS_BY_ID},
+};
 
-use super::search::{Hueristic, judge_state};
+use super::search::Hueristic;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -18,7 +21,7 @@ impl Default for Player {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
-pub enum God {
+pub enum GodName {
     Mortal = 0,
 }
 
@@ -149,88 +152,6 @@ fn print_full_bitmap(mut mask: BitmapType) {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value")]
-#[serde(rename_all = "snake_case")]
-pub enum PartialAction {
-    PlaceWorker(Coord),
-    SelectWorker(Coord),
-    MoveWorker(Coord),
-    Build(Coord),
-    NoMoves,
-}
-type FullAction = Vec<PartialAction>;
-
-#[derive(Clone)]
-pub struct FullChoice {
-    pub actions: FullAction,
-    pub result_state: SantoriniState,
-}
-
-impl FullChoice {
-    pub fn new(result_state: SantoriniState, action: FullAction) -> Self {
-        FullChoice {
-            actions: action,
-            result_state,
-        }
-    }
-}
-
-trait ResultsMapper<T>: Clone {
-    fn new() -> Self;
-    fn add_action(&mut self, partial_action: PartialAction);
-    fn map_result(&self, state: SantoriniState) -> T;
-}
-
-#[derive(Clone, Debug)]
-struct StateOnlyMapper {}
-impl ResultsMapper<SantoriniState> for StateOnlyMapper {
-    fn new() -> Self {
-        StateOnlyMapper {}
-    }
-
-    fn add_action(&mut self, _partial_action: PartialAction) {}
-
-    fn map_result(&self, state: SantoriniState) -> SantoriniState {
-        state
-    }
-}
-
-#[derive(Clone, Debug)]
-struct HueristicMapper {}
-impl ResultsMapper<(SantoriniState, Hueristic)> for HueristicMapper {
-    fn new() -> Self {
-        HueristicMapper {}
-    }
-
-    fn add_action(&mut self, _partial_action: PartialAction) {}
-
-    fn map_result(&self, state: SantoriniState) -> (SantoriniState, Hueristic) {
-        let judge_result = judge_state(&state, 0);
-        (state, judge_result)
-    }
-}
-
-#[derive(Clone, Debug)]
-struct FullChoiceMapper {
-    partial_actions: Vec<PartialAction>,
-}
-impl ResultsMapper<FullChoice> for FullChoiceMapper {
-    fn new() -> Self {
-        FullChoiceMapper {
-            partial_actions: Vec::new(),
-        }
-    }
-
-    fn add_action(&mut self, partial_action: PartialAction) {
-        self.partial_actions.push(partial_action);
-    }
-
-    fn map_result(&self, state: SantoriniState) -> FullChoice {
-        FullChoice::new(state, self.partial_actions.clone())
-    }
-}
-
 /*
  * Bitmap of each level:
  * 0  1  2  3  4
@@ -269,9 +190,11 @@ impl<'de> Deserialize<'de> for SantoriniState {
     }
 }
 
-pub type StateWithScore = (SantoriniState, Hueristic);
-
 impl SantoriniState {
+    pub fn player_1_god(&self) -> &'static GodPower {
+        &ALL_GODS_BY_ID[0]
+    }
+
     pub fn new_basic_state() -> Self {
         let mut result = Self::default();
         result.workers[1] |= 1 << 7;
@@ -318,109 +241,9 @@ impl SantoriniState {
         self.workers[player_idx] |= IS_WINNER_MASK;
     }
 
-    pub fn get_next_states_interactive(&self) -> Vec<FullChoice> {
-        self.get_next_states_interactive_v2::<FullChoice, FullChoiceMapper>()
-    }
-
-    pub fn get_valid_next_states(&self) -> Vec<SantoriniState> {
-        self.get_next_states_interactive_v2::<SantoriniState, StateOnlyMapper>()
-    }
-
-    pub fn get_next_states_with_scores(&self) -> Vec<StateWithScore> {
-        self.get_next_states_interactive_v2::<StateWithScore, HueristicMapper>()
-    }
-
-    fn get_next_states_interactive_v2<T, M>(&self) -> Vec<T>
-    where
-        M: ResultsMapper<T>,
-    {
-        let mut result: Vec<T> = Vec::with_capacity(128);
-
-        let current_player_idx = self.current_player as usize;
-        let starting_current_workers = self.workers[current_player_idx] & MAIN_SECTION_MASK;
-        let mut current_workers = starting_current_workers;
-
-        let all_workers_mask = self.workers[0] | self.workers[1];
-
-        while current_workers != 0 {
-            let moving_worker_start_pos = current_workers.trailing_zeros() as usize;
-            let moving_worker_start_mask: BitmapType = 1 << moving_worker_start_pos;
-            current_workers ^= moving_worker_start_mask;
-
-            let mut mapper = M::new();
-            mapper.add_action(PartialAction::SelectWorker(position_to_coord(
-                moving_worker_start_pos,
-            )));
-
-            let all_stable_workers = all_workers_mask ^ moving_worker_start_mask;
-            let worker_starting_height = self.get_height_for_worker(moving_worker_start_mask);
-
-            // Remember that actual height map is offset by 1
-            let too_high = std::cmp::min(3, worker_starting_height + 1);
-            let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos]
-                & !self.height_map[too_high]
-                & !all_stable_workers;
-
-            while worker_moves != 0 {
-                let worker_move_pos = worker_moves.trailing_zeros() as usize;
-                let worker_move_mask: BitmapType = 1 << worker_move_pos;
-                worker_moves ^= worker_move_mask;
-
-                let mut mapper = mapper.clone();
-                mapper.add_action(PartialAction::MoveWorker(position_to_coord(
-                    worker_move_pos,
-                )));
-
-                if self.height_map[2] & worker_move_mask > 0 {
-                    let mut winning_next_state = self.clone();
-                    winning_next_state.workers[current_player_idx] ^=
-                        moving_worker_start_mask | worker_move_mask | IS_WINNER_MASK;
-                    winning_next_state.flip_current_player();
-                    result.push(mapper.map_result(winning_next_state));
-                    continue;
-                }
-
-                let mut worker_builds =
-                    NEIGHBOR_MAP[worker_move_pos] & !all_stable_workers & !self.height_map[3];
-
-                while worker_builds != 0 {
-                    let worker_build_pos = worker_builds.trailing_zeros() as usize;
-                    let worker_build_mask = 1 << worker_build_pos;
-                    worker_builds ^= worker_build_mask;
-
-                    let mut mapper = mapper.clone();
-                    mapper.add_action(PartialAction::Build(position_to_coord(worker_build_pos)));
-
-                    let mut next_state = self.clone();
-                    next_state.flip_current_player();
-                    for height in 0.. {
-                        if next_state.height_map[height] & worker_build_mask == 0 {
-                            next_state.height_map[height] |= worker_build_mask;
-                            break;
-                        }
-                    }
-                    next_state.workers[current_player_idx] ^=
-                        moving_worker_start_mask | worker_move_mask;
-                    result.push(mapper.map_result(next_state))
-                }
-            }
-        }
-
-        if result.len() == 0 {
-            // Lose due to no moves
-            let mut next_state = self.clone();
-            next_state.workers[1 - current_player_idx] |= IS_WINNER_MASK;
-            next_state.flip_current_player();
-            let mut mapper = M::new();
-            mapper.add_action(PartialAction::NoMoves);
-            result.push(mapper.map_result(next_state));
-        }
-
-        result
-    }
-
+    /*
     pub fn get_path_to_outcome(&self, other: &SantoriniState) -> Option<FullAction> {
-        for choice in self.get_next_states_interactive() {
+        for choice in (self.player_1_god().next_states_interactive)() {
             if &choice.result_state == other {
                 return Some(choice.actions);
             }
@@ -428,6 +251,7 @@ impl SantoriniState {
 
         None
     }
+    */
 
     pub fn print_to_console(&self) {
         eprintln!("{:?}", self);
@@ -512,6 +336,10 @@ impl TryFrom<&String> for SantoriniState {
     fn try_from(s: &String) -> Result<Self, Self::Error> {
         parse_fen(s)
     }
+}
+
+pub fn get_next_states_interactive(state: &SantoriniState, god: &GodPower) -> Vec<FullChoice> {
+    (god.next_states_interactive)(&state, state.current_player)
 }
 
 #[cfg(test)]

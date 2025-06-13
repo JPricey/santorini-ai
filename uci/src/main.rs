@@ -4,9 +4,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use santorini_engine::{
-    board::{PartialAction, SantoriniState},
+use santorini_core::{
+    board::{SantoriniState, get_next_states_interactive},
     engine::EngineThreadWrapper,
+    gods::{ALL_GODS_BY_ID, PartialAction},
     search::NewBestMove,
     uci_types::{
         BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,
@@ -17,7 +18,7 @@ fn find_action_path(
     start_state: &SantoriniState,
     destination_state: &SantoriniState,
 ) -> Option<Vec<PartialAction>> {
-    let all_child_states = start_state.get_next_states_interactive();
+    let all_child_states = get_next_states_interactive(&start_state, &ALL_GODS_BY_ID[0]);
     for full_child in all_child_states {
         if &full_child.result_state == destination_state {
             return Some(full_child.actions);
@@ -107,7 +108,7 @@ fn handle_command(
             let state: SantoriniState =
                 SantoriniState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
 
-            let child_states = state.get_next_states_interactive();
+            let child_states = get_next_states_interactive(&state, &ALL_GODS_BY_ID[0]);
 
             let output = EngineOutput::NextMoves(NextMovesOutput {
                 start_state: state.clone(),

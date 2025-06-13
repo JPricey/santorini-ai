@@ -1,4 +1,4 @@
-use crate::board::{God, NUM_SQUARES, Player, SantoriniState};
+use crate::board::{GodName, NUM_SQUARES, Player, SantoriniState};
 
 pub fn board_to_fen(board: &SantoriniState) -> String {
     let winner = board.get_winner();
@@ -44,7 +44,7 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
 
 struct CharacterFen {
     #[allow(dead_code)]
-    god: God,
+    god: GodName,
     worker_locations: Vec<u32>,
     is_won: bool,
 }
@@ -68,10 +68,10 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
 
     let (god, worker_split) = if colon_splits.len() == 1 {
         eprintln!("[DEPRECATION WARNING] No god title found. Defaulting to mortal for now");
-        (God::Mortal, colon_splits[0])
+        (GodName::Mortal, colon_splits[0])
     } else {
         // TODO!!!
-        (God::Mortal, colon_splits[1])
+        (GodName::Mortal, colon_splits[1])
     };
 
     let mut worker_locations: Vec<u32> = Vec::new();

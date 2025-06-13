@@ -2,63 +2,29 @@ use std::sync::{Arc, atomic::AtomicBool};
 
 use serde::{Deserialize, Serialize};
 
-use crate::transposition_table::{SearchScore, TTValue};
-
-use super::{
-    board::{BitmapType, IS_WINNER_MASK, NEIGHBOR_MAP, Player, SantoriniState},
-    transposition_table::TranspositionTable,
+use crate::{
+    gods::{ALL_GODS_BY_ID, GodPower},
+    transposition_table::{SearchScore, TTValue},
 };
 
-struct MortalAgent {}
+use super::{
+    board::{Player, SantoriniState},
+    transposition_table::TranspositionTable,
+};
 
 pub type Hueristic = i32;
 pub const WINNING_SCORE: Hueristic = 1000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 900;
-
-impl MortalAgent {
-    pub fn hueristic(state: &SantoriniState, player: Player) -> Hueristic {
-        let player_index = player as usize;
-
-        if state.workers[player_index] & IS_WINNER_MASK > 0 {
-            // panic!("not possible?");
-            return WINNING_SCORE;
-        }
-
-        let mut result: Hueristic = 0;
-        let mut current_workers = state.workers[player_index];
-        while current_workers != 0 {
-            let worker_pos = current_workers.trailing_zeros() as usize;
-            let worker_mask: BitmapType = 1 << worker_pos;
-            current_workers ^= worker_mask;
-
-            let height = state.get_height_for_worker(worker_mask);
-            result += 10 * height as Hueristic;
-            if height == 2 {
-                result += 10;
-            }
-
-            let too_high = std::cmp::min(3, height + 1);
-            let worker_moves = NEIGHBOR_MAP[worker_pos] & !state.height_map[too_high];
-            for h in (0..too_high).rev() {
-                let mult = if h == 2 { 10 } else { h + 1 };
-                result +=
-                    ((state.height_map[h] & worker_moves).count_ones() * mult as u32) as Hueristic;
-            }
-        }
-
-        result
-    }
-}
-
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
+pub fn judge_state(state: &SantoriniState, player1_god: &GodPower, depth: Hueristic) -> Hueristic {
     if let Some(winner) = state.get_winner() {
         let new_score = winner.color() * (WINNING_SCORE - depth as Hueristic);
         return new_score;
     }
 
-    MortalAgent::hueristic(state, Player::One) - MortalAgent::hueristic(state, Player::Two)
+    (player1_god.player_advantage_fn)(state, Player::One)
+        - (player1_god.player_advantage_fn)(state, Player::Two)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +112,7 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
 
         let score = _inner_search(
             search_state,
+            &ALL_GODS_BY_ID[0],
             root,
             0,
             depth,
@@ -166,6 +133,7 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
 
 fn _inner_search(
     search_state: &mut SearchState,
+    player1_god: &GodPower,
     state: &SantoriniState,
     depth: Hueristic,
     remaining_depth: usize,
@@ -174,7 +142,7 @@ fn _inner_search(
     beta: Hueristic,
 ) -> Hueristic {
     if remaining_depth == 0 || state.get_winner().is_some() {
-        return color * judge_state(state, depth);
+        return color * judge_state(state, player1_god, depth);
     }
 
     let mut track_used = false;
@@ -208,8 +176,22 @@ fn _inner_search(
 
     let alpha_orig = alpha;
 
-    let mut children = state.get_next_states_with_scores();
+    let mut children = (player1_god.next_states)(state, state.current_player);
 
+    if let Some(tt_value) = tt_entry {
+        for i in 0..children.len() {
+            if children[i] == tt_value.best_child {
+                if i == 0 {
+                    break;
+                } else {
+                    children.swap(0, i);
+                    break;
+                }
+            }
+        }
+    }
+
+    /*
     if let Some(tt_value) = tt_entry {
         children.sort_by(|a, b| {
             if a.0 == tt_value.best_child {
@@ -224,6 +206,7 @@ fn _inner_search(
     } else {
         children.sort_by(|a, b| (color * b.1).partial_cmp(&(color * a.1)).unwrap())
     }
+    */
 
     if track_used {
         search_state.tt.stats.used_value += 1;
@@ -231,12 +214,13 @@ fn _inner_search(
         search_state.tt.stats.unused_value += 1;
     }
 
-    let mut best_board = &children[0].0;
+    let mut best_board = &children[0];
     let mut best_score = Hueristic::MIN;
 
-    for (child, _) in &children {
+    for child in &children {
         let score = -_inner_search(
             search_state,
+            player1_god,
             child,
             depth + 1,
             remaining_depth - 1,

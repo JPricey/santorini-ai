@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 import json
 from frozendict import frozendict
 
-BASIC_START_STRING = "0000000000000000000000000/1/11,13/7,17"
+BASIC_START_STRING = "0000000000000000000000000/1/mortal:11,13/mortal:7,17"
 
 COL_LABEL_MAPPING = 'ABCDE'
 ROW_LABEL_MAPPING = '12345'
@@ -31,7 +31,7 @@ class EngineProcess:
         self.start_engine()
 
     def start_engine(self):
-        start_command = shlex.split("cargo run -p santorini_engine --release")
+        start_command = shlex.split("cargo run -p uci --release")
 
         self.process = subprocess.Popen(
             start_command,
@@ -106,8 +106,13 @@ def parse_game_state(game_state_string):
     result.player_1_turn = turn_str == "1"
 
     def parse_worker_string(worker_string):
+        # TODO: parse the god
+        worker_string_parts = worker_string.split(':')
+        if len(worker_string_parts) != 2:
+            print('worker string must have 2 parts')
+
         result = []
-        for part in worker_string.split(','):
+        for part in worker_string_parts[1].split(','):
             res = int(part)
             if res >= 0 and res < 25:
                 result.append(res)
