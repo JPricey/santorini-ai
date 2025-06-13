@@ -1,8 +1,5 @@
 use super::search::Hueristic;
-use crate::{
-    board::{Coord, Player, SantoriniState},
-    search::judge_state,
-};
+use crate::board::{Coord, Player, SantoriniState};
 use mortal::get_mortal_god;
 use serde::{Deserialize, Serialize};
 

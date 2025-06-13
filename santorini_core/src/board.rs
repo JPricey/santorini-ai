@@ -2,7 +2,7 @@ use colored::Colorize;
 
 use crate::{
     fen::{board_to_fen, parse_fen},
-    gods::{mortal::get_mortal_god, FullChoice, GodPower, ALL_GODS_BY_ID},
+    gods::{FullChoice, GodPower, ALL_GODS_BY_ID},
 };
 
 use super::search::Hueristic;
