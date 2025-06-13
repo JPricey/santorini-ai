@@ -1,5 +1,7 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
+use serde::{Deserialize, Serialize};
+
 use crate::transposition_table::{SearchScore, TTValue};
 
 use super::{
@@ -59,19 +61,34 @@ pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
     MortalAgent::hueristic(state, Player::One) - MortalAgent::hueristic(state, Player::Two)
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BestMoveTrigger {
+    StopFlag,
+    EndOfLine,
+    Improvement,
+}
+
 #[derive(Clone, Debug)]
 pub struct NewBestMove {
     pub state: SantoriniState,
     pub score: Hueristic,
     pub depth: usize,
+    pub trigger: BestMoveTrigger,
 }
 
 impl NewBestMove {
-    pub fn new(state: SantoriniState, score: Hueristic, depth: usize) -> Self {
+    pub fn new(
+        state: SantoriniState,
+        score: Hueristic,
+        depth: usize,
+        trigger: BestMoveTrigger,
+    ) -> Self {
         NewBestMove {
             state,
             score,
             depth,
+            trigger,
         }
     }
 }
@@ -81,6 +98,7 @@ pub struct SearchState<'a> {
     pub stop_flag: Arc<AtomicBool>,
     pub new_best_move_callback: Box<dyn FnMut(NewBestMove)>,
     pub last_fully_completed_depth: usize,
+    pub best_move: Option<NewBestMove>,
 }
 
 impl<'a> SearchState<'a> {
@@ -97,6 +115,7 @@ impl<'a> SearchState<'a> {
             new_best_move_callback,
             stop_flag: Arc::new(AtomicBool::new(false)),
             last_fully_completed_depth: 0,
+            best_move: None,
         }
     }
 }
@@ -118,6 +137,10 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
                 search_state.last_fully_completed_depth,
                 start_time.elapsed().as_secs_f32(),
             );
+            if let Some(best_move) = &mut search_state.best_move {
+                best_move.trigger = BestMoveTrigger::StopFlag;
+                (search_state.new_best_move_callback)(best_move.clone());
+            }
             break;
         }
 
@@ -133,6 +156,9 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
 
         if score.abs() > WINNING_SCORE_BUFFER && !search_state.should_stop() {
             eprintln!("Mate found, ending search early");
+            let mut best_move = search_state.best_move.clone().unwrap();
+            best_move.trigger = BestMoveTrigger::EndOfLine;
+            (search_state.new_best_move_callback)(best_move);
             break;
         }
     }
@@ -226,11 +252,14 @@ fn _inner_search(
             best_board = child;
 
             if depth == 0 && !should_stop {
-                (search_state.new_best_move_callback)(NewBestMove::new(
+                let new_best_move = NewBestMove::new(
                     best_board.clone(),
                     score,
                     remaining_depth,
-                ));
+                    BestMoveTrigger::Improvement,
+                );
+                search_state.best_move = Some(new_best_move.clone());
+                (search_state.new_best_move_callback)(new_best_move);
             }
 
             if score > alpha {

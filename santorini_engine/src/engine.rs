@@ -111,6 +111,7 @@ impl EngineThreadWrapper {
                             let _ = best_move_sender.send(new_best_move.clone());
                         }),
                         last_fully_completed_depth: 0,
+                        best_move: None,
                     };
 
                     search_with_state(&mut search_state, &request.state);

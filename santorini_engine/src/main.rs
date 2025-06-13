@@ -1,5 +1,5 @@
 use std::{
-    sync::{mpsc, Arc},
+    sync::{Arc, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -44,7 +44,7 @@ fn handle_command(
         .map(&str::to_owned)
         .collect();
     if parts.is_empty() {
-        panic!("command was empty");
+        thread::sleep(Duration::from_millis(100));
         return Err("Command was empty".to_owned());
     }
     let command = parts.remove(0);
@@ -83,6 +83,7 @@ fn handle_command(
                 let output = EngineOutput::BestMove(BestMoveOutput {
                     start_state: state_2.clone(),
                     next_state: new_best_move.state.clone(),
+                    trigger: new_best_move.trigger,
                     meta: BestMoveMeta {
                         score: new_best_move.score,
                         calculated_depth: new_best_move.depth,

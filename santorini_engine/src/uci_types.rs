@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::{PartialAction, SantoriniState},
-    search::Hueristic,
+    search::{BestMoveTrigger, Hueristic},
 };
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NextStateOutput {
@@ -28,6 +28,7 @@ pub struct BestMoveMeta {
 pub struct BestMoveOutput {
     pub start_state: SantoriniState,
     pub next_state: SantoriniState,
+    pub trigger: BestMoveTrigger,
     pub meta: BestMoveMeta,
 }
 
@@ -36,7 +37,7 @@ pub struct StartedOutput {}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
-#[serde(rename_all(serialize = "snake_case"))]
+#[serde(rename_all ="snake_case")]
 pub enum EngineOutput {
     Started(StartedOutput),
     BestMove(BestMoveOutput),

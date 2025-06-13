@@ -1,13 +1,20 @@
 use std::io::{self, BufRead, BufReader, Write};
-use std::process::{Command, Stdio};
-use std::sync::mpsc;
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use santorini_engine::board::SantoriniState;
+use santorini_engine::board::{Player, SantoriniState};
+use santorini_engine::fen::board_to_fen;
 use santorini_engine::uci_types::EngineOutput;
 
-fn prepare_subprocess(engine_path: &str) {
+struct EngineSubprocess {
+    child: Child,
+    stdin: ChildStdin,
+    receiver: Receiver<String>,
+}
+
+fn prepare_subprocess(engine_path: &str) -> EngineSubprocess {
     let mut child = Command::new(engine_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -42,27 +49,85 @@ fn prepare_subprocess(engine_path: &str) {
             panic!("Waited too long to spin up child");
         }
 
-        // let timeout = end_at - now;
-        let timeout = Duration::from_secs(1);
-
-        println!("polling");
-        // thread::sleep(Duration::from_secs(1));
+        let timeout = end_at - now;
 
         match child_msg_rx.recv_timeout(timeout) {
             Ok(msg) => {
-                println!("I got a message {}", msg);
+                // println!("I got a message {}", msg);
                 let parsed_msg: EngineOutput = serde_json::from_str(&msg).unwrap();
+                match parsed_msg {
+                    EngineOutput::Started(_) => {
+                        println!("Started!");
+                        break;
+                    }
+                    _ => {
+                        println!("received non-ready message. Still waiting...")
+                    }
+                }
                 println!("parsed msg: {:?}", parsed_msg);
             }
             Err(e) => {
-                // panic!("Error while waiting for child: {:?}", e);
+                panic!("Error while waiting for child: {:?}", e);
             }
         }
     }
+
+    EngineSubprocess {
+        child,
+        stdin,
+        receiver: child_msg_rx,
+    }
+}
+
+fn do_battle(root: &SantoriniState, c1: &mut EngineSubprocess, c2: &mut EngineSubprocess, thinking_time_secs: f32) {
+    let mut turn = 0;
+    let mut current_state = root.clone();
+
+    /*
+    loop {
+        let (engine, other) = match root.current_player {
+            Player::One => (&mut c1, &mut c2),
+            Player::Two => (&mut c2, &mut c1),
+        };
+
+        writeln!(other.stdin, "stop").expect("Failed to write to stdin");
+
+        let state_string = board_to_fen(&current_state);
+        writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
+
+        match engine.receiver.recv() {
+            Ok(msg) => {
+                let parsed_msg: EngineOutput = serde_json::from_str(&msg).unwrap();
+                match parsed_msg {
+                    EngineOutput::BestMove(best_move) => {
+                        println!("Best move: {:?}", best_move);
+                        current_state = best_move.next_state;
+                    }
+                    _ => {
+                        eprintln!("Unexpected message: {:?}", parsed_msg);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error receiving message: {:?}", e);
+            }
+        }
+
+        // Check for game over condition
+        if state.is_game_over() {
+            println!("Game over! Final state: {:?}", state);
+            break;
+        }
+
+        turn += 1;
+    }
+        */
 }
 
 fn main() {
-    prepare_subprocess("./all_versions/v1");
+    let mut c1 = prepare_subprocess("./all_versions/v1");
+    let mut c2 = prepare_subprocess("./all_versions/v1");
+    println!("beep boop");
 
     /*
     let mut child = Command::new("./all_versions/v1")
@@ -131,4 +196,7 @@ fn main() {
         }
     }
     */
+
+    writeln!(c1.stdin, "quit").expect("Failed to write to stdin");
+    writeln!(c2.stdin, "quit").expect("Failed to write to stdin");
 }
