@@ -17,6 +17,11 @@ impl Default for Player {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+pub enum God {
+    Mortal = 0,
+}
+
 impl Player {
     pub fn other(&self) -> Player {
         match self {
@@ -272,6 +277,11 @@ impl SantoriniState {
         } else {
             None
         }
+    }
+
+    pub fn set_winner(&mut self, player: Player) {
+        let player_idx = player as usize;
+        self.workers[player_idx] |= IS_WINNER_MASK;
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<FullChoice> {

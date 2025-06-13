@@ -572,10 +572,11 @@ class RootPanel:
 
         self.last_engine_move = message
 
+        trigger = message['trigger']
         meta = message['meta']
         action_string = pretty_string_for_action_sequence(meta['actions'])
 
-        thinking_string = f"{action_string} (eval: {meta['score']}) ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']})\n"
+        thinking_string = f"{action_string} (eval: {meta['score']}) ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']}) | {trigger}\n"
 
         self.engine_output.insert('1.0', thinking_string)
         self.engine_output.see('1.0')

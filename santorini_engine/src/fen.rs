@@ -1,6 +1,8 @@
-use crate::board::{NUM_SQUARES, Player, SantoriniState};
+use crate::board::{God, NUM_SQUARES, Player, SantoriniState};
 
 pub fn board_to_fen(board: &SantoriniState) -> String {
+    let winner = board.get_winner();
+
     let mut result = String::new();
     for p in 0..NUM_SQUARES {
         result += &board.get_true_height(1 << p).to_string();
@@ -11,7 +13,11 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
     result += &(board.current_player as usize + 1).to_string();
 
     result += "/";
-
+    if winner == Some(Player::One) {
+        result += "#";
+    }
+    // TODO!
+    result += "mortal:";
     result += &board
         .get_positions_for_player(Player::One)
         .iter()
@@ -20,6 +26,11 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
         .join(",");
 
     result += "/";
+    // TODO!
+    result += "mortal:";
+    if winner == Some(Player::Two) {
+        result += "#";
+    }
 
     result += &board
         .get_positions_for_player(Player::Two)
@@ -29,6 +40,57 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
         .join(",");
 
     result
+}
+
+struct CharacterFen {
+    god: God,
+    worker_locations: Vec<u32>,
+    is_won: bool,
+}
+
+const CHARACTER_FEN_WARNING: &str =
+    "Player details must be in the format: /god_name:<worker_id_1>,...[#(if won)]/";
+
+fn parse_character_section(mut s: &str) -> Result<CharacterFen, String> {
+    if s.len() == 0 {
+        return Err(CHARACTER_FEN_WARNING.to_owned());
+    }
+
+    let is_won = s.contains("#");
+    let s = s.replace("#", "");
+
+    let colon_splits: Vec<_> = s.split(":").collect();
+    if colon_splits.len() > 2 {
+        return Err(CHARACTER_FEN_WARNING.to_owned());
+    }
+
+    let (god, worker_split) = if colon_splits.len() == 1 {
+        eprintln!("[DEPRECATION WARNING] No god title found. Defaulting to mortal for now");
+        (God::Mortal, colon_splits[0])
+    } else {
+        // TODO!!!
+        (God::Mortal, colon_splits[1])
+    };
+
+    let mut worker_locations: Vec<u32> = Vec::new();
+    for worker_pos_string in worker_split.split(',') {
+        if worker_pos_string.is_empty() {
+            continue;
+        }
+        let pos: u32 = worker_pos_string
+            .parse()
+            .map_err(|_| format!("Invalid position '{}'", worker_pos_string))?;
+        if pos >= NUM_SQUARES as u32 {
+            return Err(format!("Position {} out of bounds", pos));
+        }
+        worker_locations.push(pos);
+    }
+
+    Ok(CharacterFen {
+        god,
+        worker_locations,
+        is_won,
+    })
 }
 
 pub fn parse_fen(s: &str) -> Result<SantoriniState, String> {
@@ -68,32 +130,25 @@ pub fn parse_fen(s: &str) -> Result<SantoriniState, String> {
     };
     result.current_player = current_player;
 
-    let p1_positions = sections[2];
-    for p1_pos in p1_positions.split(',') {
-        if p1_pos.is_empty() {
-            continue;
-        }
-        let pos: usize = p1_pos
-            .parse()
-            .map_err(|_| format!("Invalid position '{}'", p1_pos))?;
-        if pos >= NUM_SQUARES {
-            return Err(format!("Position {} out of bounds", pos));
-        }
-        result.workers[0] |= 1 << pos;
+    // TODO: use gods
+    let p1_section = parse_character_section(sections[2])?;
+    let p2_section = parse_character_section(sections[3])?;
+
+    if p1_section.is_won && p2_section.is_won {
+        return Err("Cannot have both players won".to_owned());
     }
 
-    let p2_positions = sections[3];
-    for p2_pos in p2_positions.split(',') {
-        if p2_pos.is_empty() {
-            continue;
-        }
-        let pos: usize = p2_pos
-            .parse()
-            .map_err(|_| format!("Invalid position '{}'", p2_pos))?;
-        if pos >= NUM_SQUARES {
-            return Err(format!("Position {} out of bounds", pos));
-        }
+    for pos in p1_section.worker_locations {
+        result.workers[0] |= 1 << pos;
+    }
+    for pos in p2_section.worker_locations {
         result.workers[1] |= 1 << pos;
+    }
+
+    if p1_section.is_won {
+        result.set_winner(Player::One);
+    } else if p2_section.is_won {
+        result.set_winner(Player::Two);
     }
 
     Ok(result)
@@ -112,10 +167,6 @@ mod tests {
         for _ in 0..10 {
             let mut state = SantoriniState::new_basic_state();
             loop {
-                if state.get_winner().is_some() {
-                    break;
-                }
-
                 let state_string = format!("{state:?}");
                 let rebuilt_state = SantoriniState::try_from(state_string.as_str()).unwrap();
 
@@ -124,9 +175,22 @@ mod tests {
                     "State mismatch after string conversion"
                 );
 
+                if state.get_winner().is_some() {
+                    break;
+                }
+
                 let child_states = state.get_valid_next_states();
                 state = child_states.choose(&mut rng).unwrap().clone();
             }
         }
     }
+
+    /*
+    #[test]
+    fn joe_test() {
+        let fen = "4432121140442114141000000/1/6,7/5,12#";
+        let state = SantoriniState::try_from(fen);
+        println!("state: {:?}", state);
+    }
+    *
 }
