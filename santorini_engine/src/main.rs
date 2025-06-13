@@ -55,7 +55,7 @@ fn handle_command(
         }
         "ping" => Ok(Some("pong".to_owned())),
         "stop" => match engine.stop() {
-            Ok(best_move) => Err(format!("{:?}", best_move.state)),
+            Ok(best_move) => Err(format!("Stopping with best move: {:?}", best_move.state)),
             Err(e) => Err(e),
         },
         "set_position" => {

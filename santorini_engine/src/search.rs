@@ -61,7 +61,7 @@ pub fn judge_state(state: &SantoriniState, depth: Hueristic) -> Hueristic {
     MortalAgent::hueristic(state, Player::One) - MortalAgent::hueristic(state, Player::Two)
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BestMoveTrigger {
     StopFlag,

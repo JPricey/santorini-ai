@@ -1,4 +1,4 @@
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
@@ -6,9 +6,11 @@ use std::time::{Duration, Instant};
 
 use santorini_engine::board::{Player, SantoriniState};
 use santorini_engine::fen::board_to_fen;
-use santorini_engine::uci_types::EngineOutput;
+use santorini_engine::search::{BestMoveTrigger, NewBestMove};
+use santorini_engine::uci_types::{BestMoveOutput, EngineOutput};
 
 struct EngineSubprocess {
+    #[allow(dead_code)]
     child: Child,
     stdin: ChildStdin,
     receiver: Receiver<String>,
@@ -17,11 +19,12 @@ struct EngineSubprocess {
 fn prepare_subprocess(engine_path: &str) -> EngineSubprocess {
     let mut child = Command::new(engine_path)
         .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to spawn process");
 
-    let mut stdin = child.stdin.take().expect("Failed to open stdin");
+    let stdin = child.stdin.take().expect("Failed to open stdin");
     let stdout = child.stdout.take().expect("Failed to open stdout");
 
     let (child_msg_tx, child_msg_rx) = mpsc::channel::<String>();
@@ -31,7 +34,6 @@ fn prepare_subprocess(engine_path: &str) -> EngineSubprocess {
         for line in reader.lines() {
             match line {
                 Ok(line) => {
-                    println!("Received stdout: {}", line);
                     child_msg_tx.send(line).unwrap();
                 }
                 Err(e) => {
@@ -79,124 +81,104 @@ fn prepare_subprocess(engine_path: &str) -> EngineSubprocess {
     }
 }
 
-fn do_battle(root: &SantoriniState, c1: &mut EngineSubprocess, c2: &mut EngineSubprocess, thinking_time_secs: f32) {
-    let mut turn = 0;
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+struct BattleResult {
+    winning_player: Player,
+    depth: usize,
+    // history
+}
+
+fn do_battle<'a>(
+    root: &SantoriniState,
+    c1: &'a mut EngineSubprocess,
+    c2: &'a mut EngineSubprocess,
+    thinking_time_secs: f32,
+) -> BattleResult {
+    let mut depth = 0;
     let mut current_state = root.clone();
 
-    /*
     loop {
-        let (engine, other) = match root.current_player {
-            Player::One => (&mut c1, &mut c2),
-            Player::Two => (&mut c2, &mut c1),
+        let (engine, other) = match current_state.current_player {
+            Player::One => (&mut *c1, &mut *c2),
+            Player::Two => (&mut *c2, &mut *c1),
         };
 
+        // Just incase
         writeln!(other.stdin, "stop").expect("Failed to write to stdin");
 
         let state_string = board_to_fen(&current_state);
         writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
 
-        match engine.receiver.recv() {
-            Ok(msg) => {
-                let parsed_msg: EngineOutput = serde_json::from_str(&msg).unwrap();
-                match parsed_msg {
-                    EngineOutput::BestMove(best_move) => {
-                        println!("Best move: {:?}", best_move);
-                        current_state = best_move.next_state;
-                    }
-                    _ => {
-                        eprintln!("Unexpected message: {:?}", parsed_msg);
+        let started_at = Instant::now();
+        let end_at = started_at + Duration::from_secs_f32(thinking_time_secs);
+        let mut saved_best_move: Option<BestMoveOutput> = None;
+
+        loop {
+            let now = Instant::now();
+            if now >= end_at {
+                break;
+            }
+
+            let timeout = end_at - now;
+            match engine.receiver.recv_timeout(timeout) {
+                Ok(msg) => {
+                    let parsed_msg: EngineOutput = serde_json::from_str(&msg).unwrap();
+                    match parsed_msg {
+                        EngineOutput::BestMove(best_move) => {
+                            if best_move.start_state != current_state {
+                                // println!("Message for wrong state");
+                                continue;
+                            }
+                            let is_eol = best_move.trigger == BestMoveTrigger::EndOfLine;
+                            saved_best_move = Some(best_move);
+                            if is_eol {
+                                println!("Mate found, ending early");
+                                break;
+                            }
+                        }
+                        _ => {
+                            eprintln!("Unexpected message: {:?}", parsed_msg);
+                        }
                     }
                 }
-            }
-            Err(e) => {
-                eprintln!("Error receiving message: {:?}", e);
+                Err(e) => {
+                    eprintln!("Error receiving message: {:?}", e);
+                }
             }
         }
 
-        // Check for game over condition
-        if state.is_game_over() {
-            println!("Game over! Final state: {:?}", state);
-            break;
-        }
+        writeln!(engine.stdin, "stop").expect("Failed to write to stdin");
 
-        turn += 1;
+        depth += 1;
+
+        let saved_best_move = saved_best_move.expect("Expected engine to output at least 1 move");
+
+        current_state = saved_best_move.next_state.clone();
+
+        current_state.print_to_console();
+        println!(
+            "Making move: {:?} | d: {} s: {}",
+            saved_best_move.meta.actions,
+            saved_best_move.meta.calculated_depth,
+            saved_best_move.meta.score
+        );
+
+        let winner = current_state.get_winner();
+        if let Some(winner) = winner {
+            return BattleResult {
+                winning_player: winner,
+                depth,
+            };
+        }
     }
-        */
 }
 
 fn main() {
     let mut c1 = prepare_subprocess("./all_versions/v1");
     let mut c2 = prepare_subprocess("./all_versions/v1");
-    println!("beep boop");
 
-    /*
-    let mut child = Command::new("./all_versions/v1")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to spawn process");
-
-    let mut stdin = child.stdin.take().expect("Failed to open stdin");
-    let stdout = child.stdout.take().expect("Failed to open stdout");
-
-    let (child_msg_tx, child_msg_rx) = mpsc::channel();
-
-    thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
-            match line {
-                Ok(line) => {
-                    println!("Recived stdout: {}", line);
-                    child_msg_tx.send(line).unwrap();
-                }
-                Err(e) => {
-                    eprintln!("Error reading line: {}", e);
-                    break;
-                }
-            }
-        }
-    });
-
-    let msg = child_msg_rx.recv().unwrap();
-    println!("first message! {}", msg);
-
-    // Example of sending commands to the subprocess
-    // You can integrate this into your main loop or create another input handling mechanism
-    writeln!(stdin, "your command here").expect("Failed to write to stdin");
-
-    // Main thread continues to check if the child process is still running
-    loop {
-        // Example: Read a line from user and send to subprocess
-        let mut input = String::new();
-        print!("> ");
-        std::io::stdout().flush().expect("Failed to flush stdout");
-        std::io::stdin()
-            .read_line(&mut input)
-            .expect("Failed to read line");
-
-        println!("got input from user: {input}");
-
-        // Send the command to the subprocess
-        writeln!(stdin, "{}", input.trim()).expect("Failed to write to stdin");
-
-        // Check if process is still running
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                println!("Process exited with status: {}", status);
-                break;
-            }
-            Ok(None) => {
-                // Process still running
-                thread::sleep(Duration::from_millis(100));
-            }
-            Err(e) => {
-                eprintln!("Error waiting for process: {}", e);
-                break;
-            }
-        }
-    }
-    */
-
-    writeln!(c1.stdin, "quit").expect("Failed to write to stdin");
-    writeln!(c2.stdin, "quit").expect("Failed to write to stdin");
+    let root = SantoriniState::new_basic_state();
+    let outcome = do_battle(&root, &mut c1, &mut c2, 5.0);
+    println!("Game has ended {:?}", outcome);
 }

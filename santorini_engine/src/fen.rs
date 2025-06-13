@@ -43,6 +43,7 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
 }
 
 struct CharacterFen {
+    #[allow(dead_code)]
     god: God,
     worker_locations: Vec<u32>,
     is_won: bool,
@@ -51,7 +52,8 @@ struct CharacterFen {
 const CHARACTER_FEN_WARNING: &str =
     "Player details must be in the format: /god_name:<worker_id_1>,...[#(if won)]/";
 
-fn parse_character_section(mut s: &str) -> Result<CharacterFen, String> {
+
+fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
     if s.len() == 0 {
         return Err(CHARACTER_FEN_WARNING.to_owned());
     }
@@ -192,5 +194,5 @@ mod tests {
         let state = SantoriniState::try_from(fen);
         println!("state: {:?}", state);
     }
-    *
+    */
 }

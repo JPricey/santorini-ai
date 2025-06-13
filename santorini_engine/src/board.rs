@@ -52,7 +52,7 @@ pub const NEIGHBOR_MAP: [BitmapType; NUM_SQUARES] = [
     9175040,
 ];
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Coord {
     pub x: usize,
     pub y: usize,
@@ -64,6 +64,40 @@ impl Serialize for Coord {
         S: serde::Serializer,
     {
         serializer.serialize_str(&format!("{:?}", self))
+    }
+}
+
+impl<'de> Deserialize<'de> for Coord {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        if s.len() != 2 {
+            return Err(serde::de::Error::custom("Invalid Coord format"));
+        }
+        let raw_row = s.char_indices().nth(0).ok_or(serde::de::Error::custom(
+            "Invalid Coord format: no row found",
+        ))?;
+        let x = match raw_row.1 {
+            'A' => 0,
+            'B' => 1,
+            'C' => 2,
+            'D' => 3,
+            'E' => 4,
+            _ => return Err(serde::de::Error::custom("Invalid column letter")),
+        };
+        let raw_col = s.char_indices().nth(1).ok_or(serde::de::Error::custom(
+            "Invalid Coord format: no column found",
+        ))?;
+        let y = raw_col.1.to_digit(10).ok_or(serde::de::Error::custom(
+            "Invalid Coord format: column must be a digit",
+        ))? as usize;
+        if y < 1 || y > 5 {
+            return Err(serde::de::Error::custom("Row must be between 1 and 5"));
+        }
+
+        Ok(Coord { x, y: 5 - y })
     }
 }
 
@@ -117,7 +151,7 @@ fn print_full_bitmap(mut mask: BitmapType) {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
-#[serde(rename_all(serialize = "snake_case"))]
+#[serde(rename_all = "snake_case")]
 pub enum PartialAction {
     PlaceWorker(Coord),
     SelectWorker(Coord),
@@ -477,5 +511,21 @@ impl TryFrom<&String> for SantoriniState {
 
     fn try_from(s: &String) -> Result<Self, Self::Error> {
         parse_fen(s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serde_coord() {
+        for position in 0..25 {
+            let coord = position_to_coord(position);
+            let coord_str = serde_json::to_string(&coord).unwrap();
+            let parsed_coord: Coord = serde_json::from_str(&coord_str).unwrap();
+
+            assert_eq!(coord, parsed_coord);
+        }
     }
 }
