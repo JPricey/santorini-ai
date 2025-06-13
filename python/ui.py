@@ -195,9 +195,15 @@ class GameBoardPanel(tk.Frame):
         self.click_callback = click_callback
         self.configure(bg="white", width=width, height=height)
 
-        self.status_bar = tk.Label(
-            self, text="Ready", bd=1, relief=tk.SUNKEN, anchor=tk.W)
-        self.status_bar.grid(row=0, column=0, columnspan=5, sticky="ew")
+        self.status_bar = tk.Entry(
+            self,
+            readonlybackground=self["background"],
+            relief=tk.SUNKEN,
+            bd=1
+        )
+        self.status_bar.insert(0, "Ready")
+        self.status_bar.configure(state="readonly")
+        self.status_bar.grid(row=0, column=0, columnspan=6, sticky="ew")
 
         self.buttons = []
         self.create_grid()
@@ -238,15 +244,19 @@ class GameBoardPanel(tk.Frame):
         self.game_state = parse_game_state(game_state_string)
 
         if self.game_state is None:
-            self.status_bar.config(text=f"Invalid: {self.game_state_string}")
+            new_text = f"Invalid: {self.game_state_string}"
         else:
             if self.game_state.player_1_turn:
                 player_str = '1 (X)'
             else:
                 player_str = '2 (O)'
             to_move = f'Player {player_str} to move.'
-            self.status_bar.config(
-                text=f"{to_move} ({self.game_state_string})")
+            new_text = f"{to_move} ({self.game_state_string})"
+
+        self.status_bar.config(state="normal")
+        self.status_bar.delete(0, tk.END)
+        self.status_bar.insert(0, new_text)
+        self.status_bar.config(state="readonly") 
 
         self.draw_board()
 
@@ -324,6 +334,33 @@ class ActionSelector():
             sorted(result, key=pretty_string_for_action))
 
 
+class PositionHistory:
+    def __init__(self, initial_position_string):
+        self.positions_history = [initial_position_string]
+        self.current_index = 0
+
+    def current_position_string(self):
+        return self.positions_history[self.current_index]
+
+    def undo(self):
+        if self.current_index > 0:
+            self.current_index -= 1
+            return True
+        return False
+
+    def redo(self):
+        if self.current_index < len(self.positions_history) - 1:
+            self.current_index += 1
+            return True
+        return False
+
+    def add_next_position(self, position_string):
+        if self.current_index < len(self.positions_history) - 1:
+            self.positions_history = self.positions_history[:self.current_index + 1]
+        self.positions_history.append(position_string)
+        self.current_index += 1
+
+
 class RootPanel:
     def __init__(self, root):
         self.root = root
@@ -331,10 +368,14 @@ class RootPanel:
         self.root.geometry("1620x960")
 
         self.action_selector = None
+        self.last_engine_move = None
+        self.position_history = PositionHistory(BASIC_START_STRING)
 
-        self.root.bind("<Control-c>", lambda event: self.on_closing())
+        self.root.bind("<Control-w>", lambda event: self.on_closing())
+        self.root.bind("<Up>", lambda event: self.on_up_key())
+        self.root.bind("<Left>", lambda event: self.on_left_key())
+        self.root.bind("<Right>", lambda event: self.on_right_key())
 
-        self.current_position_string = BASIC_START_STRING
         self.analysis_results = []
 
         self.create_ui()
@@ -343,6 +384,25 @@ class RootPanel:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.position_to_action_cache = {}
+
+    def current_position_string(self):
+        return self.position_history.current_position_string()
+
+    def on_up_key(self):
+        if self.last_engine_move is None or self.last_engine_move['start_state'] != self.current_position_string():
+            print('tried to pick engine move but it was invalid')
+            return
+
+        print('picking engine move')
+        self.update_position(self.last_engine_move['next_state'])
+
+    def on_left_key(self):
+        if self.position_history.undo():
+            self.on_position_updated()
+
+    def on_right_key(self):
+        if self.position_history.redo():
+            self.on_position_updated()
 
     def create_ui(self):
         # Configure grid layout
@@ -401,7 +461,7 @@ class RootPanel:
     def on_click_cell(self, idx):
         coord = INDEX_TO_COORD_MAPPING[idx]
 
-        if self.action_selector is None or self.action_selector.current_position != self.current_position_string:
+        if self.action_selector is None or self.action_selector.current_position != self.current_position_string():
             print('Actions out of sync')
             return
 
@@ -424,13 +484,17 @@ class RootPanel:
     def update_position(self, position_string):
         position_string = position_string.strip()
 
-        self.engine_output.delete("1.0", tk.END)
         if position_string:
-            self.current_position_string = position_string
-            self.game_board.set_position(position_string)
-            self.engine.send_command(f'set_position {position_string}')
-            self.action_selector = None
-            self.try_start_action_sequence()
+            self.position_history.add_next_position(position_string)
+            self.on_position_updated()
+
+    def on_position_updated(self):
+        self.engine_output.delete("1.0", tk.END)
+        self.engine.send_command(
+            f'set_position {self.current_position_string()}')
+        self.game_board.set_position(self.current_position_string())
+        self.action_selector = None
+        self.try_start_action_sequence()
 
     def handle_engine_output(self, message):
         self.root.after(0, lambda: self.handle_message(message))
@@ -454,15 +518,15 @@ class RootPanel:
 
     def try_start_action_sequence(self):
         next_moves = self.position_to_action_cache.get(
-            self.current_position_string)
+            self.current_position_string())
         if next_moves is None:
             self.engine.send_command(
-                f'next_moves {self.current_position_string}')
+                f'next_moves {self.current_position_string()}')
             return
 
-        if self.action_selector is None or self.action_selector.current_position != self.current_position_string:
+        if self.action_selector is None or self.action_selector.current_position != self.current_position_string():
             self.action_selector = ActionSelector(
-                current_position=self.current_position_string,
+                current_position=self.current_position_string(),
                 all_futures=next_moves['next_states'],
                 current_action_choices=[]
             )
@@ -503,8 +567,10 @@ class RootPanel:
         self.try_start_action_sequence()
 
     def handle_best_move_message(self, message):
-        if message['start_state'] != self.current_position_string:
+        if message['start_state'] != self.current_position_string():
             print('Skipping best move for non-current position')
+
+        self.last_engine_move = message
 
         meta = message['meta']
         action_string = pretty_string_for_action_sequence(meta['actions'])
@@ -515,7 +581,7 @@ class RootPanel:
         self.engine_output.see('1.0')
 
     def handle_started_message(self, message):
-        self.update_position(self.current_position_string)
+        self.update_position(self.current_position_string())
 
     def check_exit_flag(self):
         self.root.after(100, self.check_exit_flag)
