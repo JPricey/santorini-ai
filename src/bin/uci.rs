@@ -43,6 +43,11 @@ pub struct BestMoveOutput {
     pub meta: BestMoveMeta,
 }
 
+#[derive(Serialize)]
+#[serde(tag = "type")]
+#[serde(rename(serialize = "started"))]
+pub struct StartedOutput {}
+
 fn find_action_path(
     start_state: &SantoriniState,
     destination_state: &SantoriniState,
@@ -164,6 +169,11 @@ fn main() {
     });
 
     let mut engine = EngineThreadWrapper::new();
+
+    match serde_json::to_string(&StartedOutput {}) {
+        Ok(json) => println!("{}", json),
+        Err(e) => eprintln!("Error serializing starting output: {}", e),
+    }
 
     loop {
         let raw_cmd = cli_command_receiver.recv().unwrap();

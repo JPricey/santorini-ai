@@ -21,8 +21,6 @@ for i in range(25):
     INDEX_TO_COORD_MAPPING.append(
         f'{COL_LABEL_MAPPING[col]}{ROW_LABEL_MAPPING[row]}')
 
-print(INDEX_TO_COORD_MAPPING)
-
 
 class EngineProcess:
     def __init__(self, output_callback):
@@ -80,8 +78,6 @@ def parse_game_state(game_state_string):
     result = GameState()
     game_state_string = ''.join(game_state_string.split())
     parts = game_state_string.split('/')
-    for part in parts:
-        print('part', part)
 
     if len(parts) != 4:
         print("Game state has wrong number of parts: ", len(parts))
@@ -192,10 +188,11 @@ class BoardSquare(tk.Frame):
 
 
 class GameBoardPanel(tk.Frame):
-    def __init__(self, parent, width=400, height=400, **kwargs):
+    def __init__(self, parent, width=400, height=400, click_callback=None, **kwargs):
         super().__init__(parent, **kwargs)
         self.width = width
         self.height = height
+        self.click_callback = click_callback
         self.configure(bg="white", width=width, height=height)
 
         self.status_bar = tk.Label(
@@ -233,7 +230,8 @@ class GameBoardPanel(tk.Frame):
             self.rowconfigure(i, weight=1, minsize=80, uniform="row")
 
     def on_cell_click(self, idx):
-        print(f"Clicked cell at ({idx})")
+        if self.click_callback:
+            self.click_callback(idx)
 
     def set_position(self, game_state_string):
         self.game_state_string = game_state_string
@@ -322,20 +320,21 @@ class ActionSelector():
                     self.current_action_choices)]
                 result.add(frozendict(next_action))
 
-        self.next_possible_actions = list(result)
+        self.next_possible_actions = list(
+            sorted(result, key=pretty_string_for_action))
 
 
 class RootPanel:
     def __init__(self, root):
         self.root = root
         self.root.title("Game Analysis Engine")
-        self.root.geometry("900x600")
+        self.root.geometry("1620x960")
 
         self.action_selector = None
 
         self.root.bind("<Control-c>", lambda event: self.on_closing())
 
-        self.current_position = None
+        self.current_position_string = BASIC_START_STRING
         self.analysis_results = []
 
         self.create_ui()
@@ -353,7 +352,8 @@ class RootPanel:
         self.root.rowconfigure(1, weight=0)     # Bottom controls don't expand
 
         # Create the game board panel (left side)
-        self.game_board = GameBoardPanel(self.root, width=500, height=500)
+        self.game_board = GameBoardPanel(
+            self.root, width=500, height=500, click_callback=self.on_click_cell)
         self.game_board.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
         # Create right-side frame to contain both text areas
@@ -398,17 +398,35 @@ class RootPanel:
             control_frame, text="Set Position", command=self.pressed_set_position)
         set_pos_button.grid(row=0, column=1, padx=5, pady=5)
 
+    def on_click_cell(self, idx):
+        coord = INDEX_TO_COORD_MAPPING[idx]
+
+        if self.action_selector is None or self.action_selector.current_position != self.current_position_string:
+            print('Actions out of sync')
+            return
+
+        possibly_pressed_actions = []
+        for action in self.action_selector.next_possible_actions:
+            if action.get('value') == coord:
+                possibly_pressed_actions.append(action)
+
+        if len(possibly_pressed_actions) == 1:
+            self.action_selector.add_partial_action(
+                possibly_pressed_actions[0])
+            self.check_for_completed_action()
+        elif len(possibly_pressed_actions) > 1:
+            print('duplicate possible actions??', possibly_pressed_actions)
+
     def pressed_set_position(self):
         input_field = self.input_field.get()
         self.update_position(input_field)
 
     def update_position(self, position_string):
         position_string = position_string.strip()
-        print('update position called', position_string)
 
         self.engine_output.delete("1.0", tk.END)
         if position_string:
-            self.current_position = position_string
+            self.current_position_string = position_string
             self.game_board.set_position(position_string)
             self.engine.send_command(f'set_position {position_string}')
             self.action_selector = None
@@ -429,19 +447,22 @@ class RootPanel:
             self.handle_best_move_message(message)
         elif message_type == 'next_moves':
             self.handle_next_moves_message(message)
+        elif message_type == 'started':
+            self.handle_started_message(message)
         else:
             print('Unknown message type', message_type, raw_message)
 
     def try_start_action_sequence(self):
-        next_moves = self.position_to_action_cache.get(self.current_position)
+        next_moves = self.position_to_action_cache.get(
+            self.current_position_string)
         if next_moves is None:
-            print('requesting moves data')
-            self.engine.send_command(f'next_moves {self.current_position}')
+            self.engine.send_command(
+                f'next_moves {self.current_position_string}')
             return
 
-        if self.action_selector is None or self.action_selector.current_position != self.current_position:
+        if self.action_selector is None or self.action_selector.current_position != self.current_position_string:
             self.action_selector = ActionSelector(
-                current_position=self.current_position,
+                current_position=self.current_position_string,
                 all_futures=next_moves['next_states'],
                 current_action_choices=[]
             )
@@ -465,14 +486,16 @@ class RootPanel:
             # value = self.action_options_panel.get(index)
             data = self.action_selector.next_possible_actions[index]
             self.action_selector.add_partial_action(data)
+            self.check_for_completed_action()
 
-            all_possible_futures = self.action_selector.get_all_possible_futures()
-            if len(all_possible_futures) == 1:
-                future = all_possible_futures[0]
-                future_state = future['next_state']
-                self.update_position(future_state)
-            else:
-                self.set_action_sequence_options()
+    def check_for_completed_action(self):
+        all_possible_futures = self.action_selector.get_all_possible_futures()
+        if len(all_possible_futures) == 1:
+            future = all_possible_futures[0]
+            future_state = future['next_state']
+            self.update_position(future_state)
+        else:
+            self.set_action_sequence_options()
 
     def handle_next_moves_message(self, message):
         start_state = message['start_state']
@@ -480,16 +503,19 @@ class RootPanel:
         self.try_start_action_sequence()
 
     def handle_best_move_message(self, message):
-        if message['start_state'] != self.current_position:
+        if message['start_state'] != self.current_position_string:
             print('Skipping best move for non-current position')
 
         meta = message['meta']
         action_string = pretty_string_for_action_sequence(meta['actions'])
 
-        thinking_string = f"{meta['score']}: {action_string} ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']})\n"
+        thinking_string = f"{action_string} (eval: {meta['score']}) ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']})\n"
 
         self.engine_output.insert('1.0', thinking_string)
         self.engine_output.see('1.0')
+
+    def handle_started_message(self, message):
+        self.update_position(self.current_position_string)
 
     def check_exit_flag(self):
         self.root.after(100, self.check_exit_flag)
