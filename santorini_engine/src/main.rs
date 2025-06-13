@@ -1,60 +1,17 @@
-use serde::{Deserialize, Serialize};
-
 use std::{
-    sync::{Arc, mpsc},
+    sync::{mpsc, Arc},
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use santorini_engine::{
     board::{PartialAction, SantoriniState},
     engine::EngineThreadWrapper,
-    search::{Hueristic, NewBestMove},
+    search::NewBestMove,
+    uci_types::{
+        BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,
+    },
 };
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct NextStateOutput {
-    pub next_state: SantoriniState,
-    pub actions: Vec<PartialAction>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "type")]
-#[serde(rename(serialize = "next_moves"))]
-pub struct NextMovesOutput {
-    pub start_state: SantoriniState,
-    pub next_states: Vec<NextStateOutput>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct BestMoveMeta {
-    score: Hueristic,
-    calculated_depth: usize,
-    elapsed_seconds: f32,
-    actions: Vec<PartialAction>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "type")]
-#[serde(rename(serialize = "best_move"))]
-pub struct BestMoveOutput {
-    pub start_state: SantoriniState,
-    pub next_state: SantoriniState,
-    pub meta: BestMoveMeta,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
-#[serde(rename(serialize = "started"))]
-pub struct StartedOutput {}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "type")]
-pub enum EngineOutput {
-    Started(StartedOutput),
-    BestMove(BestMoveOutput),
-    NextMoves(NextMovesOutput),
-}
 
 fn find_action_path(
     start_state: &SantoriniState,
@@ -87,6 +44,7 @@ fn handle_command(
         .map(&str::to_owned)
         .collect();
     if parts.is_empty() {
+        panic!("command was empty");
         return Err("Command was empty".to_owned());
     }
     let command = parts.remove(0);
@@ -186,6 +144,11 @@ fn main() {
 
     loop {
         let raw_cmd = cli_command_receiver.recv().unwrap();
+        if raw_cmd.trim().is_empty() {
+            println!("empty command");
+            thread::sleep(Duration::from_secs(1));
+            continue;
+        }
         match handle_command(&mut engine, &raw_cmd) {
             Ok(Some(response)) => {
                 println!("{}", response);
