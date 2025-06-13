@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use std::{
     sync::{Arc, mpsc},
@@ -6,19 +6,19 @@ use std::{
     time::Instant,
 };
 
-use santorini_ai::{
+use santorini_engine::{
     board::{PartialAction, SantoriniState},
     engine::EngineThreadWrapper,
     search::{Hueristic, NewBestMove},
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct NextStateOutput {
     pub next_state: SantoriniState,
     pub actions: Vec<PartialAction>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename(serialize = "next_moves"))]
 pub struct NextMovesOutput {
@@ -26,7 +26,7 @@ pub struct NextMovesOutput {
     pub next_states: Vec<NextStateOutput>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BestMoveMeta {
     score: Hueristic,
     calculated_depth: usize,
@@ -34,7 +34,7 @@ pub struct BestMoveMeta {
     actions: Vec<PartialAction>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename(serialize = "best_move"))]
 pub struct BestMoveOutput {
@@ -43,10 +43,18 @@ pub struct BestMoveOutput {
     pub meta: BestMoveMeta,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename(serialize = "started"))]
 pub struct StartedOutput {}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type")]
+pub enum EngineOutput {
+    Started(StartedOutput),
+    BestMove(BestMoveOutput),
+    NextMoves(NextMovesOutput),
+}
 
 fn find_action_path(
     start_state: &SantoriniState,
@@ -59,6 +67,13 @@ fn find_action_path(
         }
     }
     None
+}
+
+fn try_emit_message(message: &EngineOutput) {
+    match serde_json::to_string(message) {
+        Ok(json) => println!("{}", json),
+        Err(e) => eprintln!("Error serializing message: {}", e),
+    }
 }
 
 fn handle_command(
@@ -107,7 +122,7 @@ fn handle_command(
                     return;
                 };
 
-                let output = BestMoveOutput {
+                let output = EngineOutput::BestMove(BestMoveOutput {
                     start_state: state_2.clone(),
                     next_state: new_best_move.state.clone(),
                     meta: BestMoveMeta {
@@ -116,12 +131,9 @@ fn handle_command(
                         elapsed_seconds: start_time.elapsed().as_secs_f32(),
                         actions: action_path,
                     },
-                };
+                });
 
-                match serde_json::to_string(&output) {
-                    Ok(json) => println!("{}", json),
-                    Err(e) => eprintln!("Error serializing best move output: {}", e),
-                }
+                try_emit_message(&output);
             });
             engine.start_search(&state, Some(callback))?;
             Ok(None)
@@ -138,7 +150,7 @@ fn handle_command(
 
             let child_states = state.get_next_states_interactive();
 
-            let output = NextMovesOutput {
+            let output = EngineOutput::NextMoves(NextMovesOutput {
                 start_state: state.clone(),
                 next_states: child_states
                     .into_iter()
@@ -147,7 +159,7 @@ fn handle_command(
                         actions: full_choice.actions,
                     })
                     .collect(),
-            };
+            });
 
             serde_json::to_string(&output)
                 .map(|v| Some(v))
@@ -170,10 +182,7 @@ fn main() {
 
     let mut engine = EngineThreadWrapper::new();
 
-    match serde_json::to_string(&StartedOutput {}) {
-        Ok(json) => println!("{}", json),
-        Err(e) => eprintln!("Error serializing starting output: {}", e),
-    }
+    try_emit_message(&EngineOutput::Started(StartedOutput {}));
 
     loop {
         let raw_cmd = cli_command_receiver.recv().unwrap();

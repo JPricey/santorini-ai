@@ -31,7 +31,7 @@ class EngineProcess:
         self.start_engine()
 
     def start_engine(self):
-        start_command = shlex.split("cargo run --bin uci --release")
+        start_command = shlex.split("cargo run -p santorini_engine --release")
 
         self.process = subprocess.Popen(
             start_command,

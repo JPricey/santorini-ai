@@ -3,7 +3,7 @@ use colored::Colorize;
 use crate::fen::{board_to_fen, parse_fen};
 
 use super::search::{Hueristic, judge_state};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Player {
@@ -47,7 +47,7 @@ pub const NEIGHBOR_MAP: [BitmapType; NUM_SQUARES] = [
     9175040,
 ];
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub struct Coord {
     pub x: usize,
     pub y: usize,
@@ -110,7 +110,7 @@ fn print_full_bitmap(mut mask: BitmapType) {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 #[serde(rename_all(serialize = "snake_case"))]
 pub enum PartialAction {
@@ -217,6 +217,16 @@ impl Serialize for SantoriniState {
     {
         let fen = board_to_fen(self);
         serializer.serialize_str(&fen)
+    }
+}
+
+impl<'de> Deserialize<'de> for SantoriniState {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let fen: String = Deserialize::deserialize(deserializer)?;
+        parse_fen(&fen).map_err(serde::de::Error::custom)
     }
 }
 

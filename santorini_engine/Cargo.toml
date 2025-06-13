@@ -1,16 +1,15 @@
 cargo-features = ["profile-rustflags"]
 
-[workspace]
-members = [
-    "santorini_engine",
-    "battler",
-]
+[package]
+name = "santorini_engine"
+version = "0.1.0"
+edition = "2024"
 
-[workspace.dependencies]
-colored = "2.0.4"
-rand = "0.8.5"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
+[dependencies]
+colored = {workspace=true}
+rand = {workspace=true}
+serde = {workspace=true}
+serde_json = {workspace=true}
 
 [profile.release]
 opt-level = 3

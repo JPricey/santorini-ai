@@ -1,0 +1,9 @@
+[package]
+name = "battler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+santorini_engine = { path = "../santorini_engine" }
+colored = {workspace=true}
+
