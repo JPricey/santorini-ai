@@ -10,6 +10,7 @@ use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 
 struct EngineSubprocess {
+    engine_name: String,
     #[allow(dead_code)]
     child: Child,
     stdin: ChildStdin,
@@ -75,6 +76,7 @@ fn prepare_subprocess(engine_path: &str) -> EngineSubprocess {
     }
 
     EngineSubprocess {
+        engine_name: engine_path.to_owned(),
         child,
         stdin,
         receiver: child_msg_rx,
@@ -163,7 +165,8 @@ fn do_battle<'a>(
         current_state = saved_best_move.next_state.clone();
 
         println!(
-            "Making move for Player {:?}: {:?} | d: {} s: {}",
+            "({}) Making move for Player {:?}: {:?} | d: {} s: {}",
+            engine.engine_name,
             saved_best_move.start_state.current_player,
             saved_best_move.meta.actions,
             saved_best_move.meta.calculated_depth,
@@ -182,10 +185,10 @@ fn do_battle<'a>(
 }
 
 fn main() {
-    let mut c1 = prepare_subprocess("./all_versions/v1");
+    let mut c1 = prepare_subprocess("./all_versions/v2");
     let mut c2 = prepare_subprocess("./all_versions/v1");
 
     let root = SantoriniState::new_basic_state();
-    let outcome = do_battle(&root, &mut c1, &mut c2, 60.0);
+    let outcome = do_battle(&root, &mut c1, &mut c2, 5.0);
     println!("Game has ended {:?}", outcome);
 }

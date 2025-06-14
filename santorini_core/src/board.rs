@@ -2,7 +2,7 @@ use colored::Colorize;
 
 use crate::{
     fen::{board_to_fen, parse_fen},
-    gods::{FullChoice, GodPower, ALL_GODS_BY_ID},
+    gods::{ALL_GODS_BY_ID, FullChoice, GodPower},
 };
 
 use super::search::Hueristic;
@@ -150,6 +150,12 @@ fn print_full_bitmap(mut mask: BitmapType) {
         eprintln!("{}", output.chars().rev().collect::<String>());
         mask = mask >> 5;
     }
+}
+
+pub struct SantorinitStateWithGods {
+    p1_god: &'static GodPower,
+    p2_god: &'static GodPower,
+    raw_state: SantoriniState,
 }
 
 /*

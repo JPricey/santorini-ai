@@ -106,6 +106,7 @@ def parse_game_state(game_state_string):
     result.player_1_turn = turn_str == "1"
 
     def parse_worker_string(worker_string):
+        worker_string = worker_string.replace('#', '')
         # TODO: parse the god
         worker_string_parts = worker_string.split(':')
         if len(worker_string_parts) != 2:
