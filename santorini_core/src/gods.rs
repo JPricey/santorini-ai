@@ -3,12 +3,14 @@ use crate::board::{BoardState, Coord, FullGameState, Player};
 use artemis::build_artemis;
 use hephaestus::build_hephaestus;
 use mortal::build_mortal;
+use pan::build_pan;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
+pub mod mortal;
 pub mod artemis;
 pub mod hephaestus;
-pub mod mortal;
+pub mod pan;
 
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
@@ -18,6 +20,7 @@ pub enum GodName {
     Mortal = 0,
     Artemis = 1,
     Hephaestus = 2,
+    Pan = 3,
 }
 
 impl GodName {
@@ -152,7 +155,7 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 3] = [build_mortal(), build_artemis(), build_hephaestus()];
+pub const ALL_GODS_BY_ID: [GodPower; 4] = [build_mortal(), build_artemis(), build_hephaestus(), build_pan()];
 
 #[cfg(test)]
 mod tests {

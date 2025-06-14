@@ -102,6 +102,7 @@ fn do_battle<'a>(
     let mut current_state = root.clone();
 
     root.print_to_console();
+    println!();
 
     loop {
         let (engine, other) = match current_state.board.current_player {
@@ -165,15 +166,21 @@ fn do_battle<'a>(
 
         current_state = saved_best_move.next_state.clone();
 
+        let current_god = match saved_best_move.start_state.board.current_player {
+            Player::One => saved_best_move.start_state.p1_god,
+            Player::Two => saved_best_move.start_state.p2_god,
+        };
+
+        current_state.print_to_console();
         println!(
-            "({}) Making move for Player {:?}: {:?} | d: {} s: {}",
+            "({}) Made move for Player {:?} [{:?}]: {:?} | d: {} s: {}",
             engine.engine_name,
             saved_best_move.start_state.board.current_player,
+            current_god.god_name,
             saved_best_move.meta.actions,
             saved_best_move.meta.calculated_depth,
             saved_best_move.meta.score
         );
-        current_state.print_to_console();
 
         println!();
 
@@ -187,13 +194,15 @@ fn do_battle<'a>(
     }
 }
 
+struct BattlerArgs {}
+
 fn main() {
     let mut c1 = prepare_subprocess("./all_versions/v3");
-    let mut c2 = prepare_subprocess("./all_versions/v2");
+    let mut c2 = prepare_subprocess("./all_versions/v3");
 
     let mut root = FullGameState::new_basic_state_mortals();
-    // root.p2_god = GodName::Artemis.to_power();
-    // root.p1_god = GodName::Hephaestus.to_power();
+    root.p1_god = GodName::Mortal.to_power();
+    root.p2_god = GodName::Pan.to_power();
     let outcome = do_battle(&root, &mut c1, &mut c2, 10.0);
     println!("Game has ended {:?}", outcome);
 }

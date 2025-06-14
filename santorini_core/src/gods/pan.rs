@@ -8,7 +8,7 @@ use super::{
     mortal::mortal_player_advantage,
 };
 
-fn artemis_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
+pub fn pan_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
 where
     M: super::ResultsMapper<T>,
 {
@@ -17,6 +17,7 @@ where
     let current_player_idx = player as usize;
     let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
     let mut current_workers = starting_current_workers;
+
     let all_workers_mask = state.workers[0] | state.workers[1];
 
     while current_workers != 0 {
@@ -34,37 +35,25 @@ where
 
         // Remember that actual height map is offset by 1
         let too_high = std::cmp::min(3, worker_starting_height + 1);
-        let mut all_worker_moves =
-            NEIGHBOR_MAP[moving_worker_start_pos] & !state.height_map[too_high] & !all_workers_mask;
+        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos]
+            & !state.height_map[too_high]
+            & !non_selected_workers;
 
-        // Compute 2nd moves by moving again from all possible 1st moves
-        let mut first_level_worker_moves = all_worker_moves;
-        while first_level_worker_moves != 0 {
-            let first_order_pos = first_level_worker_moves.trailing_zeros();
-            let first_order_mask = 1 << first_order_pos;
-            first_level_worker_moves ^= first_order_mask;
-
-            let first_order_too_high =
-                std::cmp::min(3, state.get_height_for_worker(first_order_mask) + 1);
-
-            let second_order_moves =
-                NEIGHBOR_MAP[first_order_pos as usize] & !state.height_map[first_order_too_high];
-            all_worker_moves |= second_order_moves;
-        }
-        all_worker_moves &= !all_workers_mask;
-
-        while all_worker_moves != 0 {
-            let worker_move_pos = all_worker_moves.trailing_zeros() as usize;
+        while worker_moves != 0 {
+            let worker_move_pos = worker_moves.trailing_zeros() as usize;
             let worker_move_mask: BitmapType = 1 << worker_move_pos;
-            all_worker_moves ^= worker_move_mask;
+            worker_moves ^= worker_move_mask;
+
+            let new_worker_height = state.get_height_for_worker(worker_move_mask);
+            let pan_win = new_worker_height + 2 <= worker_starting_height;
+            let regular_win = new_worker_height == 3 && worker_starting_height < 3;
 
             let mut mapper = mapper.clone();
             mapper.add_action(PartialAction::MoveWorker(position_to_coord(
                 worker_move_pos,
             )));
 
-            // If we just won - end now and don't build
-            if state.height_map[2] & worker_move_mask > 0 {
+            if pan_win || regular_win {
                 let mut winning_next_state = state.clone();
                 winning_next_state.workers[current_player_idx] ^=
                     moving_worker_start_mask | worker_move_mask | IS_WINNER_MASK;
@@ -112,49 +101,35 @@ where
     result
 }
 
-pub const fn build_artemis() -> GodPower {
+pub const fn build_pan() -> GodPower {
     GodPower {
-        god_name: GodName::Artemis,
+        god_name: GodName::Pan,
         player_advantage_fn: mortal_player_advantage,
-        next_states: artemis_next_states::<BoardState, StateOnlyMapper>,
+        next_states: pan_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
-        next_states_interactive: artemis_next_states::<BoardStateWithAction, FullChoiceMapper>,
+        next_states_interactive: pan_next_states::<BoardStateWithAction, FullChoiceMapper>,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::board::FullGameState;
-
-    use super::*;
+    use crate::{board::FullGameState, fen::game_state_to_fen};
 
     #[test]
-    #[ignore]
-    fn test_artemis_basic() {
-        let state_str = "0000022222000000000000000/1/artemis:0,1/mortal:23,24";
+    fn test_pan_basic() {
+        let state_str = "2000044444000000000000000/1/pan:0/mortal:23,24";
         let state = FullGameState::try_from(state_str).unwrap();
 
         let next_states = state.get_next_states_interactive();
-        for state in next_states {
-            state.state.print_to_console();
-            println!("{:?}", state.actions);
-        }
-    }
+        // for state in &next_states {
+        //     state.state.print_to_console();
+        //     println!("{:?}", state.actions);
+        // }
 
-    #[test]
-    fn test_artemis_2nd_order_height() {
-        let state_str = "2230044444000000000000000/1/artemis:0/mortal:23,24";
-        let state = FullGameState::try_from(state_str).unwrap();
-
-        let next_states = state.get_next_states_interactive();
-        for state in next_states {
-            if state.state.board.get_winner().is_some() {
-                return;
-            }
-            // state.state.print_to_console();
-            // println!("{:?}", state.actions);
-        }
-
-        assert!(false, "Didn't find winning state");
+        assert_eq!(next_states.len(), 1);
+        assert_eq!(
+            game_state_to_fen(&next_states[0].state),
+            "2000044444000000000000000/2/#pan:1/mortal:23,24",
+        );
     }
 }
