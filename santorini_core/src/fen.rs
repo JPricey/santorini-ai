@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     board::{BoardState, FullGameState, NUM_SQUARES, Player},
-    gods::{ALL_GODS_BY_ID, GodName, GodPower},
+    gods::{ALL_GODS_BY_ID, GodName, },
 };
 
 pub fn game_state_to_fen(state: &FullGameState) -> String {

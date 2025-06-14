@@ -4,7 +4,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use santorini_core::board::{BoardState, FullGameState, Player};
+use santorini_core::board::{FullGameState, Player};
 use santorini_core::fen::game_state_to_fen;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};

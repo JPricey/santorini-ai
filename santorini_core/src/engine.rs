@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    board::{BoardState, FullGameState},
+    board::{FullGameState},
     search::{search_with_state, NewBestMove, SearchState},
     transposition_table::TranspositionTable,
 };

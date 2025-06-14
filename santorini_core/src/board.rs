@@ -2,7 +2,7 @@ use colored::Colorize;
 
 use crate::{
     fen::{game_state_to_fen, parse_fen},
-    gods::{ALL_GODS_BY_ID, BoardStateWithAction, GameStateWithAction, GodName, GodPower},
+    gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, GodPower},
 };
 
 use super::search::Hueristic;
@@ -197,7 +197,11 @@ impl TryFrom<&String> for FullGameState {
 }
 
 impl FullGameState {
-    pub fn new(board_state: BoardState, p1_god: &'static GodPower, p2_god: &'static GodPower) -> Self {
+    pub fn new(
+        board_state: BoardState,
+        p1_god: &'static GodPower,
+        p2_god: &'static GodPower,
+    ) -> Self {
         FullGameState {
             p1_god,
             p2_god,

@@ -5,9 +5,9 @@ use std::{
 };
 
 use santorini_core::{
-    board::{get_next_states_interactive, BoardState, FullGameState},
+    board::{get_next_states_interactive, FullGameState},
     engine::EngineThreadWrapper,
-    gods::{PartialAction, ALL_GODS_BY_ID},
+    gods::PartialAction,
     search::NewBestMove,
     uci_types::{
         BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,

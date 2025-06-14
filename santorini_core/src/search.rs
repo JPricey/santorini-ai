@@ -3,7 +3,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    board::FullGameState, gods::{GodPower, ALL_GODS_BY_ID}, transposition_table::{SearchScore, TTValue}
+    board::FullGameState, gods::{GodPower, }, transposition_table::{SearchScore, TTValue}
 };
 
 use super::{
