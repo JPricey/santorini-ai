@@ -315,7 +315,7 @@ impl BoardState {
         }
 
         for row in 0..5 {
-            let mut row_str = format!("{} ", 5 - row);
+            let mut row_str = format!("{}", 5 - row);
             for col in 0..5 {
                 let pos = col + row * 5;
                 let mask = 1 << pos;

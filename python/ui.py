@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 import json
 from frozendict import frozendict
 
-BASIC_START_STRING = "0000000000000000000000000/1/artemis:11,13/artemis:7,17"
+BASIC_START_STRING = "0000000000000000000000000/1/hephaestus:11,13/artemis:7,17"
 
 COL_LABEL_MAPPING = 'ABCDE'
 ROW_LABEL_MAPPING = '12345'
@@ -20,6 +20,8 @@ for i in range(25):
     col = i % 5
     INDEX_TO_COORD_MAPPING.append(
         f'{COL_LABEL_MAPPING[col]}{ROW_LABEL_MAPPING[row]}')
+
+DONE_ACTION_TYPE = "DONE"
 
 
 class EngineProcess:
@@ -287,6 +289,8 @@ def pretty_string_for_action(action):
         return f'>{action["value"]}'
     elif action_type == 'build':
         return f'@{action["value"]}'
+    elif action_type == DONE_ACTION_TYPE:
+        return '<end>'
 
     print('ERROR: Unknown action type', action_type)
 
@@ -300,6 +304,8 @@ def longer_string_for_action(action):
         return f"Move to {action['value']}"
     elif action_type == 'build':
         return f"Build at {action['value']}"
+    elif action_type == DONE_ACTION_TYPE:
+        return "End Turn"
 
     print('ERROR: Unknown action type', action_type)
 
@@ -320,9 +326,14 @@ class ActionSelector():
 
     def get_all_possible_futures(self):
         result = []
-        for future in self.all_futures:
-            if self.current_action_choices == future['actions'][:len(self.current_action_choices)]:
-                result.append(future)
+        if len(self.current_action_choices) > 0 and self.current_action_choices[-1]['type'] == DONE_ACTION_TYPE:
+            for future in self.all_futures:
+                if future['actions'] == self.current_action_choices[:-1]:
+                    result.append(future)
+        else:
+            for future in self.all_futures:
+                if self.current_action_choices == future['actions'][:len(self.current_action_choices)]:
+                    result.append(future)
 
         return result
 
@@ -331,7 +342,9 @@ class ActionSelector():
         possible_futures = self.get_all_possible_futures()
 
         for future in possible_futures:
-            if len(future['actions']) > len(self.current_action_choices):
+            if len(future['actions']) == len(self.current_action_choices):
+                result.add(frozendict(type=DONE_ACTION_TYPE))
+            elif len(future['actions']) > len(self.current_action_choices):
                 next_action = future['actions'][len(
                     self.current_action_choices)]
                 result.add(frozendict(next_action))

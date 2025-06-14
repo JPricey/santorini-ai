@@ -1,7 +1,6 @@
-use crate::board::{
-    BitmapType, BoardState, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP, Player,
-    position_to_coord,
-};
+use crate::{board::{
+    position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP
+}, search::Hueristic, utils::grid_position_builder};
 
 use super::{
     BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,

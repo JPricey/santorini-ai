@@ -175,6 +175,8 @@ fn do_battle<'a>(
         );
         current_state.print_to_console();
 
+        println!();
+
         let winner = current_state.board.get_winner();
         if let Some(winner) = winner {
             return BattleResult {
@@ -186,11 +188,12 @@ fn do_battle<'a>(
 }
 
 fn main() {
-    let mut c1 = prepare_subprocess("./all_versions/v2");
+    let mut c1 = prepare_subprocess("./all_versions/v3");
     let mut c2 = prepare_subprocess("./all_versions/v2");
 
     let mut root = FullGameState::new_basic_state_mortals();
-    root.p1_god = GodName::Artemis.to_power();
-    let outcome = do_battle(&root, &mut c1, &mut c2, 5.0);
+    // root.p2_god = GodName::Artemis.to_power();
+    // root.p1_god = GodName::Hephaestus.to_power();
+    let outcome = do_battle(&root, &mut c1, &mut c2, 10.0);
     println!("Game has ended {:?}", outcome);
 }
