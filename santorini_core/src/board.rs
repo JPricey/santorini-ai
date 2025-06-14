@@ -3,6 +3,7 @@ use colored::Colorize;
 use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, GodPower},
+    utils::MAIN_SECTION_MASK,
 };
 
 use super::search::Hueristic;
@@ -42,7 +43,6 @@ pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
 
 pub const IS_WINNER_MASK: BitmapType = 1 << 31;
-pub const MAIN_SECTION_MASK: BitmapType = (1 << 25) - 1;
 
 pub const NEIGHBOR_MAP: [BitmapType; NUM_SQUARES] = [
     98, 229, 458, 916, 776, 3139, 7335, 14670, 29340, 24856, 100448, 234720, 469440, 938880,

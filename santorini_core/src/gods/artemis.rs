@@ -1,6 +1,5 @@
 use crate::board::{
-    BitmapType, BoardState, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP, Player,
-    position_to_coord,
+    BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord,
 };
 
 use super::{
@@ -15,7 +14,7 @@ where
     let mut result: Vec<T> = Vec::with_capacity(128);
 
     let current_player_idx = player as usize;
-    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
+    let starting_current_workers = state.workers[current_player_idx];
     let mut current_workers = starting_current_workers;
     let all_workers_mask = state.workers[0] | state.workers[1];
 

@@ -1,14 +1,20 @@
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
-use std::thread;
 use std::time::{Duration, Instant};
+use std::{fs, thread};
 
+use chrono::Utc;
+use clap::Parser;
 use santorini_core::board::{FullGameState, Player};
 use santorini_core::fen::game_state_to_fen;
 use santorini_core::gods::GodName;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
+
+const BINARY_DIRECTORY: &str = "all_versions";
+const DEFAULT_DURATION_SECS: f32 = 5.0;
 
 struct EngineSubprocess {
     engine_name: String,
@@ -18,10 +24,12 @@ struct EngineSubprocess {
     receiver: Receiver<String>,
 }
 
-fn prepare_subprocess(engine_path: &str) -> EngineSubprocess {
+fn prepare_subprocess(log_path: &Path, engine_path: &str) -> EngineSubprocess {
+    let stderr_file = std::fs::File::create(log_path).expect("Failed to create error log file");
+
     let mut child = Command::new(engine_path)
         .stdin(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(std::process::Stdio::from(stderr_file))
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to spawn process");
@@ -96,7 +104,8 @@ fn do_battle<'a>(
     root: &FullGameState,
     c1: &'a mut EngineSubprocess,
     c2: &'a mut EngineSubprocess,
-    thinking_time_secs: f32,
+    conf1: BattlingPlayerConfig,
+    conf2: BattlingPlayerConfig,
 ) -> BattleResult {
     let mut depth = 0;
     let mut current_state = root.clone();
@@ -105,9 +114,9 @@ fn do_battle<'a>(
     println!();
 
     loop {
-        let (engine, other) = match current_state.board.current_player {
-            Player::One => (&mut *c1, &mut *c2),
-            Player::Two => (&mut *c2, &mut *c1),
+        let (engine, other, conf) = match current_state.board.current_player {
+            Player::One => (&mut *c1, &mut *c2, &conf1),
+            Player::Two => (&mut *c2, &mut *c1, &conf2),
         };
 
         // Just incase
@@ -117,7 +126,7 @@ fn do_battle<'a>(
         writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
 
         let started_at = Instant::now();
-        let end_at = started_at + Duration::from_secs_f32(thinking_time_secs);
+        let end_at = started_at + conf.duration_per_turn;
         let mut saved_best_move: Option<BestMoveOutput> = None;
 
         loop {
@@ -173,7 +182,7 @@ fn do_battle<'a>(
 
         current_state.print_to_console();
         println!(
-            "({}) Made move for Player {:?} [{:?}]: {:?} | d: {} s: {}",
+            "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {}",
             engine.engine_name,
             saved_best_move.start_state.board.current_player,
             current_god.god_name,
@@ -194,15 +203,153 @@ fn do_battle<'a>(
     }
 }
 
-struct BattlerArgs {}
+fn get_most_recent_model() -> String {
+    let entries = fs::read_dir(BINARY_DIRECTORY).unwrap();
+    println!("{:?}", entries);
+
+    entries
+        .into_iter()
+        .filter_map(|e| match e {
+            Ok(entry) => {
+                let path = entry.path();
+                if path.is_file() {
+                    let metadata = fs::metadata(&path).ok()?;
+                    let modified_time = metadata.modified().ok()?;
+                    Some((path, modified_time))
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        })
+        .max_by_key(|e| e.1)
+        .map(|e| e.0)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
+fn _log_name(ts_str: &str, player: Player) -> PathBuf {
+    let mut path = std::env::current_dir().expect("Failed to get current directory");
+    path.push("logs");
+    std::fs::create_dir_all(&path).expect("Failed to create logs directory");
+
+    let filename = format!("game_{}_player_{:?}.log", ts_str, player).to_lowercase();
+    path.push(filename);
+    path
+}
+
+#[derive(Parser, Debug)]
+struct BattlerCliArgs {
+    #[arg(short = 'g', long)]
+    #[arg(short, long)]
+    god: Option<GodName>,
+    #[arg(short = 'G', long)]
+    god2: Option<GodName>,
+
+    #[arg(short = 'e', long)]
+    engine: Option<String>,
+    #[arg(short = 'E', long)]
+    engine2: Option<String>,
+
+    #[arg(short = 's', long)]
+    secs: Option<f32>,
+    #[arg(short = 'S', long)]
+    secs2: Option<f32>,
+
+    #[arg(short = 'b', long)]
+    board: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct BattlingPlayerConfig {
+    god: GodName,
+    engine_name: String,
+    duration_per_turn: Duration,
+}
+
+fn _resolve_engine(name: Option<&str>) -> String {
+    match name.as_deref() {
+        Some("latest") | None => get_most_recent_model(),
+        Some(path) => path.to_owned(),
+    }
+}
+
+fn massage_inputs(args: &BattlerCliArgs) -> (BattlingPlayerConfig, BattlingPlayerConfig) {
+    let (god1, god2) = match (args.god, args.god2) {
+        (Some(g1), Some(g2)) => (g1, g2),
+        (Some(g1), None) => (g1, g1),
+        (None, Some(g2)) => (GodName::Mortal, g2),
+        (None, None) => (GodName::Mortal, GodName::Mortal),
+    };
+
+    let (engine1, engine2) = match (&args.engine, &args.engine2) {
+        (Some(e1), None) => {
+            let engine = _resolve_engine(Some(e1));
+            (engine.clone(), engine.clone())
+        }
+        (a, b) => (_resolve_engine(a.as_deref()), _resolve_engine(b.as_deref())),
+    };
+
+    let (s1, d2) = match (args.secs, args.secs) {
+        (Some(g1), Some(g2)) => (g1, g2),
+        (Some(g1), None) => (g1, g1),
+        (None, Some(g2)) => (DEFAULT_DURATION_SECS, g2),
+        (None, None) => (DEFAULT_DURATION_SECS, DEFAULT_DURATION_SECS),
+    };
+
+    (
+        BattlingPlayerConfig {
+            god: god1,
+            engine_name: engine1,
+            duration_per_turn: Duration::from_secs_f32(s1),
+        },
+        BattlingPlayerConfig {
+            god: god2,
+            engine_name: engine2,
+            duration_per_turn: Duration::from_secs_f32(d2),
+        },
+    )
+}
 
 fn main() {
-    let mut c1 = prepare_subprocess("./all_versions/v3");
-    let mut c2 = prepare_subprocess("./all_versions/v3");
+    let args = BattlerCliArgs::parse();
+    let (mut conf1, mut conf2) = massage_inputs(&args);
 
-    let mut root = FullGameState::new_basic_state_mortals();
-    root.p1_god = GodName::Mortal.to_power();
-    root.p2_god = GodName::Pan.to_power();
-    let outcome = do_battle(&root, &mut c1, &mut c2, 10.0);
+    let state = match args.board {
+        Some(fen) => match FullGameState::try_from(&fen) {
+            Ok(state) => {
+                conf1.god = state.p1_god.god_name;
+                conf2.god = state.p2_god.god_name;
+                state
+            }
+            Err(e) => {
+                eprintln!("Error parsing FEN: {}", e);
+                return;
+            }
+        },
+        None => {
+            let mut state = FullGameState::new_basic_state_mortals();
+            state.p1_god = conf1.god.to_power();
+            state.p2_god = conf2.god.to_power();
+
+            state
+        }
+    };
+
+    let now = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+    println!("Game ts: {}", now);
+
+    println!("Configs for Player One: {:?}", conf1);
+    println!("Configs for Player Two: {:?}", conf2);
+
+    let mut c1 = prepare_subprocess(&_log_name(&now, Player::One), &conf1.engine_name);
+    let mut c2 = prepare_subprocess(&_log_name(&now, Player::Two), &conf2.engine_name);
+
+    let outcome = do_battle(&state, &mut c1, &mut c2, conf1, conf2);
     println!("Game has ended {:?}", outcome);
+
+    let _ =c1.child.kill();
+    let _ =c2.child.kill();
 }

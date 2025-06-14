@@ -1,10 +1,9 @@
 use crate::{
-    board::{
-        BitmapType, BoardState, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP, Player,
-        position_to_coord,
-    },
+    board::{BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord},
     search::{Hueristic, WINNING_SCORE},
-    utils::grid_position_builder,
+    utils::{
+        MAIN_SECTION_MASK, grid_position_builder, move_all_workers_one_exclude_original_workers,
+    },
 };
 
 use super::{
@@ -115,7 +114,8 @@ where
                 worker_move_pos,
             )));
 
-            if state.height_map[2] & worker_move_mask > 0 {
+            if worker_starting_height != 3 && state.height_map[2] & worker_move_mask > 0
+            {
                 let mut winning_next_state = state.clone();
                 winning_next_state.workers[current_player_idx] ^=
                     moving_worker_start_mask | worker_move_mask | IS_WINNER_MASK;
@@ -163,6 +163,19 @@ where
     result
 }
 
+pub fn mortal_has_win(state: &BoardState, player: Player) -> bool {
+    let current_player_idx = player as usize;
+    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
+
+    let level_2_workers = starting_current_workers & (state.height_map[1] & !state.height_map[2]);
+    let moves_from_lvl_2 = move_all_workers_one_exclude_original_workers(level_2_workers);
+    let open_spaces = !(state.workers[0] | state.workers[1] | state.height_map[3]);
+    let exactly_level_3 = state.height_map[2] & open_spaces;
+    let level_3_moves = moves_from_lvl_2 & exactly_level_3;
+
+    level_3_moves != 0
+}
+
 pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
@@ -170,5 +183,86 @@ pub const fn build_mortal() -> GodPower {
         next_states: mortal_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
         next_states_interactive: mortal_next_states::<BoardStateWithAction, FullChoiceMapper>,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        board::{FullGameState, Player},
+        gods::mortal::mortal_has_win,
+    };
+
+    #[test]
+    fn test_mortal_win_checking() {
+        fn slow_win_check(state: &FullGameState) -> bool {
+            let child_state = state.get_next_states();
+            for child in child_state {
+                if child.board.get_winner() == Some(state.board.current_player) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        fn assert_win_checking(state: &FullGameState, expected: bool) {
+            assert_eq!(
+                slow_win_check(state),
+                expected,
+                "State fully expanded win in 1 was not as expected [{:?}] for {:?}",
+                expected,
+                state
+            );
+            assert_eq!(
+                mortal_has_win(&state.board, state.board.current_player),
+                expected,
+                "State quick check win in 1 was not as expected [{:?}] for {:?}",
+                expected,
+                state
+            );
+        }
+
+        {
+            let state_str = "00000 00000 00230 00000 00030/1/mortal:12/mortal:24";
+            let mut state = FullGameState::try_from(state_str).unwrap();
+
+            assert_win_checking(&state, true);
+            state.board.current_player = Player::Two;
+            assert_win_checking(&state, false);
+        }
+
+        {
+            // level 3 is next, but it's blocked by a worker
+            let state_str = "00000 00000 00230 00000 00030/1/mortal:12/mortal:13";
+            let state = FullGameState::try_from(state_str).unwrap();
+
+            assert_win_checking(&state, false);
+        }
+
+        {
+            // level 3 is next, but you're already on level 3
+            let state_str = "00000 00000 00330 00000 00030/1/mortal:12/mortal:24";
+            let state = FullGameState::try_from(state_str).unwrap();
+
+            assert_win_checking(&state, false);
+        }
+
+        {
+            // Random bug?
+            let state_str = "2300000000000000000000000/2/mortal:2,13/mortal:0,17";
+            let state = FullGameState::try_from(state_str).unwrap();
+
+            assert_win_checking(&state, true);
+        }
+    }
+
+    #[test]
+    fn test_joe() {
+        let state =
+            FullGameState::try_from("2300000000000000000000000/2/mortal:2,13/mortal:0,17").unwrap();
+        let children = state.get_next_states();
+        for child in children {
+            child.print_to_console();
+        }
     }
 }

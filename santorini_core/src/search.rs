@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::GodPower,
+    gods::{GodPower, mortal::mortal_has_win},
     transposition_table::{SearchScore, TTValue},
 };
 
@@ -141,6 +141,13 @@ pub fn search_with_state(search_state: &mut SearchState, root_state: &FullGameSt
     }
 }
 
+// fn _qs_extension(
+//     state: &BoardState,
+//     p1_god: &'static GodPower,
+//     p2_god: &'static GodPower,
+//     color: Hueristic,
+// )
+
 fn _inner_search(
     search_state: &mut SearchState,
     p1_god: &'static GodPower,
@@ -152,7 +159,38 @@ fn _inner_search(
     mut alpha: Hueristic,
     beta: Hueristic,
 ) -> Hueristic {
-    if remaining_depth == 0 || state.get_winner().is_some() {
+    if state.get_winner().is_some() {
+        return color * judge_state(state, p1_god, p2_god, depth);
+    }
+
+    let active_god = match state.current_player {
+        Player::One => p1_god,
+        Player::Two => p2_god,
+    };
+
+    if remaining_depth == 0 {
+        if mortal_has_win(state, state.current_player) {
+            return (WINNING_SCORE - depth - 1) * state.current_player.color();
+
+            /*
+            let children = (active_god.next_states)(state, state.current_player);
+            for child in children {
+                if let Some(winner) = child.get_winner() {
+                    if winner == state.current_player {
+                        return (WINNING_SCORE - depth - 1) * state.current_player.color();
+                    }
+                }
+            }
+
+            FullGameState::new(state.clone(), p1_god, p2_god).print_to_console();
+
+            panic!(
+                "state promised an immediate win, but one wasn't found: {:?}",
+                state
+            );
+            */
+        }
+
         return color * judge_state(state, p1_god, p2_god, depth);
     }
 
@@ -187,10 +225,6 @@ fn _inner_search(
 
     let alpha_orig = alpha;
 
-    let active_god = match state.current_player {
-        Player::One => p1_god,
-        Player::Two => p2_god,
-    };
     let mut children = (active_god.next_states)(state, state.current_player);
 
     if let Some(tt_value) = tt_entry {
