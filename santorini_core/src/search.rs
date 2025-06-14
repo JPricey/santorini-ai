@@ -3,7 +3,9 @@ use std::sync::{Arc, atomic::AtomicBool};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    board::FullGameState, gods::{GodPower, }, transposition_table::{SearchScore, TTValue}
+    board::FullGameState,
+    gods::GodPower,
+    transposition_table::{SearchScore, TTValue},
 };
 
 use super::{
@@ -16,7 +18,12 @@ pub const WINNING_SCORE: Hueristic = 1000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 900;
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub fn judge_state(state: &BoardState, p1_god: &'static GodPower, p2_god: &'static GodPower, depth: Hueristic) -> Hueristic {
+pub fn judge_state(
+    state: &BoardState,
+    p1_god: &'static GodPower,
+    p2_god: &'static GodPower,
+    depth: Hueristic,
+) -> Hueristic {
     if let Some(winner) = state.get_winner() {
         let new_score = winner.color() * (WINNING_SCORE - depth as Hueristic);
         return new_score;
@@ -89,7 +96,7 @@ pub fn search_with_state(search_state: &mut SearchState, root_state: &FullGameSt
     let start_time = std::time::Instant::now();
     let p1_god = root_state.p1_god;
     let p2_god = root_state.p2_god;
-    let root_board = &root_state.board; 
+    let root_board = &root_state.board;
     let color = root_board.current_player.color();
 
     if root_board.get_winner().is_some() {

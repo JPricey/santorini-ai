@@ -1,11 +1,13 @@
 use super::search::Hueristic;
 use crate::board::{BoardState, Coord, FullGameState, Player};
 use artemis::build_artemis;
+use hephaestus::build_hephaestus;
 use mortal::build_mortal;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
 pub mod artemis;
+pub mod hephaestus;
 pub mod mortal;
 
 #[derive(
@@ -15,6 +17,7 @@ pub mod mortal;
 pub enum GodName {
     Mortal = 0,
     Artemis = 1,
+    Hephaestus = 2,
 }
 
 impl GodName {
@@ -149,4 +152,22 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 2] = [build_mortal(), build_artemis()];
+pub const ALL_GODS_BY_ID: [GodPower; 3] = [build_mortal(), build_artemis(), build_hephaestus()];
+
+#[cfg(test)]
+mod tests {
+    use crate::board::FullGameState;
+
+    use super::*;
+
+    #[test]
+    fn test_god_alignment() {
+        for (i, god_power) in ALL_GODS_BY_ID.iter().enumerate() {
+            assert_eq!(
+                god_power.god_name as usize, i,
+                "God {:?} is in the wrong position",
+                god_power.god_name
+            );
+        }
+    }
+}
