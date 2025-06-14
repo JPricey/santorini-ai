@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     board::{BoardState, FullGameState, NUM_SQUARES, Player},
-    gods::{ALL_GODS_BY_ID, GodName, },
+    gods::{ALL_GODS_BY_ID, GodName},
 };
 
 pub fn game_state_to_fen(state: &FullGameState) -> String {
@@ -180,21 +180,21 @@ mod tests {
         let mut rng = thread_rng();
 
         for _ in 0..10 {
-            let mut state = BoardState::new_basic_state();
+            let mut state = FullGameState::new_basic_state_mortals();
             loop {
                 let state_string = format!("{state:?}");
-                let rebuilt_state = BoardState::try_from(state_string.as_str()).unwrap();
+                let rebuilt_state = FullGameState::try_from(state_string.as_str()).unwrap();
 
                 assert_eq!(
                     state, rebuilt_state,
                     "State mismatch after string conversion"
                 );
 
-                if state.get_winner().is_some() {
+                if state.board.get_winner().is_some() {
                     break;
                 }
 
-                let child_states = state.get_valid_next_states();
+                let child_states = state.get_next_states();
                 state = child_states.choose(&mut rng).unwrap().clone();
             }
         }

@@ -132,21 +132,6 @@ pub fn position_to_coord(position: usize) -> Coord {
     Coord::new(x, y)
 }
 
-#[allow(unused)]
-pub fn coord_to_position(coord: Coord) -> usize {
-    coord.x + coord.y * BOARD_WIDTH
-}
-
-#[allow(unused)]
-fn print_full_bitmap(mut mask: BitmapType) {
-    for _ in 0..5 {
-        let lower = mask & 0b11111;
-        let output = format!("{:05b}", lower);
-        eprintln!("{}", output.chars().rev().collect::<String>());
-        mask = mask >> 5;
-    }
-}
-
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullGameState {
     pub p1_god: &'static GodPower,
@@ -209,12 +194,47 @@ impl FullGameState {
         }
     }
 
+    pub fn new_empty_state(p1: GodName, p2: GodName) -> Self {
+        FullGameState::new(BoardState::default(), p1.to_power(), p2.to_power())
+    }
+
     pub fn new_basic_state(p1: GodName, p2: GodName) -> Self {
         FullGameState::new(BoardState::new_basic_state(), p1.to_power(), p2.to_power())
     }
 
     pub fn new_basic_state_mortals() -> Self {
         FullGameState::new_basic_state(GodName::Mortal, GodName::Mortal)
+    }
+
+    pub fn get_next_states(&self) -> Vec<FullGameState> {
+        let active_god = match self.board.current_player {
+            Player::One => self.p1_god,
+            Player::Two => self.p2_god,
+        };
+        let board_states_with_action_list =
+            (active_god.next_states)(&self.board, self.board.current_player);
+        board_states_with_action_list
+            .into_iter()
+            .map(|e| FullGameState::new(e, self.p1_god, self.p2_god))
+            .collect()
+    }
+
+    pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
+        let active_god = match self.board.current_player {
+            Player::One => self.p1_god,
+            Player::Two => self.p2_god,
+        };
+        let board_states_with_action_list =
+            (active_god.next_states_interactive)(&self.board, self.board.current_player);
+        board_states_with_action_list
+            .into_iter()
+            .map(|e| GameStateWithAction::new(e, self.p1_god.god_name, self.p2_god.god_name))
+            .collect()
+    }
+
+    pub fn print_to_console(&self) {
+        eprintln!("{:?}", self);
+        self.board.print_to_console();
     }
 }
 
@@ -287,22 +307,7 @@ impl BoardState {
         self.workers[player_idx] |= IS_WINNER_MASK;
     }
 
-    /*
-    pub fn get_path_to_outcome(&self, other: &SantoriniState) -> Option<FullAction> {
-        for choice in (self.player_1_god().next_states_interactive)() {
-            if &choice.result_state == other {
-                return Some(choice.actions);
-            }
-        }
-
-        None
-    }
-    */
-
     pub fn print_to_console(&self) {
-        // TODO!
-        // eprintln!("{:?}", self);
-
         if let Some(winner) = self.get_winner() {
             eprintln!("Player {:?} wins!", winner);
         } else {
@@ -361,19 +366,6 @@ impl BoardState {
 
         result
     }
-}
-
-pub fn get_next_states_interactive(state: &FullGameState) -> Vec<GameStateWithAction> {
-    let active_god = match state.board.current_player {
-        Player::One => state.p1_god,
-        Player::Two => state.p2_god,
-    };
-    let board_states_with_action_list =
-        (active_god.next_states_interactive)(&state.board, state.board.current_player);
-    board_states_with_action_list
-        .into_iter()
-        .map(|e| GameStateWithAction::new(e, state.p1_god.god_name, state.p2_god.god_name))
-        .collect()
 }
 
 #[cfg(test)]

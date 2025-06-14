@@ -5,7 +5,7 @@ use std::{
 };
 
 use santorini_core::{
-    board::{get_next_states_interactive, FullGameState},
+    board::FullGameState,
     engine::EngineThreadWrapper,
     gods::PartialAction,
     search::NewBestMove,
@@ -18,9 +18,9 @@ fn find_action_path(
     start_state: &FullGameState,
     destination_state: &FullGameState,
 ) -> Option<Vec<PartialAction>> {
-    let all_child_states = get_next_states_interactive(&start_state);
+    let all_child_states = start_state.get_next_states_interactive();
     for full_child in all_child_states {
-        if &full_child.result_state == destination_state {
+        if &full_child.state == destination_state {
             return Some(full_child.actions);
         }
     }
@@ -78,11 +78,15 @@ fn handle_command(
 
             let callback = Arc::new(move |new_best_move: NewBestMove| {
                 let Some(action_path) = find_action_path(&state_2, &new_best_move.state) else {
-                    eprintln!(
+                    eprintln!("from move:");
+                    state_2.print_to_console();
+                    eprintln!("to move:");
+                    new_best_move.state.print_to_console();
+
+                    panic!(
                         "Found new best move but couldn't resolve path: {:?} -> {:?}",
                         state_2, new_best_move.state
                     );
-                    return;
                 };
 
                 let output = EngineOutput::BestMove(BestMoveOutput {
@@ -112,14 +116,14 @@ fn handle_command(
             let state: FullGameState =
                 FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
 
-            let child_states = get_next_states_interactive(&state);
+            let child_states = state.get_next_states_interactive();
 
             let output = EngineOutput::NextMoves(NextMovesOutput {
                 start_state: state.clone(),
                 next_states: child_states
                     .into_iter()
                     .map(|full_choice| NextStateOutput {
-                        next_state: full_choice.result_state,
+                        next_state: full_choice.state,
                         actions: full_choice.actions,
                     })
                     .collect(),

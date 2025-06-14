@@ -118,7 +118,7 @@ fn benchmark_finding_children_fast() {
     let state = SantoriniState::new_basic_state();
     benchmark_fn("fast", || {
         for _ in 0..1000000 {
-            black_box(state.get_valid_next_states());
+            black_box(state.get_next_states());
         }
     });
 }

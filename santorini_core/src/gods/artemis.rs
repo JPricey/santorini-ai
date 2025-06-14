@@ -1,47 +1,14 @@
-use crate::{
-    board::{
-        BitmapType, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP, Player, BoardState,
-        position_to_coord,
-    },
-    search::{Hueristic, WINNING_SCORE},
+use crate::board::{
+    BitmapType, BoardState, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP, Player,
+    position_to_coord,
 };
 
-use super::{BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper};
+use super::{
+    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
+    mortal::mortal_player_advantage,
+};
 
-pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic {
-    let player_index = player as usize;
-
-    if state.workers[player_index] & IS_WINNER_MASK > 0 {
-        // panic!("not possible?");
-        return WINNING_SCORE;
-    }
-
-    let mut result: Hueristic = 0;
-    let mut current_workers = state.workers[player_index];
-    while current_workers != 0 {
-        let worker_pos = current_workers.trailing_zeros() as usize;
-        let worker_mask: BitmapType = 1 << worker_pos;
-        current_workers ^= worker_mask;
-
-        let height = state.get_height_for_worker(worker_mask);
-        result += 10 * height as i32;
-        if height == 2 {
-            result += 10;
-        }
-
-        let too_high = std::cmp::min(3, height + 1);
-        let worker_moves = NEIGHBOR_MAP[worker_pos] & !state.height_map[too_high];
-        for h in (0..too_high).rev() {
-            let mult = if h == 2 { 10 } else { h + 1 };
-            result +=
-                ((state.height_map[h] & worker_moves).count_ones() * mult as u32) as Hueristic;
-        }
-    }
-
-    result
-}
-
-pub fn mortal_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
+fn artemis_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
 where
     M: super::ResultsMapper<T>,
 {
@@ -50,7 +17,6 @@ where
     let current_player_idx = player as usize;
     let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
     let mut current_workers = starting_current_workers;
-
     let all_workers_mask = state.workers[0] | state.workers[1];
 
     while current_workers != 0 {
@@ -68,20 +34,36 @@ where
 
         // Remember that actual height map is offset by 1
         let too_high = std::cmp::min(3, worker_starting_height + 1);
-        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos]
-            & !state.height_map[too_high]
-            & !non_selected_workers;
+        let mut all_worker_moves =
+            NEIGHBOR_MAP[moving_worker_start_pos] & !state.height_map[too_high] & !all_workers_mask;
 
-        while worker_moves != 0 {
-            let worker_move_pos = worker_moves.trailing_zeros() as usize;
+        // Compute 2nd moves by moving again from all possible 1st moves
+        let mut first_level_worker_moves = all_worker_moves;
+        while first_level_worker_moves != 0 {
+            let first_order_pos = first_level_worker_moves.trailing_zeros();
+            let first_order_mask = 1 << first_order_pos;
+            first_level_worker_moves ^= first_order_mask;
+
+            let first_order_too_high =
+                std::cmp::min(3, state.get_height_for_worker(first_order_mask) + 1);
+
+            let second_order_moves =
+                NEIGHBOR_MAP[first_order_pos as usize] & !state.height_map[first_order_too_high];
+            all_worker_moves |= second_order_moves;
+        }
+        all_worker_moves &= !all_workers_mask;
+
+        while all_worker_moves != 0 {
+            let worker_move_pos = all_worker_moves.trailing_zeros() as usize;
             let worker_move_mask: BitmapType = 1 << worker_move_pos;
-            worker_moves ^= worker_move_mask;
+            all_worker_moves ^= worker_move_mask;
 
             let mut mapper = mapper.clone();
             mapper.add_action(PartialAction::MoveWorker(position_to_coord(
                 worker_move_pos,
             )));
 
+            // If we just won - end now and don't build
             if state.height_map[2] & worker_move_mask > 0 {
                 let mut winning_next_state = state.clone();
                 winning_next_state.workers[current_player_idx] ^=
@@ -130,12 +112,49 @@ where
     result
 }
 
-pub const fn build_mortal() -> GodPower {
+pub const fn build_artemis() -> GodPower {
     GodPower {
-        god_name: GodName::Mortal,
+        god_name: GodName::Artemis,
         player_advantage_fn: mortal_player_advantage,
-        next_states: mortal_next_states::<BoardState, StateOnlyMapper>,
+        next_states: artemis_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
-        next_states_interactive: mortal_next_states::<BoardStateWithAction, FullChoiceMapper>,
+        next_states_interactive: artemis_next_states::<BoardStateWithAction, FullChoiceMapper>,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::board::FullGameState;
+
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn test_artemis_basic() {
+        let state_str = "0000022222000000000000000/1/artemis:0,1/mortal:23,24";
+        let state = FullGameState::try_from(state_str).unwrap();
+
+        let next_states = state.get_next_states_interactive();
+        for state in next_states {
+            state.state.print_to_console();
+            println!("{:?}", state.actions);
+        }
+    }
+
+    #[test]
+    fn test_artemis_2nd_order_height() {
+        let state_str = "2230044444000000000000000/1/artemis:0/mortal:23,24";
+        let state = FullGameState::try_from(state_str).unwrap();
+
+        let next_states = state.get_next_states_interactive();
+        for state in next_states {
+            if state.state.board.get_winner().is_some() {
+                return;
+            }
+            // state.state.print_to_console();
+            // println!("{:?}", state.actions);
+        }
+
+        assert!(false, "Didn't find winning state");
     }
 }

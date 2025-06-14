@@ -1,9 +1,11 @@
 use super::search::Hueristic;
 use crate::board::{BoardState, Coord, FullGameState, Player};
-use mortal::get_mortal_god;
+use artemis::build_artemis;
+use mortal::build_mortal;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
+pub mod artemis;
 pub mod mortal;
 
 #[derive(
@@ -12,6 +14,7 @@ pub mod mortal;
 #[strum(serialize_all = "lowercase")]
 pub enum GodName {
     Mortal = 0,
+    Artemis = 1,
 }
 
 impl GodName {
@@ -57,14 +60,14 @@ impl BoardStateWithAction {
 
 #[derive(Clone)]
 pub struct GameStateWithAction {
-    pub result_state: FullGameState,
+    pub state: FullGameState,
     pub actions: FullAction,
 }
 
 impl GameStateWithAction {
     pub fn new(board_state_with_action: BoardStateWithAction, p1: GodName, p2: GodName) -> Self {
         GameStateWithAction {
-            result_state: FullGameState {
+            state: FullGameState {
                 board: board_state_with_action.result_state,
                 p1_god: p1.to_power(),
                 p2_god: p2.to_power(),
@@ -146,4 +149,4 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 1] = [get_mortal_god()];
+pub const ALL_GODS_BY_ID: [GodPower; 2] = [build_mortal(), build_artemis()];

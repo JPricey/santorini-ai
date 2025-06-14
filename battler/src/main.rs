@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use santorini_core::board::{FullGameState, Player};
 use santorini_core::fen::game_state_to_fen;
+use santorini_core::gods::GodName;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 
@@ -100,7 +101,7 @@ fn do_battle<'a>(
     let mut depth = 0;
     let mut current_state = root.clone();
 
-    root.board.print_to_console();
+    root.print_to_console();
 
     loop {
         let (engine, other) = match current_state.board.current_player {
@@ -172,7 +173,7 @@ fn do_battle<'a>(
             saved_best_move.meta.calculated_depth,
             saved_best_move.meta.score
         );
-        current_state.board.print_to_console();
+        current_state.print_to_console();
 
         let winner = current_state.board.get_winner();
         if let Some(winner) = winner {
@@ -186,9 +187,10 @@ fn do_battle<'a>(
 
 fn main() {
     let mut c1 = prepare_subprocess("./all_versions/v2");
-    let mut c2 = prepare_subprocess("./all_versions/v1");
+    let mut c2 = prepare_subprocess("./all_versions/v2");
 
-    let root = FullGameState::new_basic_state_mortals();
+    let mut root = FullGameState::new_basic_state_mortals();
+    root.p1_god = GodName::Artemis.to_power();
     let outcome = do_battle(&root, &mut c1, &mut c2, 5.0);
     println!("Game has ended {:?}", outcome);
 }

@@ -16,14 +16,14 @@ pub const WINNING_SCORE: Hueristic = 1000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 900;
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub fn judge_state(state: &BoardState, player1_god: &GodPower, depth: Hueristic) -> Hueristic {
+pub fn judge_state(state: &BoardState, p1_god: &'static GodPower, p2_god: &'static GodPower, depth: Hueristic) -> Hueristic {
     if let Some(winner) = state.get_winner() {
         let new_score = winner.color() * (WINNING_SCORE - depth as Hueristic);
         return new_score;
     }
 
-    (player1_god.player_advantage_fn)(state, Player::One)
-        - (player1_god.player_advantage_fn)(state, Player::Two)
+    (p1_god.player_advantage_fn)(state, Player::One)
+        - (p2_god.player_advantage_fn)(state, Player::Two)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,7 +146,7 @@ fn _inner_search(
     beta: Hueristic,
 ) -> Hueristic {
     if remaining_depth == 0 || state.get_winner().is_some() {
-        return color * judge_state(state, p1_god, depth);
+        return color * judge_state(state, p1_god, p2_god, depth);
     }
 
     let mut track_used = false;
@@ -180,7 +180,11 @@ fn _inner_search(
 
     let alpha_orig = alpha;
 
-    let mut children = (p1_god.next_states)(state, state.current_player);
+    let active_god = match state.current_player {
+        Player::One => p1_god,
+        Player::Two => p2_god,
+    };
+    let mut children = (active_god.next_states)(state, state.current_player);
 
     if let Some(tt_value) = tt_entry {
         for i in 0..children.len() {

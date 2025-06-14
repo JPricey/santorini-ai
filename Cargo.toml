@@ -1,6 +1,7 @@
 cargo-features = ["profile-rustflags"]
 
 [workspace]
+resolver ="3"
 members = [
     "santorini_core",
     "uci",
