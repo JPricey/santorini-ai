@@ -68,6 +68,10 @@ fn handle_command(
             let state =
                 FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
 
+            if state.board.get_winner().is_some() {
+                return Err("Cannot search for position in terminal state".to_owned());
+            }
+
             let _ = engine.stop();
             let start_time = Instant::now();
             let state_2 = state.clone();
@@ -148,7 +152,7 @@ fn main() {
         let raw_cmd = cli_command_receiver.recv().unwrap();
         if raw_cmd.trim().is_empty() {
             println!("empty command");
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_millis(10));
             continue;
         }
         match handle_command(&mut engine, &raw_cmd) {
