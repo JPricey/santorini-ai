@@ -9,8 +9,8 @@ use std::{
 };
 
 use crate::{
-    board::SantoriniState,
-    search::{NewBestMove, SearchState, search_with_state},
+    board::{BoardState, FullGameState},
+    search::{search_with_state, NewBestMove, SearchState},
     transposition_table::TranspositionTable,
 };
 
@@ -29,7 +29,7 @@ pub enum EngineThreadMessage {
 
 #[derive(Clone)]
 pub struct EngineThreadExecution {
-    state: SantoriniState,
+    state: FullGameState,
     stop_flag: Arc<AtomicBool>,
     best_move: Arc<Mutex<Option<NewBestMove>>>,
     new_best_move_sender: Sender<NewBestMove>,
@@ -141,7 +141,7 @@ impl EngineThreadWrapper {
 
     pub fn start_search(
         &mut self,
-        state: &SantoriniState,
+        state: &FullGameState,
         each_move_callback: Option<EachMoveCallback>,
     ) -> Result<Receiver<NewBestMove>, String> {
         if self.is_ending {
@@ -194,7 +194,7 @@ impl EngineThreadWrapper {
 
     pub fn search_for_duration(
         &mut self,
-        state: &SantoriniState,
+        state: &FullGameState,
         duration_secs: f32,
     ) -> Result<NewBestMove, String> {
         let _message_receiver = self.start_search(state, None)?;

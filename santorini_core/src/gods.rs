@@ -1,14 +1,29 @@
 use super::search::Hueristic;
-use crate::board::{Coord, Player, SantoriniState};
+use crate::board::{BoardState, Coord, FullGameState, Player};
 use mortal::get_mortal_god;
 use serde::{Deserialize, Serialize};
+use strum::{EnumString, IntoStaticStr};
 
 pub mod mortal;
+
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
+)]
+#[strum(serialize_all = "lowercase")]
+pub enum GodName {
+    Mortal = 0,
+}
+
+impl GodName {
+    pub fn to_power(&self) -> &'static GodPower {
+        &ALL_GODS_BY_ID[*self as usize]
+    }
+}
 
 pub trait ResultsMapper<T>: Clone {
     fn new() -> Self;
     fn add_action(&mut self, partial_action: PartialAction);
-    fn map_result(&self, state: SantoriniState) -> T;
+    fn map_result(&self, state: BoardState) -> T;
 }
 
 // pub type StateWithScore = (SantoriniState, Hueristic);
@@ -26,36 +41,55 @@ pub enum PartialAction {
 type FullAction = Vec<PartialAction>;
 
 #[derive(Clone)]
-pub struct FullChoice {
+pub struct BoardStateWithAction {
+    pub result_state: BoardState,
     pub actions: FullAction,
-    pub result_state: SantoriniState,
 }
 
-impl FullChoice {
-    pub fn new(result_state: SantoriniState, action: FullAction) -> Self {
-        FullChoice {
+impl BoardStateWithAction {
+    pub fn new(result_state: BoardState, action: FullAction) -> Self {
+        BoardStateWithAction {
             actions: action,
             result_state,
         }
     }
 }
 
-pub type PlayerAdvantageFn = fn(&SantoriniState, Player) -> Hueristic;
-pub type GenericNextStatesFn<T> = fn(&SantoriniState, Player) -> Vec<T>;
+#[derive(Clone)]
+pub struct GameStateWithAction {
+    pub result_state: FullGameState,
+    pub actions: FullAction,
+}
+
+impl GameStateWithAction {
+    pub fn new(board_state_with_action: BoardStateWithAction, p1: GodName, p2: GodName) -> Self {
+        GameStateWithAction {
+            result_state: FullGameState {
+                board: board_state_with_action.result_state,
+                p1_god: p1.to_power(),
+                p2_god: p2.to_power(),
+            },
+            actions: board_state_with_action.actions,
+        }
+    }
+}
+
+pub type PlayerAdvantageFn = fn(&BoardState, Player) -> Hueristic;
+pub type GenericNextStatesFn<T> = fn(&BoardState, Player) -> Vec<T>;
 // pub type NextStateWithScoresFn = GenericNextStatesFn<StateWithScore>;
-pub type NextStatesOnlyFn = GenericNextStatesFn<SantoriniState>;
-pub type NextStatesInteractiveFn = GenericNextStatesFn<FullChoice>;
+pub type NextStatesOnlyFn = GenericNextStatesFn<BoardState>;
+pub type NextStatesInteractiveFn = GenericNextStatesFn<BoardStateWithAction>;
 
 #[derive(Clone, Debug)]
 pub struct StateOnlyMapper {}
-impl ResultsMapper<SantoriniState> for StateOnlyMapper {
+impl ResultsMapper<BoardState> for StateOnlyMapper {
     fn new() -> Self {
         StateOnlyMapper {}
     }
 
     fn add_action(&mut self, _partial_action: PartialAction) {}
 
-    fn map_result(&self, state: SantoriniState) -> SantoriniState {
+    fn map_result(&self, state: BoardState) -> BoardState {
         state
     }
 }
@@ -81,7 +115,7 @@ impl ResultsMapper<StateWithScore> for HueristicMapper {
 pub struct FullChoiceMapper {
     partial_actions: Vec<PartialAction>,
 }
-impl ResultsMapper<FullChoice> for FullChoiceMapper {
+impl ResultsMapper<BoardStateWithAction> for FullChoiceMapper {
     fn new() -> Self {
         FullChoiceMapper {
             partial_actions: Vec::new(),
@@ -92,15 +126,24 @@ impl ResultsMapper<FullChoice> for FullChoiceMapper {
         self.partial_actions.push(partial_action);
     }
 
-    fn map_result(&self, state: SantoriniState) -> FullChoice {
-        FullChoice::new(state, self.partial_actions.clone())
+    fn map_result(&self, state: BoardState) -> BoardStateWithAction {
+        BoardStateWithAction::new(state, self.partial_actions.clone())
     }
 }
 
 pub struct GodPower {
+    pub god_name: GodName,
     pub player_advantage_fn: PlayerAdvantageFn,
     pub next_states: NextStatesOnlyFn,
     pub next_states_interactive: NextStatesInteractiveFn,
 }
+
+impl PartialEq for GodPower {
+    fn eq(&self, other: &Self) -> bool {
+        self.god_name == other.god_name
+    }
+}
+
+impl Eq for GodPower {}
 
 pub const ALL_GODS_BY_ID: [GodPower; 1] = [get_mortal_god()];

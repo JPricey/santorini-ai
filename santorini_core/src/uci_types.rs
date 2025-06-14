@@ -1,19 +1,19 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    board::SantoriniState,
+    board::FullGameState,
     gods::PartialAction,
     search::{BestMoveTrigger, Hueristic},
 };
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NextStateOutput {
-    pub next_state: SantoriniState,
+    pub next_state: FullGameState,
     pub actions: Vec<PartialAction>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NextMovesOutput {
-    pub start_state: SantoriniState,
+    pub start_state: FullGameState,
     pub next_states: Vec<NextStateOutput>,
 }
 
@@ -27,8 +27,8 @@ pub struct BestMoveMeta {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BestMoveOutput {
-    pub start_state: SantoriniState,
-    pub next_state: SantoriniState,
+    pub start_state: FullGameState,
+    pub next_state: FullGameState,
     pub trigger: BestMoveTrigger,
     pub meta: BestMoveMeta,
 }

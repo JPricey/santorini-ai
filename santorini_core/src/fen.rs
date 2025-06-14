@@ -1,6 +1,12 @@
-use crate::board::{GodName, NUM_SQUARES, Player, SantoriniState};
+use std::str::FromStr;
 
-pub fn board_to_fen(board: &SantoriniState) -> String {
+use crate::{
+    board::{BoardState, FullGameState, NUM_SQUARES, Player},
+    gods::{ALL_GODS_BY_ID, GodName, GodPower},
+};
+
+pub fn game_state_to_fen(state: &FullGameState) -> String {
+    let board = &state.board;
     let winner = board.get_winner();
 
     let mut result = String::new();
@@ -16,8 +22,10 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
     if winner == Some(Player::One) {
         result += "#";
     }
-    // TODO!
-    result += "mortal:";
+
+    result += state.p1_god.god_name.into();
+
+    result += ":";
     result += &board
         .get_positions_for_player(Player::One)
         .iter()
@@ -26,8 +34,9 @@ pub fn board_to_fen(board: &SantoriniState) -> String {
         .join(",");
 
     result += "/";
-    // TODO!
-    result += "mortal:";
+    result += state.p2_god.god_name.into();
+
+    result += ":";
     if winner == Some(Player::Two) {
         result += "#";
     }
@@ -52,7 +61,6 @@ struct CharacterFen {
 const CHARACTER_FEN_WARNING: &str =
     "Player details must be in the format: /god_name:<worker_id_1>,...[#(if won)]/";
 
-
 fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
     if s.len() == 0 {
         return Err(CHARACTER_FEN_WARNING.to_owned());
@@ -70,8 +78,9 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
         eprintln!("[DEPRECATION WARNING] No god title found. Defaulting to mortal for now");
         (GodName::Mortal, colon_splits[0])
     } else {
-        // TODO!!!
-        (GodName::Mortal, colon_splits[1])
+        let god_name = GodName::from_str(colon_splits[0])
+            .map_err(|e| format!("Failed to parse god name {}: {}", colon_splits[0], e))?;
+        (god_name, colon_splits[1])
     };
 
     let mut worker_locations: Vec<u32> = Vec::new();
@@ -95,13 +104,13 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
     })
 }
 
-pub fn parse_fen(s: &str) -> Result<SantoriniState, String> {
+pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     let sections: Vec<&str> = s.split('/').collect();
     if sections.len() != 4 {
         return Err("Input string must have exactly 4 sections separated by '/'".to_string());
     }
 
-    let mut result = SantoriniState::default();
+    let mut result = BoardState::default();
 
     let heights = sections[0]
         .chars()
@@ -153,7 +162,11 @@ pub fn parse_fen(s: &str) -> Result<SantoriniState, String> {
         result.set_winner(Player::Two);
     }
 
-    Ok(result)
+    Ok(FullGameState {
+        board: result,
+        p1_god: &ALL_GODS_BY_ID[p1_section.god as usize],
+        p2_god: &ALL_GODS_BY_ID[p2_section.god as usize],
+    })
 }
 
 #[cfg(test)]
@@ -167,10 +180,10 @@ mod tests {
         let mut rng = thread_rng();
 
         for _ in 0..10 {
-            let mut state = SantoriniState::new_basic_state();
+            let mut state = BoardState::new_basic_state();
             loop {
                 let state_string = format!("{state:?}");
-                let rebuilt_state = SantoriniState::try_from(state_string.as_str()).unwrap();
+                let rebuilt_state = BoardState::try_from(state_string.as_str()).unwrap();
 
                 assert_eq!(
                     state, rebuilt_state,

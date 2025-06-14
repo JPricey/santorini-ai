@@ -3,12 +3,11 @@ use std::sync::{Arc, atomic::AtomicBool};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    gods::{ALL_GODS_BY_ID, GodPower},
-    transposition_table::{SearchScore, TTValue},
+    board::FullGameState, gods::{GodPower, ALL_GODS_BY_ID}, transposition_table::{SearchScore, TTValue}
 };
 
 use super::{
-    board::{Player, SantoriniState},
+    board::{BoardState, Player},
     transposition_table::TranspositionTable,
 };
 
@@ -17,7 +16,7 @@ pub const WINNING_SCORE: Hueristic = 1000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 900;
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub fn judge_state(state: &SantoriniState, player1_god: &GodPower, depth: Hueristic) -> Hueristic {
+pub fn judge_state(state: &BoardState, player1_god: &GodPower, depth: Hueristic) -> Hueristic {
     if let Some(winner) = state.get_winner() {
         let new_score = winner.color() * (WINNING_SCORE - depth as Hueristic);
         return new_score;
@@ -37,7 +36,7 @@ pub enum BestMoveTrigger {
 
 #[derive(Clone, Debug)]
 pub struct NewBestMove {
-    pub state: SantoriniState,
+    pub state: FullGameState,
     pub score: Hueristic,
     pub depth: usize,
     pub trigger: BestMoveTrigger,
@@ -45,7 +44,7 @@ pub struct NewBestMove {
 
 impl NewBestMove {
     pub fn new(
-        state: SantoriniState,
+        state: FullGameState,
         score: Hueristic,
         depth: usize,
         trigger: BestMoveTrigger,
@@ -86,11 +85,14 @@ impl<'a> SearchState<'a> {
     }
 }
 
-pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) {
+pub fn search_with_state(search_state: &mut SearchState, root_state: &FullGameState) {
     let start_time = std::time::Instant::now();
-    let color = root.current_player.color();
+    let p1_god = root_state.p1_god;
+    let p2_god = root_state.p2_god;
+    let root_board = &root_state.board; 
+    let color = root_board.current_player.color();
 
-    if root.get_winner().is_some() {
+    if root_board.get_winner().is_some() {
         panic!("Can't search on a terminal node");
     }
 
@@ -112,8 +114,9 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
 
         let score = _inner_search(
             search_state,
-            &ALL_GODS_BY_ID[0],
-            root,
+            p1_god,
+            p2_god,
+            root_board,
             0,
             depth,
             color,
@@ -133,8 +136,9 @@ pub fn search_with_state(search_state: &mut SearchState, root: &SantoriniState) 
 
 fn _inner_search(
     search_state: &mut SearchState,
-    player1_god: &GodPower,
-    state: &SantoriniState,
+    p1_god: &'static GodPower,
+    p2_god: &'static GodPower,
+    state: &BoardState,
     depth: Hueristic,
     remaining_depth: usize,
     color: Hueristic,
@@ -142,7 +146,7 @@ fn _inner_search(
     beta: Hueristic,
 ) -> Hueristic {
     if remaining_depth == 0 || state.get_winner().is_some() {
-        return color * judge_state(state, player1_god, depth);
+        return color * judge_state(state, p1_god, depth);
     }
 
     let mut track_used = false;
@@ -176,7 +180,7 @@ fn _inner_search(
 
     let alpha_orig = alpha;
 
-    let mut children = (player1_god.next_states)(state, state.current_player);
+    let mut children = (p1_god.next_states)(state, state.current_player);
 
     if let Some(tt_value) = tt_entry {
         for i in 0..children.len() {
@@ -220,7 +224,8 @@ fn _inner_search(
     for child in &children {
         let score = -_inner_search(
             search_state,
-            player1_god,
+            p1_god,
+            p2_god,
             child,
             depth + 1,
             remaining_depth - 1,
@@ -237,7 +242,7 @@ fn _inner_search(
 
             if depth == 0 && !should_stop {
                 let new_best_move = NewBestMove::new(
-                    best_board.clone(),
+                    FullGameState::new(best_board.clone(), p1_god, p2_god),
                     score,
                     remaining_depth,
                     BestMoveTrigger::Improvement,

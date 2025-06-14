@@ -5,9 +5,9 @@ use std::{
 };
 
 use santorini_core::{
-    board::{SantoriniState, get_next_states_interactive},
+    board::{get_next_states_interactive, BoardState, FullGameState},
     engine::EngineThreadWrapper,
-    gods::{ALL_GODS_BY_ID, PartialAction},
+    gods::{PartialAction, ALL_GODS_BY_ID},
     search::NewBestMove,
     uci_types::{
         BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,
@@ -15,10 +15,10 @@ use santorini_core::{
 };
 
 fn find_action_path(
-    start_state: &SantoriniState,
-    destination_state: &SantoriniState,
+    start_state: &FullGameState,
+    destination_state: &FullGameState,
 ) -> Option<Vec<PartialAction>> {
-    let all_child_states = get_next_states_interactive(&start_state, &ALL_GODS_BY_ID[0]);
+    let all_child_states = get_next_states_interactive(&start_state);
     for full_child in all_child_states {
         if &full_child.result_state == destination_state {
             return Some(full_child.actions);
@@ -66,7 +66,7 @@ fn handle_command(
 
             let fen = parts.remove(0);
             let state =
-                SantoriniState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
+                FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
 
             let _ = engine.stop();
             let start_time = Instant::now();
@@ -105,10 +105,10 @@ fn handle_command(
 
             let fen = parts.remove(0);
 
-            let state: SantoriniState =
-                SantoriniState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
+            let state: FullGameState =
+                FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
 
-            let child_states = get_next_states_interactive(&state, &ALL_GODS_BY_ID[0]);
+            let child_states = get_next_states_interactive(&state);
 
             let output = EngineOutput::NextMoves(NextMovesOutput {
                 start_state: state.clone(),

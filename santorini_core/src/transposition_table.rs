@@ -1,6 +1,6 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use super::{board::SantoriniState, search::Hueristic};
+use super::{board::BoardState, search::Hueristic};
 
 pub type HashCodeType = u64;
 
@@ -14,7 +14,7 @@ pub enum SearchScore {
 #[derive(Clone)]
 pub struct TTValue {
     // TODO: should be best action?
-    pub best_child: SantoriniState,
+    pub best_child: BoardState,
     pub search_depth: u8,
     pub score: SearchScore,
 }
@@ -63,7 +63,7 @@ impl TranspositionTable {
         }
     }
 
-    pub fn insert(&mut self, state: &SantoriniState, value: TTValue) {
+    pub fn insert(&mut self, state: &BoardState, value: TTValue) {
         if TranspositionTable::IS_TRACKING_STATS {
             self.stats.insert += 1;
         }
@@ -74,7 +74,7 @@ impl TranspositionTable {
         self.entries[destination as usize] = Some(TTEntry { hash_code, value });
     }
 
-    pub fn fetch(&mut self, state: &SantoriniState) -> Option<&TTValue> {
+    pub fn fetch(&mut self, state: &BoardState) -> Option<&TTValue> {
         let hash_code = hash_obj(state);
         let destination = hash_code % TABLE_SIZE;
 

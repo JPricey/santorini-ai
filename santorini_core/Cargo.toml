@@ -10,6 +10,7 @@ colored = {workspace=true}
 rand = {workspace=true}
 serde = {workspace=true}
 serde_json = {workspace=true}
+strum = {workspace=true}
 
 [profile.release]
 opt-level = 3

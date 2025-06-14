@@ -1,14 +1,14 @@
 use crate::{
     board::{
-        BitmapType, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP, Player, SantoriniState,
+        BitmapType, IS_WINNER_MASK, MAIN_SECTION_MASK, NEIGHBOR_MAP, Player, BoardState,
         position_to_coord,
     },
     search::{Hueristic, WINNING_SCORE},
 };
 
-use super::{FullChoice, FullChoiceMapper, GodPower, PartialAction, StateOnlyMapper};
+use super::{BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper};
 
-fn player_advantage(state: &SantoriniState, player: Player) -> Hueristic {
+fn player_advantage(state: &BoardState, player: Player) -> Hueristic {
     let player_index = player as usize;
 
     if state.workers[player_index] & IS_WINNER_MASK > 0 {
@@ -41,7 +41,7 @@ fn player_advantage(state: &SantoriniState, player: Player) -> Hueristic {
     result
 }
 
-fn get_next_states_custom<T, M>(state: &SantoriniState, player: Player) -> Vec<T>
+fn get_next_states_custom<T, M>(state: &BoardState, player: Player) -> Vec<T>
 where
     M: super::ResultsMapper<T>,
 {
@@ -132,9 +132,10 @@ where
 
 pub const fn get_mortal_god() -> GodPower {
     GodPower {
+        god_name: GodName::Mortal,
         player_advantage_fn: player_advantage,
-        next_states: get_next_states_custom::<SantoriniState, StateOnlyMapper>,
+        next_states: get_next_states_custom::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
-        next_states_interactive: get_next_states_custom::<FullChoice, FullChoiceMapper>,
+        next_states_interactive: get_next_states_custom::<BoardStateWithAction, FullChoiceMapper>,
     }
 }

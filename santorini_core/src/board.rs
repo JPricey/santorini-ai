@@ -1,8 +1,8 @@
 use colored::Colorize;
 
 use crate::{
-    fen::{board_to_fen, parse_fen},
-    gods::{ALL_GODS_BY_ID, FullChoice, GodPower},
+    fen::{game_state_to_fen, parse_fen},
+    gods::{ALL_GODS_BY_ID, BoardStateWithAction, GameStateWithAction, GodName, GodPower},
 };
 
 use super::search::Hueristic;
@@ -18,11 +18,6 @@ impl Default for Player {
     fn default() -> Self {
         Player::One
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
-pub enum GodName {
-    Mortal = 0,
 }
 
 impl Player {
@@ -152,10 +147,71 @@ fn print_full_bitmap(mut mask: BitmapType) {
     }
 }
 
-pub struct SantorinitStateWithGods {
-    p1_god: &'static GodPower,
-    p2_god: &'static GodPower,
-    raw_state: SantoriniState,
+#[derive(Clone, PartialEq, Eq)]
+pub struct FullGameState {
+    pub p1_god: &'static GodPower,
+    pub p2_god: &'static GodPower,
+    pub board: BoardState,
+}
+
+impl Serialize for FullGameState {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let fen = game_state_to_fen(self);
+        serializer.serialize_str(&fen)
+    }
+}
+
+impl<'de> Deserialize<'de> for FullGameState {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let fen: String = Deserialize::deserialize(deserializer)?;
+        parse_fen(&fen).map_err(serde::de::Error::custom)
+    }
+}
+
+impl std::fmt::Debug for FullGameState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", game_state_to_fen(self))
+    }
+}
+
+impl TryFrom<&str> for FullGameState {
+    type Error = String;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        parse_fen(s)
+    }
+}
+
+impl TryFrom<&String> for FullGameState {
+    type Error = String;
+
+    fn try_from(s: &String) -> Result<Self, Self::Error> {
+        parse_fen(s)
+    }
+}
+
+impl FullGameState {
+    pub fn new(board_state: BoardState, p1_god: &'static GodPower, p2_god: &'static GodPower) -> Self {
+        FullGameState {
+            p1_god,
+            p2_god,
+            board: board_state,
+        }
+    }
+
+    pub fn new_basic_state(p1: GodName, p2: GodName) -> Self {
+        FullGameState::new(BoardState::new_basic_state(), p1.to_power(), p2.to_power())
+    }
+
+    pub fn new_basic_state_mortals() -> Self {
+        FullGameState::new_basic_state(GodName::Mortal, GodName::Mortal)
+    }
 }
 
 /*
@@ -168,35 +224,15 @@ pub struct SantorinitStateWithGods {
  *
  * bits 25-31 are unclaimed.
  */
-#[derive(Clone, Default, PartialEq, Eq, Hash)]
-pub struct SantoriniState {
+#[derive(Clone, Default, PartialEq, Eq, Hash, Debug)]
+pub struct BoardState {
     pub current_player: Player,
     // height_map[L - 1][s] represents if square s is GTE L
     pub height_map: [BitmapType; 4],
     pub workers: [BitmapType; 2],
 }
 
-impl Serialize for SantoriniState {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let fen = board_to_fen(self);
-        serializer.serialize_str(&fen)
-    }
-}
-
-impl<'de> Deserialize<'de> for SantoriniState {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let fen: String = Deserialize::deserialize(deserializer)?;
-        parse_fen(&fen).map_err(serde::de::Error::custom)
-    }
-}
-
-impl SantoriniState {
+impl BoardState {
     pub fn player_1_god(&self) -> &'static GodPower {
         &ALL_GODS_BY_ID[0]
     }
@@ -260,7 +296,8 @@ impl SantoriniState {
     */
 
     pub fn print_to_console(&self) {
-        eprintln!("{:?}", self);
+        // TODO!
+        // eprintln!("{:?}", self);
 
         if let Some(winner) = self.get_winner() {
             eprintln!("Player {:?} wins!", winner);
@@ -322,30 +359,17 @@ impl SantoriniState {
     }
 }
 
-impl std::fmt::Debug for SantoriniState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", board_to_fen(self))
-    }
-}
-
-impl TryFrom<&str> for SantoriniState {
-    type Error = String;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        parse_fen(s)
-    }
-}
-
-impl TryFrom<&String> for SantoriniState {
-    type Error = String;
-
-    fn try_from(s: &String) -> Result<Self, Self::Error> {
-        parse_fen(s)
-    }
-}
-
-pub fn get_next_states_interactive(state: &SantoriniState, god: &GodPower) -> Vec<FullChoice> {
-    (god.next_states_interactive)(&state, state.current_player)
+pub fn get_next_states_interactive(state: &FullGameState) -> Vec<GameStateWithAction> {
+    let active_god = match state.board.current_player {
+        Player::One => state.p1_god,
+        Player::Two => state.p2_god,
+    };
+    let board_states_with_action_list =
+        (active_god.next_states_interactive)(&state.board, state.board.current_player);
+    board_states_with_action_list
+        .into_iter()
+        .map(|e| GameStateWithAction::new(e, state.p1_god.god_name, state.p2_god.god_name))
+        .collect()
 }
 
 #[cfg(test)]

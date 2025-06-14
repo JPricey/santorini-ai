@@ -4,8 +4,8 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use santorini_core::board::{Player, SantoriniState};
-use santorini_core::fen::board_to_fen;
+use santorini_core::board::{BoardState, FullGameState, Player};
+use santorini_core::fen::game_state_to_fen;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 
@@ -92,7 +92,7 @@ struct BattleResult {
 }
 
 fn do_battle<'a>(
-    root: &SantoriniState,
+    root: &FullGameState,
     c1: &'a mut EngineSubprocess,
     c2: &'a mut EngineSubprocess,
     thinking_time_secs: f32,
@@ -100,10 +100,10 @@ fn do_battle<'a>(
     let mut depth = 0;
     let mut current_state = root.clone();
 
-    root.print_to_console();
+    root.board.print_to_console();
 
     loop {
-        let (engine, other) = match current_state.current_player {
+        let (engine, other) = match current_state.board.current_player {
             Player::One => (&mut *c1, &mut *c2),
             Player::Two => (&mut *c2, &mut *c1),
         };
@@ -111,7 +111,7 @@ fn do_battle<'a>(
         // Just incase
         writeln!(other.stdin, "stop").expect("Failed to write to stdin");
 
-        let state_string = board_to_fen(&current_state);
+        let state_string = game_state_to_fen(&current_state);
         writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
 
         let started_at = Instant::now();
@@ -167,14 +167,14 @@ fn do_battle<'a>(
         println!(
             "({}) Making move for Player {:?}: {:?} | d: {} s: {}",
             engine.engine_name,
-            saved_best_move.start_state.current_player,
+            saved_best_move.start_state.board.current_player,
             saved_best_move.meta.actions,
             saved_best_move.meta.calculated_depth,
             saved_best_move.meta.score
         );
-        current_state.print_to_console();
+        current_state.board.print_to_console();
 
-        let winner = current_state.get_winner();
+        let winner = current_state.board.get_winner();
         if let Some(winner) = winner {
             return BattleResult {
                 winning_player: winner,
@@ -188,7 +188,7 @@ fn main() {
     let mut c1 = prepare_subprocess("./all_versions/v2");
     let mut c2 = prepare_subprocess("./all_versions/v1");
 
-    let root = SantoriniState::new_basic_state();
+    let root = FullGameState::new_basic_state_mortals();
     let outcome = do_battle(&root, &mut c1, &mut c2, 5.0);
     println!("Game has ended {:?}", outcome);
 }
