@@ -7,8 +7,7 @@ use crate::{
 };
 
 use super::{
-    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
-    mortal::mortal_player_advantage,
+    mortal::{mortal_has_win, mortal_player_advantage}, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
 };
 
 pub fn hephaestus_player_advantage(state: &BoardState, player: Player) -> Hueristic {
@@ -149,6 +148,7 @@ pub const fn build_hephaestus() -> GodPower {
         next_states: hephaestus_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
         next_states_interactive: hephaestus_next_states::<BoardStateWithAction, FullChoiceMapper>,
+        has_win: mortal_has_win,
     }
 }
 

@@ -114,8 +114,7 @@ where
                 worker_move_pos,
             )));
 
-            if worker_starting_height != 3 && state.height_map[2] & worker_move_mask > 0
-            {
+            if worker_starting_height != 3 && state.height_map[2] & worker_move_mask > 0 {
                 let mut winning_next_state = state.clone();
                 winning_next_state.workers[current_player_idx] ^=
                     moving_worker_start_mask | worker_move_mask | IS_WINNER_MASK;
@@ -183,6 +182,7 @@ pub const fn build_mortal() -> GodPower {
         next_states: mortal_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
         next_states_interactive: mortal_next_states::<BoardStateWithAction, FullChoiceMapper>,
+        has_win: mortal_has_win,
     }
 }
 

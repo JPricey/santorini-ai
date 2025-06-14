@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::{GodPower, mortal::mortal_has_win},
+    gods::GodPower,
     transposition_table::{SearchScore, TTValue},
 };
 
@@ -168,29 +168,34 @@ fn _inner_search(
         Player::Two => p2_god,
     };
 
-    if remaining_depth == 0 {
-        if mortal_has_win(state, state.current_player) {
-            return (WINNING_SCORE - depth - 1) * state.current_player.color();
+    // TODO: should this only be done at max depth?
+    if (active_god.has_win)(state, state.current_player) {
+        let score = WINNING_SCORE - depth - 1;
 
-            /*
+        if depth == 0 {
             let children = (active_god.next_states)(state, state.current_player);
             for child in children {
                 if let Some(winner) = child.get_winner() {
                     if winner == state.current_player {
-                        return (WINNING_SCORE - depth - 1) * state.current_player.color();
+                        let new_best_move = NewBestMove::new(
+                            FullGameState::new(child, p1_god, p2_god),
+                            score,
+                            remaining_depth,
+                            BestMoveTrigger::EndOfLine,
+                        );
+                        search_state.best_move = Some(new_best_move.clone());
+                        (search_state.new_best_move_callback)(new_best_move);
                     }
                 }
             }
 
-            FullGameState::new(state.clone(), p1_god, p2_god).print_to_console();
-
-            panic!(
-                "state promised an immediate win, but one wasn't found: {:?}",
-                state
-            );
-            */
+            panic!("Was promised an immediate win but didn't find it?")
         }
 
+        return score;
+    }
+
+    if remaining_depth == 0 {
         return color * judge_state(state, p1_god, p2_god, depth);
     }
 

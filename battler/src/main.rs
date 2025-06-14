@@ -180,7 +180,6 @@ fn do_battle<'a>(
             Player::Two => saved_best_move.start_state.p2_god,
         };
 
-        current_state.print_to_console();
         println!(
             "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {}",
             engine.engine_name,
@@ -190,6 +189,7 @@ fn do_battle<'a>(
             saved_best_move.meta.calculated_depth,
             saved_best_move.meta.score
         );
+        current_state.print_to_console();
 
         println!();
 
@@ -203,9 +203,8 @@ fn do_battle<'a>(
     }
 }
 
-fn get_most_recent_model() -> String {
+fn _get_latest_updated_version() -> String {
     let entries = fs::read_dir(BINARY_DIRECTORY).unwrap();
-    println!("{:?}", entries);
 
     entries
         .into_iter()
@@ -271,8 +270,8 @@ struct BattlingPlayerConfig {
 
 fn _resolve_engine(name: Option<&str>) -> String {
     match name.as_deref() {
-        Some("latest") | None => get_most_recent_model(),
-        Some(path) => path.to_owned(),
+        Some("latest") | None => _get_latest_updated_version(),
+        Some(path) => format!("all_versions/{}", path),
     }
 }
 
@@ -338,6 +337,11 @@ fn main() {
         }
     };
 
+    if state.board.get_winner().is_some() {
+        println!("Game is already over. Quitting");
+        return;
+    }
+
     let now = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
     println!("Game ts: {}", now);
 
@@ -346,6 +350,7 @@ fn main() {
 
     let mut c1 = prepare_subprocess(&_log_name(&now, Player::One), &conf1.engine_name);
     let mut c2 = prepare_subprocess(&_log_name(&now, Player::Two), &conf2.engine_name);
+
 
     let outcome = do_battle(&state, &mut c1, &mut c2, conf1, conf2);
     println!("Game has ended {:?}", outcome);

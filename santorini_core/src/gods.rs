@@ -7,9 +7,9 @@ use pan::build_pan;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
-pub mod mortal;
 pub mod artemis;
 pub mod hephaestus;
+pub mod mortal;
 pub mod pan;
 
 #[derive(
@@ -88,6 +88,7 @@ pub type GenericNextStatesFn<T> = fn(&BoardState, Player) -> Vec<T>;
 // pub type NextStateWithScoresFn = GenericNextStatesFn<StateWithScore>;
 pub type NextStatesOnlyFn = GenericNextStatesFn<BoardState>;
 pub type NextStatesInteractiveFn = GenericNextStatesFn<BoardStateWithAction>;
+pub type HasWinFn = fn(&BoardState, Player) -> bool;
 
 #[derive(Clone, Debug)]
 pub struct StateOnlyMapper {}
@@ -145,6 +146,7 @@ pub struct GodPower {
     pub player_advantage_fn: PlayerAdvantageFn,
     pub next_states: NextStatesOnlyFn,
     pub next_states_interactive: NextStatesInteractiveFn,
+    pub has_win: HasWinFn,
 }
 
 impl PartialEq for GodPower {
@@ -155,7 +157,12 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 4] = [build_mortal(), build_artemis(), build_hephaestus(), build_pan()];
+pub const ALL_GODS_BY_ID: [GodPower; 4] = [
+    build_mortal(),
+    build_artemis(),
+    build_hephaestus(),
+    build_pan(),
+];
 
 #[cfg(test)]
 mod tests {

@@ -3,8 +3,7 @@ use crate::board::{
 };
 
 use super::{
-    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
-    mortal::mortal_player_advantage,
+    mortal::{mortal_has_win, mortal_player_advantage}, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
 };
 
 fn artemis_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
@@ -118,6 +117,8 @@ pub const fn build_artemis() -> GodPower {
         next_states: artemis_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
         next_states_interactive: artemis_next_states::<BoardStateWithAction, FullChoiceMapper>,
+        // TODO: needs a custom win fn
+        has_win: mortal_has_win,
     }
 }
 

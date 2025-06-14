@@ -1,10 +1,10 @@
-use crate::{board::{
-    position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP
-}, utils::MAIN_SECTION_MASK};
+use crate::{
+    board::{BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord},
+    utils::MAIN_SECTION_MASK,
+};
 
 use super::{
-    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
-    mortal::mortal_player_advantage,
+    mortal::{mortal_has_win, mortal_player_advantage}, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
 };
 
 pub fn pan_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
@@ -107,6 +107,8 @@ pub const fn build_pan() -> GodPower {
         next_states: pan_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
         next_states_interactive: pan_next_states::<BoardStateWithAction, FullChoiceMapper>,
+        // TODO: needs a custom has win fn
+        has_win: mortal_has_win,
     }
 }
 
