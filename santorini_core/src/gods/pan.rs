@@ -1,6 +1,6 @@
 use crate::{
     board::{position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP},
-    utils::{move_all_workers_one_exclude_original_workers, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK},
+    utils::{move_all_workers_one_include_original_workers, MAIN_SECTION_MASK},
 };
 
 use super::{

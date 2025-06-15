@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::{GodName, GodPower, mortal::mortal_has_win},
+    gods::GodPower,
     transposition_table::{SearchScore, TTValue},
 };
 

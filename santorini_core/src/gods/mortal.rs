@@ -2,7 +2,7 @@ use crate::{
     board::{position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP},
     search::{Hueristic, WINNING_SCORE},
     utils::{
-        grid_position_builder, move_all_workers_one_exclude_original_workers, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK
+        grid_position_builder, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK
     },
 };
 

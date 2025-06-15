@@ -1,9 +1,9 @@
 use crate::{board::{
     position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP
-}, utils::{move_all_workers_one_exclude_original_workers, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK}};
+}, utils::{move_all_workers_one_include_original_workers, MAIN_SECTION_MASK}};
 
 use super::{
-    mortal::{mortal_has_win, mortal_player_advantage}, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
+    mortal::mortal_player_advantage, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
 };
 
 fn artemis_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
