@@ -203,9 +203,12 @@ fn _sum_worker_heights(state: &BoardState, player: Player) -> u32 {
  * - Sort back to front, because we want to swap less often if possible, and more moves hurt our
  * score than help
  *
- * TODOs:
- * - Maybe it's worth running both advantage functions?
- * - Maybe its' worth having a "middle" band as well to separate further.
+ * - Why not run both advantage functions?
+ *  - After some testing, this proved to be worse. not sure if it's because of the wasted time or
+ *  numbers are actually less meaningful
+ *
+ *  TODO:
+ *  - There's probably some more improvements to make here
  */
 fn _order_states(
     states: &mut [BoardState],
@@ -218,13 +221,33 @@ fn _order_states(
     }
     let mut back = states.len() - 1;
     let mut front = 0;
+    let mut best_score = Hueristic::MIN;
+
     while front < back {
         let score = (current_god.player_advantage_fn)(&states[back], player);
         if score <= baseline_score {
             back -= 1;
         } else {
+            if score > best_score {
+                best_score = score;
+            }
             states.swap(back, front);
             front += 1;
+        }
+    }
+
+    if best_score > baseline_score {
+        front = 0;
+    } else {
+        back = states.len() - 1;
+    }
+    while front < back {
+        let score = (current_god.player_advantage_fn)(&states[back], player);
+        if score == best_score {
+            states.swap(back, front);
+            front += 1;
+        } else {
+            back -= 1;
         }
     }
 }
