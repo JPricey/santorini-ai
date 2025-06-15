@@ -588,6 +588,7 @@ class RootPanel:
     def handle_best_move_message(self, message):
         if message['start_state'] != self.current_position_string():
             print('Skipping best move for non-current position')
+            return
 
         self.last_engine_move = message
 

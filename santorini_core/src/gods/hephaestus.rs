@@ -1,13 +1,12 @@
 use crate::{
-    board::{
-        BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player,
-        position_to_coord,
-    },
+    board::{BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord},
     search::{Hueristic, WINNING_SCORE},
+    utils::MAIN_SECTION_MASK,
 };
 
 use super::{
-    mortal::{mortal_has_win, mortal_player_advantage}, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
+    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
+    mortal::{mortal_has_win, mortal_player_advantage},
 };
 
 pub fn hephaestus_player_advantage(state: &BoardState, player: Player) -> Hueristic {
@@ -50,7 +49,7 @@ where
     let mut result: Vec<T> = Vec::with_capacity(128);
 
     let current_player_idx = player as usize;
-    let starting_current_workers = state.workers[current_player_idx];
+    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
     let mut current_workers = starting_current_workers;
 
     let all_workers_mask = state.workers[0] | state.workers[1];

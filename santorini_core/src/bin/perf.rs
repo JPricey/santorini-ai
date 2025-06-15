@@ -7,7 +7,7 @@ use santorini_core::{
 };
 
 fn main() {
-    let state_str = "0000000000000000000000000/1/mortal:11,13/artemis:7,17";
+    let state_str = "0000000000000000000000000/1/mortal:11,13/mortal:7,17";
     let state = FullGameState::try_from(state_str).unwrap();
 
     let mut tt = TranspositionTable::new();
@@ -20,6 +20,7 @@ fn main() {
 
         let duration = end - now;
         println!("Took {:.4}s", duration.as_secs_f32());
+        println!("{:?}", tt);
         tt.reset();
     }
 }

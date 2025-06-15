@@ -104,12 +104,12 @@ impl ResultsMapper<BoardState> for StateOnlyMapper {
     }
 }
 
+/*
 #[derive(Clone, Debug)]
 pub struct HueristicMapper {
     god_power: &'static GodPower,
 }
 
-/*
 impl ResultsMapper<StateWithScore> for HueristicMapper {
     fn new(god_power: &'static GodPower) -> Self {
         HueristicMapper { god_power }

@@ -190,8 +190,43 @@ fn _sum_worker_heights(state: &BoardState, player: Player) -> u32 {
     result
 }
 
-fn _order_states(states: &mut [BoardState], player: Player) {
-    states.sort_by_key(|f| _sum_worker_heights(f, player));
+/*
+ * Ideally we want to order states from most -> least promising.
+ * Unfortunately, it's slow to identify the promise of a state, and it's slow to run a classic
+ * sort.
+ *
+ * Instead we pseudo-sort:
+ * - Take the "advantage fn" of the current god for the current state, and use that as a baseline
+ * score.
+ * - Any state with a better score than this goes in the top half of the list.
+ * - Any state with worse score goes in the bottom half of th list.
+ * - Sort back to front, because we want to swap less often if possible, and more moves hurt our
+ * score than help
+ *
+ * TODOs:
+ * - Maybe it's worth running both advantage functions?
+ * - Maybe its' worth having a "middle" band as well to separate further.
+ */
+fn _order_states(
+    states: &mut [BoardState],
+    current_god: &'static GodPower,
+    player: Player,
+    baseline_score: Hueristic,
+) {
+    if states.len() == 0 {
+        return;
+    }
+    let mut back = states.len() - 1;
+    let mut front = 0;
+    while front < back {
+        let score = (current_god.player_advantage_fn)(&states[back], player);
+        if score <= baseline_score {
+            back -= 1;
+        } else {
+            states.swap(back, front);
+            front += 1;
+        }
+    }
 }
 
 fn _inner_search(
@@ -209,6 +244,10 @@ fn _inner_search(
         Player::One => p1_god,
         Player::Two => p2_god,
     };
+
+    if let Some(winner) = state.get_winner() {
+        return (WINNING_SCORE - depth) * winner.color();
+    }
 
     if remaining_depth == 0 {
         return _q_extend(state, p1_god, p2_god, color, depth, 0);
@@ -280,6 +319,7 @@ fn _inner_search(
 
     let mut children = (active_god.next_states)(state, state.current_player);
 
+    let baseline_score = (active_god.player_advantage_fn)(&state, state.current_player);
     if let Some(tt_value) = tt_entry {
         for i in 0..children.len() {
             if children[i] == tt_value.best_child {
@@ -291,27 +331,20 @@ fn _inner_search(
                 }
             }
         }
-        // _order_states(&mut children[1..], state.current_player);
+        _order_states(
+            &mut children[1..],
+            active_god,
+            state.current_player,
+            baseline_score,
+        );
     } else {
-        // _order_states(&mut children, state.current_player);
+        _order_states(
+            &mut children,
+            active_god,
+            state.current_player,
+            baseline_score,
+        );
     }
-
-    /*
-    if let Some(tt_value) = tt_entry {
-        children.sort_by(|a, b| {
-            if a.0 == tt_value.best_child {
-                std::cmp::Ordering::Less
-            } else if b.0 == tt_value.best_child {
-                std::cmp::Ordering::Greater
-            } else {
-                std::cmp::Ordering::Equal
-            }
-            .then((color * b.1).partial_cmp(&(color * a.1)).unwrap())
-        });
-    } else {
-        children.sort_by(|a, b| (color * b.1).partial_cmp(&(color * a.1)).unwrap())
-    }
-    */
 
     if track_used {
         search_state.tt.stats.used_value += 1;

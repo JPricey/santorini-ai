@@ -54,7 +54,7 @@ pub struct TTStats {
 }
 
 impl TranspositionTable {
-    pub const IS_TRACKING_STATS: bool = false;
+    pub const IS_TRACKING_STATS: bool = true;
 
     pub fn new() -> Self {
         Self {
@@ -96,7 +96,7 @@ impl TranspositionTable {
     }
 
     pub fn count_filled_entries(&self) -> usize {
-        self.entries.iter().filter(|e| e.is_none()).count()
+        self.entries.iter().filter(|e| e.is_some()).count()
     }
 
     pub fn reset(&mut self) {
