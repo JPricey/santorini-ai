@@ -216,7 +216,7 @@ fn _order_states(
     player: Player,
     baseline_score: Hueristic,
 ) {
-    if states.len() == 0 {
+    if states.len() <= 1 {
         return;
     }
     let mut back = states.len() - 1;
@@ -224,7 +224,17 @@ fn _order_states(
     let mut best_score = Hueristic::MIN;
 
     while front < back {
-        let score = (current_god.player_advantage_fn)(&states[back], player);
+        let score = if let Some(winner) = states[back].get_winner() {
+            if winner == player {
+                states.swap(0, back);
+                return;
+            } else {
+                -WINNING_SCORE
+            }
+        } else {
+            (current_god.player_advantage_fn)(&states[back], player)
+        };
+
         if score <= baseline_score {
             back -= 1;
         } else {
@@ -280,7 +290,6 @@ fn _inner_search(
         return _q_extend(state, p1_god, p2_god, color, depth, 0);
     }
 
-    // TODO: should this only be done at max depth?
     // Move ordering should solve this for us
     if (active_god.has_win)(state, state.current_player) {
         let score = WINNING_SCORE - depth - 1;
