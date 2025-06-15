@@ -1,8 +1,8 @@
 use crate::{
-    board::{position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP},
+    board::{BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord},
     search::{Hueristic, WINNING_SCORE},
     utils::{
-        grid_position_builder, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK
+        MAIN_SECTION_MASK, grid_position_builder, move_all_workers_one_include_original_workers,
     },
 };
 
@@ -190,7 +190,7 @@ pub const fn build_mortal() -> GodPower {
 mod tests {
     use crate::{
         board::{FullGameState, Player},
-        gods::{mortal::mortal_has_win, tests::assert_has_win_consistency},
+        gods::tests::assert_has_win_consistency,
     };
 
     #[test]

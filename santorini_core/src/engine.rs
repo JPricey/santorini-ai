@@ -114,7 +114,7 @@ impl EngineThreadWrapper {
                         best_move: None,
                     };
 
-                    search_with_state(&mut search_state, &request.state);
+                    search_with_state(&mut search_state, &request.state, None);
 
                     request.stop_flag.store(true, Ordering::Relaxed);
                     transposition_table.reset();

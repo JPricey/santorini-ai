@@ -124,8 +124,7 @@ where
                         break;
                     }
                 }
-                next_state.workers[player as usize] ^=
-                    moving_worker_start_mask | 1 << dest_pos;
+                next_state.workers[player as usize] ^= moving_worker_start_mask | 1 << dest_pos;
                 result.push(mapper.map_result(next_state))
             }
         }
@@ -212,23 +211,42 @@ mod tests {
     //     }
     // }
 
-
     #[test]
     fn test_artemis_win_check() {
         // Regular 1>2>3
-        assert_has_win_consistency(&FullGameState::try_from("12300 44444 44444 44444 44444/1/artemis:0/mortal:24").unwrap(), true);
+        assert_has_win_consistency(
+            &FullGameState::try_from("12300 44444 44444 44444 44444/1/artemis:0/mortal:24")
+                .unwrap(),
+            true,
+        );
 
         // Can't move 1>3
-        assert_has_win_consistency(&FullGameState::try_from("13300 44444 44444 44444 44444/1/artemis:0/mortal:24").unwrap(), false);
+        assert_has_win_consistency(
+            &FullGameState::try_from("13300 44444 44444 44444 44444/1/artemis:0/mortal:24")
+                .unwrap(),
+            false,
+        );
 
         // Can move 2>2>3
-        assert_has_win_consistency(&FullGameState::try_from("22300 44444 44444 44444 44444/1/artemis:0/mortal:24").unwrap(), true);
+        assert_has_win_consistency(
+            &FullGameState::try_from("22300 44444 44444 44444 44444/1/artemis:0/mortal:24")
+                .unwrap(),
+            true,
+        );
 
         // Can't move 2>1>3
-        assert_has_win_consistency(&FullGameState::try_from("21300 44444 44444 44444 44444/1/artemis:0/mortal:24").unwrap(), false);
+        assert_has_win_consistency(
+            &FullGameState::try_from("21300 44444 44444 44444 44444/1/artemis:0/mortal:24")
+                .unwrap(),
+            false,
+        );
 
         // Single move 2>3
-        assert_has_win_consistency(&FullGameState::try_from("23000 44444 44444 44444 44444/1/artemis:0/mortal:24").unwrap(), true);
+        assert_has_win_consistency(
+            &FullGameState::try_from("23000 44444 44444 44444 44444/1/artemis:0/mortal:24")
+                .unwrap(),
+            true,
+        );
 
         // Can't win from 3>3
         assert_has_win_consistency(

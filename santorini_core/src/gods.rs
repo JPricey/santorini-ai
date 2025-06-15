@@ -35,7 +35,7 @@ pub trait ResultsMapper<T>: Clone {
     fn map_result(&self, state: BoardState) -> T;
 }
 
-// pub type StateWithScore = (SantoriniState, Hueristic);
+pub type StateWithScore = (BoardState, Hueristic);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -85,7 +85,7 @@ impl GameStateWithAction {
 
 pub type PlayerAdvantageFn = fn(&BoardState, Player) -> Hueristic;
 pub type GenericNextStatesFn<T> = fn(&BoardState, Player) -> Vec<T>;
-// pub type NextStateWithScoresFn = GenericNextStatesFn<StateWithScore>;
+pub type NextStateWithScoresFn = GenericNextStatesFn<StateWithScore>;
 pub type NextStatesOnlyFn = GenericNextStatesFn<BoardState>;
 pub type NextStatesInteractiveFn = GenericNextStatesFn<BoardStateWithAction>;
 pub type HasWinFn = fn(&BoardState, Player) -> bool;
@@ -104,19 +104,22 @@ impl ResultsMapper<BoardState> for StateOnlyMapper {
     }
 }
 
-/*
 #[derive(Clone, Debug)]
-pub struct HueristicMapper {}
+pub struct HueristicMapper {
+    god_power: &'static GodPower,
+}
+
+/*
 impl ResultsMapper<StateWithScore> for HueristicMapper {
-    fn new() -> Self {
-        HueristicMapper {}
+    fn new(god_power: &'static GodPower) -> Self {
+        HueristicMapper { god_power }
     }
 
     fn add_action(&mut self, _partial_action: PartialAction) {}
 
-    fn map_result(&self, state: SantoriniState) -> StateWithScore {
-        let judge_result = judge_state(&state, 0);
-        (state, judge_result)
+    fn map_result(&self, state: BoardState) -> StateWithScore {
+        let score = (self.god_power.player_advantage_fn)(&state, state.current_player);
+        (state, score)
     }
 }
 */
@@ -147,6 +150,12 @@ pub struct GodPower {
     pub next_states: NextStatesOnlyFn,
     pub next_states_interactive: NextStatesInteractiveFn,
     pub has_win: HasWinFn,
+}
+
+impl std::fmt::Debug for GodPower {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GodPower({:?})", self.god_name)
+    }
 }
 
 impl PartialEq for GodPower {

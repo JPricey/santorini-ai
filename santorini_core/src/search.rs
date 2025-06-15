@@ -18,17 +18,11 @@ pub const WINNING_SCORE: Hueristic = 1000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 900;
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub fn judge_state(
+pub fn judge_non_terminal_state(
     state: &BoardState,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
-    depth: Hueristic,
 ) -> Hueristic {
-    if let Some(winner) = state.get_winner() {
-        let new_score = winner.color() * (WINNING_SCORE - depth as Hueristic);
-        return new_score;
-    }
-
     (p1_god.player_advantage_fn)(state, Player::One)
         - (p2_god.player_advantage_fn)(state, Player::Two)
 }
@@ -92,20 +86,25 @@ impl<'a> SearchState<'a> {
     }
 }
 
-pub fn search_with_state(search_state: &mut SearchState, root_state: &FullGameState) {
+pub fn search_with_state(
+    search_state: &mut SearchState,
+    root_state: &FullGameState,
+    max_depth: Option<usize>,
+) {
     let start_time = std::time::Instant::now();
     let p1_god = root_state.p1_god;
     let p2_god = root_state.p2_god;
     let root_board = &root_state.board;
     let color = root_board.current_player.color();
+    let max_depth = max_depth.unwrap_or(1000);
 
     if root_board.get_winner().is_some() {
         panic!("Can't search on a terminal node");
     }
 
-    let starting_depth = 3;
+    let starting_depth = 1;
 
-    for depth in starting_depth.. {
+    for depth in starting_depth..max_depth {
         if search_state.should_stop() {
             eprintln!(
                 "Stopping search. Last completed depth {}. Duration: {} seconds",
@@ -162,7 +161,7 @@ fn _q_extend(
 
     // If opponent isn't threatening a win, take the current score
     if !(other_god.has_win)(state, state.current_player.other()) {
-        return color * judge_state(state, p1_god, p2_god, depth);
+        return color * judge_non_terminal_state(state, p1_god, p2_god);
     }
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
@@ -178,6 +177,23 @@ fn _q_extend(
     best_score
 }
 
+fn _sum_worker_heights(state: &BoardState, player: Player) -> u32 {
+    let mut result = 0;
+    let mut workers = state.workers[player as usize];
+    while workers != 0 {
+        let worker_pos = workers.trailing_zeros();
+        let worker_mask = 1 << worker_pos;
+        workers ^= worker_mask;
+
+        result -= state.get_height_for_worker(worker_mask) as u32;
+    }
+    result
+}
+
+fn _order_states(states: &mut [BoardState], player: Player) {
+    states.sort_by_key(|f| _sum_worker_heights(f, player));
+}
+
 fn _inner_search(
     search_state: &mut SearchState,
     p1_god: &'static GodPower,
@@ -189,10 +205,6 @@ fn _inner_search(
     mut alpha: Hueristic,
     beta: Hueristic,
 ) -> Hueristic {
-    if state.get_winner().is_some() {
-        return color * judge_state(state, p1_god, p2_god, depth);
-    }
-
     let active_god = match state.current_player {
         Player::One => p1_god,
         Player::Two => p2_god,
@@ -279,6 +291,9 @@ fn _inner_search(
                 }
             }
         }
+        // _order_states(&mut children[1..], state.current_player);
+    } else {
+        // _order_states(&mut children, state.current_player);
     }
 
     /*
