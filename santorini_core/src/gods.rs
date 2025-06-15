@@ -170,6 +170,33 @@ mod tests {
 
     use super::*;
 
+    fn _slow_win_check(state: &FullGameState) -> bool {
+        let child_state = state.get_next_states();
+        for child in child_state {
+            if child.board.get_winner() == Some(state.board.current_player) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn assert_has_win_consistency(state: &FullGameState, expected_has_win: bool) {
+        let slow_win_check_result = _slow_win_check(state);
+        assert_eq!(
+            slow_win_check_result, expected_has_win,
+            "State was meant to have win expectation: {:?}, but was {:?}: {:?}",
+            expected_has_win, slow_win_check_result, state
+        );
+
+        let fast_win_check =
+            (state.get_active_god().has_win)(&state.board, state.board.current_player);
+        assert_eq!(
+            fast_win_check, expected_has_win,
+            "State has_win was meant to have win expectation: {:?}, but was {:?}: {:?}",
+            expected_has_win, slow_win_check_result, state
+        );
+    }
+
     #[test]
     fn test_god_alignment() {
         for (i, god_power) in ALL_GODS_BY_ID.iter().enumerate() {

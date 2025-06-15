@@ -190,45 +190,18 @@ pub const fn build_mortal() -> GodPower {
 mod tests {
     use crate::{
         board::{FullGameState, Player},
-        gods::mortal::mortal_has_win,
+        gods::{mortal::mortal_has_win, tests::assert_has_win_consistency},
     };
 
     #[test]
     fn test_mortal_win_checking() {
-        fn slow_win_check(state: &FullGameState) -> bool {
-            let child_state = state.get_next_states();
-            for child in child_state {
-                if child.board.get_winner() == Some(state.board.current_player) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        fn assert_win_checking(state: &FullGameState, expected: bool) {
-            assert_eq!(
-                slow_win_check(state),
-                expected,
-                "State fully expanded win in 1 was not as expected [{:?}] for {:?}",
-                expected,
-                state
-            );
-            assert_eq!(
-                mortal_has_win(&state.board, state.board.current_player),
-                expected,
-                "State quick check win in 1 was not as expected [{:?}] for {:?}",
-                expected,
-                state
-            );
-        }
-
         {
             let state_str = "00000 00000 00230 00000 00030/1/mortal:12/mortal:24";
             let mut state = FullGameState::try_from(state_str).unwrap();
 
-            assert_win_checking(&state, true);
+            assert_has_win_consistency(&state, true);
             state.board.current_player = Player::Two;
-            assert_win_checking(&state, false);
+            assert_has_win_consistency(&state, false);
         }
 
         {
@@ -236,7 +209,7 @@ mod tests {
             let state_str = "00000 00000 00230 00000 00030/1/mortal:12/mortal:13";
             let state = FullGameState::try_from(state_str).unwrap();
 
-            assert_win_checking(&state, false);
+            assert_has_win_consistency(&state, false);
         }
 
         {
@@ -244,21 +217,21 @@ mod tests {
             let state_str = "00000 00000 00330 00000 00030/1/mortal:12/mortal:24";
             let state = FullGameState::try_from(state_str).unwrap();
 
-            assert_win_checking(&state, false);
+            assert_has_win_consistency(&state, false);
         }
 
         {
             let state_str = "2300000000000000000000000/2/mortal:2,13/mortal:0,17";
             let state = FullGameState::try_from(state_str).unwrap();
 
-            assert_win_checking(&state, true);
+            assert_has_win_consistency(&state, true);
         }
 
         {
             let state_str = "2144330422342221044000400/2/mortal:1,13/mortal:8,9";
             let state = FullGameState::try_from(state_str).unwrap();
 
-            assert_win_checking(&state, true);
+            assert_has_win_consistency(&state, true);
         }
     }
 }

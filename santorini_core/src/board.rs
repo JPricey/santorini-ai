@@ -207,10 +207,7 @@ impl FullGameState {
     }
 
     pub fn get_next_states(&self) -> Vec<FullGameState> {
-        let active_god = match self.board.current_player {
-            Player::One => self.p1_god,
-            Player::Two => self.p2_god,
-        };
+        let active_god = self.get_active_god();
         let board_states_with_action_list =
             (active_god.next_states)(&self.board, self.board.current_player);
         board_states_with_action_list
@@ -220,16 +217,27 @@ impl FullGameState {
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
-        let active_god = match self.board.current_player {
-            Player::One => self.p1_god,
-            Player::Two => self.p2_god,
-        };
+        let active_god = self.get_active_god();
         let board_states_with_action_list =
             (active_god.next_states_interactive)(&self.board, self.board.current_player);
         board_states_with_action_list
             .into_iter()
             .map(|e| GameStateWithAction::new(e, self.p1_god.god_name, self.p2_god.god_name))
             .collect()
+    }
+
+    pub fn get_active_god(&self) -> &'static GodPower {
+        match self.board.current_player {
+            Player::One => self.p1_god,
+            Player::Two => self.p2_god,
+        }
+    }
+
+    pub fn get_other_god(&self) -> &'static GodPower {
+        match self.board.current_player {
+            Player::One => self.p2_god,
+            Player::Two => self.p1_god,
+        }
     }
 
     pub fn print_to_console(&self) {
