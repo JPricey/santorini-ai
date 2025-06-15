@@ -269,7 +269,11 @@ fn _inner_search(
     };
 
     if let Some(winner) = state.get_winner() {
-        return (WINNING_SCORE - depth) * winner.color();
+        return if winner == state.current_player {
+            WINNING_SCORE - depth
+        } else {
+            -(WINNING_SCORE - depth)
+        };
     }
 
     if remaining_depth == 0 {

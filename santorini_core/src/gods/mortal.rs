@@ -13,11 +13,10 @@ use super::{
 const POSITION_BONUS: [Hueristic; 25] = grid_position_builder(-1, 0, 0, 2, 1, 1);
 const WORKER_HEIGHT_SCORES: [i32; 4] = [0, 10, 40, 10];
 
-pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic {
+pub fn mortal_player_advantage_bad(state: &BoardState, player: Player) -> Hueristic {
     let player_index = player as usize;
 
     if state.workers[player_index] & IS_WINNER_MASK > 0 {
-        // panic!("not possible?");
         return WINNING_SCORE;
     }
 
@@ -68,6 +67,38 @@ pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic 
 
     if total_moves_count < 2 {
         result -= 25;
+    }
+
+    result
+}
+
+pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic {
+    let player_index = player as usize;
+
+    if state.workers[player_index] & IS_WINNER_MASK > 0 {
+        return WINNING_SCORE;
+    }
+
+    let mut result: Hueristic = 0;
+    let mut current_workers = state.workers[player_index];
+    while current_workers != 0 {
+        let worker_pos = current_workers.trailing_zeros() as usize;
+        let worker_mask: BitmapType = 1 << worker_pos;
+        current_workers ^= worker_mask;
+
+        let height = state.get_height_for_worker(worker_mask);
+        result += 10 * height as i32;
+        if height == 2 {
+            result += 10;
+        }
+
+        let too_high = std::cmp::min(3, height + 1);
+        let worker_moves = NEIGHBOR_MAP[worker_pos] & !state.height_map[too_high];
+        for h in (0..too_high).rev() {
+            let mult = if h == 2 { 10 } else { h + 1 };
+            result +=
+                ((state.height_map[h] & worker_moves).count_ones() * mult as u32) as Hueristic;
+        }
     }
 
     result

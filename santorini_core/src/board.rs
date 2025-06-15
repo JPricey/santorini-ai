@@ -273,7 +273,7 @@ impl BoardState {
         let mut result = Self::default();
         result.workers[1] |= 1 << 7;
         result.workers[1] |= 1 << 17;
-        result.workers[0] |= 1 << 12;
+        result.workers[0] |= 1 << 11;
         result.workers[0] |= 1 << 13;
         result
     }
