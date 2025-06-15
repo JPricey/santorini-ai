@@ -1,10 +1,11 @@
 use crate::{
-    board::{BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord},
-    utils::MAIN_SECTION_MASK,
+    board::{position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP},
+    utils::{move_all_workers_one_exclude_original_workers, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK},
 };
 
 use super::{
-    mortal::{mortal_has_win, mortal_player_advantage}, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
+    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
+    mortal::mortal_player_advantage,
 };
 
 pub fn pan_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
@@ -100,6 +101,35 @@ where
     result
 }
 
+pub fn pan_has_win(state: &BoardState, player: Player) -> bool {
+    let current_player_idx = player as usize;
+    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
+
+    let level_2_workers = starting_current_workers & (state.height_map[1] & !state.height_map[2]);
+    if level_2_workers != 0 {
+        let moves_from_lvl_2 = move_all_workers_one_include_original_workers(level_2_workers);
+        let open_spaces = !(state.workers[0] | state.workers[1] | state.height_map[3]);
+        let level_3_or_0 = (state.height_map[2] | !state.height_map[0]) & open_spaces;
+        let wins_from_level_2 = moves_from_lvl_2 & level_3_or_0;
+        if wins_from_level_2 != 0 {
+            return true;
+        }
+    }
+
+    let level_3_workers = starting_current_workers & state.height_map[2];
+    if level_3_workers != 0 {
+        let moves_from_lvl_3 = move_all_workers_one_include_original_workers(level_3_workers);
+        let open_spaces = !(state.workers[0] | state.workers[1] | state.height_map[3]);
+        let level_0_or_1 = !state.height_map[1] & open_spaces;
+        let wins_from_level_3 = moves_from_lvl_3 & level_0_or_1;
+        if wins_from_level_3 != 0 {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 pub const fn build_pan() -> GodPower {
     GodPower {
         god_name: GodName::Pan,
@@ -107,14 +137,17 @@ pub const fn build_pan() -> GodPower {
         next_states: pan_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
         next_states_interactive: pan_next_states::<BoardStateWithAction, FullChoiceMapper>,
-        // TODO: needs a custom has win fn
-        has_win: mortal_has_win,
+        has_win: pan_has_win,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{board::FullGameState, fen::game_state_to_fen};
+    use crate::{
+        board::{FullGameState, Player},
+        fen::game_state_to_fen,
+        gods::pan::pan_has_win,
+    };
 
     #[test]
     fn test_pan_basic() {
@@ -132,5 +165,60 @@ mod tests {
             game_state_to_fen(&next_states[0].state),
             "2000044444000000000000000/2/#pan:1/mortal:23,24",
         );
+    }
+
+    #[test]
+    fn test_pan_win_checking() {
+        fn slow_win_check(state: &FullGameState) -> bool {
+            let child_state = state.get_next_states();
+            for child in child_state {
+                if child.board.get_winner() == Some(state.board.current_player) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        fn assert_win_checking(state: &FullGameState, expected: bool) {
+            assert_eq!(
+                slow_win_check(state),
+                expected,
+                "State fully expanded win in 1 was not as expected [{:?}] for {:?}",
+                expected,
+                state
+            );
+            assert_eq!(
+                pan_has_win(&state.board, state.board.current_player),
+                expected,
+                "State quick check win in 1 was not as expected [{:?}] for {:?}",
+                expected,
+                state
+            );
+        }
+
+        {
+            // Regular win con
+            let state_str = "22222 22222 22232 22222 22222/1/pan:12/pan:24";
+            let mut state = FullGameState::try_from(state_str).unwrap();
+
+            assert_win_checking(&state, true);
+            state.board.current_player = Player::Two;
+            assert_win_checking(&state, false);
+        }
+
+        {
+            // Fall from level 2 to 0
+            let state_str = "00000 00000 00200 00000 00030/1/pan:12/pan:13";
+            let state = FullGameState::try_from(state_str).unwrap();
+            assert_win_checking(&state, true);
+        }
+
+        {
+            // Fall from 3 to 1
+            let state_str = "1111111111113111111111111/1/pan:12/pan:24";
+            let state = FullGameState::try_from(state_str).unwrap();
+
+            assert_win_checking(&state, true);
+        }
     }
 }

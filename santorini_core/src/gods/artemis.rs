@@ -1,6 +1,6 @@
-use crate::board::{
-    BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord,
-};
+use crate::{board::{
+    position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP
+}, utils::{move_all_workers_one_exclude_original_workers, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK}};
 
 use super::{
     mortal::{mortal_has_win, mortal_player_advantage}, BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper
@@ -110,6 +110,22 @@ where
     result
 }
 
+pub fn artemis_has_win(state: &BoardState, player: Player) -> bool {
+    let current_player_idx = player as usize;
+    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
+
+    let level123_workers = starting_current_workers & (state.height_map[0] & !state.height_map[3]);
+    let exactly_level_2_buildings = state.height_map[1] & !state.height_map[2];
+
+    let level_2_after_01_moves = move_all_workers_one_include_original_workers(level123_workers) & exactly_level_2_buildings;
+    let moves_from_level_2 = move_all_workers_one_include_original_workers(level_2_after_01_moves);
+    let open_spaces = !(state.workers[0] | state.workers[1] | state.height_map[3]);
+    let exactly_level_3 = state.height_map[2] & open_spaces;
+    let level_3_moves = moves_from_level_2 & exactly_level_3;
+
+    level_3_moves != 0
+}
+
 pub const fn build_artemis() -> GodPower {
     GodPower {
         god_name: GodName::Artemis,
@@ -117,8 +133,7 @@ pub const fn build_artemis() -> GodPower {
         next_states: artemis_next_states::<BoardState, StateOnlyMapper>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
         next_states_interactive: artemis_next_states::<BoardStateWithAction, FullChoiceMapper>,
-        // TODO: needs a custom win fn
-        has_win: mortal_has_win,
+        has_win: artemis_has_win,
     }
 }
 

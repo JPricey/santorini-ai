@@ -291,7 +291,7 @@ fn massage_inputs(args: &BattlerCliArgs) -> (BattlingPlayerConfig, BattlingPlaye
         (a, b) => (_resolve_engine(a.as_deref()), _resolve_engine(b.as_deref())),
     };
 
-    let (s1, d2) = match (args.secs, args.secs) {
+    let (s1, s2) = match (args.secs, args.secs2) {
         (Some(g1), Some(g2)) => (g1, g2),
         (Some(g1), None) => (g1, g1),
         (None, Some(g2)) => (DEFAULT_DURATION_SECS, g2),
@@ -307,7 +307,7 @@ fn massage_inputs(args: &BattlerCliArgs) -> (BattlingPlayerConfig, BattlingPlaye
         BattlingPlayerConfig {
             god: god2,
             engine_name: engine2,
-            duration_per_turn: Duration::from_secs_f32(d2),
+            duration_per_turn: Duration::from_secs_f32(s2),
         },
     )
 }
@@ -351,10 +351,9 @@ fn main() {
     let mut c1 = prepare_subprocess(&_log_name(&now, Player::One), &conf1.engine_name);
     let mut c2 = prepare_subprocess(&_log_name(&now, Player::Two), &conf2.engine_name);
 
-
     let outcome = do_battle(&state, &mut c1, &mut c2, conf1, conf2);
     println!("Game has ended {:?}", outcome);
 
-    let _ =c1.child.kill();
-    let _ =c2.child.kill();
+    let _ = c1.child.kill();
+    let _ = c2.child.kill();
 }

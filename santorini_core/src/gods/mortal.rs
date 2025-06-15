@@ -1,8 +1,8 @@
 use crate::{
-    board::{BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord},
+    board::{position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP},
     search::{Hueristic, WINNING_SCORE},
     utils::{
-        MAIN_SECTION_MASK, grid_position_builder, move_all_workers_one_exclude_original_workers,
+        grid_position_builder, move_all_workers_one_exclude_original_workers, move_all_workers_one_include_original_workers, MAIN_SECTION_MASK
     },
 };
 
@@ -167,7 +167,7 @@ pub fn mortal_has_win(state: &BoardState, player: Player) -> bool {
     let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
 
     let level_2_workers = starting_current_workers & (state.height_map[1] & !state.height_map[2]);
-    let moves_from_lvl_2 = move_all_workers_one_exclude_original_workers(level_2_workers);
+    let moves_from_lvl_2 = move_all_workers_one_include_original_workers(level_2_workers);
     let open_spaces = !(state.workers[0] | state.workers[1] | state.height_map[3]);
     let exactly_level_3 = state.height_map[2] & open_spaces;
     let level_3_moves = moves_from_lvl_2 & exactly_level_3;
@@ -248,21 +248,17 @@ mod tests {
         }
 
         {
-            // Random bug?
             let state_str = "2300000000000000000000000/2/mortal:2,13/mortal:0,17";
             let state = FullGameState::try_from(state_str).unwrap();
 
             assert_win_checking(&state, true);
         }
-    }
 
-    #[test]
-    fn test_joe() {
-        let state =
-            FullGameState::try_from("2300000000000000000000000/2/mortal:2,13/mortal:0,17").unwrap();
-        let children = state.get_next_states();
-        for child in children {
-            child.print_to_console();
+        {
+            let state_str = "2144330422342221044000400/2/mortal:1,13/mortal:8,9";
+            let state = FullGameState::try_from(state_str).unwrap();
+
+            assert_win_checking(&state, true);
         }
     }
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::GodPower,
+    gods::{GodName, GodPower, mortal::mortal_has_win},
     transposition_table::{SearchScore, TTValue},
 };
 
@@ -141,12 +141,42 @@ pub fn search_with_state(search_state: &mut SearchState, root_state: &FullGameSt
     }
 }
 
-// fn _qs_extension(
-//     state: &BoardState,
-//     p1_god: &'static GodPower,
-//     p2_god: &'static GodPower,
-//     color: Hueristic,
-// )
+fn _q_extend(
+    state: &BoardState,
+    p1_god: &'static GodPower,
+    p2_god: &'static GodPower,
+    color: Hueristic,
+    depth: Hueristic,
+    q_depth: u32,
+) -> Hueristic {
+    let (active_god, other_god) = match state.current_player {
+        Player::One => (p1_god, p2_god),
+        Player::Two => (p2_god, p1_god),
+    };
+
+    // If we have a win right now, just take it
+    if (active_god.has_win)(state, state.current_player) {
+        let score = WINNING_SCORE - depth - 1;
+        return score;
+    }
+
+    // If opponent isn't threatening a win, take the current score
+    if !(other_god.has_win)(state, state.current_player.other()) {
+        return color * judge_state(state, p1_god, p2_god, depth);
+    }
+
+    // Opponent is threatening a win right now. Keep looking to confirm if we can block it
+    let mut best_score = Hueristic::MIN;
+    let children = (active_god.next_states)(state, state.current_player);
+    for child in &children {
+        let child_score = _q_extend(child, p1_god, p2_god, -color, depth + 1, q_depth + 1);
+        if child_score > best_score {
+            best_score = child_score;
+        }
+    }
+
+    best_score
+}
 
 fn _inner_search(
     search_state: &mut SearchState,
@@ -168,7 +198,12 @@ fn _inner_search(
         Player::Two => p2_god,
     };
 
+    if remaining_depth == 0 {
+        return _q_extend(state, p1_god, p2_god, color, depth, 0);
+    }
+
     // TODO: should this only be done at max depth?
+    // Move ordering should solve this for us
     if (active_god.has_win)(state, state.current_player) {
         let score = WINNING_SCORE - depth - 1;
 
@@ -185,18 +220,19 @@ fn _inner_search(
                         );
                         search_state.best_move = Some(new_best_move.clone());
                         (search_state.new_best_move_callback)(new_best_move);
+                        return score;
                     }
                 }
             }
 
-            panic!("Was promised an immediate win but didn't find it?")
+            let full_state = FullGameState::new(state.clone(), p1_god, p2_god);
+            panic!(
+                "Was promised an immediate win but didn't find it? {:?}",
+                full_state
+            );
         }
 
         return score;
-    }
-
-    if remaining_depth == 0 {
-        return color * judge_state(state, p1_god, p2_god, depth);
     }
 
     let mut track_used = false;
