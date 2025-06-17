@@ -15,7 +15,7 @@ fn main() {
         let mut search_state = SearchState::new(&mut tt);
 
         let now = Instant::now();
-        search_with_state(&mut search_state, &state, Some(7));
+        search_with_state(&mut search_state, &state, Some(8));
         let end = Instant::now();
 
         let duration = end - now;

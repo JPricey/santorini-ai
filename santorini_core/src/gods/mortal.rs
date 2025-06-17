@@ -13,12 +13,8 @@ use super::{
 const POSITION_BONUS: [Hueristic; 25] = grid_position_builder(-1, 0, 0, 2, 1, 1);
 const WORKER_HEIGHT_SCORES: [i32; 4] = [0, 10, 40, 10];
 
-pub fn mortal_player_advantage_bad(state: &BoardState, player: Player) -> Hueristic {
+pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic {
     let player_index = player as usize;
-
-    if state.workers[player_index] & IS_WINNER_MASK > 0 {
-        return WINNING_SCORE;
-    }
 
     let mut result: Hueristic = 0;
     let mut current_workers = state.workers[player_index];
@@ -72,7 +68,7 @@ pub fn mortal_player_advantage_bad(state: &BoardState, player: Player) -> Hueris
     result
 }
 
-pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic {
+pub fn mortal_player_advantage_old(state: &BoardState, player: Player) -> Hueristic {
     let player_index = player as usize;
 
     if state.workers[player_index] & IS_WINNER_MASK > 0 {
@@ -104,7 +100,108 @@ pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic 
     result
 }
 
-pub fn mortal_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
+const COVERAGE_MAP: [u32; 2] = [0, MAIN_SECTION_MASK];
+// const ANTI_COVERAGE_MAP: [u32; 2] = [MAIN_SECTION_MASK, 0];
+
+// Turns out this is slower than the original version. Ooops
+pub fn mortal_next_states_v2<T, M>(state: &BoardState, player: Player) -> Vec<T>
+where
+    M: super::ResultsMapper<T>,
+{
+    let mut result: Vec<T> = Vec::with_capacity(128);
+    let current_player_idx = player as usize;
+    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
+    let mut current_workers = starting_current_workers;
+
+    let level_0_or_1 = !state.height_map[2];
+    let exactly_2 = state.height_map[1] & !state.height_map[2];
+    let exactly_3 = state.height_map[2] & !state.height_map[3];
+    let all_workers_mask = state.workers[0] | state.workers[1];
+    let open_spaces = !(state.height_map[3] | all_workers_mask);
+
+    while current_workers != 0 {
+        let moving_worker_start_pos = current_workers.trailing_zeros() as usize;
+        let moving_worker_start_mask: BitmapType = 1 << moving_worker_start_pos;
+        current_workers ^= moving_worker_start_mask;
+
+        let mut mapper = M::new();
+        mapper.add_action(PartialAction::SelectWorker(position_to_coord(
+            moving_worker_start_pos,
+        )));
+
+        let worker_at_least_1 = state.height_map[0] & moving_worker_start_mask;
+        let worker_is_at_least_2_bit: usize =
+            ((state.height_map[1] & moving_worker_start_mask) != 0) as usize;
+        let worker_is_exactly_2 = exactly_2 & moving_worker_start_mask;
+
+        let open_neighbors = NEIGHBOR_MAP[moving_worker_start_pos] & open_spaces;
+
+        let mut level_3_neighbors =
+            open_neighbors & exactly_3 & COVERAGE_MAP[worker_is_at_least_2_bit];
+        if worker_is_exactly_2 != 0 {
+            while level_3_neighbors != 0 {
+                let move_to_pos = level_3_neighbors.trailing_zeros() as usize;
+                let move_to_mask: BitmapType = 1 << move_to_pos;
+                level_3_neighbors ^= move_to_mask;
+
+                let mut mapper = mapper.clone();
+                mapper.add_action(PartialAction::MoveWorker(position_to_coord(move_to_pos)));
+
+                let mut winning_next_state = state.clone();
+                winning_next_state.workers[current_player_idx] ^=
+                    moving_worker_start_mask | move_to_mask | IS_WINNER_MASK;
+                winning_next_state.flip_current_player();
+                result.push(mapper.map_result(winning_next_state));
+                continue;
+            }
+        }
+
+        let mut moving_neighbors = (level_0_or_1
+            | level_3_neighbors
+            | COVERAGE_MAP[(worker_at_least_1 != 0) as usize] & exactly_2)
+            & open_neighbors;
+
+        while moving_neighbors != 0 {
+            let move_to_pos = moving_neighbors.trailing_zeros() as usize;
+            let move_to_mask: BitmapType = 1 << move_to_pos;
+            moving_neighbors ^= move_to_mask;
+
+            let mut mapper = mapper.clone();
+            mapper.add_action(PartialAction::MoveWorker(position_to_coord(move_to_pos)));
+
+            let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
+            let mut worker_builds =
+                NEIGHBOR_MAP[move_to_pos] & !non_selected_workers & !state.height_map[3];
+
+            while worker_builds != 0 {
+                let worker_build_pos = worker_builds.trailing_zeros() as usize;
+                let worker_build_mask = 1 << worker_build_pos;
+                worker_builds ^= worker_build_mask;
+
+                let mut mapper = mapper.clone();
+                mapper.add_action(PartialAction::Build(position_to_coord(worker_build_pos)));
+
+                let mut next_state = state.clone();
+                next_state.flip_current_player();
+                for height in 0.. {
+                    if next_state.height_map[height] & worker_build_mask == 0 {
+                        next_state.height_map[height] |= worker_build_mask;
+                        break;
+                    }
+                }
+                next_state.workers[current_player_idx] ^= moving_worker_start_mask | move_to_mask;
+                result.push(mapper.map_result(next_state))
+            }
+        }
+    }
+
+    result
+}
+
+pub fn mortal_next_states<T, M, const SHORT_CIRCUIT_WINS: bool>(
+    state: &BoardState,
+    player: Player,
+) -> Vec<T>
 where
     M: super::ResultsMapper<T>,
 {
@@ -151,6 +248,10 @@ where
                     moving_worker_start_mask | worker_move_mask | IS_WINNER_MASK;
                 winning_next_state.flip_current_player();
                 result.push(mapper.map_result(winning_next_state));
+                if SHORT_CIRCUIT_WINS {
+                    return result;
+                }
+
                 continue;
             }
 
@@ -210,9 +311,9 @@ pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
         player_advantage_fn: mortal_player_advantage,
-        next_states: mortal_next_states::<BoardState, StateOnlyMapper>,
+        next_states: mortal_next_states::<BoardState, StateOnlyMapper, true>,
         // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
-        next_states_interactive: mortal_next_states::<BoardStateWithAction, FullChoiceMapper>,
+        next_states_interactive: mortal_next_states::<BoardStateWithAction, FullChoiceMapper, false>,
         has_win: mortal_has_win,
     }
 }

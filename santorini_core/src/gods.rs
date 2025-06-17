@@ -2,8 +2,11 @@ use super::search::Hueristic;
 use crate::board::{BoardState, Coord, FullGameState, Player};
 use artemis::build_artemis;
 use hephaestus::build_hephaestus;
+// use artemis::build_artemis;
+// use hephaestus::build_hephaestus;
 use mortal::build_mortal;
 use pan::build_pan;
+// use pan::build_pan;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 

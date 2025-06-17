@@ -102,7 +102,7 @@ pub fn search_with_state(
         panic!("Can't search on a terminal node");
     }
 
-    let starting_depth = 1;
+    let starting_depth = 3;
 
     for depth in starting_depth..max_depth {
         if search_state.should_stop() {
@@ -199,16 +199,13 @@ fn _sum_worker_heights(state: &BoardState, player: Player) -> u32 {
  * - Take the "advantage fn" of the current god for the current state, and use that as a baseline
  * score.
  * - Any state with a better score than this goes in the top half of the list.
- * - Any state with worse score goes in the bottom half of th list.
- * - Sort back to front, because we want to swap less often if possible, and more moves hurt our
- * score than help
+ * - Any state with worse score goes in the bottom half of the list.
+ * - Sort back to front, because because swaps are expensive and moves often hurt more than help
  *
  * - Why not run both advantage functions?
  *  - After some testing, this proved to be worse. not sure if it's because of the wasted time or
  *  numbers are actually less meaningful
  *
- *  TODO:
- *  - There's probably some more improvements to make here
  */
 fn _order_states(
     states: &mut [BoardState],
@@ -224,16 +221,7 @@ fn _order_states(
     let mut best_score = Hueristic::MIN;
 
     while front < back {
-        let score = if let Some(winner) = states[back].get_winner() {
-            if winner == player {
-                states.swap(0, back);
-                return;
-            } else {
-                -WINNING_SCORE
-            }
-        } else {
-            (current_god.player_advantage_fn)(&states[back], player)
-        };
+        let score = (current_god.player_advantage_fn)(&states[back], player);
 
         if score <= baseline_score {
             back -= 1;
@@ -290,37 +278,38 @@ fn _inner_search(
         return _q_extend(state, p1_god, p2_god, color, depth, 0);
     }
 
-    // Move ordering should solve this for us
-    if (active_god.has_win)(state, state.current_player) {
-        let score = WINNING_SCORE - depth - 1;
+    // Old: check if we have a win to quit early.
+    // This got replaced with short circuiting move gen once we spot a win, and checking for it
+    // if (active_god.has_win)(state, state.current_player) {
+    //     let score = WINNING_SCORE - depth - 1;
 
-        if depth == 0 {
-            let children = (active_god.next_states)(state, state.current_player);
-            for child in children {
-                if let Some(winner) = child.get_winner() {
-                    if winner == state.current_player {
-                        let new_best_move = NewBestMove::new(
-                            FullGameState::new(child, p1_god, p2_god),
-                            score,
-                            remaining_depth,
-                            BestMoveTrigger::EndOfLine,
-                        );
-                        search_state.best_move = Some(new_best_move.clone());
-                        (search_state.new_best_move_callback)(new_best_move);
-                        return score;
-                    }
-                }
-            }
+    //     if depth == 0 {
+    //         let children = (active_god.next_states)(state, state.current_player);
+    //         for child in children.into_iter().rev() {
+    //             if let Some(winner) = child.get_winner() {
+    //                 if winner == state.current_player {
+    //                     let new_best_move = NewBestMove::new(
+    //                         FullGameState::new(child, p1_god, p2_god),
+    //                         score,
+    //                         remaining_depth,
+    //                         BestMoveTrigger::EndOfLine,
+    //                     );
+    //                     search_state.best_move = Some(new_best_move.clone());
+    //                     (search_state.new_best_move_callback)(new_best_move);
+    //                     return score;
+    //                 }
+    //             }
+    //         }
 
-            let full_state = FullGameState::new(state.clone(), p1_god, p2_god);
-            panic!(
-                "Was promised an immediate win but didn't find it? {:?}",
-                full_state
-            );
-        }
+    //         let full_state = FullGameState::new(state.clone(), p1_god, p2_god);
+    //         panic!(
+    //             "Was promised an immediate win but didn't find it? {:?}",
+    //             full_state
+    //         );
+    //     }
 
-        return score;
-    }
+    //     return score;
+    // }
 
     let mut track_used = false;
     let mut track_unused = false;
@@ -354,6 +343,23 @@ fn _inner_search(
     let alpha_orig = alpha;
 
     let mut children = (active_god.next_states)(state, state.current_player);
+    // next_states stops accululating once it sees a win, so if there is a win it'll be last
+    if children[children.len() - 1].get_winner() == Some(state.current_player) {
+        let score = WINNING_SCORE - depth - 1;
+
+        if depth == 0 {
+            let new_best_move = NewBestMove::new(
+                FullGameState::new(children[children.len() - 1].clone(), p1_god, p2_god),
+                score,
+                remaining_depth,
+                BestMoveTrigger::EndOfLine,
+            );
+            search_state.best_move = Some(new_best_move.clone());
+            (search_state.new_best_move_callback)(new_best_move);
+        }
+
+        return score;
+    }
 
     let baseline_score = (active_god.player_advantage_fn)(&state, state.current_player);
     if let Some(tt_value) = tt_entry {
