@@ -13,11 +13,17 @@ Goals:
 Board states are represented in this format:
 `<height_map>/<current_player_id>/<player_details: player 1>/<player_details: player 2>`
 `height_map`: 25 digits representing the height map of the board. Each digit must be a number from 0-4 inclusive. Domes are always represented as 4s (TODO: is that valid? as in, is a 3 vs non-3 height dome ever different?).
-`current_player_id`: either `1` or `2`
-`player_details`: Comma separated list of worker positions, represented as position index.
+`current_player_id`: either `1` or `2` representing whose turn it is
+`player_details`: A string in this format: `<god_name>[#]:<worker_position>,...`. That is, first a god name is lowercase. Then, optionally a # if the game is over and this player is the winner. Then a :. Then a comma separated list of worker positions, represented as position index.
 
 Example:
-`4112202311011420102000100/2/3,14/1,12`
+`4112202311011420102000100/2/mortal:3,14/artemis:1,12`
+
+### Implemented gods:
+- `mortal`
+- `artemis`
+- `hephaestus`
+- `pan`
 
 ### Position Index <> Coordinate mapping:
 Often positions are refered to by a specific index (for example, worker positions). Positions map to board coordinates like this:
@@ -120,6 +126,7 @@ Started is emitted on startup, as soon as the engine is ready to receive command
     - If incremental best moves should be output
 
 - More player actions, as gods are added
+    - The harder part of adding new gods at this point is serializing their actions in a way that can be clearly represented in a UI.
     - Hermes probably requires a fully dedicated action for their turn
     - build needs a height property for Hephastus (or does it just build twice in a row??)
         - For atlas too??
