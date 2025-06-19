@@ -113,7 +113,7 @@ pub fn search_with_state(
             );
             search_state.best_move = Some(new_best_move.clone());
             (search_state.new_best_move_callback)(new_best_move);
-            tt_entry.search_depth
+            tt_entry.search_depth + 1
         } else {
             3
         }
@@ -456,22 +456,24 @@ fn _inner_search(
         }
     }
 
-    let tt_score_type = if best_score <= alpha_orig {
-        SearchScoreType::UpperBound
-    } else if best_score >= beta {
-        SearchScoreType::LowerBound
-    } else {
-        SearchScoreType::Exact
-    };
+    if !search_state.should_stop() {
+        let tt_score_type = if best_score <= alpha_orig {
+            SearchScoreType::UpperBound
+        } else if best_score >= beta {
+            SearchScoreType::LowerBound
+        } else {
+            SearchScoreType::Exact
+        };
 
-    let tt_value = TTValue {
-        best_child: best_board.clone(),
-        search_depth: remaining_depth as u8,
-        score_type: tt_score_type,
-        score: best_score,
-    };
+        let tt_value = TTValue {
+            best_child: best_board.clone(),
+            search_depth: remaining_depth as u8,
+            score_type: tt_score_type,
+            score: best_score,
+        };
 
-    search_state.tt.insert(state, tt_value);
+        search_state.tt.insert(state, tt_value);
+    }
 
     if depth == 0 {
         search_state.last_fully_completed_depth = remaining_depth;

@@ -2,6 +2,7 @@
 use crate::board::{BOARD_WIDTH, BitmapType, Coord};
 
 pub const MAIN_SECTION_MASK: BitmapType = (1 << 25) - 1;
+pub const OFF_SECTION_MASK: BitmapType = !MAIN_SECTION_MASK;
 pub const EXCEPT_LEFT_COL: BitmapType =
     0b11110 | 0b11110 << 5 | 0b11110 << 10 | 0b11110 << 15 | 0b11110 << 20;
 pub const EXCEPT_RIGHT_COL: BitmapType =

@@ -3,7 +3,7 @@ use colored::Colorize;
 use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, GodPower},
-    utils::MAIN_SECTION_MASK,
+    utils::{MAIN_SECTION_MASK },
 };
 
 use super::search::Hueristic;
@@ -376,8 +376,49 @@ impl BoardState {
     }
 }
 
+fn _flip_bitboard_vertical(board: u32) -> u32 {
+    let mut result = board;
+
+    // Delta swap for row 0 and row 4
+    let delta1 = ((result) ^ (result >> 20)) & 0b11111;
+    result ^= (delta1) | (delta1 << 20);
+
+    // Delta swap for row 1 and row 3
+    let delta2 = ((result) ^ (result >> 10)) & 0b1111100000;
+    result ^= (delta2) | (delta2 << 10);
+
+    // Row 2 stays in place
+    result
+}
+
+fn _flip_bitboard_horizontal(board: u32) -> u32 {
+    let mut result = board;
+
+    // Create masks for the columns we want to swap
+    const COL0: u32 = 0b00001_00001_00001_00001_00001; // bits 0,5,10,15,20
+    const COL1: u32 = 0b00010_00010_00010_00010_00010; // bits 1,6,11,16,21
+    // const COL3: u32 = 0b01000_01000_01000_01000_01000; // bits 3,8,13,18,23
+    // const COL4: u32 = 0b10000_10000_10000_10000_10000; // bits 4,9,14,19,24
+
+    // Delta swap for columns 0 and 4
+    let delta1 = ((result) ^ ((result) >> 4)) & COL0;
+    result ^= (delta1 << 0) | (delta1 << 4);
+
+    // Delta swap for columns 1 and 3
+    let delta2 = ((result) ^ ((result) >> 2)) & COL1;
+    result ^= (delta2) | (delta2 << 2);
+
+    result
+}
+
+pub fn flip_board_v(state: &BoardState) -> BoardState {
+    todo!()
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::utils::print_full_bitmap;
+
     use super::*;
 
     #[test]
@@ -388,6 +429,40 @@ mod tests {
             let parsed_coord: Coord = serde_json::from_str(&coord_str).unwrap();
 
             assert_eq!(coord, parsed_coord);
+        }
+    }
+
+    #[test]
+    fn test_flip_board_v() {
+        for b in 0..25 {
+            let board = 1 << b;
+            let row = b / 5;
+            let col = b % 5;
+
+            let flipped = _flip_bitboard_vertical(board);
+            let pos = flipped.trailing_zeros();
+            let arow = pos / 5;
+            let acol = pos % 5;
+
+            assert_eq!(arow, 4 - row);
+            assert_eq!(acol, col);
+        }
+    }
+
+    #[test]
+    fn test_flip_board_h() {
+        for b in 0..25 {
+            let board = 1 << b;
+            let row = b / 5;
+            let col = b % 5;
+
+            let flipped = _flip_bitboard_horizontal(board);
+            let pos = flipped.trailing_zeros();
+            let arow = pos / 5;
+            let acol = pos % 5;
+
+            assert_eq!(arow, row);
+            assert_eq!(acol, 4 - col);
         }
     }
 }

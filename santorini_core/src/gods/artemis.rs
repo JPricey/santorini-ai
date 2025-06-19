@@ -177,8 +177,6 @@ pub const fn build_artemis() -> GodPower {
 mod tests {
     use crate::{board::FullGameState, gods::tests::assert_has_win_consistency};
 
-    use super::*;
-
     #[test]
     #[ignore]
     fn test_artemis_basic() {

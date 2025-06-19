@@ -2,12 +2,7 @@ use std::time::Instant;
 
 use santorini_core::{
     board::{BoardState, FullGameState},
-    gods::{
-        StateOnlyMapper,
-        mortal::{mortal_next_states, mortal_next_states_v2},
-    },
-    search::{SearchState, search_with_state},
-    transposition_table::TranspositionTable,
+    gods::{StateOnlyMapper, mortal::mortal_next_states},
 };
 
 fn main() {
@@ -27,10 +22,7 @@ fn main() {
 }
 
 fn _test_depth(state: &BoardState, depth: usize) -> usize {
-    // let children = mortal_next_states::<BoardState, StateOnlyMapper>(state, state.current_player);
-
-    let children =
-        mortal_next_states_v2::<BoardState, StateOnlyMapper>(state, state.current_player);
+    let children = mortal_next_states::<BoardState, StateOnlyMapper, false>(state, state.current_player);
 
     if depth == 1 {
         children.len()
