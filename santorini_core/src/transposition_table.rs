@@ -5,10 +5,10 @@ use super::{board::BoardState, search::Hueristic};
 pub type HashCodeType = u64;
 
 #[derive(Clone, Debug)]
-pub enum SearchScore {
-    Exact(Hueristic),
-    LowerBound(Hueristic),
-    UpperBound(Hueristic),
+pub enum SearchScoreType {
+    Exact,
+    LowerBound,
+    UpperBound,
 }
 
 #[derive(Clone)]
@@ -16,7 +16,8 @@ pub struct TTValue {
     // TODO: should be best action?
     pub best_child: BoardState,
     pub search_depth: u8,
-    pub score: SearchScore,
+    pub score_type: SearchScoreType,
+    pub score: Hueristic,
 }
 
 #[derive(Clone)]
@@ -54,7 +55,7 @@ pub struct TTStats {
 }
 
 impl TranspositionTable {
-    pub const IS_TRACKING_STATS: bool = true;
+    pub const IS_TRACKING_STATS: bool = false;
 
     pub fn new() -> Self {
         Self {

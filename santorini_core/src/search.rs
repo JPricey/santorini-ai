@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     board::FullGameState,
     gods::GodPower,
-    transposition_table::{SearchScore, TTValue},
+    transposition_table::{SearchScoreType, TTValue},
 };
 
 use super::{
@@ -33,6 +33,7 @@ pub enum BestMoveTrigger {
     StopFlag,
     EndOfLine,
     Improvement,
+    Saved,
 }
 
 #[derive(Clone, Debug)]
@@ -102,7 +103,21 @@ pub fn search_with_state(
         panic!("Can't search on a terminal node");
     }
 
-    let starting_depth = 3;
+    let starting_depth = {
+        if let Some(tt_entry) = search_state.tt.fetch(&root_state.board) {
+            let new_best_move = NewBestMove::new(
+                FullGameState::new(tt_entry.best_child.clone(), p1_god, p2_god),
+                tt_entry.score,
+                tt_entry.search_depth as usize,
+                BestMoveTrigger::Saved,
+            );
+            search_state.best_move = Some(new_best_move.clone());
+            (search_state.new_best_move_callback)(new_best_move);
+            tt_entry.search_depth
+        } else {
+            3
+        }
+    } as usize;
 
     for depth in starting_depth..max_depth {
         if search_state.should_stop() {
@@ -320,18 +335,18 @@ fn _inner_search(
                 track_used = true;
             }
 
-            match tt_value.score {
-                SearchScore::Exact(score) => {
-                    return score;
+            match tt_value.score_type {
+                SearchScoreType::Exact => {
+                    return tt_value.score;
                 }
-                SearchScore::LowerBound(score) => {
-                    if score >= beta {
-                        return score;
+                SearchScoreType::LowerBound => {
+                    if tt_value.score >= beta {
+                        return tt_value.score;
                     }
                 }
-                SearchScore::UpperBound(score) => {
-                    if score <= alpha {
-                        return score;
+                SearchScoreType::UpperBound => {
+                    if tt_value.score <= alpha {
+                        return tt_value.score;
                     }
                 }
             }
@@ -441,18 +456,19 @@ fn _inner_search(
         }
     }
 
-    let tt_score = if best_score <= alpha_orig {
-        SearchScore::UpperBound(best_score)
+    let tt_score_type = if best_score <= alpha_orig {
+        SearchScoreType::UpperBound
     } else if best_score >= beta {
-        SearchScore::LowerBound(best_score)
+        SearchScoreType::LowerBound
     } else {
-        SearchScore::Exact(best_score)
+        SearchScoreType::Exact
     };
 
     let tt_value = TTValue {
         best_child: best_board.clone(),
         search_depth: remaining_depth as u8,
-        score: tt_score,
+        score_type: tt_score_type,
+        score: best_score,
     };
 
     search_state.tt.insert(state, tt_value);
