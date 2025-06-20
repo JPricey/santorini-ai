@@ -49,10 +49,13 @@ fn _get_new_datafile_name(rng: &mut impl Rng) -> PathBuf {
     path
 }
 
+const GAMES_PER_FILE: usize = 1_000_000;
+
 fn worker_thread() {
     let result = _inner_worker_thread();
-    if let Err(e) = result {
-        eprintln!("Worker thread encountered an error. Aborting: {:?}", e);
+    match result {
+        Ok(_) => eprintln!("Worker thread completed {} games. Exiting", GAMES_PER_FILE),
+        Err(e) => eprintln!("Worker thread encountered an error: {:?}", e),
     }
 }
 
@@ -63,7 +66,7 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = _get_new_datafile_name(&mut rng);
     let mut data_file = std::fs::File::create(file_path).expect("Failed to create error log file");
 
-    loop {
+    for _ in 0..GAMES_PER_FILE {
         let now = Instant::now();
         let game_history = generate_one(&mut tt, &mut rng)?;
 
@@ -96,6 +99,8 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
 
         tt.reset();
     }
+
+    Ok(())
 }
 
 fn _get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
