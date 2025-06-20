@@ -18,7 +18,7 @@ pub struct DatagenStaticSearchTerminator {}
 
 impl StaticSearchTerminator for DatagenStaticSearchTerminator {
     fn should_stop(search_state: &santorini_core::search::SearchState) -> bool {
-        search_state.last_fully_completed_depth >= 8 && search_state.nodes_visited > 1_000_000
+        search_state.last_fully_completed_depth >= 7 && search_state.nodes_visited > 1_000_000
     }
 }
 
@@ -184,8 +184,6 @@ pub fn main() {
         "Found {} CPUs. Using {} worker threads",
         num_cpus, num_worker_threads
     );
-
-    let num_worker_threads = 1;
 
     let mut worker_threads = Vec::new();
 
