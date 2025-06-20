@@ -1,24 +1,16 @@
-use core::num;
 use rand::distributions::Alphanumeric;
 use rand::{Rng, seq::SliceRandom, thread_rng};
-use santorini_core::transposition_table::{self, TranspositionTable};
-use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use santorini_core::transposition_table::TranspositionTable;
+use std::io::Write;
+use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::{fs, thread};
+use std::thread;
 
-use chrono::Utc;
-use clap::Parser;
-use santorini_core::board::{BoardState, FullGameState, Player};
-use santorini_core::fen::{game_state_to_fen, parse_fen};
-use santorini_core::gods::GodName;
+use santorini_core::board::{FullGameState, Player};
 use santorini_core::search::{
-    self, BestMoveTrigger, Hueristic, SearchContext, StaticSearchTerminator, search_with_state,
+    Hueristic, SearchContext, StaticSearchTerminator, search_with_state,
 };
-use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 
