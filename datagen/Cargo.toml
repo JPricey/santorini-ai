@@ -1,0 +1,14 @@
+[package]
+name = "datagen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+santorini_core = { path = "../santorini_core" }
+colored = {workspace=true}
+serde = {workspace=true}
+serde_json = {workspace=true}
+chrono = "0.4.41"
+clap = {version="4.5.40", features = ["derive"]}
+rand = {workspace=true}
+num_cpus = "1.17.0"

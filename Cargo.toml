@@ -6,6 +6,7 @@ members = [
     "santorini_core",
     "uci",
     "battler",
+    "datagen",
 ]
 
 [workspace.dependencies]

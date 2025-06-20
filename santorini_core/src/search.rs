@@ -18,6 +18,19 @@ pub const WINNING_SCORE: Hueristic = 1000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 900;
 pub static mut NUM_SEARCHES: usize = 0;
 
+/// Trait to check if a search should stop at some static boundary
+pub trait StaticSearchTerminator {
+    fn should_stop(search_state: &SearchState) -> bool;
+}
+
+pub struct NoopStaticSearchTerminator {}
+
+impl StaticSearchTerminator for NoopStaticSearchTerminator {
+    fn should_stop(_search_state: &SearchState) -> bool {
+        false
+    }
+}
+
 pub fn judge_non_terminal_state(
     state: &BoardState,
     p1_god: &'static GodPower,
@@ -60,51 +73,69 @@ impl NewBestMove {
     }
 }
 
-pub struct SearchState<'a> {
+pub struct SearchContext<'a> {
     pub tt: &'a mut TranspositionTable,
     pub stop_flag: Arc<AtomicBool>,
     pub new_best_move_callback: Box<dyn FnMut(NewBestMove)>,
-    pub last_fully_completed_depth: usize,
-    pub best_move: Option<NewBestMove>,
 }
 
-impl<'a> SearchState<'a> {
+#[derive(Debug, Clone)]
+pub struct SearchState {
+    pub last_fully_completed_depth: usize,
+    pub best_move: Option<NewBestMove>,
+    pub nodes_visited: usize,
+}
+
+impl Default for SearchState {
+    fn default() -> Self {
+        Self {
+            last_fully_completed_depth: 0,
+            best_move: None,
+            nodes_visited: 0,
+        }
+    }
+}
+
+impl<'a> SearchContext<'a> {
     pub fn should_stop(&self) -> bool {
         self.stop_flag.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn new(tt: &'a mut TranspositionTable) -> Self {
-        let new_best_move_callback =
-            Box::new(|new_best_move: NewBestMove| eprintln!("{:?}", new_best_move));
+        let new_best_move_callback = Box::new(|_new_best_move: NewBestMove| {
+            // eprintln!("{:?}", _new_best_move); 
+        });
 
-        SearchState {
+        SearchContext {
             tt,
             new_best_move_callback,
             stop_flag: Arc::new(AtomicBool::new(false)),
-            last_fully_completed_depth: 0,
-            best_move: None,
         }
     }
 }
 
-pub fn search_with_state(
-    search_state: &mut SearchState,
+pub fn search_with_state<T>(
+    search_context: &mut SearchContext,
     root_state: &FullGameState,
-    max_depth: Option<usize>,
-) {
-    let start_time = std::time::Instant::now();
+) -> SearchState
+where
+    T: StaticSearchTerminator,
+{
+    // let start_time = std::time::Instant::now();
+
     let p1_god = root_state.p1_god;
     let p2_god = root_state.p2_god;
     let root_board = &root_state.board;
     let color = root_board.current_player.color();
-    let max_depth = max_depth.unwrap_or(1000);
+
+    let mut search_state = SearchState::default();
 
     if root_board.get_winner().is_some() {
-        panic!("Can't search on a terminal node");
+        panic!("Should not search in an already terminal state");
     }
 
     let starting_depth = {
-        if let Some(tt_entry) = search_state.tt.fetch(&root_state.board) {
+        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board) {
             let new_best_move = NewBestMove::new(
                 FullGameState::new(tt_entry.best_child.clone(), p1_god, p2_god),
                 tt_entry.score,
@@ -112,29 +143,30 @@ pub fn search_with_state(
                 BestMoveTrigger::Saved,
             );
             search_state.best_move = Some(new_best_move.clone());
-            (search_state.new_best_move_callback)(new_best_move);
+            (search_context.new_best_move_callback)(new_best_move);
             tt_entry.search_depth + 1
         } else {
             3
         }
     } as usize;
 
-    for depth in starting_depth..max_depth {
-        if search_state.should_stop() {
-            eprintln!(
-                "Stopping search. Last completed depth {}. Duration: {} seconds",
-                search_state.last_fully_completed_depth,
-                start_time.elapsed().as_secs_f32(),
-            );
+    for depth in starting_depth.. {
+        if search_context.should_stop() || T::should_stop(&search_state) {
+            // eprintln!(
+            //     "Stopping search. Last completed depth {}. Duration: {} seconds",
+            //     search_state.last_fully_completed_depth,
+            //     start_time.elapsed().as_secs_f32(),
+            // );
             if let Some(best_move) = &mut search_state.best_move {
                 best_move.trigger = BestMoveTrigger::StopFlag;
-                (search_state.new_best_move_callback)(best_move.clone());
+                (search_context.new_best_move_callback)(best_move.clone());
             }
             break;
         }
 
-        let score = _inner_search(
-            search_state,
+        let score = _inner_search::<T>(
+            search_context,
+            &mut search_state,
             p1_god,
             p2_god,
             root_board,
@@ -145,24 +177,31 @@ pub fn search_with_state(
             Hueristic::MAX,
         );
 
-        if score.abs() > WINNING_SCORE_BUFFER && !search_state.should_stop() {
-            eprintln!("Mate found, ending search early");
+        if score.abs() > WINNING_SCORE_BUFFER
+            && !(search_context.should_stop() || T::should_stop(&search_state))
+        {
+            // eprintln!("Mate found, ending search early");
             let mut best_move = search_state.best_move.clone().unwrap();
             best_move.trigger = BestMoveTrigger::EndOfLine;
-            (search_state.new_best_move_callback)(best_move);
+            (search_context.new_best_move_callback)(best_move);
             break;
         }
     }
+
+    search_state
 }
 
 fn _q_extend(
     state: &BoardState,
+    search_state: &mut SearchState,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
     color: Hueristic,
     depth: Hueristic,
     q_depth: u32,
 ) -> Hueristic {
+    search_state.nodes_visited += 1;
+
     let (active_god, other_god) = match state.current_player {
         Player::One => (p1_god, p2_god),
         Player::Two => (p2_god, p1_god),
@@ -183,7 +222,15 @@ fn _q_extend(
     let mut best_score = Hueristic::MIN;
     let children = (active_god.next_states)(state, state.current_player);
     for child in &children {
-        let child_score = _q_extend(child, p1_god, p2_god, -color, depth + 1, q_depth + 1);
+        let child_score = _q_extend(
+            child,
+            search_state,
+            p1_god,
+            p2_god,
+            -color,
+            depth + 1,
+            q_depth + 1,
+        );
         if child_score > best_score {
             best_score = child_score;
         }
@@ -265,7 +312,8 @@ fn _order_states(
     }
 }
 
-fn _inner_search(
+fn _inner_search<T>(
+    search_context: &mut SearchContext,
     search_state: &mut SearchState,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
@@ -275,22 +323,26 @@ fn _inner_search(
     color: Hueristic,
     mut alpha: Hueristic,
     beta: Hueristic,
-) -> Hueristic {
+) -> Hueristic
+where
+    T: StaticSearchTerminator,
+{
     let active_god = match state.current_player {
         Player::One => p1_god,
         Player::Two => p2_god,
     };
 
     if let Some(winner) = state.get_winner() {
+        search_state.nodes_visited += 1;
         return if winner == state.current_player {
             WINNING_SCORE - depth
         } else {
             -(WINNING_SCORE - depth)
         };
-    }
-
-    if remaining_depth == 0 {
-        return _q_extend(state, p1_god, p2_god, color, depth, 0);
+    } else if remaining_depth == 0 {
+        return _q_extend(state, search_state, p1_god, p2_god, color, depth, 0);
+    } else {
+        search_state.nodes_visited += 1;
     }
 
     // Old: check if we have a win to quit early.
@@ -328,7 +380,7 @@ fn _inner_search(
 
     let mut track_used = false;
     let mut track_unused = false;
-    let tt_entry = search_state.tt.fetch(state);
+    let tt_entry = search_context.tt.fetch(state);
     if let Some(tt_value) = tt_entry {
         if tt_value.search_depth >= remaining_depth as u8 {
             if TranspositionTable::IS_TRACKING_STATS {
@@ -370,7 +422,7 @@ fn _inner_search(
                 BestMoveTrigger::EndOfLine,
             );
             search_state.best_move = Some(new_best_move.clone());
-            (search_state.new_best_move_callback)(new_best_move);
+            (search_context.new_best_move_callback)(new_best_move);
         }
 
         return score;
@@ -404,16 +456,17 @@ fn _inner_search(
     }
 
     if track_used {
-        search_state.tt.stats.used_value += 1;
+        search_context.tt.stats.used_value += 1;
     } else if track_unused {
-        search_state.tt.stats.unused_value += 1;
+        search_context.tt.stats.unused_value += 1;
     }
 
     let mut best_board = &children[0];
     let mut best_score = Hueristic::MIN;
 
     for child in &children {
-        let score = -_inner_search(
+        let score = -_inner_search::<T>(
+            search_context,
             search_state,
             p1_god,
             p2_god,
@@ -425,7 +478,7 @@ fn _inner_search(
             -alpha,
         );
 
-        let should_stop = search_state.should_stop();
+        let should_stop = search_context.should_stop() || T::should_stop(&search_state);
 
         if score > best_score {
             best_score = score;
@@ -439,7 +492,7 @@ fn _inner_search(
                     BestMoveTrigger::Improvement,
                 );
                 search_state.best_move = Some(new_best_move.clone());
-                (search_state.new_best_move_callback)(new_best_move);
+                (search_context.new_best_move_callback)(new_best_move);
             }
 
             if score > alpha {
@@ -456,7 +509,7 @@ fn _inner_search(
         }
     }
 
-    if !search_state.should_stop() {
+    if !(search_context.should_stop() || T::should_stop(&search_state)) {
         let tt_score_type = if best_score <= alpha_orig {
             SearchScoreType::UpperBound
         } else if best_score >= beta {
@@ -472,7 +525,7 @@ fn _inner_search(
             score: best_score,
         };
 
-        search_state.tt.insert(state, tt_value);
+        search_context.tt.insert(state, tt_value);
     }
 
     if depth == 0 {

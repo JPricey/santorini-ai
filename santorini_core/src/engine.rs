@@ -9,8 +9,8 @@ use std::{
 };
 
 use crate::{
-    board::{FullGameState},
-    search::{search_with_state, NewBestMove, SearchState},
+    board::FullGameState,
+    search::{search_with_state, NewBestMove, NoopStaticSearchTerminator, SearchContext},
     transposition_table::TranspositionTable,
 };
 
@@ -97,7 +97,7 @@ impl EngineThreadWrapper {
                         *worker_state = EngineThreadState::Running;
                     }
 
-                    let mut search_state = SearchState {
+                    let mut search_state = SearchContext {
                         tt: &mut transposition_table,
                         stop_flag: request.stop_flag.clone(),
                         new_best_move_callback: Box::new(move |new_best_move: NewBestMove| {
@@ -110,11 +110,9 @@ impl EngineThreadWrapper {
 
                             let _ = best_move_sender.send(new_best_move.clone());
                         }),
-                        last_fully_completed_depth: 0,
-                        best_move: None,
                     };
 
-                    search_with_state(&mut search_state, &request.state, None);
+                    search_with_state::<NoopStaticSearchTerminator>(&mut search_state, &request.state);
 
                     request.stop_flag.store(true, Ordering::Relaxed);
                 }

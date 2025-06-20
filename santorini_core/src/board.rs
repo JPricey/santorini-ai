@@ -3,7 +3,7 @@ use colored::Colorize;
 use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, GodPower},
-    utils::{MAIN_SECTION_MASK },
+    utils::MAIN_SECTION_MASK,
 };
 
 use super::search::Hueristic;
@@ -265,10 +265,6 @@ pub struct BoardState {
 }
 
 impl BoardState {
-    pub fn player_1_god(&self) -> &'static GodPower {
-        &ALL_GODS_BY_ID[0]
-    }
-
     pub fn new_basic_state() -> Self {
         let mut result = Self::default();
         result.workers[1] |= 1 << 7;
@@ -374,45 +370,108 @@ impl BoardState {
 
         result
     }
+
+    fn _flip_vertical_mut(&mut self) {
+        self.height_map[0] = _flip_bitboard_vertical(self.height_map[0]);
+        self.height_map[1] = _flip_bitboard_vertical(self.height_map[1]);
+        self.height_map[2] = _flip_bitboard_vertical(self.height_map[2]);
+        self.height_map[3] = _flip_bitboard_vertical(self.height_map[3]);
+        self.workers[0] = _flip_bitboard_vertical(self.workers[0]);
+        self.workers[1] = _flip_bitboard_vertical(self.workers[1]);
+    }
+
+    fn _flip_horizontal_mut(&mut self) {
+        self.height_map[0] = _flip_bitboard_horizontal(self.height_map[0]);
+        self.height_map[1] = _flip_bitboard_horizontal(self.height_map[1]);
+        self.height_map[2] = _flip_bitboard_horizontal(self.height_map[2]);
+        self.height_map[3] = _flip_bitboard_horizontal(self.height_map[3]);
+        self.workers[0] = _flip_bitboard_horizontal(self.workers[0]);
+        self.workers[1] = _flip_bitboard_horizontal(self.workers[1]);
+    }
+
+    fn _transpose_mut(&mut self) {
+        self.height_map[0] = _transpose_bitboard(self.height_map[0]);
+        self.height_map[1] = _transpose_bitboard(self.height_map[1]);
+        self.height_map[2] = _transpose_bitboard(self.height_map[2]);
+        self.height_map[3] = _transpose_bitboard(self.height_map[3]);
+        self.workers[0] = _transpose_bitboard(self.workers[0]);
+        self.workers[1] = _transpose_bitboard(self.workers[1]);
+    }
+
+    fn _flip_vertical_clone(&self) -> Self {
+        let mut result = self.clone();
+        result._flip_vertical_mut();
+        result
+    }
+
+    fn _flip_horz_clone(&self) -> Self {
+        let mut result = self.clone();
+        result._flip_horizontal_mut();
+        result
+    }
+
+    fn _transpose_clone(&self) -> Self {
+        let mut result = self.clone();
+        result._transpose_mut();
+        result
+    }
+
+    pub fn get_all_permutations(&self) -> Vec<Self> {
+        let horz = self._flip_horz_clone();
+        let vert = self._flip_vertical_clone();
+        let hv = horz._flip_vertical_clone();
+        let trans = self._transpose_clone();
+        let th = trans._flip_horz_clone();
+        let tv = trans._flip_vertical_clone();
+        let tvh = th._flip_vertical_clone();
+
+        vec![self.clone(), horz, vert, hv, trans, th, tv, tvh]
+    }
+
+    /// Returns a canonically permuted board state
+    /// WARNING: this is done somewhat inefficiently by actually constructing a list of all permutations and
+    /// then finding the "smallest". We'll probably want this in the search loop at some point, but maybe not in this form.
+    pub fn get_canonical_permutation(&self) -> Self {
+        self.get_all_permutations()
+            .into_iter()
+            .min_by(|a, b| {
+                a.height_map[0]
+                    .cmp(&b.height_map[0])
+                    .then(a.height_map[1].cmp(&b.height_map[1]))
+                    .then(a.height_map[2].cmp(&b.height_map[2]))
+                    .then(a.height_map[3].cmp(&b.height_map[3]))
+                    .then(a.workers[0].cmp(&b.workers[0]))
+                    .then(a.workers[1].cmp(&b.workers[1]))
+            })
+            .unwrap()
+    }
 }
 
-fn _flip_bitboard_vertical(board: u32) -> u32 {
-    let mut result = board;
-
-    // Delta swap for row 0 and row 4
-    let delta1 = ((result) ^ (result >> 20)) & 0b11111;
-    result ^= (delta1) | (delta1 << 20);
-
-    // Delta swap for row 1 and row 3
-    let delta2 = ((result) ^ (result >> 10)) & 0b1111100000;
-    result ^= (delta2) | (delta2 << 10);
-
-    // Row 2 stays in place
-    result
+#[inline]
+fn _delta_swap(board: u32, mask: u32, shift: u32) -> u32 {
+    let delta = ((board >> shift) ^ board) & mask;
+    (board ^ delta) ^ (delta << shift)
 }
 
-fn _flip_bitboard_horizontal(board: u32) -> u32 {
-    let mut result = board;
-
-    // Create masks for the columns we want to swap
-    const COL0: u32 = 0b00001_00001_00001_00001_00001; // bits 0,5,10,15,20
-    const COL1: u32 = 0b00010_00010_00010_00010_00010; // bits 1,6,11,16,21
-    // const COL3: u32 = 0b01000_01000_01000_01000_01000; // bits 3,8,13,18,23
-    // const COL4: u32 = 0b10000_10000_10000_10000_10000; // bits 4,9,14,19,24
-
-    // Delta swap for columns 0 and 4
-    let delta1 = ((result) ^ ((result) >> 4)) & COL0;
-    result ^= (delta1 << 0) | (delta1 << 4);
-
-    // Delta swap for columns 1 and 3
-    let delta2 = ((result) ^ ((result) >> 2)) & COL1;
-    result ^= (delta2) | (delta2 << 2);
-
-    result
+fn _flip_bitboard_vertical(mut board: u32) -> u32 {
+    board = _delta_swap(board, 0b11111, 20);
+    board = _delta_swap(board, 0b1111100000, 10);
+    board
 }
 
-pub fn flip_board_v(state: &BoardState) -> BoardState {
-    todo!()
+fn _flip_bitboard_horizontal(mut board: u32) -> u32 {
+    board = _delta_swap(board, 0b00001_00001_00001_00001_00001, 4);
+    board = _delta_swap(board, 0b00010_00010_00010_00010_00010, 2);
+    board
+}
+
+fn _transpose_bitboard(mut board: u32) -> u32 {
+    // https://stackoverflow.com/questions/72097570/rotate-and-reflect-a-5x5-bitboard
+    board = _delta_swap(board, 0x00006300, 16);
+    board = _delta_swap(board, 0x020a080a, 4);
+    board = _delta_swap(board, 0x0063008c, 8);
+    board = _delta_swap(board, 0x00006310, 16);
+    board
 }
 
 #[cfg(test)]
@@ -463,6 +522,24 @@ mod tests {
 
             assert_eq!(arow, row);
             assert_eq!(acol, 4 - col);
+        }
+    }
+
+    #[test]
+    fn test_transpose() {
+        for b in 0..25 {
+            let board = 1 << b;
+            let row = b / 5;
+            let col = b % 5;
+
+            let flipped = _transpose_bitboard(board);
+
+            let pos = flipped.trailing_zeros();
+            let arow = pos / 5;
+            let acol = pos % 5;
+
+            assert_eq!(row, acol);
+            assert_eq!(col, arow);
         }
     }
 }
