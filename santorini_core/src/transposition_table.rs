@@ -4,7 +4,7 @@ use super::{board::BoardState, search::Hueristic};
 
 pub type HashCodeType = u64;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum SearchScoreType {
     Exact,
     LowerBound,

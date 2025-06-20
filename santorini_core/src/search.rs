@@ -1,9 +1,9 @@
-use std::sync::{Arc, atomic::AtomicBool};
+use std::{marker::PhantomData, sync::{atomic::AtomicBool, Arc}};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    board::FullGameState,
+    board::{FullGameState, get_all_permutations_for_pair},
     gods::GodPower,
     transposition_table::{SearchScoreType, TTValue},
 };
@@ -28,6 +28,44 @@ pub struct NoopStaticSearchTerminator {}
 impl StaticSearchTerminator for NoopStaticSearchTerminator {
     fn should_stop(_search_state: &SearchState) -> bool {
         false
+    }
+}
+
+pub struct MaxDepthStaticSearchTerminator<const N: usize> {}
+impl<const N: usize> StaticSearchTerminator for MaxDepthStaticSearchTerminator<N> {
+    fn should_stop(search_state: &SearchState) -> bool {
+        search_state.last_fully_completed_depth >= N
+    }
+}
+
+pub struct NodesVisitedStaticSearchTerminator<const N: usize> {}
+impl<const N: usize> StaticSearchTerminator for NodesVisitedStaticSearchTerminator<N> {
+    fn should_stop(search_state: &SearchState) -> bool {
+        search_state.nodes_visited >= N
+    }
+}
+
+pub struct AndStaticSearchTerminator<A: StaticSearchTerminator, B: StaticSearchTerminator> {
+    a_type: PhantomData<A>,
+    b_type: PhantomData<B>,
+}
+impl<A: StaticSearchTerminator, B: StaticSearchTerminator> StaticSearchTerminator
+    for AndStaticSearchTerminator<A, B>
+{
+    fn should_stop(search_state: &SearchState) -> bool {
+        A::should_stop(search_state) && B::should_stop(search_state)
+    }
+}
+
+pub struct OrStaticSearchTerminator<A: StaticSearchTerminator, B: StaticSearchTerminator> {
+    a_type: PhantomData<A>,
+    b_type: PhantomData<B>,
+}
+impl<A: StaticSearchTerminator, B: StaticSearchTerminator> StaticSearchTerminator
+    for OrStaticSearchTerminator<A, B>
+{
+    fn should_stop(search_state: &SearchState) -> bool {
+        A::should_stop(search_state) || B::should_stop(search_state)
     }
 }
 
@@ -103,7 +141,7 @@ impl<'a> SearchContext<'a> {
 
     pub fn new(tt: &'a mut TranspositionTable) -> Self {
         let new_best_move_callback = Box::new(|_new_best_move: NewBestMove| {
-            // eprintln!("{:?}", _new_best_move); 
+            // eprintln!("{:?}", _new_best_move);
         });
 
         SearchContext {
@@ -518,14 +556,29 @@ where
             SearchScoreType::Exact
         };
 
-        let tt_value = TTValue {
-            best_child: best_board.clone(),
-            search_depth: remaining_depth as u8,
-            score_type: tt_score_type,
-            score: best_score,
-        };
+        // Early on in the game, add all permutations of a board state to the TT, to help
+        // deduplicate identical searches
+        if state.height_map[0].count_ones() <= 3 {
+            for (base, child) in get_all_permutations_for_pair(state, best_board) {
+                let tt_value = TTValue {
+                    best_child: child,
+                    search_depth: remaining_depth as u8,
+                    score_type: tt_score_type,
+                    score: best_score,
+                };
 
-        search_context.tt.insert(state, tt_value);
+                search_context.tt.insert(&base, tt_value);
+            }
+        } else {
+            let tt_value = TTValue {
+                best_child: best_board.clone(),
+                search_depth: remaining_depth as u8,
+                score_type: tt_score_type,
+                score: best_score,
+            };
+
+            search_context.tt.insert(state, tt_value);
+        }
     }
 
     if depth == 0 {

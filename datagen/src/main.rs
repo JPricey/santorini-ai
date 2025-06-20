@@ -10,17 +10,23 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use santorini_core::board::{FullGameState, Player};
-use santorini_core::search::{Hueristic, SearchContext, StaticSearchTerminator, search_with_state};
+use santorini_core::search::{
+    AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator,
+    NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext,
+    StaticSearchTerminator, search_with_state,
+};
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 
-pub struct DatagenStaticSearchTerminator {}
-
-impl StaticSearchTerminator for DatagenStaticSearchTerminator {
-    fn should_stop(search_state: &santorini_core::search::SearchState) -> bool {
-        search_state.last_fully_completed_depth >= 7 && search_state.nodes_visited > 1_000_000
-    }
-}
+// Visit either 5M nodes (for early in the search),
+// Or, to depth 8 with at least 1M nodes seen (for more accurate endgame tactics)
+type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
+    NodesVisitedStaticSearchTerminator<5_000_000>,
+    AndStaticSearchTerminator<
+        MaxDepthStaticSearchTerminator<8>,
+        NodesVisitedStaticSearchTerminator<1_000_000>,
+    >,
+>;
 
 #[derive(Debug)]
 struct SingleState {
@@ -28,6 +34,8 @@ struct SingleState {
     pub score: Hueristic,
     pub calculated_depth: usize,
     pub winner: Player,
+    pub move_count: usize,
+    pub nodes_visited: usize,
 }
 
 fn _gamedata_directory() -> PathBuf {
@@ -77,21 +85,25 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         for game_turn in game_history {
-            // eprintln!(
-            //     "{:?} {} {} {}",
-            //     game_turn.game_state,
-            //     game_turn.winner as usize + 1,
-            //     game_turn.calculated_depth,
-            //     game_turn.score
-            // );
+            eprintln!(
+                "{:?} {} {} {} {} {}",
+                game_turn.game_state,
+                game_turn.winner as usize + 1,
+                game_turn.score,
+                game_turn.move_count,
+                game_turn.calculated_depth,
+                game_turn.nodes_visited,
+            );
 
             writeln!(
                 data_file,
-                "{:?} {} {} {}",
+                "{:?} {} {} {} {} {}",
                 game_turn.game_state,
                 game_turn.winner as usize + 1,
+                game_turn.score,
+                game_turn.move_count,
                 game_turn.calculated_depth,
-                game_turn.score
+                game_turn.nodes_visited,
             )?;
         }
 
@@ -123,13 +135,7 @@ fn generate_one(
     let mut game_history = Vec::new();
 
     let mut current_state = _get_board_with_random_placements(rng);
-
-    game_history.push(SingleState {
-        game_state: current_state.clone(),
-        score: 0,
-        calculated_depth: 0,
-        winner: Player::One,
-    });
+    let mut move_count = 0;
 
     for _ in 0..MIN_NUM_RANDOM_MOVES {
         let child_states = current_state.get_next_states();
@@ -137,6 +143,7 @@ fn generate_one(
             .choose(rng)
             .ok_or("Failed to find random child")?
             .clone();
+        move_count += 1;
     }
 
     if rng.gen_bool(0.75) {
@@ -145,6 +152,7 @@ fn generate_one(
             .choose(rng)
             .ok_or("Failed to find random child")?
             .clone();
+        move_count += 1;
     }
 
     let winner = loop {
@@ -161,12 +169,15 @@ fn generate_one(
             game_history.push(SingleState {
                 game_state: current_state.clone(),
                 score: best_child.score,
-                calculated_depth: best_child.depth,
+                calculated_depth: search_result.last_fully_completed_depth,
                 winner: Player::One,
+                nodes_visited: search_result.nodes_visited,
+                move_count,
             });
         }
 
         current_state = best_child.state.clone();
+        move_count += 1;
     };
 
     for item in &mut game_history {
@@ -210,3 +221,5 @@ pub fn main() {
         thread::sleep(Duration::from_millis(500));
     }
 }
+
+// cargo run -p datagen --release

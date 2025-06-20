@@ -447,6 +447,39 @@ impl BoardState {
     }
 }
 
+pub fn get_all_permutations_for_pair(
+    a: &BoardState,
+    b: &BoardState,
+) -> Vec<(BoardState, BoardState)> {
+    let h = (a._flip_horz_clone(), b._flip_horz_clone());
+    let v = (a._flip_vertical_clone(), b._flip_vertical_clone());
+    let hv = (h.0._flip_vertical_clone(), h.1._flip_vertical_clone());
+    let t = (a._transpose_clone(), a._transpose_clone());
+    let th = (t.0._flip_horz_clone(), t.1._flip_horz_clone());
+    let tv = (t.0._flip_vertical_clone(), t.1._flip_vertical_clone());
+    let thv = (th.0._flip_vertical_clone(), th.1._flip_vertical_clone());
+
+    vec![(a.clone(), b.clone()), h, v, hv, t, th, tv, thv]
+}
+
+impl Ord for BoardState {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.height_map[0]
+            .cmp(&other.height_map[0])
+            .then(self.height_map[1].cmp(&other.height_map[1]))
+            .then(self.height_map[2].cmp(&other.height_map[2]))
+            .then(self.height_map[3].cmp(&other.height_map[3]))
+            .then(self.workers[0].cmp(&other.workers[0]))
+            .then(self.workers[1].cmp(&other.workers[1]))
+    }
+}
+
+impl PartialOrd for BoardState {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
 #[inline]
 fn _delta_swap(board: u32, mask: u32, shift: u32) -> u32 {
     let delta = ((board >> shift) ^ board) & mask;
