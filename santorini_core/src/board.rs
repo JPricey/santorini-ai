@@ -2,7 +2,7 @@ use colored::Colorize;
 
 use crate::{
     fen::{game_state_to_fen, parse_fen},
-    gods::{ GameStateWithAction, GodName, GodPower},
+    gods::{GameStateWithAction, GodName, GodPower},
     utils::MAIN_SECTION_MASK,
 };
 

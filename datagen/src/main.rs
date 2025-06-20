@@ -1,16 +1,16 @@
 use rand::distributions::Alphanumeric;
+use rand::seq::IteratorRandom;
 use rand::{Rng, seq::SliceRandom, thread_rng};
+use santorini_core::gods::GodName;
 use santorini_core::transposition_table::TranspositionTable;
 use std::io::Write;
 use std::path::PathBuf;
+use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::thread;
 
 use santorini_core::board::{FullGameState, Player};
-use santorini_core::search::{
-    Hueristic, SearchContext, StaticSearchTerminator, search_with_state,
-};
+use santorini_core::search::{Hueristic, SearchContext, StaticSearchTerminator, search_with_state};
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 
@@ -98,13 +98,26 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+fn _get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
+    let mut result = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
+    let worker_spots: Vec<usize> = (0..25).choose_multiple(rng, 4).iter().cloned().collect();
+
+    result.board.workers[0] |= 1 << worker_spots[0];
+    result.board.workers[0] |= 1 << worker_spots[1];
+
+    result.board.workers[1] |= 1 << worker_spots[2];
+    result.board.workers[1] |= 1 << worker_spots[3];
+
+    result
+}
+
 fn generate_one(
     tt: &mut TranspositionTable,
     rng: &mut impl Rng,
 ) -> Result<Vec<SingleState>, Box<dyn std::error::Error>> {
     let mut game_history = Vec::new();
 
-    let mut current_state = FullGameState::new_basic_state_mortals();
+    let mut current_state = _get_board_with_random_placements(rng);
 
     game_history.push(SingleState {
         game_state: current_state.clone(),
@@ -171,6 +184,8 @@ pub fn main() {
         "Found {} CPUs. Using {} worker threads",
         num_cpus, num_worker_threads
     );
+
+    let num_worker_threads = 1;
 
     let mut worker_threads = Vec::new();
 
