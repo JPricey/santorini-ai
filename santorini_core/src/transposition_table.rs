@@ -33,7 +33,6 @@ pub struct TranspositionTable {
 
 // const TABLE_SIZE: HashCodeType = 999_983;
 // const TABLE_SIZE: HashCodeType = 5_000_011;
-// const TABLE_SIZE: HashCodeType = 5_000_011;
 const TABLE_SIZE: HashCodeType = 10_000_019;
 // const TABLE_SIZE: HashCodeType = 22_633_363; // 1 GB
 // const TABLE_SIZE: HashCodeType = 100_000_007; // too big
