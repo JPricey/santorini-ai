@@ -11,8 +11,7 @@ use std::{
 use crate::{
     board::FullGameState,
     search::{
-        AndStaticSearchTerminator, MaxDepthStaticSearchTerminator, NewBestMove,
-        NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator,
+        NewBestMove, NoopStaticSearchTerminator,
         SearchContext, search_with_state,
     },
     transposition_table::TranspositionTable,

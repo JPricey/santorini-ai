@@ -12,8 +12,7 @@ use std::time::{Duration, Instant};
 use santorini_core::board::{FullGameState, Player};
 use santorini_core::search::{
     AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator,
-    NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext,
-    StaticSearchTerminator, search_with_state,
+    NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext, search_with_state,
 };
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
