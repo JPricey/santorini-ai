@@ -1,3 +1,4 @@
+use clap::Parser;
 use rand::distributions::Alphanumeric;
 use rand::seq::IteratorRandom;
 use rand::{Rng, seq::SliceRandom, thread_rng};
@@ -20,7 +21,7 @@ const MIN_NUM_RANDOM_MOVES: usize = 4;
 // Visit either 5M nodes (for early in the search),
 // Or, to depth 8 with at least 1M nodes seen (for more accurate endgame tactics)
 type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<5_000_000>,
+    NodesVisitedStaticSearchTerminator<4_000_000>,
     AndStaticSearchTerminator<
         MaxDepthStaticSearchTerminator<8>,
         NodesVisitedStaticSearchTerminator<1_000_000>,
@@ -187,14 +188,24 @@ fn generate_one(
     Ok(game_history)
 }
 
+#[derive(Parser, Debug)]
+struct DatagenArgs {
+    #[arg(short = 'j', long)]
+    pub threads: Option<usize>,
+}
+
 pub fn main() {
+    let args = DatagenArgs::parse();
+
     while std::fs::create_dir_all(&_gamedata_directory()).is_err() {
         eprintln!("Failed to create data logs directory... Trying again.");
         sleep(Duration::from_millis(500));
     }
 
     let num_cpus = num_cpus::get();
-    let num_worker_threads = std::cmp::max(1, num_cpus - 1);
+    let num_worker_threads = args
+        .threads
+        .unwrap_or_else(|| std::cmp::max(1, num_cpus - 1));
     println!(
         "Found {} CPUs. Using {} worker threads",
         num_cpus, num_worker_threads
