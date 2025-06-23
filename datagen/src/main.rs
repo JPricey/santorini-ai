@@ -233,3 +233,5 @@ pub fn main() {
 }
 
 // cargo run -p datagen --release
+// For 8 threads (max on my PC)
+// cargo run -p datagen --release -- -j 8
