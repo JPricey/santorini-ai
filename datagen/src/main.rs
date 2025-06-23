@@ -169,7 +169,7 @@ fn generate_one(
             game_history.push(SingleState {
                 game_state: current_state.clone(),
                 score: best_child.score,
-                calculated_depth: search_result.last_fully_completed_depth,
+                calculated_depth: best_child.depth,
                 winner: Player::One,
                 nodes_visited: search_result.nodes_visited,
                 move_count,

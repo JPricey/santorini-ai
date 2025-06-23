@@ -1,3 +1,4 @@
+import os
 import shlex
 import subprocess
 import time
@@ -35,13 +36,17 @@ class EngineProcess:
     def start_engine(self):
         start_command = shlex.split("cargo run -p uci --release")
 
+        env = os.environ.copy()
+        env['RUST_BACKTRACE'] = 'full'
+
         self.process = subprocess.Popen(
             start_command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            bufsize=1
+            bufsize=1,
+            env=env,
         )
 
         self.start_threads()

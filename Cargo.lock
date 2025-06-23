@@ -86,6 +86,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "bullet_prep"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "colored",
+ "num_cpus",
+ "rand",
+ "santorini_core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

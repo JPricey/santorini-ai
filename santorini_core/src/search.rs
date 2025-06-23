@@ -1,10 +1,14 @@
-use std::{marker::PhantomData, sync::{atomic::AtomicBool, Arc}};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     board::{FullGameState, get_all_permutations_for_pair},
     gods::GodPower,
+    nnue::evaluate,
     transposition_table::{SearchScoreType, TTValue},
 };
 
@@ -159,7 +163,9 @@ pub fn search_with_state<T>(
 where
     T: StaticSearchTerminator,
 {
-    // let start_time = std::time::Instant::now();
+    // root_state.print_to_console();
+    // let eval = evaluate(&root_state.board);
+    // eprintln!("nnue eval: {}", eval);
 
     let p1_god = root_state.p1_god;
     let p2_god = root_state.p2_god;
@@ -253,7 +259,8 @@ fn _q_extend(
 
     // If opponent isn't threatening a win, take the current score
     if !(other_god.has_win)(state, state.current_player.other()) {
-        return color * judge_non_terminal_state(state, p1_god, p2_god);
+        return evaluate(state);
+        // return color * judge_non_terminal_state(state, p1_god, p2_god);
     }
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
@@ -316,11 +323,22 @@ fn _order_states(
     if states.len() <= 1 {
         return;
     }
+    let mut losing = states.len() - 1;
     let mut back = states.len() - 1;
     let mut front = 0;
     let mut best_score = Hueristic::MIN;
 
     while front < back {
+        if states[back].get_winner().is_some() {
+            if back != losing {
+                states.swap(back, losing);
+            }
+            losing -= 1;
+            back -= 1;
+            continue;
+        }
+
+        // eprintln!("1");
         let score = (current_god.player_advantage_fn)(&states[back], player);
 
         if score <= baseline_score {
@@ -337,9 +355,18 @@ fn _order_states(
     if best_score > baseline_score {
         front = 0;
     } else {
-        back = states.len() - 1;
+        back = losing;
     }
+
+    if back > 0 && states[back].get_winner().is_some() {
+        if back != losing {
+            states.swap(back, losing);
+        }
+        back -= 1;
+    }
+
     while front < back {
+        // eprintln!("2");
         let score = (current_god.player_advantage_fn)(&states[back], player);
         if score == best_score {
             states.swap(back, front);

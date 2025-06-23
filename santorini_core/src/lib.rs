@@ -6,3 +6,4 @@ pub mod search;
 pub mod transposition_table;
 pub mod uci_types;
 pub mod utils;
+pub mod nnue;

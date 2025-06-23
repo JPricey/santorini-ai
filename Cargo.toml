@@ -7,6 +7,7 @@ members = [
     "uci",
     "battler",
     "datagen",
+    "bullet_prep",
 ]
 
 [workspace.dependencies]
