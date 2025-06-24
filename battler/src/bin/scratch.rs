@@ -1,4 +1,3 @@
-
 use battler::{Corpus, StartingPosition, read_corpus};
 use rand::{
     Rng,
