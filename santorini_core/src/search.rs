@@ -338,7 +338,6 @@ fn _order_states(
             continue;
         }
 
-        // eprintln!("1");
         let score = (current_god.player_advantage_fn)(&states[back], player);
 
         if score <= baseline_score {
@@ -366,7 +365,6 @@ fn _order_states(
     }
 
     while front < back {
-        // eprintln!("2");
         let score = (current_god.player_advantage_fn)(&states[back], player);
         if score == best_score {
             states.swap(back, front);

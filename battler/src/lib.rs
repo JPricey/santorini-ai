@@ -14,8 +14,7 @@ use santorini_core::uci_types::EngineOutput;
 
 const CORPUS_FILE_PATH: &str = "data/corpus.yaml";
 
-const BINARY_DIRECTORY: &str = "all_versions";
-const DEFAULT_DURATION_SECS: f32 = 5.0;
+pub const BINARY_DIRECTORY: &str = "all_versions";
 
 #[derive(Serialize, Deserialize)]
 pub struct StartingPosition {

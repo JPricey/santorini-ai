@@ -65,6 +65,8 @@ fn handle_command(
             }
 
             let fen = parts.remove(0);
+            eprintln!("set_position: {:?}", fen);
+
             let state =
                 FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
 
@@ -77,6 +79,7 @@ fn handle_command(
             let state_2 = state.clone();
 
             let callback = Arc::new(move |new_best_move: NewBestMove| {
+                eprintln!("{:?}", new_best_move);
                 let Some(action_path) = find_action_path(&state_2, &new_best_move.state) else {
                     eprintln!("from move:");
                     state_2.print_to_console();

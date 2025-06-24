@@ -454,7 +454,7 @@ pub fn get_all_permutations_for_pair(
     let h = (a._flip_horz_clone(), b._flip_horz_clone());
     let v = (a._flip_vertical_clone(), b._flip_vertical_clone());
     let hv = (h.0._flip_vertical_clone(), h.1._flip_vertical_clone());
-    let t = (a._transpose_clone(), a._transpose_clone());
+    let t = (a._transpose_clone(), b._transpose_clone());
     let th = (t.0._flip_horz_clone(), t.1._flip_horz_clone());
     let tv = (t.0._flip_vertical_clone(), t.1._flip_vertical_clone());
     let thv = (th.0._flip_vertical_clone(), th.1._flip_vertical_clone());

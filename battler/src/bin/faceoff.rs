@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
-use battler::{EngineSubprocess, prepare_subprocess, read_corpus};
+use battler::{prepare_subprocess, read_corpus, EngineSubprocess, BINARY_DIRECTORY};
 use chrono::Utc;
 use clap::Parser;
 use santorini_core::board::{FullGameState, Player};
@@ -12,8 +12,7 @@ use santorini_core::fen::game_state_to_fen;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 
-const BINARY_DIRECTORY: &str = "all_versions";
-const DEFAULT_DURATION_SECS: f32 = 5.0;
+const DEFAULT_DURATION_SECS: f32 = 2.0;
 
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
@@ -227,3 +226,5 @@ fn main() {
     let _ = c1.child.kill();
     let _ = c2.child.kill();
 }
+
+// cargo run -p battler --bin faceoff -- -e v1 -E v18
