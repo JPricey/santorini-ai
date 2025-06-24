@@ -63,9 +63,10 @@ impl Accumulator {
 
 fn crelu(x: i16) -> i32 {
     let v = i32::from(x.clamp(0, QA as i16));
-    let res = v * v; // QA;
+    v
+    // let res = v * v; // QA;
     // eprintln!("crelu: {} -> {}", x, res);
-    res
+    // res
 }
 
 impl Network {
@@ -77,7 +78,7 @@ impl Network {
         }
 
         output *= SCALE;
-        output /= i32::from(QA) * i32::from(QA) * i32::from(QB);
+        output /= i32::from(QA) * i32::from(QB);
 
         output
     }
