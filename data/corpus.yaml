@@ -1,0 +1,166 @@
+positions:
+- name: mixed_mid_edges
+  state: 0000000000000000000000000/1/mortal:11,13/mortal:7,17
+  notes: standard mid-edges starting state
+- name: mixed_outer_corners
+  state: 0000000000000000000000000/1/mortal:0,24/mortal:4,20
+  notes: start in opposite corners
+- name: grouped_mid_corners
+  state: 0000000000000000000000000/1/mortal:6,8/mortal:16,18
+  notes: ''
+- name: mid_vs_edges
+  state: 0000000000000000000000000/1/mortal:11,13/mortal:0,20
+  notes: ''
+- name: edges_vs_mid
+  state: 0000000000000000000000000/1/mortal:0,20/mortal:11,13
+  notes: ''
+- name: random_start_1
+  state: 0000000000000000000000000/1/mortal:20,21/mortal:5,7
+  notes: Position after completely random worker placements
+- name: random_start_2
+  state: 0000000000000000000000000/1/mortal:0,13/mortal:3,5
+  notes: Position after completely random worker placements
+- name: random_start_3
+  state: 0000000000000000000000000/1/mortal:6,22/mortal:8,23
+  notes: Position after completely random worker placements
+- name: random_start_4
+  state: 0000000000000000000000000/1/mortal:1,17/mortal:16,21
+  notes: Position after completely random worker placements
+- name: random_start_5
+  state: 0000000000000000000000000/1/mortal:7,20/mortal:6,10
+  notes: Position after completely random worker placements
+- name: random_start_6
+  state: 0000000000000000000000000/1/mortal:10,16/mortal:7,14
+  notes: Position after completely random worker placements
+- name: random_start_7
+  state: 0000000000000000000000000/1/mortal:1,13/mortal:14,23
+  notes: Position after completely random worker placements
+- name: random_start_8
+  state: 0000000000000000000000000/1/mortal:0,19/mortal:11,13
+  notes: Position after completely random worker placements
+- name: random_start_9
+  state: 0000000000000000000000000/1/mortal:11,20/mortal:5,16
+  notes: Position after completely random worker placements
+- name: random_start_10
+  state: 0000000000000000000000000/1/mortal:1,6/mortal:7,21
+  notes: Position after completely random worker placements
+- name: random_2_moves_1
+  state: 0000000000000000000000011/1/mortal:18,19/mortal:7,22
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_2
+  state: 0000000000001000100000000/1/mortal:17,21/mortal:12,20
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_3
+  state: 0000000000010100000000000/1/mortal:12,21/mortal:2,18
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_4
+  state: 0000000100000000000100000/1/mortal:14,16/mortal:8,24
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_5
+  state: 0000000010000001000000000/1/mortal:20,21/mortal:13,22
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_6
+  state: 0000000000000100000000010/1/mortal:19,20/mortal:8,16
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_7
+  state: 0000000100000100000000000/1/mortal:0,17/mortal:11,22
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_8
+  state: 0000000000000000010000010/1/mortal:1,11/mortal:4,24
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_9
+  state: 0000000000001000000001000/1/mortal:9,16/mortal:3,17
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_10
+  state: 0000000100000000000100000/1/mortal:11,23/mortal:13,22
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_11
+  state: 0000001000000000100000000/1/mortal:7,22/mortal:3,11
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_12
+  state: 0000010000000100000000000/1/mortal:12,19/mortal:6,9
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_13
+  state: 0000001000001000000000000/1/mortal:4,16/mortal:3,10
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_14
+  state: 0000000000100010000000000/1/mortal:9,18/mortal:6,15
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_15
+  state: 0010000000000000100000000/1/mortal:6,11/mortal:8,12
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_16
+  state: 0000000001000000000000010/1/mortal:1,24/mortal:7,8
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_17
+  state: 0010000000000000000001000/1/mortal:22,24/mortal:6,19
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_18
+  state: 0000000000000000000100010/1/mortal:4,18/mortal:21,23
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_19
+  state: 0000000000000000100000010/1/mortal:19,20/mortal:13,22
+  notes: Position after random worker placements and random 2 ply
+- name: random_2_moves_20
+  state: 1001000000000000000000000/1/mortal:1,11/mortal:8,24
+  notes: Position after random worker placements and random 2 ply
+- name: random_3_moves_1
+  state: 0000001000011000000000000/2/mortal:5,11/mortal:8,17
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_2
+  state: 1000000200000000000000000/2/mortal:6,11/mortal:1,17
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_3
+  state: 0000001000100000001000000/2/mortal:5,6/mortal:2,19
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_4
+  state: 0000000000010001000000010/2/mortal:12,20/mortal:19,21
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_5
+  state: 0000000000001010000000100/2/mortal:8,21/mortal:9,17
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_6
+  state: 0000001000010000000100000/2/mortal:6,24/mortal:7,13
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_7
+  state: 0000001000000000100000100/2/mortal:12,21/mortal:0,10
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_8
+  state: 0001010000010000000000000/2/mortal:0,12/mortal:6,8
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_9
+  state: 0000000001000100100000000/2/mortal:13,22/mortal:17,20
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_10
+  state: 0000000010100100000000000/2/mortal:12,18/mortal:16,22
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_11
+  state: 0101000001000000000000000/2/mortal:8,13/mortal:5,18
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_12
+  state: 0000000000000000001100010/2/mortal:0,19/mortal:2,18
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_13
+  state: 0100001000000000000010000/2/mortal:16,24/mortal:6,9
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_14
+  state: 0000000101000000000100000/2/mortal:6,8/mortal:4,14
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_15
+  state: 1000011000000000000000000/2/mortal:2,4/mortal:1,8
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_16
+  state: 0010001000000001000000000/2/mortal:16,23/mortal:6,7
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_17
+  state: 0000000000000010011000000/2/mortal:9,24/mortal:3,16
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_18
+  state: 0000010000000001000010000/2/mortal:4,20/mortal:1,6
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_19
+  state: 0100010001000000000000000/2/mortal:2,23/mortal:14,20
+  notes: Position after random worker placements followed by random 3 ply
+- name: random_3_moves_20
+  state: 0000000000001011000000000/2/mortal:13,19/mortal:5,10
+  notes: Position after random worker placements followed by random 3 ply
