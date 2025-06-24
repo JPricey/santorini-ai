@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
-use battler::{prepare_subprocess, read_corpus, EngineSubprocess, BINARY_DIRECTORY};
+use battler::{BINARY_DIRECTORY, EngineSubprocess, prepare_subprocess, read_corpus};
 use chrono::Utc;
 use clap::Parser;
 use santorini_core::board::{FullGameState, Player};
@@ -193,6 +193,11 @@ fn main() {
                 });
             }
         }
+        println!(
+            "Current score. E1: {}. E2: {}",
+            e1_wins.len(),
+            e2_wins.len(),
+        );
 
         {
             let battle_result_2 = do_battle(
@@ -213,6 +218,11 @@ fn main() {
                 });
             }
         }
+        println!(
+            "Current score. E1: {}. E2: {}",
+            e1_wins.len(),
+            e2_wins.len(),
+        );
     }
 
     println!("E1 wins: {:?}", e1_wins);

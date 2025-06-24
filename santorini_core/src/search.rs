@@ -18,8 +18,8 @@ use super::{
 };
 
 pub type Hueristic = i32;
-pub const WINNING_SCORE: Hueristic = 1000;
-pub const WINNING_SCORE_BUFFER: Hueristic = 900;
+pub const WINNING_SCORE: Hueristic = 10_000;
+pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
 pub static mut NUM_SEARCHES: usize = 0;
 
 /// Trait to check if a search should stop at some static boundary

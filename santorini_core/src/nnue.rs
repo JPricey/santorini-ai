@@ -62,7 +62,10 @@ impl Accumulator {
 }
 
 fn crelu(x: i16) -> i32 {
-    i32::from(x).clamp(0, i32::from(QA))
+    let v = i32::from(x.clamp(0, QA as i16));
+    let res = v * v; // QA;
+    // eprintln!("crelu: {} -> {}", x, res);
+    res
 }
 
 impl Network {
@@ -74,7 +77,7 @@ impl Network {
         }
 
         output *= SCALE;
-        output /= i32::from(QA) * i32::from(QB);
+        output /= i32::from(QA) * i32::from(QA) * i32::from(QB);
 
         output
     }
@@ -193,9 +196,10 @@ pub fn evaluate(board: &BoardState) -> i32 {
 
     let model_eval = MODEL.evaluate(&acc);
     // Scale down if eval is huge
-    if model_eval > 500 {
-        (500 + (model_eval - 500) / 10).min(600)
-    } else {
-        -(500 + (-model_eval - 500) / 10).min(600)
-    }
+    // if model_eval > 500 {
+    //     (500 + (model_eval - 500) / 10).min(600)
+    // } else {
+    //     -(500 + (-model_eval - 500) / 10).min(600)
+    // }
+    model_eval
 }
