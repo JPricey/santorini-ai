@@ -34,7 +34,7 @@ const FEATURES: usize = 375;
 const HIDDEN_SIZE: usize = 512;
 static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/basic_fixed-30/quantised.bin"
+        "../.././models/basic_screlu_fixed-100/quantised.bin"
     ))
 };
 
@@ -72,19 +72,19 @@ impl Accumulator {
     }
 }
 
-fn crelu(x: i16) -> i32 {
+fn screlu(x: i16) -> i32 {
     let v = i32::from(x.clamp(0, QA as i16));
-    // v * v
-    v
+    v * v
 }
 
 impl Network {
     pub fn evaluate(&self, us: &Accumulator) -> i32 {
-        let mut output: i32 = /*QA */ MODEL.output_bias as i32;
+        let mut output: i32 = 0;
 
         for (&input, &weight) in us.vals.iter().zip(&self.output_weights[..HIDDEN_SIZE]) {
-            output += crelu(input) * i32::from(weight);
+            output += screlu(input) * i32::from(weight);
         }
+        output = (output / QA) + MODEL.output_bias as i32;
         output *= SCALE;
         output /= i32::from(QA) * i32::from(QB);
 
