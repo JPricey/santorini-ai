@@ -7,8 +7,9 @@ use std::time::{Duration, Instant};
 use battler::{BINARY_DIRECTORY, EngineSubprocess, prepare_subprocess, read_corpus};
 use chrono::Utc;
 use clap::Parser;
-use santorini_core::board::{FullGameState, Player};
+use santorini_core::board::{FullGameState};
 use santorini_core::fen::game_state_to_fen;
+use santorini_core::player::Player;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 

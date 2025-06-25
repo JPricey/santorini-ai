@@ -1,19 +1,17 @@
 use super::search::Hueristic;
-use crate::board::{BoardState, Coord, FullGameState, Player};
-use artemis::build_artemis;
-use hephaestus::build_hephaestus;
+use crate::{board::{BoardState, FullGameState}, player::Player, square::Square};
 // use artemis::build_artemis;
 // use hephaestus::build_hephaestus;
 use mortal::build_mortal;
-use pan::build_pan;
 // use pan::build_pan;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
-pub mod artemis;
-pub mod hephaestus;
 pub mod mortal;
-pub mod pan;
+
+// pub mod artemis;
+// pub mod hephaestus;
+// pub mod pan;
 
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
@@ -21,9 +19,9 @@ pub mod pan;
 #[strum(serialize_all = "lowercase")]
 pub enum GodName {
     Mortal = 0,
-    Artemis = 1,
-    Hephaestus = 2,
-    Pan = 3,
+    // Artemis = 1,
+    // Hephaestus = 2,
+    // Pan = 3,
 }
 
 impl GodName {
@@ -44,10 +42,10 @@ pub type StateWithScore = (BoardState, Hueristic);
 #[serde(tag = "type", content = "value")]
 #[serde(rename_all = "snake_case")]
 pub enum PartialAction {
-    PlaceWorker(Coord),
-    SelectWorker(Coord),
-    MoveWorker(Coord),
-    Build(Coord),
+    PlaceWorker(Square),
+    SelectWorker(Square),
+    MoveWorker(Square),
+    Build(Square),
     NoMoves,
 }
 type FullAction = Vec<PartialAction>;
@@ -169,11 +167,35 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 4] = [
+/*
+type MoveGenFlags = u8;
+const STOP_ON_MATE: MoveGenFlags = 1 << 0;
+const MATE_ONLY: MoveGenFlags = 1 << 1;
+const CHECK_ONLY: MoveGenFlags = 1 << 2;
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+struct GenericMove {
+    data: u64,
+}
+
+// Mortal moves are represented as:
+// [25b: worker move mask][7b - space][8b build position][4b build height][...score]
+
+// TODO: accept a move accumulator and use that instead of returning a vec
+pub fn mortal_move_gen<const F: MoveGenFlags>(state: &BoardState, player: Player) -> Vec<GenericMove> {
+    let mut result: Vec<GenericMove> = Vec::with_capacity(128);
+    let current_player_idx = player as usize;
+
+    result
+}
+*/
+
+pub const ALL_GODS_BY_ID: [GodPower; 1] = [
     build_mortal(),
-    build_artemis(),
-    build_hephaestus(),
-    build_pan(),
+    // build_artemis(),
+    // build_hephaestus(),
+    // build_pan(),
 ];
 
 #[cfg(test)]

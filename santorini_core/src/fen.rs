@@ -1,8 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    board::{BoardState, FullGameState, NUM_SQUARES, Player},
-    gods::{ALL_GODS_BY_ID, GodName},
+    bitboard::BitBoard, board::{BoardState, FullGameState, NUM_SQUARES}, gods::{GodName, ALL_GODS_BY_ID}, player::Player
 };
 
 pub fn game_state_to_fen(state: &FullGameState) -> String {
@@ -11,7 +10,7 @@ pub fn game_state_to_fen(state: &FullGameState) -> String {
 
     let mut result = String::new();
     for p in 0..NUM_SQUARES {
-        result += &board.get_true_height(1 << p).to_string();
+        result += &board.get_true_height(BitBoard(1 << p)).to_string();
     }
 
     result += "/";
@@ -124,7 +123,7 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     for (p, char) in heights.iter().enumerate() {
         let height = (*char as u8 - b'0') as usize;
         for h in 0..height {
-            result.height_map[h] |= 1 << p;
+            result.height_map[h].0 |= 1 << p;
         }
     }
 
@@ -150,10 +149,10 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     }
 
     for pos in p1_section.worker_locations {
-        result.workers[0] |= 1 << pos;
+        result.workers[0].0 |= 1 << pos;
     }
     for pos in p2_section.worker_locations {
-        result.workers[1] |= 1 << pos;
+        result.workers[1].0 |= 1 << pos;
     }
 
     if p1_section.is_won {

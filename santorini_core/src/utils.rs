@@ -1,38 +1,23 @@
 #![allow(unused)]
-use crate::board::{BOARD_WIDTH, BitmapType, Coord};
+use crate::{bitboard::BitBoard, board::BOARD_WIDTH};
 
-pub const MAIN_SECTION_MASK: BitmapType = (1 << 25) - 1;
-pub const OFF_SECTION_MASK: BitmapType = !MAIN_SECTION_MASK;
-pub const EXCEPT_LEFT_COL: BitmapType =
-    0b11110 | 0b11110 << 5 | 0b11110 << 10 | 0b11110 << 15 | 0b11110 << 20;
-pub const EXCEPT_RIGHT_COL: BitmapType =
-    0b01111 | 0b01111 << 5 | 0b01111 << 10 | 0b01111 << 15 | 0b01111 << 20;
+pub const EXCEPT_LEFT_COL: BitBoard =
+    BitBoard(0b11110 | 0b11110 << 5 | 0b11110 << 10 | 0b11110 << 15 | 0b11110 << 20);
+pub const EXCEPT_RIGHT_COL: BitBoard =
+    BitBoard(0b01111 | 0b01111 << 5 | 0b01111 << 10 | 0b01111 << 15 | 0b01111 << 20);
 
-pub fn coord_to_position(coord: Coord) -> usize {
-    coord.x + coord.y * BOARD_WIDTH
+pub fn move_all_workers_one_include_original_workers(mask: BitBoard) -> BitBoard {
+    let down = mask.0 >> BOARD_WIDTH;
+    let up = mask.0 << BOARD_WIDTH;
+    let verticals = (mask.0 | up | down);
+
+    let left = (verticals >> 1) & EXCEPT_RIGHT_COL.0;
+    let right = (verticals << 1) & EXCEPT_LEFT_COL.0;
+
+    BitBoard((verticals | left | right) & BitBoard::MAIN_SECTION_MASK.0)
 }
 
-pub fn print_full_bitmap(mut mask: BitmapType) {
-    for _ in 0..5 {
-        let lower = mask & 0b11111;
-        let output = format!("{:05b}", lower);
-        eprintln!("{}", output.chars().rev().collect::<String>());
-        mask = mask >> 5;
-    }
-}
-
-pub fn move_all_workers_one_include_original_workers(mask: BitmapType) -> BitmapType {
-    let down = mask >> BOARD_WIDTH;
-    let up = mask << BOARD_WIDTH;
-    let verticals = (mask | up | down);
-
-    let left = (verticals >> 1) & EXCEPT_RIGHT_COL;
-    let right = (verticals << 1) & EXCEPT_LEFT_COL;
-
-    (verticals | left | right) & MAIN_SECTION_MASK
-}
-
-pub fn move_all_workers_one_exclude_original_workers(mask: BitmapType) -> BitmapType {
+pub fn move_all_workers_one_exclude_original_workers(mask: BitBoard) -> BitBoard {
     return move_all_workers_one_include_original_workers(mask) & !mask;
 }
 

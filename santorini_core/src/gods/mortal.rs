@@ -1,9 +1,10 @@
 use crate::{
-    board::{BitmapType, BoardState, IS_WINNER_MASK, NEIGHBOR_MAP, Player, position_to_coord},
-    search::{Hueristic, WINNING_SCORE},
-    utils::{
-        MAIN_SECTION_MASK, grid_position_builder, move_all_workers_one_include_original_workers,
-    },
+    bitboard::BitBoard,
+    board::{BoardState, IS_WINNER_MASK, NEIGHBOR_MAP},
+    player::Player,
+    search::Hueristic,
+    square::Square,
+    utils::{grid_position_builder, move_all_workers_one_include_original_workers},
 };
 
 use super::{
@@ -17,17 +18,17 @@ pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic 
     let player_index = player as usize;
 
     let mut result: Hueristic = 0;
-    let mut current_workers = state.workers[player_index];
+    let mut current_workers = state.workers[player_index].0;
     let non_worker_mask = !(state.workers[0] | state.workers[1]);
 
     let mut total_moves_count = 0;
 
     while current_workers != 0 {
         let worker_pos = current_workers.trailing_zeros();
-        let worker_mask: BitmapType = 1 << worker_pos;
+        let worker_mask = 1 << worker_pos;
         current_workers ^= worker_mask;
 
-        let height = state.get_height_for_worker(worker_mask);
+        let height = state.get_height_for_worker(BitBoard(worker_mask));
         result += WORKER_HEIGHT_SCORES[height];
         result += POSITION_BONUS[worker_pos as usize];
 
@@ -35,7 +36,7 @@ pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic 
         let worker_moves_mask =
             NEIGHBOR_MAP[worker_pos as usize] & !state.height_map[too_high] & non_worker_mask;
 
-        let worker_moves_count = worker_moves_mask.count_zeros();
+        let worker_moves_count = worker_moves_mask.0.count_zeros();
         total_moves_count += worker_moves_count;
         if worker_moves_count == 0 {
             result -= 9;
@@ -44,12 +45,12 @@ pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic 
         };
 
         // Huge bonus for being able to move to multiple 3's. This is likely winning
-        if (state.height_map[2] & worker_moves_mask).count_ones() > 1 {
+        if (state.height_map[2] & worker_moves_mask).0.count_ones() > 1 {
             result += 100;
         }
 
         // Bonus for being next to 2's
-        if (state.height_map[1] & worker_moves_mask) > 0 {
+        if (state.height_map[1] & worker_moves_mask).0 > 0 {
             result += 4;
         }
 
@@ -68,136 +69,6 @@ pub fn mortal_player_advantage(state: &BoardState, player: Player) -> Hueristic 
     result
 }
 
-pub fn mortal_player_advantage_old(state: &BoardState, player: Player) -> Hueristic {
-    let player_index = player as usize;
-
-    if state.workers[player_index] & IS_WINNER_MASK > 0 {
-        return WINNING_SCORE;
-    }
-
-    let mut result: Hueristic = 0;
-    let mut current_workers = state.workers[player_index];
-    while current_workers != 0 {
-        let worker_pos = current_workers.trailing_zeros() as usize;
-        let worker_mask: BitmapType = 1 << worker_pos;
-        current_workers ^= worker_mask;
-
-        let height = state.get_height_for_worker(worker_mask);
-        result += 10 * height as i32;
-        if height == 2 {
-            result += 10;
-        }
-
-        let too_high = std::cmp::min(3, height + 1);
-        let worker_moves = NEIGHBOR_MAP[worker_pos] & !state.height_map[too_high];
-        for h in (0..too_high).rev() {
-            let mult = if h == 2 { 10 } else { h + 1 };
-            result +=
-                ((state.height_map[h] & worker_moves).count_ones() * mult as u32) as Hueristic;
-        }
-    }
-
-    result
-}
-
-const COVERAGE_MAP: [u32; 2] = [0, MAIN_SECTION_MASK];
-// const ANTI_COVERAGE_MAP: [u32; 2] = [MAIN_SECTION_MASK, 0];
-
-// Turns out this is slower than the original version. Ooops
-pub fn mortal_next_states_v2<T, M>(state: &BoardState, player: Player) -> Vec<T>
-where
-    M: super::ResultsMapper<T>,
-{
-    let mut result: Vec<T> = Vec::with_capacity(128);
-    let current_player_idx = player as usize;
-    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
-    let mut current_workers = starting_current_workers;
-
-    let level_0_or_1 = !state.height_map[2];
-    let exactly_2 = state.height_map[1] & !state.height_map[2];
-    let exactly_3 = state.height_map[2] & !state.height_map[3];
-    let all_workers_mask = state.workers[0] | state.workers[1];
-    let open_spaces = !(state.height_map[3] | all_workers_mask);
-
-    while current_workers != 0 {
-        let moving_worker_start_pos = current_workers.trailing_zeros() as usize;
-        let moving_worker_start_mask: BitmapType = 1 << moving_worker_start_pos;
-        current_workers ^= moving_worker_start_mask;
-
-        let mut mapper = M::new();
-        mapper.add_action(PartialAction::SelectWorker(position_to_coord(
-            moving_worker_start_pos,
-        )));
-
-        let worker_at_least_1 = state.height_map[0] & moving_worker_start_mask;
-        let worker_is_at_least_2_bit: usize =
-            ((state.height_map[1] & moving_worker_start_mask) != 0) as usize;
-        let worker_is_exactly_2 = exactly_2 & moving_worker_start_mask;
-
-        let open_neighbors = NEIGHBOR_MAP[moving_worker_start_pos] & open_spaces;
-
-        let mut level_3_neighbors =
-            open_neighbors & exactly_3 & COVERAGE_MAP[worker_is_at_least_2_bit];
-        if worker_is_exactly_2 != 0 {
-            while level_3_neighbors != 0 {
-                let move_to_pos = level_3_neighbors.trailing_zeros() as usize;
-                let move_to_mask: BitmapType = 1 << move_to_pos;
-                level_3_neighbors ^= move_to_mask;
-
-                let mut mapper = mapper.clone();
-                mapper.add_action(PartialAction::MoveWorker(position_to_coord(move_to_pos)));
-
-                let mut winning_next_state = state.clone();
-                winning_next_state.workers[current_player_idx] ^=
-                    moving_worker_start_mask | move_to_mask | IS_WINNER_MASK;
-                winning_next_state.flip_current_player();
-                result.push(mapper.map_result(winning_next_state));
-                continue;
-            }
-        }
-
-        let mut moving_neighbors = (level_0_or_1
-            | level_3_neighbors
-            | COVERAGE_MAP[(worker_at_least_1 != 0) as usize] & exactly_2)
-            & open_neighbors;
-
-        while moving_neighbors != 0 {
-            let move_to_pos = moving_neighbors.trailing_zeros() as usize;
-            let move_to_mask: BitmapType = 1 << move_to_pos;
-            moving_neighbors ^= move_to_mask;
-
-            let mut mapper = mapper.clone();
-            mapper.add_action(PartialAction::MoveWorker(position_to_coord(move_to_pos)));
-
-            let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-            let mut worker_builds =
-                NEIGHBOR_MAP[move_to_pos] & !non_selected_workers & !state.height_map[3];
-
-            while worker_builds != 0 {
-                let worker_build_pos = worker_builds.trailing_zeros() as usize;
-                let worker_build_mask = 1 << worker_build_pos;
-                worker_builds ^= worker_build_mask;
-
-                let mut mapper = mapper.clone();
-                mapper.add_action(PartialAction::Build(position_to_coord(worker_build_pos)));
-
-                let mut next_state = state.clone();
-                next_state.flip_current_player();
-                for height in 0.. {
-                    if next_state.height_map[height] & worker_build_mask == 0 {
-                        next_state.height_map[height] |= worker_build_mask;
-                        break;
-                    }
-                }
-                next_state.workers[current_player_idx] ^= moving_worker_start_mask | move_to_mask;
-                result.push(mapper.map_result(next_state))
-            }
-        }
-    }
-
-    result
-}
-
 pub fn mortal_next_states<T, M, const SHORT_CIRCUIT_WINS: bool>(
     state: &BoardState,
     player: Player,
@@ -208,18 +79,18 @@ where
     let mut result: Vec<T> = Vec::with_capacity(128);
 
     let current_player_idx = player as usize;
-    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
+    let starting_current_workers = state.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     let mut current_workers = starting_current_workers;
 
     let all_workers_mask = state.workers[0] | state.workers[1];
 
-    while current_workers != 0 {
-        let moving_worker_start_pos = current_workers.trailing_zeros() as usize;
-        let moving_worker_start_mask: BitmapType = 1 << moving_worker_start_pos;
+    while current_workers.0 != 0 {
+        let moving_worker_start_pos = current_workers.0.trailing_zeros() as usize;
+        let moving_worker_start_mask = BitBoard(1 << moving_worker_start_pos);
         current_workers ^= moving_worker_start_mask;
 
         let mut mapper = M::new();
-        mapper.add_action(PartialAction::SelectWorker(position_to_coord(
+        mapper.add_action(PartialAction::SelectWorker(Square::from(
             moving_worker_start_pos,
         )));
 
@@ -232,17 +103,15 @@ where
             & !state.height_map[too_high]
             & !non_selected_workers;
 
-        while worker_moves != 0 {
-            let worker_move_pos = worker_moves.trailing_zeros() as usize;
-            let worker_move_mask: BitmapType = 1 << worker_move_pos;
+        while worker_moves.0 != 0 {
+            let worker_move_pos = worker_moves.0.trailing_zeros() as usize;
+            let worker_move_mask = BitBoard(1 << worker_move_pos);
             worker_moves ^= worker_move_mask;
 
             let mut mapper = mapper.clone();
-            mapper.add_action(PartialAction::MoveWorker(position_to_coord(
-                worker_move_pos,
-            )));
+            mapper.add_action(PartialAction::MoveWorker(Square::from(worker_move_pos)));
 
-            if worker_starting_height != 3 && state.height_map[2] & worker_move_mask > 0 {
+            if worker_starting_height != 3 && (state.height_map[2] & worker_move_mask).0 > 0 {
                 let mut winning_next_state = state.clone();
                 winning_next_state.workers[current_player_idx] ^=
                     moving_worker_start_mask | worker_move_mask | IS_WINNER_MASK;
@@ -258,19 +127,19 @@ where
             let mut worker_builds =
                 NEIGHBOR_MAP[worker_move_pos] & !non_selected_workers & !state.height_map[3];
 
-            while worker_builds != 0 {
-                let worker_build_pos = worker_builds.trailing_zeros() as usize;
+            while worker_builds.0 != 0 {
+                let worker_build_pos = worker_builds.0.trailing_zeros() as usize;
                 let worker_build_mask = 1 << worker_build_pos;
-                worker_builds ^= worker_build_mask;
+                worker_builds ^= BitBoard(worker_build_mask);
 
                 let mut mapper = mapper.clone();
-                mapper.add_action(PartialAction::Build(position_to_coord(worker_build_pos)));
+                mapper.add_action(PartialAction::Build(Square::from(worker_build_pos)));
 
                 let mut next_state = state.clone();
                 next_state.flip_current_player();
                 for height in 0.. {
-                    if next_state.height_map[height] & worker_build_mask == 0 {
-                        next_state.height_map[height] |= worker_build_mask;
+                    if next_state.height_map[height].0 & worker_build_mask == 0 {
+                        next_state.height_map[height] |= BitBoard(worker_build_mask);
                         break;
                     }
                 }
@@ -296,7 +165,7 @@ where
 
 pub fn mortal_has_win(state: &BoardState, player: Player) -> bool {
     let current_player_idx = player as usize;
-    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
+    let starting_current_workers = state.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
 
     let level_2_workers = starting_current_workers & (state.height_map[1] & !state.height_map[2]);
     let moves_from_lvl_2 = move_all_workers_one_include_original_workers(level_2_workers);
@@ -304,7 +173,7 @@ pub fn mortal_has_win(state: &BoardState, player: Player) -> bool {
     let exactly_level_3 = state.height_map[2] & open_spaces;
     let level_3_moves = moves_from_lvl_2 & exactly_level_3;
 
-    level_3_moves != 0
+    level_3_moves.0 != 0
 }
 
 pub const fn build_mortal() -> GodPower {

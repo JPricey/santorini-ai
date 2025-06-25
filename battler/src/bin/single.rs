@@ -7,9 +7,10 @@ use std::{fs, thread};
 
 use chrono::Utc;
 use clap::Parser;
-use santorini_core::board::{FullGameState, Player};
+use santorini_core::board::FullGameState;
 use santorini_core::fen::game_state_to_fen;
 use santorini_core::gods::GodName;
+use santorini_core::player::Player;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 

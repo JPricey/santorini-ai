@@ -6,14 +6,11 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    board::{FullGameState, get_all_permutations_for_pair},
-    gods::GodPower,
-    nnue::evaluate,
-    transposition_table::{SearchScoreType, TTValue},
+    board::{get_all_permutations_for_pair, FullGameState}, gods::GodPower, nnue::evaluate, player::Player, transposition_table::{SearchScoreType, TTValue}
 };
 
 use super::{
-    board::{BoardState, Player},
+    board::{BoardState},
     transposition_table::TranspositionTable,
 };
 
@@ -258,7 +255,7 @@ fn _q_extend(
     }
 
     // If opponent isn't threatening a win, take the current score
-    if !(other_god.has_win)(state, state.current_player.other()) {
+    if !(other_god.has_win)(state, !state.current_player) {
         return evaluate(state);
         // return color * judge_non_terminal_state(state, p1_god, p2_god);
     }
@@ -282,19 +279,6 @@ fn _q_extend(
     }
 
     best_score
-}
-
-fn _sum_worker_heights(state: &BoardState, player: Player) -> u32 {
-    let mut result = 0;
-    let mut workers = state.workers[player as usize];
-    while workers != 0 {
-        let worker_pos = workers.trailing_zeros();
-        let worker_mask = 1 << worker_pos;
-        workers ^= worker_mask;
-
-        result -= state.get_height_for_worker(worker_mask) as u32;
-    }
-    result
 }
 
 /*
@@ -583,7 +567,7 @@ where
 
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
-        if state.height_map[0].count_ones() <= 3 {
+        if state.height_map[0].0.count_ones() <= 3 {
             for (base, child) in get_all_permutations_for_pair(state, best_board) {
                 let tt_value = TTValue {
                     best_child: child,

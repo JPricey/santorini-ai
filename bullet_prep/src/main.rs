@@ -4,14 +4,16 @@ use std::path::PathBuf;
 
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use santorini_core::board::{BoardState, FullGameState, Player};
+use santorini_core::bitboard::BitBoard;
+use santorini_core::board::{BoardState, FullGameState};
+use santorini_core::player::Player;
 
 // !!! BulletSantoriniBoard needs to match exactly with the definition in santorini-trainer rep
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BulletSantoriniBoard {
-    height_maps: [u32; 4],
-    worker_maps: [u32; 2],
+    height_maps: [BitBoard; 4],
+    worker_maps: [BitBoard; 2],
     score: i16,
     result: u8,
     extra1: u8, // TODO: add depth / parity to maybe add a horizon offset. Gen1 data records last

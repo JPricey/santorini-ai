@@ -1,0 +1,122 @@
+use std::fmt;
+
+use crate::{square::Square, transmute_enum};
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
+pub struct BitBoard(pub u32);
+
+impl Ord for BitBoard {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl PartialOrd for BitBoard {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Idea for ops implementation is from https://github.com/analog-hors/tantabus
+/// Implement math standard operations
+macro_rules! impl_math_ops {
+    ($($trait:ident::$fn:ident),*) => {
+        $(impl std::ops::$trait for BitBoard {
+            type Output = Self;
+
+            fn $fn(self, other: Self) -> Self::Output {
+                Self(std::ops::$trait::$fn(self.0, other.0))
+            }
+        })*
+    };
+}
+
+impl_math_ops! {
+    Shr::shr,
+    Shl::shl,
+    BitAnd::bitand,
+    BitOr::bitor,
+    BitXor::bitxor
+}
+
+/// Implement math assignment operations
+macro_rules! impl_math_assign_ops {
+    ($($trait:ident::$fn:ident),*) => {
+        $(impl std::ops::$trait for BitBoard {
+
+            fn $fn(&mut self, other: Self) {
+                std::ops::$trait::$fn(&mut self.0, other.0)
+            }
+        })*
+    };
+}
+
+impl_math_assign_ops! {
+    ShrAssign::shr_assign,
+    ShlAssign::shl_assign,
+    BitAndAssign::bitand_assign,
+    BitOrAssign::bitor_assign,
+    BitXorAssign::bitxor_assign
+}
+
+impl std::ops::Not for BitBoard {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
+}
+
+impl fmt::Display for BitBoard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = format!("\n      Bitboard: {}\n", self.0);
+
+        for square in 0..64 {
+            if square % 8 == 0 {
+                s.push_str(format!("\n{}   ", (8 - square / 8)).as_str())
+            }
+
+            if self.get_bit(Square::from(square)) {
+                s.push_str("X ");
+            } else {
+                s.push_str("- ");
+            }
+        }
+        s.push_str("\n\n    A B C D E F G H");
+        write!(f, "{s}")
+    }
+}
+
+impl BitBoard {
+    pub const EMPTY: Self = Self(0);
+    pub const MAIN_SECTION_MASK: Self = Self((1 << 25) - 1);
+    pub const OFF_SECTION_MASK: Self = Self(!Self::MAIN_SECTION_MASK.0);
+
+    /// Check whether given square is set on the board
+    pub const fn get_bit(self, square: Square) -> bool {
+        self.get_bit_masked(1 << square as u8)
+    }
+
+    pub const fn get_bit_masked(self, mask: u32) -> bool {
+        self.0 & mask != 0
+    }
+
+    pub const fn lsb(self) -> Square {
+        transmute_enum!(self.0.trailing_zeros() as u8)
+    }
+}
+
+impl Iterator for BitBoard {
+    type Item = Square;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if *self == Self::EMPTY {
+            None
+        } else {
+            let sq = self.lsb();
+            self.0 &= self.0 - 1;
+
+            Some(sq)
+        }
+    }
+}

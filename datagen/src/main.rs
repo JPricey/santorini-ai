@@ -3,6 +3,7 @@ use rand::distributions::Alphanumeric;
 use rand::seq::IteratorRandom;
 use rand::{Rng, seq::SliceRandom, thread_rng};
 use santorini_core::gods::GodName;
+use santorini_core::player::Player;
 use santorini_core::transposition_table::TranspositionTable;
 use std::io::Write;
 use std::path::PathBuf;
@@ -10,7 +11,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use santorini_core::board::{FullGameState, Player};
+use santorini_core::board::{FullGameState};
 use santorini_core::search::{
     AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator,
     NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext, search_with_state,
@@ -119,11 +120,11 @@ fn _get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
     let mut result = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
     let worker_spots: Vec<usize> = (0..25).choose_multiple(rng, 4).iter().cloned().collect();
 
-    result.board.workers[0] |= 1 << worker_spots[0];
-    result.board.workers[0] |= 1 << worker_spots[1];
+    result.board.workers[0].0 |= 1 << worker_spots[0];
+    result.board.workers[0].0 |= 1 << worker_spots[1];
 
-    result.board.workers[1] |= 1 << worker_spots[2];
-    result.board.workers[1] |= 1 << worker_spots[3];
+    result.board.workers[1].0 |= 1 << worker_spots[2];
+    result.board.workers[1].0 |= 1 << worker_spots[3];
 
     result
 }

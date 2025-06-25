@@ -10,11 +10,11 @@ fn _get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
     let mut result = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
     let worker_spots: Vec<usize> = (0..25).choose_multiple(rng, 4).iter().cloned().collect();
 
-    result.board.workers[0] |= 1 << worker_spots[0];
-    result.board.workers[0] |= 1 << worker_spots[1];
+    result.board.workers[0].0 |= 1 << worker_spots[0];
+    result.board.workers[0].0 |= 1 << worker_spots[1];
 
-    result.board.workers[1] |= 1 << worker_spots[2];
-    result.board.workers[1] |= 1 << worker_spots[3];
+    result.board.workers[1].0 |= 1 << worker_spots[2];
+    result.board.workers[1].0 |= 1 << worker_spots[3];
 
     result
 }

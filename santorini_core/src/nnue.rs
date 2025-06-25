@@ -1,7 +1,6 @@
 use std::mem;
 
-use crate::board::BoardState;
-use crate::board::Player;
+use crate::{bitboard::BitBoard, board::BoardState, player::Player};
 
 const QA: i32 = 255;
 const QB: i32 = 64;
@@ -105,22 +104,22 @@ impl Network {
 }
 
 pub fn _trigger_features_height_and_worker(acc: &mut Accumulator, board: &BoardState) {
-    let mut remaining_spaces: u32 = (1 << 25) - 1;
+    let mut remaining_spaces = BitBoard((1 << 25) - 1);
     for height in (0..4).rev() {
         let mut height_mask = board.height_map[height] & remaining_spaces;
         remaining_spaces ^= height_mask;
 
-        while height_mask > 0 {
-            let pos = height_mask.trailing_zeros() as usize;
-            height_mask &= height_mask - 1;
+        while height_mask.0 > 0 {
+            let pos = height_mask.0.trailing_zeros() as usize;
+            height_mask.0 &= height_mask.0 - 1;
             let feature = (pos * 5 + height as usize + 1) as usize;
             acc.add_feature(feature);
         }
     }
 
-    while remaining_spaces > 0 {
-        let pos = remaining_spaces.trailing_zeros();
-        remaining_spaces &= remaining_spaces - 1;
+    while remaining_spaces.0 > 0 {
+        let pos = remaining_spaces.0.trailing_zeros();
+        remaining_spaces.0 &= remaining_spaces.0 - 1;
         let feature = (pos * 5) as usize;
         acc.add_feature(feature);
     }
@@ -133,7 +132,7 @@ pub fn _trigger_features_height_and_worker(acc: &mut Accumulator, board: &BoardS
     ) {
         while worker_map > 0 {
             let pos = worker_map.trailing_zeros();
-            let worker_height = board.get_height_for_worker(1 << pos);
+            let worker_height = board.get_height_for_worker(BitBoard(1 << pos));
             worker_map &= worker_map - 1;
             let feature = feature_offset + 5 * pos as usize + worker_height as usize;
             acc.add_feature(feature);
@@ -144,8 +143,8 @@ pub fn _trigger_features_height_and_worker(acc: &mut Accumulator, board: &BoardS
         Player::Two => (1, 0),
     };
 
-    _add_worker_features(board, acc, board.workers[own_workers], 125);
-    _add_worker_features(board, acc, board.workers[other_workers], 125 + 5 * 25);
+    _add_worker_features(board, acc, board.workers[own_workers].0, 125);
+    _add_worker_features(board, acc, board.workers[other_workers].0, 125 + 5 * 25);
 }
 
 pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
@@ -155,7 +154,7 @@ pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
         Player::Two => (board.workers[1], board.workers[0]),
     };
     for height in (0..4).rev() {
-        let mut height_mask = board.height_map[height] & remaining_spaces;
+        let mut height_mask = board.height_map[height].0 & remaining_spaces;
         remaining_spaces ^= height_mask;
 
         while height_mask > 0 {
@@ -164,9 +163,9 @@ pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
 
             let mut feature = pos * 15 + height + 1;
             let pos_mask = 1 << pos;
-            if own_workers & pos_mask > 0 {
+            if own_workers.0 & pos_mask > 0 {
                 feature += 5;
-            } else if other_workers & pos_mask > 0 {
+            } else if other_workers.0 & pos_mask > 0 {
                 feature += 10;
             }
             acc.add_feature(feature);
@@ -179,15 +178,16 @@ pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
 
         let mut feature = pos * 15;
         let pos_mask = 1 << pos;
-        if own_workers & pos_mask > 0 {
+        if own_workers.0 & pos_mask > 0 {
             feature += 5;
-        } else if other_workers & pos_mask > 0 {
+        } else if other_workers.0 & pos_mask > 0 {
             feature += 10;
         }
         acc.add_feature(feature);
     }
 }
 
+/*
 pub fn _trigger_features_double_tuple(acc: &mut Accumulator, board: &BoardState) {
     const HEIGHT_MAP_PER_SQUARE: usize = 5 * 5 * 5 * 5;
     const WORKER_MAP_PER_SQUARE: usize = 3 * 3 * 3 * 3;
@@ -201,7 +201,7 @@ pub fn _trigger_features_double_tuple(acc: &mut Accumulator, board: &BoardState)
     fn _cmp_next_height(board: &BoardState, row_heights: &mut [u8], row: usize) {
         for col in 0..5 {
             let pos = 5 * row + col;
-            row_heights[col] = board.get_true_height(1 << pos) as u8;
+            row_heights[col] = board.get_true_height(BitBoard(1 << pos)) as u8;
         }
     }
     _cmp_next_height(board, &mut next_heights, 0);
@@ -248,6 +248,7 @@ pub fn _trigger_features_double_tuple(acc: &mut Accumulator, board: &BoardState)
         }
     }
 }
+*/
 
 pub fn evaluate(board: &BoardState) -> i32 {
     let mut acc = Accumulator::new();
@@ -256,12 +257,5 @@ pub fn evaluate(board: &BoardState) -> i32 {
     _trigger_features_height_and_worker(&mut acc, board);
     // _trigger_features_375(&mut acc, board);
 
-    let model_eval = MODEL.evaluate(&acc);
-    // Scale down if eval is huge
-    // if model_eval > 500 {
-    //     (500 + (model_eval - 500) / 10).min(600)
-    // } else {
-    //     -(500 + (-model_eval - 500) / 10).min(600)
-    // }
-    model_eval
+    MODEL.evaluate(&acc)
 }
