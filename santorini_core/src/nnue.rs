@@ -3,12 +3,6 @@ use std::mem;
 use crate::board::BoardState;
 use crate::board::Player;
 
-const FEATURES: usize = 75 + 2 * 5 * 25;
-const HIDDEN_SIZE: usize = 512;
-
-// const FEATURES: usize = 16 * (5 * 5 * 5 * 5 + 3 * 3 * 3 * 3);
-// const HIDDEN_SIZE: usize = 256;
-
 const QA: i32 = 255;
 const QB: i32 = 64;
 
@@ -28,10 +22,27 @@ pub struct Network {
     output_bias: i16,
 }
 
-// static MODEL: Network = unsafe { mem::transmute(*include_bytes!( "../.././models/simple_wdl_02-100/quantised.bin")) };
+// const FEATURES: usize = 16 * (5 * 5 * 5 * 5 + 3 * 3 * 3 * 3);
+// const HIDDEN_SIZE: usize = 256;
+// static MODEL: Network = unsafe {
+//     mem::transmute(*include_bytes!(
+//         "../.././models/double_tuple-100/quantised.bin"
+//     ))
+// };
+
+// const FEATURES: usize = 75 + 2 * 5 * 25;
+// const HIDDEN_SIZE: usize = 512;
+// static MODEL: Network = unsafe {
+//     mem::transmute(*include_bytes!(
+//         "../.././models/feat125hidden512-100/quantised.bin"
+//     ))
+// };
+
+const FEATURES: usize = 375;
+const HIDDEN_SIZE: usize = 512;
 static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/feat125hidden512-100/quantised.bin"
+        "../.././models/per_square_h512_wdl75-100/quantised.bin"
     ))
 };
 
@@ -63,28 +74,24 @@ impl Accumulator {
 
 fn crelu(x: i16) -> i32 {
     let v = i32::from(x.clamp(0, QA as i16));
-    v
-    // let res = v * v; // QA;
-    // eprintln!("crelu: {} -> {}", x, res);
-    // res
+    v * v
 }
 
 impl Network {
     pub fn evaluate(&self, us: &Accumulator) -> i32 {
-        let mut output = i32::from(self.output_bias);
+        let mut output: i32 = QA * MODEL.output_bias as i32;
 
         for (&input, &weight) in us.vals.iter().zip(&self.output_weights[..HIDDEN_SIZE]) {
             output += crelu(input) * i32::from(weight);
         }
-
         output *= SCALE;
-        output /= i32::from(QA) * i32::from(QB);
+        output /= i32::from(QA) * i32::from(QA) * i32::from(QB);
 
         output
     }
 }
 
-pub fn _trigger_features_175(acc: &mut Accumulator, board: &BoardState) {
+pub fn _trigger_features_225(acc: &mut Accumulator, board: &BoardState) {
     let mut remaining_spaces: u32 = 0b11111111111111111111;
     for height in (0..4).rev() {
         let mut height_mask = board.height_map[height] & remaining_spaces;
@@ -126,6 +133,46 @@ pub fn _trigger_features_175(acc: &mut Accumulator, board: &BoardState) {
 
     _add_worker_features(board, acc, board.workers[own_workers], 75);
     _add_worker_features(board, acc, board.workers[other_workers], 75 + 5 * 25);
+}
+
+pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
+    let mut remaining_spaces: u32 = 0b11111111111111111111;
+    let (own_workers, other_workers) = match board.current_player {
+        Player::One => (board.workers[0], board.workers[1]),
+        Player::Two => (board.workers[1], board.workers[0]),
+    };
+    for height in (0..4).rev() {
+        let mut height_mask = board.height_map[height] & remaining_spaces;
+        remaining_spaces ^= height_mask;
+
+        while height_mask > 0 {
+            let pos = height_mask.trailing_zeros() as usize;
+            height_mask &= height_mask - 1;
+
+            let mut feature = pos * 15 + height + 1;
+            let pos_mask = 1 << pos;
+            if own_workers & pos_mask > 0 {
+                feature += 5;
+            } else if other_workers & pos_mask > 0 {
+                feature += 10;
+            }
+            acc.add_feature(feature);
+        }
+    }
+
+    while remaining_spaces > 0 {
+        let pos = remaining_spaces.trailing_zeros() as usize;
+        remaining_spaces &= remaining_spaces - 1;
+
+        let mut feature = pos * 15;
+        let pos_mask = 1 << pos;
+        if own_workers & pos_mask > 0 {
+            feature += 5;
+        } else if other_workers & pos_mask > 0 {
+            feature += 10;
+        }
+        acc.add_feature(feature);
+    }
 }
 
 pub fn _trigger_features_double_tuple(acc: &mut Accumulator, board: &BoardState) {
@@ -193,7 +240,8 @@ pub fn evaluate(board: &BoardState) -> i32 {
     let mut acc = Accumulator::new();
 
     // _trigger_features_double_tuple(&mut acc, board);
-    _trigger_features_175(&mut acc, board);
+    // _trigger_features_225(&mut acc, board);
+    _trigger_features_375(&mut acc, board);
 
     let model_eval = MODEL.evaluate(&acc);
     // Scale down if eval is huge

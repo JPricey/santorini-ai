@@ -35,9 +35,9 @@ fn do_battle<'a>(
     println!();
 
     loop {
-        let (engine, other) = match current_state.board.current_player {
-            Player::One => (&mut *c1, &mut *c2),
-            Player::Two => (&mut *c2, &mut *c1),
+        let engine = match current_state.board.current_player {
+            Player::One => &mut *c1,
+            Player::Two => &mut *c2,
         };
 
         let state_string = game_state_to_fen(&current_state);
