@@ -11,6 +11,7 @@ use mortal::build_mortal;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
+// pub mod generic;
 pub mod mortal;
 
 // pub mod artemis;
@@ -108,26 +109,6 @@ impl ResultsMapper<BoardState> for StateOnlyMapper {
     }
 }
 
-/*
-#[derive(Clone, Debug)]
-pub struct HueristicMapper {
-    god_power: &'static GodPower,
-}
-
-impl ResultsMapper<StateWithScore> for HueristicMapper {
-    fn new(god_power: &'static GodPower) -> Self {
-        HueristicMapper { god_power }
-    }
-
-    fn add_action(&mut self, _partial_action: PartialAction) {}
-
-    fn map_result(&self, state: BoardState) -> StateWithScore {
-        let score = (self.god_power.player_advantage_fn)(&state, state.current_player);
-        (state, score)
-    }
-}
-*/
-
 #[derive(Clone, Debug)]
 pub struct FullChoiceMapper {
     partial_actions: Vec<PartialAction>,
@@ -169,30 +150,6 @@ impl PartialEq for GodPower {
 }
 
 impl Eq for GodPower {}
-
-/*
-type MoveGenFlags = u8;
-const STOP_ON_MATE: MoveGenFlags = 1 << 0;
-const MATE_ONLY: MoveGenFlags = 1 << 1;
-const CHECK_ONLY: MoveGenFlags = 1 << 2;
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-struct GenericMove {
-    data: u64,
-}
-
-// Mortal moves are represented as:
-// [25b: worker move mask][7b - space][8b build position][4b build height][...score]
-
-// TODO: accept a move accumulator and use that instead of returning a vec
-pub fn mortal_move_gen<const F: MoveGenFlags>(state: &BoardState, player: Player) -> Vec<GenericMove> {
-    let mut result: Vec<GenericMove> = Vec::with_capacity(128);
-    let current_player_idx = player as usize;
-
-    result
-}
-*/
 
 pub const ALL_GODS_BY_ID: [GodPower; 1] = [
     build_mortal(),

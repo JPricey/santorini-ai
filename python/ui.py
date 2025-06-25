@@ -42,6 +42,7 @@ class EngineProcess:
 
         env = os.environ.copy()
         env['RUST_BACKTRACE'] = 'full'
+        env['RUSTFLAGS'] = '-C target-cpu=native'
 
         self.process = subprocess.Popen(
             start_command,

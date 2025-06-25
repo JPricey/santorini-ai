@@ -80,14 +80,12 @@ where
 
     let current_player_idx = player as usize;
     let starting_current_workers = state.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
-    let mut current_workers = starting_current_workers;
+    let current_workers = starting_current_workers;
 
     let all_workers_mask = state.workers[0] | state.workers[1];
 
-    while current_workers.0 != 0 {
-        let moving_worker_start_pos = current_workers.0.trailing_zeros() as usize;
-        let moving_worker_start_mask = BitBoard(1 << moving_worker_start_pos);
-        current_workers ^= moving_worker_start_mask;
+    for moving_worker_start_pos in current_workers.into_iter() {
+        let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
 
         let mut mapper = M::new();
         mapper.add_action(PartialAction::SelectWorker(Square::from(
@@ -99,14 +97,12 @@ where
 
         // Remember that actual height map is offset by 1
         let too_high = std::cmp::min(3, worker_starting_height + 1);
-        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos]
+        let worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !state.height_map[too_high]
             & !non_selected_workers;
 
-        while worker_moves.0 != 0 {
-            let worker_move_pos = worker_moves.0.trailing_zeros() as usize;
-            let worker_move_mask = BitBoard(1 << worker_move_pos);
-            worker_moves ^= worker_move_mask;
+        for worker_move_pos in worker_moves.into_iter() {
+            let worker_move_mask = BitBoard::as_mask(worker_move_pos);
 
             let mut mapper = mapper.clone();
             mapper.add_action(PartialAction::MoveWorker(Square::from(worker_move_pos)));
@@ -124,13 +120,12 @@ where
                 continue;
             }
 
-            let mut worker_builds =
-                NEIGHBOR_MAP[worker_move_pos] & !non_selected_workers & !state.height_map[3];
+            let worker_builds = NEIGHBOR_MAP[worker_move_pos as usize]
+                & !non_selected_workers
+                & !state.height_map[3];
 
-            while worker_builds.0 != 0 {
-                let worker_build_pos = worker_builds.0.trailing_zeros() as usize;
-                let worker_build_mask = 1 << worker_build_pos;
-                worker_builds ^= BitBoard(worker_build_mask);
+            for worker_build_pos in worker_builds {
+                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
 
                 let mut mapper = mapper.clone();
                 mapper.add_action(PartialAction::Build(Square::from(worker_build_pos)));
@@ -138,8 +133,8 @@ where
                 let mut next_state = state.clone();
                 next_state.flip_current_player();
                 for height in 0.. {
-                    if next_state.height_map[height].0 & worker_build_mask == 0 {
-                        next_state.height_map[height] |= BitBoard(worker_build_mask);
+                    if (next_state.height_map[height] & worker_build_mask).0 == 0 {
+                        next_state.height_map[height] |= worker_build_mask;
                         break;
                     }
                 }
