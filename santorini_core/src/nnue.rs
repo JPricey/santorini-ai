@@ -30,21 +30,21 @@ pub struct Network {
 //     ))
 // };
 
-//const FEATURES: usize = 75 + 2 * 5 * 25;
-//const HIDDEN_SIZE: usize = 512;
-//static MODEL: Network = unsafe {
-//    mem::transmute(*include_bytes!(
-//        "../.././models/basic_h512_wdl1_fixed-60/quantised.bin"
-//    ))
-//};
-
 const FEATURES: usize = 375;
 const HIDDEN_SIZE: usize = 512;
 static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/per_square_fixed-10/quantised.bin"
+        "../.././models/basic_fixed-30/quantised.bin"
     ))
 };
+
+// const FEATURES: usize = 375;
+// const HIDDEN_SIZE: usize = 512;
+// static MODEL: Network = unsafe {
+//     mem::transmute(*include_bytes!(
+//         "../.././models/per_square_fixed-10/quantised.bin"
+//     ))
+// };
 
 impl Accumulator {
     pub fn new() -> Self {
@@ -74,25 +74,26 @@ impl Accumulator {
 
 fn crelu(x: i16) -> i32 {
     let v = i32::from(x.clamp(0, QA as i16));
-    v * v
+    // v * v
+    v
 }
 
 impl Network {
     pub fn evaluate(&self, us: &Accumulator) -> i32 {
-        let mut output: i32 = QA * MODEL.output_bias as i32;
+        let mut output: i32 = /*QA */ MODEL.output_bias as i32;
 
         for (&input, &weight) in us.vals.iter().zip(&self.output_weights[..HIDDEN_SIZE]) {
             output += crelu(input) * i32::from(weight);
         }
         output *= SCALE;
-        output /= i32::from(QA) * i32::from(QA) * i32::from(QB);
+        output /= i32::from(QA) * i32::from(QB);
 
         output
     }
 }
 
 pub fn _trigger_features_height_and_worker(acc: &mut Accumulator, board: &BoardState) {
-    let mut remaining_spaces: u32 = 1 << 25 - 1;
+    let mut remaining_spaces: u32 = (1 << 25) - 1;
     for height in (0..4).rev() {
         let mut height_mask = board.height_map[height] & remaining_spaces;
         remaining_spaces ^= height_mask;
@@ -136,7 +137,7 @@ pub fn _trigger_features_height_and_worker(acc: &mut Accumulator, board: &BoardS
 }
 
 pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
-    let mut remaining_spaces: u32 = 1 << 25 - 1;
+    let mut remaining_spaces: u32 = (1 << 25) - 1;
     let (own_workers, other_workers) = match board.current_player {
         Player::One => (board.workers[0], board.workers[1]),
         Player::Two => (board.workers[1], board.workers[0]),
