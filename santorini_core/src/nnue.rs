@@ -30,21 +30,21 @@ pub struct Network {
 //     ))
 // };
 
-// const FEATURES: usize = 75 + 2 * 5 * 25;
+const FEATURES: usize = 75 + 2 * 5 * 25;
+const HIDDEN_SIZE: usize = 512;
+static MODEL: Network = unsafe {
+    mem::transmute(*include_bytes!(
+        "../.././models/basic_h512_wdl1-90/quantised.bin"
+    ))
+};
+
+// const FEATURES: usize = 375;
 // const HIDDEN_SIZE: usize = 512;
 // static MODEL: Network = unsafe {
 //     mem::transmute(*include_bytes!(
-//         "../.././models/feat125hidden512-100/quantised.bin"
+//         "../.././models/per_square_h5122_wdl1-100/quantised.bin"
 //     ))
 // };
-
-const FEATURES: usize = 375;
-const HIDDEN_SIZE: usize = 256;
-static MODEL: Network = unsafe {
-    mem::transmute(*include_bytes!(
-        "../.././models/per_square_h512_wdl1-100/quantised.bin"
-    ))
-};
 
 impl Accumulator {
     pub fn new() -> Self {
