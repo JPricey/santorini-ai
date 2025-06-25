@@ -39,10 +39,10 @@ pub struct Network {
 // };
 
 const FEATURES: usize = 375;
-const HIDDEN_SIZE: usize = 512;
+const HIDDEN_SIZE: usize = 256;
 static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/per_square_h512_wdl75-100/quantised.bin"
+        "../.././models/per_square_h256_wdl75-100/quantised.bin"
     ))
 };
 
