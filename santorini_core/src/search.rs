@@ -211,7 +211,8 @@ where
         let score = _inner_search::<T>(
             search_context,
             &mut search_state,
-            root_state.gods,
+            root_state.gods[0],
+            root_state.gods[1],
             root_board,
             0,
             depth,
@@ -237,15 +238,18 @@ where
 fn _q_extend(
     state: &BoardState,
     search_state: &mut SearchState,
-    gods: [&'static GodPower; 2],
+    p1_god: &'static GodPower,
+    p2_god: &'static GodPower,
     color: Hueristic,
     depth: Hueristic,
     q_depth: u32,
 ) -> Hueristic {
     search_state.nodes_visited += 1;
 
-    let active_god = gods[state.current_player as usize];
-    let other_god = gods[!state.current_player as usize];
+    let (active_god, other_god) = match state.current_player {
+        Player::One => (p1_god, p2_god),
+        Player::Two => (p2_god, p1_god),
+    };
 
     // If we have a win right now, just take it
     if (active_god.has_win)(state, state.current_player) {
@@ -263,7 +267,15 @@ fn _q_extend(
     let mut best_score = Hueristic::MIN;
     let children = (active_god.next_states)(state, state.current_player);
     for child in &children {
-        let child_score = _q_extend(child, search_state, gods, -color, depth + 1, q_depth + 1);
+        let child_score = _q_extend(
+            child,
+            search_state,
+            p1_god,
+            p2_god,
+            -color,
+            depth + 1,
+            q_depth + 1,
+        );
         if child_score > best_score {
             best_score = child_score;
         }
@@ -353,7 +365,8 @@ fn _order_states(
 fn _inner_search<T>(
     search_context: &mut SearchContext,
     search_state: &mut SearchState,
-    gods: [&'static GodPower; 2],
+    p1_god: &'static GodPower,
+    p2_god: &'static GodPower,
     state: &BoardState,
     depth: Hueristic,
     remaining_depth: usize,
@@ -364,7 +377,10 @@ fn _inner_search<T>(
 where
     T: StaticSearchTerminator,
 {
-    let active_god = gods[state.current_player as usize];
+    let active_god = match state.current_player {
+        Player::One => p1_god,
+        Player::Two => p2_god,
+    };
 
     if let Some(winner) = state.get_winner() {
         search_state.nodes_visited += 1;
@@ -374,7 +390,7 @@ where
             -(WINNING_SCORE - depth)
         };
     } else if remaining_depth == 0 {
-        return _q_extend(state, search_state, gods, color, depth, 0);
+        return _q_extend(state, search_state, p1_god, p2_god, color, depth, 0);
     } else {
         search_state.nodes_visited += 1;
     }
@@ -450,7 +466,7 @@ where
 
         if depth == 0 {
             let new_best_move = NewBestMove::new(
-                FullGameState::new(children[children.len() - 1].clone(), gods[0], gods[1]),
+                FullGameState::new(children[children.len() - 1].clone(), p1_god, p2_god),
                 score,
                 remaining_depth,
                 BestMoveTrigger::EndOfLine,
@@ -502,7 +518,8 @@ where
         let score = -_inner_search::<T>(
             search_context,
             search_state,
-            gods,
+            p1_god,
+            p2_god,
             child,
             depth + 1,
             remaining_depth - 1,
@@ -519,7 +536,7 @@ where
 
             if depth == 0 && !should_stop {
                 let new_best_move = NewBestMove::new(
-                    FullGameState::new(best_board.clone(), gods[0], gods[1]),
+                    FullGameState::new(best_board.clone(), p1_god, p2_god),
                     score,
                     remaining_depth,
                     BestMoveTrigger::Improvement,
