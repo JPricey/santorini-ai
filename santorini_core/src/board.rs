@@ -279,21 +279,22 @@ impl BoardState {
     }
 
     pub fn get_height_for_worker(&self, worker_mask: BitmapType) -> usize {
-        for h in (0..3).rev() {
-            if self.height_map[h] & worker_mask > 0 {
-                return h + 1;
-            }
-        }
-        0
+        (
+            (self.height_map[0] & worker_mask) << 0
+                | (self.height_map[1] & worker_mask) << 1
+                | (self.height_map[2] & worker_mask) << 2
+            // Worker can't be on dome height, so don't bother checking it
+            // | (self.height_map[3] & worker_mask) << 3
+        )
+        .count_ones() as usize
     }
 
     pub fn get_true_height(&self, position_mask: BitmapType) -> usize {
-        for h in (0..4).rev() {
-            if self.height_map[h] & position_mask > 0 {
-                return h + 1;
-            }
-        }
-        0
+        ((self.height_map[0] & position_mask) << 0
+            | (self.height_map[1] & position_mask) << 1
+            | (self.height_map[2] & position_mask) << 2
+            | (self.height_map[3] & position_mask) << 3)
+            .count_ones() as usize
     }
 
     pub fn get_winner(&self) -> Option<Player> {

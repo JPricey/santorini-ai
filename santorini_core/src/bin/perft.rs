@@ -6,6 +6,12 @@ use santorini_core::{
 };
 
 fn main() {
+    for _ in 0..10 {
+        run_single_test();
+    }
+}
+
+fn run_single_test() {
     let state_str = "0000000000000000000000000/1/mortal:11,13/mortal:7,17";
     let state = FullGameState::try_from(state_str).unwrap();
 
@@ -22,7 +28,8 @@ fn main() {
 }
 
 fn _test_depth(state: &BoardState, depth: usize) -> usize {
-    let children = mortal_next_states::<BoardState, StateOnlyMapper, false>(state, state.current_player);
+    let children =
+        mortal_next_states::<BoardState, StateOnlyMapper, false>(state, state.current_player);
 
     if depth == 1 {
         children.len()
@@ -31,6 +38,7 @@ fn _test_depth(state: &BoardState, depth: usize) -> usize {
     }
 }
 
+// cargo run -p santorini_core  --bin perft --release
 // cargo flamegraph -p santorini_core  --bin perft --release
 // sudo sysctl kernel.perf_event_paranoid=1
 // CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph -p santorini_core  --bin perft --release
