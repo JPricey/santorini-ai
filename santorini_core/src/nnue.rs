@@ -34,7 +34,7 @@ const FEATURES: usize = 75 + 2 * 5 * 25;
 const HIDDEN_SIZE: usize = 512;
 static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/basic_h512_wdl1-90/quantised.bin"
+        "../.././models/basic_h512_wdl1_fixed-20/quantised.bin"
     ))
 };
 
@@ -92,7 +92,7 @@ impl Network {
 }
 
 pub fn _trigger_features_225(acc: &mut Accumulator, board: &BoardState) {
-    let mut remaining_spaces: u32 = 0b11111111111111111111;
+    let mut remaining_spaces: u32 = 0b1111111111111111111111111;
     for height in (0..4).rev() {
         let mut height_mask = board.height_map[height] & remaining_spaces;
         remaining_spaces ^= height_mask;
@@ -136,7 +136,7 @@ pub fn _trigger_features_225(acc: &mut Accumulator, board: &BoardState) {
 }
 
 pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
-    let mut remaining_spaces: u32 = 0b11111111111111111111;
+    let mut remaining_spaces: u32 = 0b1111111111111111111111111;
     let (own_workers, other_workers) = match board.current_player {
         Player::One => (board.workers[0], board.workers[1]),
         Player::Two => (board.workers[1], board.workers[0]),
@@ -240,8 +240,8 @@ pub fn evaluate(board: &BoardState) -> i32 {
     let mut acc = Accumulator::new();
 
     // _trigger_features_double_tuple(&mut acc, board);
-    // _trigger_features_225(&mut acc, board);
-    _trigger_features_375(&mut acc, board);
+    _trigger_features_225(&mut acc, board);
+    // _trigger_features_375(&mut acc, board);
 
     let model_eval = MODEL.evaluate(&acc);
     // Scale down if eval is huge
