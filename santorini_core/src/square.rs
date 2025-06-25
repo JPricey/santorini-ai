@@ -39,7 +39,7 @@ impl FromStr for Square {
 
         let index = Self::STR
             .iter()
-            .position(|&tgt| tgt == s.to_lowercase())
+            .position(|&tgt| tgt.to_lowercase() == s.to_lowercase())
             .ok_or("Invalid square!")?;
 
         Ok(Square::from(index))
@@ -66,11 +66,11 @@ impl Square {
 
     #[rustfmt::skip]
     const STR: [&str; Self::COUNT] = [
-        "a5", "b5", "c5", "d5", "e5",
-        "a4", "b4", "c4", "d4", "e4",
-        "a3", "b3", "c3", "d3", "e3",
-        "a2", "b2", "c2", "d2", "e2",
-        "a1", "b1", "c1", "d1", "e1",
+        "A5", "B5", "C5", "D5", "E5",
+        "A4", "B4", "C4", "D4", "E4",
+        "A3", "B3", "C3", "D3", "E3",
+        "A2", "B2", "C2", "D2", "E2",
+        "A1", "B1", "C1", "D1", "E1",
     ];
 
     pub const fn to_board(self) -> BitBoard {
@@ -94,5 +94,21 @@ impl<'de> Deserialize<'de> for Square {
     {
         let s = String::deserialize(deserializer)?;
         Square::from_str(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serde_square() {
+        for position in 0..25 {
+            let square = Square::from(position);
+            let square_str = serde_json::to_string(&square).unwrap();
+            let parsed_square: Square = serde_json::from_str(&square_str).unwrap();
+
+            assert_eq!(square, parsed_square);
+        }
     }
 }

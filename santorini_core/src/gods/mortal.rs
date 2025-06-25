@@ -190,8 +190,8 @@ pub const fn build_mortal() -> GodPower {
 #[cfg(test)]
 mod tests {
     use crate::{
-        board::{FullGameState, Player},
-        gods::tests::assert_has_win_consistency,
+        board::FullGameState,
+        gods::tests::assert_has_win_consistency, player::Player,
     };
 
     #[test]

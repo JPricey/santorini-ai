@@ -28,7 +28,7 @@ impl Player {
     pub fn color(self) -> Hueristic {
         let as_u8: u8 = transmute_enum!(self as u8);
         let as_heuristic: Hueristic = as_u8 as Hueristic;
-        (as_heuristic - 1) * 2 + 1
+        (-as_heuristic) * 2 + 1
     }
 }
 

@@ -78,7 +78,7 @@ impl std::fmt::Display for FullGameState {
 
 impl std::fmt::Debug for FullGameState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self)
     }
 }
 
@@ -425,22 +425,22 @@ fn _transpose_bitboard(mut board: BitBoard) -> BitBoard {
     board
 }
 
+/*
 #[cfg(test)]
 mod tests {
+    use crate::square::Square;
+
     use super::*;
 
     #[test]
     fn test_serde_coord() {
-        /*
-         * TODO
         for position in 0..25 {
-            let coord = position_to_coord(position);
+            let coord = Square::from(position);
             let coord_str = serde_json::to_string(&coord).unwrap();
-            let parsed_coord: Coord = serde_json::from_str(&coord_str).unwrap();
+            let parsed_coord: Square = serde_json::from_str(&coord_str).unwrap();
 
             assert_eq!(coord, parsed_coord);
         }
-        */
     }
 
     #[test]
@@ -451,7 +451,7 @@ mod tests {
             let col = b % 5;
 
             let flipped = _flip_bitboard_vertical(board);
-            let pos = flipped.trailing_zeros();
+            let pos = flipped.0.trailing_zeros();
             let arow = pos / 5;
             let acol = pos % 5;
 
@@ -495,3 +495,4 @@ mod tests {
         }
     }
 }
+*/

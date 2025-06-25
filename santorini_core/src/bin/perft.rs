@@ -38,7 +38,7 @@ fn _test_depth(state: &BoardState, depth: usize) -> usize {
     }
 }
 
-// cargo run -p santorini_core  --bin perft --release
+// RUSTFLAGS='-C target-cpu=native' cargo run -p santorini_core  --bin perft --release
 // cargo flamegraph -p santorini_core  --bin perft --release
 // sudo sysctl kernel.perf_event_paranoid=1
 // CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph -p santorini_core  --bin perft --release

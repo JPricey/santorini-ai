@@ -60,7 +60,7 @@ pub const fn grid_position_builder<T: Copy>(
 
 #[cfg(test)]
 mod tests {
-    use crate::board::{FullGameState, NEIGHBOR_MAP};
+    use crate::{board::{FullGameState, NEIGHBOR_MAP}, square::Square};
 
     use super::*;
 
@@ -77,8 +77,8 @@ mod tests {
     #[test]
     fn test_move_all_workers_one_worker() {
         for pos in 0..25 {
-            let worker_mask = 1 << pos;
-            let expected = NEIGHBOR_MAP[pos];
+            let worker_mask = BitBoard::as_mask_u8(pos);
+            let expected = NEIGHBOR_MAP[pos as usize];
             let computed = move_all_workers_one_exclude_original_workers(worker_mask);
 
             assert_eq!(computed, expected);
@@ -89,7 +89,7 @@ mod tests {
     fn test_move_all_workers_two_workers() {
         for p1 in 0..25 {
             for p2 in 0..25 {
-                let mask = 1 << p1 | 1 << p2;
+                let mask = BitBoard(1 << p1 | 1 << p2);
                 {
                     let expected = (NEIGHBOR_MAP[p1] | NEIGHBOR_MAP[p2]) & !mask;
                     let computed = move_all_workers_one_exclude_original_workers(mask);

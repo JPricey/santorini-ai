@@ -1,7 +1,11 @@
 use std::str::FromStr;
 
 use crate::{
-    bitboard::BitBoard, board::{BoardState, FullGameState, NUM_SQUARES}, gods::{GodName, ALL_GODS_BY_ID}, player::Player
+    bitboard::BitBoard,
+    board::{BoardState, FullGameState, NUM_SQUARES},
+    gods::{ALL_GODS_BY_ID, GodName},
+    player::Player,
+    square::Square,
 };
 
 pub fn game_state_to_fen(state: &FullGameState) -> String {
@@ -53,7 +57,7 @@ pub fn game_state_to_fen(state: &FullGameState) -> String {
 struct CharacterFen {
     #[allow(dead_code)]
     god: GodName,
-    worker_locations: Vec<u32>,
+    worker_locations: Vec<Square>,
     is_won: bool,
 }
 
@@ -82,17 +86,12 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
         (god_name, colon_splits[1])
     };
 
-    let mut worker_locations: Vec<u32> = Vec::new();
+    let mut worker_locations: Vec<Square> = Vec::new();
     for worker_pos_string in worker_split.split(',') {
         if worker_pos_string.is_empty() {
             continue;
         }
-        let pos: u32 = worker_pos_string
-            .parse()
-            .map_err(|_| format!("Invalid position '{}'", worker_pos_string))?;
-        if pos >= NUM_SQUARES as u32 {
-            return Err(format!("Position {} out of bounds", pos));
-        }
+        let pos: Square = worker_pos_string.parse()?;
         worker_locations.push(pos);
     }
 
@@ -140,7 +139,6 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     };
     result.current_player = current_player;
 
-    // TODO: use gods
     let p1_section = parse_character_section(sections[2])?;
     let p2_section = parse_character_section(sections[3])?;
 
@@ -148,11 +146,11 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
         return Err("Cannot have both players won".to_owned());
     }
 
-    for pos in p1_section.worker_locations {
-        result.workers[0].0 |= 1 << pos;
+    for square in p1_section.worker_locations {
+        result.workers[0] |= BitBoard::as_mask(square);
     }
-    for pos in p2_section.worker_locations {
-        result.workers[1].0 |= 1 << pos;
+    for square in p2_section.worker_locations {
+        result.workers[1] |= BitBoard::as_mask(square);
     }
 
     if p1_section.is_won {

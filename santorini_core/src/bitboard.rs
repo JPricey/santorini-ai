@@ -92,7 +92,15 @@ impl BitBoard {
     pub const MAIN_SECTION_MASK: Self = Self((1 << 25) - 1);
     pub const OFF_SECTION_MASK: Self = Self(!Self::MAIN_SECTION_MASK.0);
 
-    /// Check whether given square is set on the board
+    pub const fn as_mask(square: Square) -> Self {
+        let data = 1u32 << square as u8;
+        Self(data)
+    }
+
+    pub const fn as_mask_u8(square: u8) -> Self {
+        Self(1 << square)
+    }
+
     pub const fn get_bit(self, square: Square) -> bool {
         self.get_bit_masked(1 << square as u8)
     }
