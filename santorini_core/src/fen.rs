@@ -8,9 +8,29 @@ use crate::{
     square::Square,
 };
 
+fn player_section_string(state: &FullGameState, player: Player) -> String {
+    let mut result = String::new();
+    if state.board.get_winner() == Some(player) {
+        result += "#";
+    }
+
+    result += state.get_god_for_player(player).god_name.into();
+
+    result += ":";
+    let mut position_strings = state
+        .board
+        .get_positions_for_player(player)
+        .iter()
+        .map(Square::to_string)
+        .collect::<Vec<String>>();
+    position_strings.sort();
+    result += &position_strings.join(",");
+
+    result
+}
+
 pub fn game_state_to_fen(state: &FullGameState) -> String {
     let board = &state.board;
-    let winner = board.get_winner();
 
     let mut result = String::new();
     for p in 0..NUM_SQUARES {
@@ -22,34 +42,10 @@ pub fn game_state_to_fen(state: &FullGameState) -> String {
     result += &(board.current_player as usize + 1).to_string();
 
     result += "/";
-    if winner == Some(Player::One) {
-        result += "#";
-    }
-
-    result += state.p1_god.god_name.into();
-
-    result += ":";
-    result += &board
-        .get_positions_for_player(Player::One)
-        .iter()
-        .map(usize::to_string)
-        .collect::<Vec<String>>()
-        .join(",");
+    result += &player_section_string(state, Player::One);
 
     result += "/";
-    result += state.p2_god.god_name.into();
-
-    result += ":";
-    if winner == Some(Player::Two) {
-        result += "#";
-    }
-
-    result += &board
-        .get_positions_for_player(Player::Two)
-        .iter()
-        .map(usize::to_string)
-        .collect::<Vec<String>>()
-        .join(",");
+    result += &player_section_string(state, Player::Two);
 
     result
 }
@@ -196,13 +192,4 @@ mod tests {
             }
         }
     }
-
-    /*
-    #[test]
-    fn joe_test() {
-        let fen = "4432121140442114141000000/1/6,7/5,12#";
-        let state = SantoriniState::try_from(fen);
-        println!("state: {:?}", state);
-    }
-    */
 }

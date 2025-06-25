@@ -10,17 +10,21 @@ from dataclasses import dataclass, field
 import json
 from frozendict import frozendict
 
-BASIC_START_STRING = "0000000000000000000000000/1/mortal:11,13/mortal:7,17"
+BASIC_START_STRING = "0000000000000000000000000/1/mortal:B3,D3/mortal:C2,C4"
 
 COL_LABEL_MAPPING = 'ABCDE'
 ROW_LABEL_MAPPING = '12345'
 
 INDEX_TO_COORD_MAPPING = []
+COORD_TO_INDEX_MAPPING = dict()
 for i in range(25):
     row = 4 - i // 5
     col = i % 5
-    INDEX_TO_COORD_MAPPING.append(
-        f'{COL_LABEL_MAPPING[col]}{ROW_LABEL_MAPPING[row]}')
+    coord_str = f'{COL_LABEL_MAPPING[col]}{ROW_LABEL_MAPPING[row]}'
+
+    COORD_TO_INDEX_MAPPING[coord_str] = i
+    INDEX_TO_COORD_MAPPING.append(coord_str)
+
 
 DONE_ACTION_TYPE = "DONE"
 
@@ -121,7 +125,10 @@ def parse_game_state(game_state_string):
 
         result = []
         for part in worker_string_parts[1].split(','):
-            res = int(part)
+            if part in COORD_TO_INDEX_MAPPING:
+                res = COORD_TO_INDEX_MAPPING[part]
+            else:
+                res = int(part)
             if res >= 0 and res < 25:
                 result.append(res)
             else:
@@ -416,8 +423,6 @@ class RootPanel:
         if self.last_engine_move is None or self.last_engine_move['start_state'] != self.current_position_string():
             print('tried to pick engine move but it was invalid')
             return
-
-        print('picking engine move')
         self.update_position(self.last_engine_move['next_state'])
 
     def on_left_key(self):

@@ -5,6 +5,7 @@ use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{GameStateWithAction, GodName, GodPower},
     player::Player,
+    square::Square,
 };
 
 use serde::{Deserialize, Serialize};
@@ -143,18 +144,19 @@ impl FullGameState {
             .collect()
     }
 
-    pub fn get_active_god(&self) -> &'static GodPower {
-        match self.board.current_player {
+    pub fn get_god_for_player(&self, player: Player) -> &'static GodPower {
+        match player {
             Player::One => self.p1_god,
             Player::Two => self.p2_god,
         }
     }
 
+    pub fn get_active_god(&self) -> &'static GodPower {
+        self.get_god_for_player(self.board.current_player)
+    }
+
     pub fn get_other_god(&self) -> &'static GodPower {
-        match self.board.current_player {
-            Player::One => self.p2_god,
-            Player::Two => self.p1_god,
-        }
+        self.get_god_for_player(!self.board.current_player)
     }
 
     pub fn print_to_console(&self) {
@@ -276,17 +278,9 @@ impl BoardState {
         eprintln!(" ABCDE");
     }
 
-    pub fn get_positions_for_player(&self, player: Player) -> Vec<usize> {
-        let mut result = Vec::with_capacity(2);
-        let mut workers_mask = self.workers[player as usize] & BitBoard::MAIN_SECTION_MASK;
-
-        while workers_mask.0 != 0 {
-            let pos = workers_mask.0.trailing_zeros() as usize;
-            result.push(pos);
-            workers_mask.0 ^= 1 << pos;
-        }
-
-        result
+    pub fn get_positions_for_player(&self, player: Player) -> Vec<Square> {
+        let workers_mask = self.workers[player as usize] & BitBoard::MAIN_SECTION_MASK;
+        workers_mask.into_iter().collect()
     }
 
     fn _flip_vertical_mut(&mut self) {
