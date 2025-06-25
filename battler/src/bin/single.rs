@@ -176,10 +176,7 @@ fn do_battle<'a>(
 
         current_state = saved_best_move.next_state.clone();
 
-        let current_god = match saved_best_move.start_state.board.current_player {
-            Player::One => saved_best_move.start_state.p1_god,
-            Player::Two => saved_best_move.start_state.p2_god,
-        };
+        let current_god = saved_best_move.start_state.get_active_god();
 
         println!(
             "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {}",
@@ -320,8 +317,8 @@ fn main() {
     let state = match args.board {
         Some(fen) => match FullGameState::try_from(&fen) {
             Ok(state) => {
-                conf1.god = state.p1_god.god_name;
-                conf2.god = state.p2_god.god_name;
+                conf1.god = state.gods[0].god_name;
+                conf2.god = state.gods[1].god_name;
                 state
             }
             Err(e) => {
@@ -331,8 +328,7 @@ fn main() {
         },
         None => {
             let mut state = FullGameState::new_basic_state_mortals();
-            state.p1_god = conf1.god.to_power();
-            state.p2_god = conf2.god.to_power();
+            state.gods = [conf1.god.to_power(), conf2.god.to_power()];
 
             state
         }

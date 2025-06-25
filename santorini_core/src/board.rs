@@ -46,8 +46,7 @@ pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = [
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullGameState {
-    pub p1_god: &'static GodPower,
-    pub p2_god: &'static GodPower,
+    pub gods: [&'static GodPower; 2],
     pub board: BoardState,
 }
 
@@ -106,8 +105,7 @@ impl FullGameState {
         p2_god: &'static GodPower,
     ) -> Self {
         FullGameState {
-            p1_god,
-            p2_god,
+            gods: [p1_god, p2_god],
             board: board_state,
         }
     }
@@ -130,7 +128,7 @@ impl FullGameState {
             (active_god.next_states)(&self.board, self.board.current_player);
         board_states_with_action_list
             .into_iter()
-            .map(|e| FullGameState::new(e, self.p1_god, self.p2_god))
+            .map(|e| FullGameState::new(e, self.gods[0], self.gods[1]))
             .collect()
     }
 
@@ -140,15 +138,12 @@ impl FullGameState {
             (active_god.next_states_interactive)(&self.board, self.board.current_player);
         board_states_with_action_list
             .into_iter()
-            .map(|e| GameStateWithAction::new(e, self.p1_god.god_name, self.p2_god.god_name))
+            .map(|e| GameStateWithAction::new(e, self.gods[0].god_name, self.gods[1].god_name))
             .collect()
     }
 
     pub fn get_god_for_player(&self, player: Player) -> &'static GodPower {
-        match player {
-            Player::One => self.p1_god,
-            Player::Two => self.p2_god,
-        }
+        self.gods[player as usize]
     }
 
     pub fn get_active_god(&self) -> &'static GodPower {

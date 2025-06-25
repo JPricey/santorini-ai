@@ -157,8 +157,10 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
 
     Ok(FullGameState {
         board: result,
-        p1_god: &ALL_GODS_BY_ID[p1_section.god as usize],
-        p2_god: &ALL_GODS_BY_ID[p2_section.god as usize],
+        gods: [
+            &ALL_GODS_BY_ID[p1_section.god as usize],
+            &ALL_GODS_BY_ID[p2_section.god as usize],
+        ],
     })
 }
 

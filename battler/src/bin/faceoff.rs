@@ -94,10 +94,7 @@ fn do_battle<'a>(
 
         current_state = saved_best_move.next_state.clone();
 
-        let current_god = match saved_best_move.start_state.board.current_player {
-            Player::One => saved_best_move.start_state.p1_god,
-            Player::Two => saved_best_move.start_state.p2_god,
-        };
+        let current_god = saved_best_move.start_state.get_active_god();
 
         println!(
             "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {}",

@@ -1,5 +1,9 @@
 use super::search::Hueristic;
-use crate::{board::{BoardState, FullGameState}, player::Player, square::Square};
+use crate::{
+    board::{BoardState, FullGameState},
+    player::Player,
+    square::Square,
+};
 // use artemis::build_artemis;
 // use hephaestus::build_hephaestus;
 use mortal::build_mortal;
@@ -76,8 +80,7 @@ impl GameStateWithAction {
         GameStateWithAction {
             state: FullGameState {
                 board: board_state_with_action.result_state,
-                p1_god: p1.to_power(),
-                p2_god: p2.to_power(),
+                gods: [p1.to_power(), p2.to_power()],
             },
             actions: board_state_with_action.actions,
         }
