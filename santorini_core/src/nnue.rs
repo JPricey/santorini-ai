@@ -30,21 +30,21 @@ pub struct Network {
 //     ))
 // };
 
-const FEATURES: usize = 75 + 2 * 5 * 25;
+//const FEATURES: usize = 75 + 2 * 5 * 25;
+//const HIDDEN_SIZE: usize = 512;
+//static MODEL: Network = unsafe {
+//    mem::transmute(*include_bytes!(
+//        "../.././models/basic_h512_wdl1_fixed-60/quantised.bin"
+//    ))
+//};
+
+const FEATURES: usize = 375;
 const HIDDEN_SIZE: usize = 512;
 static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/basic_h512_wdl1_fixed-20/quantised.bin"
+        "../.././models/per_square_fixed-10/quantised.bin"
     ))
 };
-
-// const FEATURES: usize = 375;
-// const HIDDEN_SIZE: usize = 512;
-// static MODEL: Network = unsafe {
-//     mem::transmute(*include_bytes!(
-//         "../.././models/per_square_h5122_wdl1-100/quantised.bin"
-//     ))
-// };
 
 impl Accumulator {
     pub fn new() -> Self {
@@ -91,8 +91,8 @@ impl Network {
     }
 }
 
-pub fn _trigger_features_225(acc: &mut Accumulator, board: &BoardState) {
-    let mut remaining_spaces: u32 = 0b1111111111111111111111111;
+pub fn _trigger_features_height_and_worker(acc: &mut Accumulator, board: &BoardState) {
+    let mut remaining_spaces: u32 = 1 << 25 - 1;
     for height in (0..4).rev() {
         let mut height_mask = board.height_map[height] & remaining_spaces;
         remaining_spaces ^= height_mask;
@@ -131,12 +131,12 @@ pub fn _trigger_features_225(acc: &mut Accumulator, board: &BoardState) {
         Player::Two => (1, 0),
     };
 
-    _add_worker_features(board, acc, board.workers[own_workers], 75);
-    _add_worker_features(board, acc, board.workers[other_workers], 75 + 5 * 25);
+    _add_worker_features(board, acc, board.workers[own_workers], 125);
+    _add_worker_features(board, acc, board.workers[other_workers], 125 + 5 * 25);
 }
 
 pub fn _trigger_features_375(acc: &mut Accumulator, board: &BoardState) {
-    let mut remaining_spaces: u32 = 0b1111111111111111111111111;
+    let mut remaining_spaces: u32 = 1 << 25 - 1;
     let (own_workers, other_workers) = match board.current_player {
         Player::One => (board.workers[0], board.workers[1]),
         Player::Two => (board.workers[1], board.workers[0]),
@@ -240,7 +240,7 @@ pub fn evaluate(board: &BoardState) -> i32 {
     let mut acc = Accumulator::new();
 
     // _trigger_features_double_tuple(&mut acc, board);
-    _trigger_features_225(&mut acc, board);
+    _trigger_features_height_and_worker(&mut acc, board);
     // _trigger_features_375(&mut acc, board);
 
     let model_eval = MODEL.evaluate(&acc);
