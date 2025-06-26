@@ -10,6 +10,7 @@ pub mod transposition_table;
 pub mod uci_types;
 pub mod utils;
 pub mod nnue;
+pub mod move_container;
 
 macro_rules! transmute_enum_masked {
     ($x:expr, $mask:expr) => {

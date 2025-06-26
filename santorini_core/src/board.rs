@@ -15,6 +15,7 @@ pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
 
 pub const IS_WINNER_MASK: BitBoard = BitBoard(1 << 31);
+pub const ANTI_WINNER_MASK: BitBoard = BitBoard(!(1 << 31));
 
 pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = [
     BitBoard(98),
@@ -224,6 +225,11 @@ impl BoardState {
     pub fn set_winner(&mut self, player: Player) {
         let player_idx = player as usize;
         self.workers[player_idx] |= IS_WINNER_MASK;
+    }
+
+    pub fn unset_winner(&mut self, player: Player) {
+        let player_idx = player as usize;
+        self.workers[player_idx] &= ANTI_WINNER_MASK;
     }
 
     pub fn print_to_console(&self) {

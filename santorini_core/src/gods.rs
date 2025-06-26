@@ -11,7 +11,7 @@ use mortal::build_mortal;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
-// pub mod generic;
+pub mod generic;
 pub mod mortal;
 
 // pub mod artemis;

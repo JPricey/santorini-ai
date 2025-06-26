@@ -112,6 +112,14 @@ impl BitBoard {
     pub const fn lsb(self) -> Square {
         transmute_enum!(self.0.trailing_zeros() as u8)
     }
+
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    pub const fn is_not_empty(self) -> bool {
+        self.0 != 0
+    }
 }
 
 impl Iterator for BitBoard {
