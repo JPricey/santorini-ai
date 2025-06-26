@@ -305,6 +305,8 @@ def pretty_string_for_action(action):
         return f'@{action["value"]}'
     elif action_type == DONE_ACTION_TYPE:
         return '<end>'
+    elif action_type == 'no_moves':
+        return '<no moves>'
 
     print('ERROR: Unknown action type', action_type)
 
@@ -320,6 +322,8 @@ def longer_string_for_action(action):
         return f"Build at {action['value']}"
     elif action_type == DONE_ACTION_TYPE:
         return "End Turn"
+    elif action_type == 'no_moves':
+        return "No Moves"
 
     print('ERROR: Unknown action type', action_type)
 

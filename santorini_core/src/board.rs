@@ -135,6 +135,7 @@ impl FullGameState {
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
         let active_god = self.get_active_god();
         let board_states_with_action_list = active_god.get_next_states_interactive(&self.board);
+
         board_states_with_action_list
             .into_iter()
             .map(|e| GameStateWithAction::new(e, self.gods[0].god_name, self.gods[1].god_name))

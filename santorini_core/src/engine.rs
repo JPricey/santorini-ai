@@ -11,13 +11,13 @@ use std::{
 use crate::{
     board::FullGameState,
     search::{
-        NewBestMove, NoopStaticSearchTerminator,
+        BestSearchResult, NoopStaticSearchTerminator,
         SearchContext, search_with_state,
     },
     transposition_table::TranspositionTable,
 };
 
-type EachMoveCallback = Arc<dyn Fn(NewBestMove) + Send + Sync>;
+type EachMoveCallback = Arc<dyn Fn(BestSearchResult) + Send + Sync>;
 
 /*
 type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
@@ -44,8 +44,8 @@ pub enum EngineThreadMessage {
 pub struct EngineThreadExecution {
     state: FullGameState,
     stop_flag: Arc<AtomicBool>,
-    best_move: Arc<Mutex<Option<NewBestMove>>>,
-    new_best_move_sender: Sender<NewBestMove>,
+    best_move: Arc<Mutex<Option<BestSearchResult>>>,
+    new_best_move_sender: Sender<BestSearchResult>,
     each_move_callback: Option<EachMoveCallback>,
 }
 
@@ -111,7 +111,7 @@ impl EngineThreadWrapper {
                     let mut search_state = SearchContext {
                         tt: &mut transposition_table,
                         stop_flag: request.stop_flag.clone(),
-                        new_best_move_callback: Box::new(move |new_best_move: NewBestMove| {
+                        new_best_move_callback: Box::new(move |new_best_move: BestSearchResult| {
                             let mut best_move_handle = best_move_mutex.lock().unwrap();
                             *best_move_handle = Some(new_best_move.clone());
 
@@ -154,7 +154,7 @@ impl EngineThreadWrapper {
         &mut self,
         state: &FullGameState,
         each_move_callback: Option<EachMoveCallback>,
-    ) -> Result<Receiver<NewBestMove>, String> {
+    ) -> Result<Receiver<BestSearchResult>, String> {
         if self.is_ending {
             panic!("Tried to start a search when engine thread is already ended");
         }
@@ -184,7 +184,7 @@ impl EngineThreadWrapper {
         Ok(receiver)
     }
 
-    pub fn stop(&mut self) -> Result<NewBestMove, String> {
+    pub fn stop(&mut self) -> Result<BestSearchResult, String> {
         if let Some(active_execution) = &self.active_execution.take() {
             active_execution.stop_flag.store(true, Ordering::Relaxed);
 
@@ -207,7 +207,7 @@ impl EngineThreadWrapper {
         &mut self,
         state: &FullGameState,
         duration_secs: f32,
-    ) -> Result<NewBestMove, String> {
+    ) -> Result<BestSearchResult, String> {
         let _message_receiver = self.start_search(state, None)?;
 
         let start_time = Instant::now();

@@ -17,6 +17,7 @@ pub const RETURN_FIRST_MATE: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 // const INCLUDE_QUIET: MoveGenFlags = 1 << 1;
 
 const LOWER_POSITION_MASK: u8 = 0b11111;
+#[allow(dead_code)]
 const POSITION_WIDTH: usize = 5;
 const MORTAL_BUILD_POSITION_OFFSET: usize = 25;
 

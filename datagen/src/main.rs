@@ -164,7 +164,7 @@ fn generate_one(
 
         let best_child = search_result.best_move.ok_or("Search returned no moves")?;
 
-        if let Some(winner) = best_child.state.board.get_winner() {
+        if let Some(winner) = best_child.child_state.board.get_winner() {
             break winner;
         } else {
             game_history.push(SingleState {
@@ -177,7 +177,7 @@ fn generate_one(
             });
         }
 
-        current_state = best_child.state.clone();
+        current_state = best_child.child_state.clone();
         move_count += 1;
     };
 

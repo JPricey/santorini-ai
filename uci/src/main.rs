@@ -8,7 +8,7 @@ use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
     gods::PartialAction,
-    search::NewBestMove,
+    search::BestSearchResult,
     uci_types::{
         BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,
     },
@@ -56,7 +56,7 @@ fn handle_command(
         }
         "ping" => Ok(Some("pong".to_owned())),
         "stop" => match engine.stop() {
-            Ok(best_move) => Err(format!("Stopping with best move: {:?}", best_move.state)),
+            Ok(best_move) => Err(format!("Stopping with best move: {:?}", best_move.child_state)),
             Err(e) => Err(e),
         },
         "set_position" => {
@@ -78,23 +78,23 @@ fn handle_command(
             let start_time = Instant::now();
             let state_2 = state.clone();
 
-            let callback = Arc::new(move |new_best_move: NewBestMove| {
+            let callback = Arc::new(move |new_best_move: BestSearchResult| {
                 eprintln!("{:?}", new_best_move);
-                let Some(action_path) = find_action_path(&state_2, &new_best_move.state) else {
+                let Some(action_path) = find_action_path(&state_2, &new_best_move.child_state) else {
                     eprintln!("from move:");
                     state_2.print_to_console();
                     eprintln!("to move:");
-                    new_best_move.state.print_to_console();
+                    new_best_move.child_state.print_to_console();
 
                     panic!(
                         "Found new best move but couldn't resolve path: {:?} -> {:?}",
-                        state_2, new_best_move.state
+                        state_2, new_best_move.child_state
                     );
                 };
 
                 let output = EngineOutput::BestMove(BestMoveOutput {
                     start_state: state_2.clone(),
-                    next_state: new_best_move.state.clone(),
+                    next_state: new_best_move.child_state.clone(),
                     trigger: new_best_move.trigger,
                     meta: BestMoveMeta {
                         score: new_best_move.score,

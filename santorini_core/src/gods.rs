@@ -1,9 +1,11 @@
-
 use super::search::Hueristic;
 use crate::{
     board::{BoardState, FullGameState},
-    gods::generic::{mortal_make_move, mortal_move_gen, mortal_move_to_actions, mortal_unmake_move, RETURN_FIRST_MATE, INCLUDE_SCORE, STOP_ON_MATE},
-    move_container::GenericMove,
+    gods::generic::{
+        INCLUDE_SCORE, RETURN_FIRST_MATE, STOP_ON_MATE, mortal_make_move,
+        mortal_move_gen, mortal_move_to_actions, mortal_unmake_move,
+    },
+    move_container::{GenericMove},
     player::Player,
     square::Square,
 };
@@ -144,7 +146,20 @@ pub struct GodPower {
 
 impl GodPower {
     pub fn get_next_states_interactive(&self, board: &BoardState) -> Vec<BoardStateWithAction> {
-        (self.get_all_moves)(board, board.current_player)
+        let all_moves = (self.get_all_moves)(board, board.current_player);
+
+        // Lose due to no moves
+        if all_moves.len() == 0 {
+            let mut losing_board = board.clone();
+            losing_board.set_winner(!board.current_player);
+
+            return vec![BoardStateWithAction::new(
+                losing_board,
+                vec![PartialAction::NoMoves],
+            )];
+        }
+
+        all_moves
             .into_iter()
             .flat_map(|action| {
                 let mut result_state = board.clone();
@@ -212,7 +227,6 @@ pub const ALL_GODS_BY_ID: [GodPower; 1] = [
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
 

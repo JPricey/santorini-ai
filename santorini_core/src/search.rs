@@ -85,22 +85,22 @@ pub enum BestMoveTrigger {
 }
 
 #[derive(Clone, Debug)]
-pub struct NewBestMove {
-    pub state: FullGameState,
+pub struct BestSearchResult {
+    pub child_state: FullGameState,
     pub score: Hueristic,
     pub depth: usize,
     pub trigger: BestMoveTrigger,
 }
 
-impl NewBestMove {
+impl BestSearchResult {
     pub fn new(
         state: FullGameState,
         score: Hueristic,
         depth: usize,
         trigger: BestMoveTrigger,
     ) -> Self {
-        NewBestMove {
-            state,
+        BestSearchResult {
+            child_state: state,
             score,
             depth,
             trigger,
@@ -111,13 +111,13 @@ impl NewBestMove {
 pub struct SearchContext<'a> {
     pub tt: &'a mut TranspositionTable,
     pub stop_flag: Arc<AtomicBool>,
-    pub new_best_move_callback: Box<dyn FnMut(NewBestMove)>,
+    pub new_best_move_callback: Box<dyn FnMut(BestSearchResult)>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SearchState {
     pub last_fully_completed_depth: usize,
-    pub best_move: Option<NewBestMove>,
+    pub best_move: Option<BestSearchResult>,
     pub nodes_visited: usize,
 }
 
@@ -137,7 +137,7 @@ impl<'a> SearchContext<'a> {
     }
 
     pub fn new(tt: &'a mut TranspositionTable) -> Self {
-        let new_best_move_callback = Box::new(|_new_best_move: NewBestMove| {
+        let new_best_move_callback = Box::new(|_new_best_move: BestSearchResult| {
             // eprintln!("{:?}", _new_best_move);
         });
 
@@ -156,12 +156,7 @@ pub fn search_with_state<T>(
 where
     T: StaticSearchTerminator,
 {
-    // root_state.print_to_console();
-    // let eval = evaluate(&root_state.board);
-    // eprintln!("nnue eval: {}", eval);
-
     let mut root_board = root_state.board.clone();
-
     let mut search_state = SearchState::default();
 
     if root_board.get_winner().is_some() {
@@ -174,7 +169,7 @@ where
             let active_god = root_state.get_active_god();
             (active_god.make_move)(&mut best_child_state, tt_entry.best_action);
 
-            let new_best_move = NewBestMove::new(
+            let new_best_move = BestSearchResult::new(
                 FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
                 tt_entry.score,
                 tt_entry.search_depth as usize,
@@ -213,6 +208,33 @@ where
             Hueristic::MIN + 1,
             Hueristic::MAX,
         );
+
+        if search_state.best_move.is_none()
+            && !(search_context.should_stop() || T::should_stop(&search_state))
+        {
+            // We didn't find _any_ move. Could be:
+            // 1. There's a bug
+            // 2. We got smothered.
+            // This is rare enough to bother doing a full check for
+            let active_god = root_state.get_active_god();
+            let moves = (active_god.get_moves)(&root_board, root_board.current_player);
+
+            if moves.len() > 0 {
+                panic!(
+                    "Moves were available, but didn't make any: {:?}",
+                    root_board
+                );
+            }
+
+            // There's actually no moves to make. Report the loss
+            let mut losing_board = root_state.clone();
+            losing_board.board.set_winner(!root_board.current_player);
+
+            let empty_losing_move =
+                BestSearchResult::new(losing_board, -WINNING_SCORE, 0, BestMoveTrigger::EndOfLine);
+            (search_context.new_best_move_callback)(empty_losing_move);
+            break;
+        }
 
         if score.abs() > WINNING_SCORE_BUFFER
             && !(search_context.should_stop() || T::should_stop(&search_state))
@@ -257,9 +279,11 @@ fn _q_extend(
     }
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
-    let mut best_score = Hueristic::MIN;
+    let mut best_score = WINNING_SCORE - depth - 1;
     let child_moves = (active_god.get_moves)(state, state.current_player);
-    for child_move in &child_moves {
+    // Go back to front because wins will be last
+    // TODO: should we do full sorting here?
+    for child_move in child_moves.iter().rev() {
         (active_god.make_move)(state, *child_move);
 
         let score = -_q_extend(
@@ -381,7 +405,7 @@ where
         return -score;
     }
 
-    // get_moves stops accululating once it sees a win, so if there is a win it'll be last
+    // get_moves stops running once it sees a win, so if there is a win it'll be last
     if is_move_winning(child_moves[child_moves.len() - 1]) {
         let score = WINNING_SCORE - depth - 1;
         if depth == 0 {
@@ -389,7 +413,7 @@ where
             (active_god.make_move)(&mut winning_board, child_moves[child_moves.len() - 1]);
             assert!(winning_board.get_winner() == Some(state.current_player));
 
-            let new_best_move = NewBestMove::new(
+            let new_best_move = BestSearchResult::new(
                 FullGameState::new(winning_board, p1_god, p2_god),
                 score,
                 remaining_depth,
@@ -447,7 +471,7 @@ where
             best_action = child_action;
 
             if depth == 0 && !should_stop {
-                let new_best_move = NewBestMove::new(
+                let new_best_move = BestSearchResult::new(
                     FullGameState::new(state.clone(), p1_god, p2_god),
                     score,
                     remaining_depth,
