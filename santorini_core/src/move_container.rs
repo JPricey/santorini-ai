@@ -1,5 +1,5 @@
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct GenericMove(pub u64);
 
 // Somehow sharing this between multiple levels is slower than creating a new vec each time.

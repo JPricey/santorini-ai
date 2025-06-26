@@ -2,10 +2,7 @@ use std::time::Instant;
 
 use santorini_core::{
     board::FullGameState,
-    search::{
-        MaxDepthStaticSearchTerminator, SearchContext,
-        search_with_state,
-    },
+    search::{MaxDepthStaticSearchTerminator, SearchContext, search_with_state},
     transposition_table::TranspositionTable,
 };
 
@@ -18,7 +15,7 @@ fn main() {
         let mut search_state = SearchContext::new(&mut tt);
 
         let now = Instant::now();
-        search_with_state::<MaxDepthStaticSearchTerminator<7>>(&mut search_state, &state);
+        search_with_state::<MaxDepthStaticSearchTerminator<6>>(&mut search_state, &state);
         let end = Instant::now();
 
         let duration = end - now;

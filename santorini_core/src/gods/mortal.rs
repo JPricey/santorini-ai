@@ -171,6 +171,7 @@ pub fn mortal_has_win(state: &BoardState, player: Player) -> bool {
     level_3_moves.0 != 0
 }
 
+/*
 pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
@@ -181,6 +182,7 @@ pub const fn build_mortal() -> GodPower {
         has_win: mortal_has_win,
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {

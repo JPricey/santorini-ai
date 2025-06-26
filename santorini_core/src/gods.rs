@@ -1,7 +1,9 @@
+use std::result;
+
 use super::search::Hueristic;
 use crate::{
     board::{BoardState, FullGameState},
-    gods::generic::{ANY_MATE_CHECK, STOP_ON_MATE, mortal_move_gen},
+    gods::generic::{mortal_make_move, mortal_move_gen, mortal_move_to_actions, mortal_unmake_move, ANY_MATE_CHECK, STOP_ON_MATE},
     move_container::GenericMove,
     player::Player,
     square::Square,
@@ -14,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
 pub mod generic;
-// pub mod mortal;
+pub mod mortal;
 
 // pub mod artemis;
 // pub mod hephaestus;
@@ -134,26 +136,36 @@ impl ResultsMapper<BoardStateWithAction> for FullChoiceMapper {
 pub struct GodPower {
     pub god_name: GodName,
     pub get_all_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
-    pub get_actions_for_move:
-        fn(board: &BoardState, action: GenericMove) -> Vec<BoardStateWithAction>,
+    pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
     pub get_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
-    pub get_wins: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    pub get_win: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
     pub make_move: fn(board: &mut BoardState, action: GenericMove),
     pub unmake_move: fn(board: &mut BoardState, action: GenericMove),
 }
 
 impl GodPower {
-    pub fn get_next_states(&self, board: &BoardState) -> Vec<BoardStateWithAction> {
+    pub fn get_next_states_interactive(&self, board: &BoardState) -> Vec<BoardStateWithAction> {
         (self.get_all_moves)(board, board.current_player)
             .into_iter()
             .flat_map(|action| {
-                let mut new_board = board.clone();
-                let result_state = (self.make_move)(&mut new_board, action);
+                let mut result_state = board.clone();
+                (self.make_move)(&mut result_state, action);
                 let action_paths = (self.get_actions_for_move)(board, action);
 
-                action_paths
-                    .into_iter()
-                    .map(|full_actions| BoardStateWithAction::new(new_board.clone(), full_actions))
+                action_paths.into_iter().map(move |full_actions| {
+                    BoardStateWithAction::new(result_state.clone(), full_actions)
+                })
+            })
+            .collect()
+    }
+
+    pub fn get_all_next_states(&self, board: &BoardState) -> Vec<BoardState> {
+        (self.get_all_moves)(board, board.current_player)
+            .into_iter()
+            .map(|action| {
+                let mut result_state = board.clone();
+                (self.make_move)(&mut result_state, action);
+                result_state
             })
             .collect()
     }
@@ -187,8 +199,11 @@ pub const ALL_GODS_BY_ID: [GodPower; 1] = [
     GodPower {
         god_name: GodName::Mortal,
         get_all_moves: mortal_move_gen::<0>,
+        get_actions_for_move: mortal_move_to_actions,
         get_moves: mortal_move_gen::<{ STOP_ON_MATE }>,
-        get_wins: mortal_move_gen::<{ ANY_MATE_CHECK }>,
+        get_win: mortal_move_gen::<{ ANY_MATE_CHECK }>,
+        make_move: mortal_make_move,
+        unmake_move: mortal_unmake_move,
     },
     // build_mortal(),
     // build_artemis(),

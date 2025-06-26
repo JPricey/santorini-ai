@@ -1,7 +1,7 @@
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, IS_WINNER_MASK, NEIGHBOR_MAP},
-    gods::{BoardStateWithAction, PartialAction},
+    gods::{BoardStateWithAction, FullAction, PartialAction},
     move_container::{self, ChildMoveContainer, GenericMove},
     player::Player,
     square::Square,
@@ -24,8 +24,8 @@ fn build_mortal_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -
     GenericMove(data)
 }
 
-fn is_move_winning(action: GenericMove) -> bool {
-    action & MORTAL_MOVE_IS_WINNING_MASK != 0
+pub fn is_move_winning(action: GenericMove) -> bool {
+    action.0 & MORTAL_MOVE_IS_WINNING_MASK != 0
 }
 
 fn build_mortal_move(
@@ -48,21 +48,21 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
     let result_worker_mask = worker_move_mask ^ moving_worker_mask;
 
     if action.0 & MORTAL_MOVE_IS_WINNING_MASK > 0 {
-        return vec![
+        return vec![vec![
             PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
-            PartialAction::MoveWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
-        ];
+            PartialAction::MoveWorker(Square::from(result_worker_mask.trailing_zeros() as usize)),
+        ]];
     }
 
     let build_position = (action.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
-    return vec![
+    return vec![vec![
         PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
-        PartialAction::MoveWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
+        PartialAction::MoveWorker(Square::from(result_worker_mask.trailing_zeros() as usize)),
         PartialAction::Build(Square::from(build_position as usize)),
-    ];
+    ]];
 }
 
-pub fn make_move(board: &mut BoardState, action: GenericMove) {
+pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     let current_player = board.current_player;
     board.flip_current_player();
     let worker_move_mask: u32 = (action.0 as u32) & BitBoard::MAIN_SECTION_MASK.0;
@@ -85,7 +85,7 @@ pub fn make_move(board: &mut BoardState, action: GenericMove) {
     panic!("Expected to build, but couldn't")
 }
 
-pub fn unmake_move(board: &mut BoardState, action: GenericMove) {
+pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.flip_current_player();
     let worker_move_mask: u32 = (action.0 as u32) & BitBoard::MAIN_SECTION_MASK.0;
     board.workers[board.current_player as usize].0 ^= worker_move_mask;

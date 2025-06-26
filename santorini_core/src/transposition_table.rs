@@ -1,5 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+use crate::move_container::GenericMove;
+
 use super::{board::BoardState, search::Hueristic};
 
 pub type HashCodeType = u64;
@@ -14,7 +16,7 @@ pub enum SearchScoreType {
 #[derive(Clone)]
 pub struct TTValue {
     // TODO: should be best action?
-    pub best_child: BoardState,
+    pub best_action: GenericMove,
     pub search_depth: u8,
     pub score_type: SearchScoreType,
     pub score: Hueristic,

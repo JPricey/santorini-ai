@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::{FullGameState, get_all_permutations_for_pair},
-    gods::GodPower,
+    gods::{GodPower, generic::is_move_winning},
     nnue::evaluate,
     player::Player,
     transposition_table::{SearchScoreType, TTValue},
@@ -71,6 +71,7 @@ impl<A: StaticSearchTerminator, B: StaticSearchTerminator> StaticSearchTerminato
     }
 }
 
+/*
 pub fn judge_non_terminal_state(
     state: &BoardState,
     p1_god: &'static GodPower,
@@ -79,6 +80,7 @@ pub fn judge_non_terminal_state(
     (p1_god.player_advantage_fn)(state, Player::One)
         - (p2_god.player_advantage_fn)(state, Player::Two)
 }
+*/
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -165,7 +167,7 @@ where
     // let eval = evaluate(&root_state.board);
     // eprintln!("nnue eval: {}", eval);
 
-    let root_board = &root_state.board;
+    let mut root_board = root_state.board.clone();
     let color = root_board.current_player.color();
 
     let mut search_state = SearchState::default();
@@ -176,12 +178,12 @@ where
 
     let starting_depth = {
         if let Some(tt_entry) = search_context.tt.fetch(&root_state.board) {
+            let mut best_child_state = root_board.clone();
+            let active_god = root_state.get_active_god();
+            (active_god.make_move)(&mut best_child_state, tt_entry.best_action);
+
             let new_best_move = NewBestMove::new(
-                FullGameState::new(
-                    tt_entry.best_child.clone(),
-                    root_state.gods[0],
-                    root_state.gods[1],
-                ),
+                FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
                 tt_entry.score,
                 tt_entry.search_depth as usize,
                 BestMoveTrigger::Saved,
@@ -213,7 +215,7 @@ where
             &mut search_state,
             root_state.gods[0],
             root_state.gods[1],
-            root_board,
+            &mut root_board,
             0,
             depth,
             color,
@@ -236,7 +238,7 @@ where
 }
 
 fn _q_extend(
-    state: &BoardState,
+    state: &mut BoardState,
     search_state: &mut SearchState,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
@@ -252,23 +254,25 @@ fn _q_extend(
     };
 
     // If we have a win right now, just take it
-    if (active_god.has_win)(state, state.current_player) {
+    if (active_god.get_win)(state, state.current_player).len() > 0 {
         let score = WINNING_SCORE - depth - 1;
         return score;
     }
 
     // If opponent isn't threatening a win, take the current score
-    if !(other_god.has_win)(state, !state.current_player) {
+    if (other_god.get_win)(state, !state.current_player).len() == 0 {
         return evaluate(state);
         // return color * judge_non_terminal_state(state, p1_god, p2_god);
     }
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
     let mut best_score = Hueristic::MIN;
-    let children = (active_god.next_states)(state, state.current_player);
-    for child in &children {
+    let child_moves = (active_god.get_moves)(state, state.current_player);
+    for child_move in &child_moves {
+        (active_god.make_move)(state, *child_move);
+
         let child_score = _q_extend(
-            child,
+            state,
             search_state,
             p1_god,
             p2_god,
@@ -279,6 +283,8 @@ fn _q_extend(
         if child_score > best_score {
             best_score = child_score;
         }
+
+        (active_god.unmake_move)(state, *child_move);
     }
 
     best_score
@@ -369,7 +375,7 @@ fn _inner_search<T>(
     search_state: &mut SearchState,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
-    state: &BoardState,
+    state: &mut BoardState,
     depth: Hueristic,
     remaining_depth: usize,
     color: Hueristic,
@@ -462,33 +468,21 @@ where
     let alpha_orig = alpha;
 
     // let mut children = (active_god.next_states)(state, state.current_player);
-    let child_moves = (active_god.get_moves)(state, state.current_player);
+    let mut child_moves = (active_god.get_moves)(state, state.current_player);
     if child_moves.len() == 0 {
         let score = WINNING_SCORE - depth - 1;
         return -score;
     }
 
-    if is_move_winning {
+    // get_moves stops accululating once it sees a win, so if there is a win it'll be last
+    if is_move_winning(child_moves[child_moves.len() - 1]) {
+        let score = WINNING_SCORE - depth - 1;
         if depth == 0 {
+            let mut winning_board = state.clone();
+            (active_god.make_move)(&mut winning_board, child_moves[child_moves.len() - 1]);
+
             let new_best_move = NewBestMove::new(
-                FullGameState::new(children[children.len() - 1].clone(), p1_god, p2_god),
-                score,
-                remaining_depth,
-                BestMoveTrigger::EndOfLine,
-            );
-            search_state.best_move = Some(new_best_move.clone());
-            (search_context.new_best_move_callback)(new_best_move);
-        }
-
-        return score;
-    }
-
-    // next_states stops accululating once it sees a win, so if there is a win it'll be last
-    if children[children.len() - 1].get_winner() == Some(state.current_player) {
-
-        if depth == 0 {
-            let new_best_move = NewBestMove::new(
-                FullGameState::new(children[children.len() - 1].clone(), p1_god, p2_god),
+                FullGameState::new(winning_board, p1_god, p2_god),
                 score,
                 remaining_depth,
                 BestMoveTrigger::EndOfLine,
@@ -502,12 +496,12 @@ where
 
     // let baseline_score = (active_god.player_advantage_fn)(&state, state.current_player);
     if let Some(tt_value) = tt_entry {
-        for i in 0..children.len() {
-            if children[i] == tt_value.best_child {
+        for i in 0..child_moves.len() {
+            if child_moves[i] == tt_value.best_action {
                 if i == 0 {
                     break;
                 } else {
-                    children.swap(0, i);
+                    child_moves.swap(0, i);
                     break;
                 }
             }
@@ -533,16 +527,19 @@ where
         search_context.tt.stats.unused_value += 1;
     }
 
-    let mut best_board = &children[0];
+    let mut best_action = child_moves[0];
     let mut best_score = Hueristic::MIN;
 
-    for child in &children {
+    let mut child_state = state.clone();
+    for child_action in &child_moves {
+        (active_god.make_move)(&mut child_state, *child_action);
+
         let score = -_inner_search::<T>(
             search_context,
             search_state,
             p1_god,
             p2_god,
-            child,
+            &mut child_state,
             depth + 1,
             remaining_depth - 1,
             -color,
@@ -554,11 +551,11 @@ where
 
         if score > best_score {
             best_score = score;
-            best_board = child;
+            best_action = *child_action;
 
             if depth == 0 && !should_stop {
                 let new_best_move = NewBestMove::new(
-                    FullGameState::new(best_board.clone(), p1_god, p2_god),
+                    FullGameState::new(child_state.clone(), p1_god, p2_god),
                     score,
                     remaining_depth,
                     BestMoveTrigger::Improvement,
@@ -579,6 +576,8 @@ where
         if should_stop {
             break;
         }
+
+        (active_god.unmake_move)(&mut child_state, *child_action);
     }
 
     if !(search_context.should_stop() || T::should_stop(&search_state)) {
@@ -592,27 +591,26 @@ where
 
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
-        if state.height_map[0].0.count_ones() <= 3 {
-            for (base, child) in get_all_permutations_for_pair(state, best_board) {
-                let tt_value = TTValue {
-                    best_child: child,
-                    search_depth: remaining_depth as u8,
-                    score_type: tt_score_type,
-                    score: best_score,
-                };
+        // TODO: bring this back??
+        // if state.height_map[0].0.count_ones() <= 3 {
+        //     for (base, child) in get_all_permutations_for_pair(state, &best_board) {
+        //         let tt_value = TTValue {
+        //             best_action: best_action,
+        //             search_depth: remaining_depth as u8,
+        //             score_type: tt_score_type,
+        //             score: best_score,
+        //         };
 
-                search_context.tt.insert(&base, tt_value);
-            }
-        } else {
-            let tt_value = TTValue {
-                best_child: best_board.clone(),
-                search_depth: remaining_depth as u8,
-                score_type: tt_score_type,
-                score: best_score,
-            };
+        //         search_context.tt.insert(&base, tt_value);
+        //     }
+        let tt_value = TTValue {
+            best_action: best_action,
+            search_depth: remaining_depth as u8,
+            score_type: tt_score_type,
+            score: best_score,
+        };
 
-            search_context.tt.insert(state, tt_value);
-        }
+        search_context.tt.insert(state, tt_value);
     }
 
     if depth == 0 {

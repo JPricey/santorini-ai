@@ -4,7 +4,7 @@ use santorini_core::{
     board::{BoardState, FullGameState},
     gods::{
         StateOnlyMapper,
-        generic::{make_move, mortal_move_gen, unmake_move},
+        generic::{mortal_make_move, mortal_move_gen, mortal_unmake_move},
         mortal::mortal_next_states,
     },
 };
@@ -22,8 +22,7 @@ fn run_single_test_makemove(depth: usize) {
     let mut state = FullGameState::try_from(state_str).unwrap();
 
     let now = Instant::now();
-    let result_count =
-        _test_depth_makemove(&mut state.board, depth);
+    let result_count = _test_depth_makemove(&mut state.board, depth);
     let duration = now.elapsed();
     let per_sec = result_count as f32 / duration.as_secs_f32();
     println!(
@@ -41,9 +40,9 @@ fn _test_depth_makemove(state: &mut BoardState, depth: usize) -> usize {
         let mut sum: usize = 0;
         let actions = mortal_move_gen::<0>(state, state.current_player);
         for action in actions {
-            make_move(state, action);
+            mortal_make_move(state, action);
             sum += _test_depth_makemove(state, depth - 1);
-            unmake_move(state, action);
+            mortal_unmake_move(state, action);
         }
         sum
     }
