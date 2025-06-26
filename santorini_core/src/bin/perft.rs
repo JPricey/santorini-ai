@@ -7,7 +7,6 @@ use santorini_core::{
         generic::{make_move, mortal_move_gen, unmake_move},
         mortal::mortal_next_states,
     },
-    move_container::{ChildMoveContainer, ParentMoveContainer},
 };
 
 fn main() {
@@ -21,11 +20,10 @@ fn main() {
 fn run_single_test_makemove(depth: usize) {
     let state_str = "0000000000000000000000000/1/mortal:11,13/mortal:7,17";
     let mut state = FullGameState::try_from(state_str).unwrap();
-    let mut move_container = ParentMoveContainer::default();
 
     let now = Instant::now();
     let result_count =
-        _test_depth_makemove(&mut move_container.get_child(), &mut state.board, depth);
+        _test_depth_makemove(&mut state.board, depth);
     let duration = now.elapsed();
     let per_sec = result_count as f32 / duration.as_secs_f32();
     println!(
@@ -36,20 +34,15 @@ fn run_single_test_makemove(depth: usize) {
     );
 }
 
-fn _test_depth_makemove(
-    mut move_container: &mut ChildMoveContainer,
-    state: &mut BoardState,
-    depth: usize,
-) -> usize {
+fn _test_depth_makemove(state: &mut BoardState, depth: usize) -> usize {
     if depth == 0 {
-        // state.print_to_console();
         (state.height_map[0].0 > 0) as usize
     } else {
         let mut sum: usize = 0;
-        mortal_move_gen::<0>(&mut move_container, state, state.current_player);
-        while let Some(action) = move_container.consume() {
+        let actions = mortal_move_gen::<0>(state, state.current_player);
+        for action in actions {
             make_move(state, action);
-            sum += _test_depth_makemove(&mut move_container.get_child(), state, depth - 1);
+            sum += _test_depth_makemove(state, depth - 1);
             unmake_move(state, action);
         }
         sum

@@ -301,6 +301,7 @@ fn _q_extend(
  *  numbers are actually less meaningful
  *
  */
+/*
 fn _order_states(
     states: &mut [BoardState],
     current_god: &'static GodPower,
@@ -361,6 +362,7 @@ fn _order_states(
         }
     }
 }
+*/
 
 fn _inner_search<T>(
     search_context: &mut SearchContext,
@@ -459,10 +461,30 @@ where
 
     let alpha_orig = alpha;
 
-    let mut children = (active_god.next_states)(state, state.current_player);
+    // let mut children = (active_god.next_states)(state, state.current_player);
+    let child_moves = (active_god.get_moves)(state, state.current_player);
+    if child_moves.len() == 0 {
+        let score = WINNING_SCORE - depth - 1;
+        return -score;
+    }
+
+    if is_move_winning {
+        if depth == 0 {
+            let new_best_move = NewBestMove::new(
+                FullGameState::new(children[children.len() - 1].clone(), p1_god, p2_god),
+                score,
+                remaining_depth,
+                BestMoveTrigger::EndOfLine,
+            );
+            search_state.best_move = Some(new_best_move.clone());
+            (search_context.new_best_move_callback)(new_best_move);
+        }
+
+        return score;
+    }
+
     // next_states stops accululating once it sees a win, so if there is a win it'll be last
     if children[children.len() - 1].get_winner() == Some(state.current_player) {
-        let score = WINNING_SCORE - depth - 1;
 
         if depth == 0 {
             let new_best_move = NewBestMove::new(
@@ -478,7 +500,7 @@ where
         return score;
     }
 
-    let baseline_score = (active_god.player_advantage_fn)(&state, state.current_player);
+    // let baseline_score = (active_god.player_advantage_fn)(&state, state.current_player);
     if let Some(tt_value) = tt_entry {
         for i in 0..children.len() {
             if children[i] == tt_value.best_child {
@@ -490,19 +512,19 @@ where
                 }
             }
         }
-        _order_states(
-            &mut children[1..],
-            active_god,
-            state.current_player,
-            baseline_score,
-        );
+        // _order_states(
+        //     &mut children[1..],
+        //     active_god,
+        //     state.current_player,
+        //     baseline_score,
+        // );
     } else {
-        _order_states(
-            &mut children,
-            active_god,
-            state.current_player,
-            baseline_score,
-        );
+        // _order_states(
+        //     &mut children,
+        //     active_god,
+        //     state.current_player,
+        //     baseline_score,
+        // );
     }
 
     if track_used {

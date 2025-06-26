@@ -1,6 +1,7 @@
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, IS_WINNER_MASK, NEIGHBOR_MAP},
+    gods::{BoardStateWithAction, PartialAction},
     move_container::{self, ChildMoveContainer, GenericMove},
     player::Player,
     square::Square,
@@ -8,18 +9,23 @@ use crate::{
 
 // TODO: bitflags?
 type MoveGenFlags = u8;
-const STOP_ON_MATE: MoveGenFlags = 1 << 0;
-const MATE_ONLY: MoveGenFlags = 1 << 2;
-const ANY_MATE_CHECK: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
+pub const STOP_ON_MATE: MoveGenFlags = 1 << 0;
+pub const MATE_ONLY: MoveGenFlags = 1 << 2;
+pub const ANY_MATE_CHECK: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 // const INCLUDE_QUIET: MoveGenFlags = 1 << 1;
 
 const LOWER_POSITION_MASK: u8 = 0b11111;
 const MORTAL_BUILD_POSITION_OFFSET: usize = 32;
 const MORTAL_MOVE_IS_WINNING_OFFSET: usize = 63;
 const MORTAL_MOVE_IS_WINNING_MASK: u64 = 1 << MORTAL_MOVE_IS_WINNING_OFFSET;
+
 fn build_mortal_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -> GenericMove {
     let data: u64 = (move_from_mask.0 | move_to_mask.0) as u64 | MORTAL_MOVE_IS_WINNING_MASK;
     GenericMove(data)
+}
+
+fn is_move_winning(action: GenericMove) -> bool {
+    action & MORTAL_MOVE_IS_WINNING_MASK != 0
 }
 
 fn build_mortal_move(
@@ -31,6 +37,29 @@ fn build_mortal_move(
     data |= (build_position as u64) << MORTAL_BUILD_POSITION_OFFSET;
 
     GenericMove(data)
+}
+
+pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+    let current_player = board.current_player;
+    let worker_move_mask: u32 = (action.0 as u32) & BitBoard::MAIN_SECTION_MASK.0;
+    let current_workers = board.workers[current_player as usize];
+
+    let moving_worker_mask = current_workers.0 & worker_move_mask;
+    let result_worker_mask = worker_move_mask ^ moving_worker_mask;
+
+    if action.0 & MORTAL_MOVE_IS_WINNING_MASK > 0 {
+        return vec![
+            PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
+            PartialAction::MoveWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
+        ];
+    }
+
+    let build_position = (action.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+    return vec![
+        PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
+        PartialAction::MoveWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
+        PartialAction::Build(Square::from(build_position as usize)),
+    ];
 }
 
 pub fn make_move(board: &mut BoardState, action: GenericMove) {
@@ -79,10 +108,11 @@ pub fn unmake_move(board: &mut BoardState, action: GenericMove) {
 
 // TODO: accept a move accumulator and use that instead of returning a vec
 pub fn mortal_move_gen<const F: MoveGenFlags>(
-    move_container: &mut ChildMoveContainer,
     board: &BoardState,
     player: Player,
-) {
+) -> Vec<GenericMove> {
+    let mut result = Vec::with_capacity(128);
+
     let current_player_idx = player as usize;
     let starting_current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     let current_workers = starting_current_workers;
@@ -103,12 +133,12 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
             worker_moves ^= moves_to_level_3;
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                move_container.push(build_mortal_winning_move(
+                result.push(build_mortal_winning_move(
                     moving_worker_start_mask,
                     BitBoard::as_mask(moving_worker_end_pos),
                 ));
                 if F & STOP_ON_MATE != 0 {
-                    return;
+                    return result;
                 }
             }
         }
@@ -124,7 +154,7 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
             let worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
 
             for worker_build_pos in worker_builds {
-                move_container.push(build_mortal_move(
+                result.push(build_mortal_move(
                     moving_worker_start_mask,
                     BitBoard::as_mask(moving_worker_end_pos),
                     worker_build_pos,
@@ -132,4 +162,6 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
             }
         }
     }
+
+    result
 }

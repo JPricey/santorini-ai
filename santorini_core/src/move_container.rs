@@ -2,6 +2,8 @@
 #[derive(Copy, Clone, Debug)]
 pub struct GenericMove(pub u64);
 
+// Somehow sharing this between multiple levels is slower than creating a new vec each time.
+// Pretty amazing. Not sure how.
 pub struct ParentMoveContainer {
     pub moves: Box<[GenericMove]>,
 }

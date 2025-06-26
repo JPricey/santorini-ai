@@ -1,18 +1,20 @@
 use super::search::Hueristic;
 use crate::{
     board::{BoardState, FullGameState},
+    gods::generic::{ANY_MATE_CHECK, STOP_ON_MATE, mortal_move_gen},
+    move_container::GenericMove,
     player::Player,
     square::Square,
 };
 // use artemis::build_artemis;
 // use hephaestus::build_hephaestus;
-use mortal::build_mortal;
+// use mortal::build_mortal;
 // use pan::build_pan;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
 pub mod generic;
-pub mod mortal;
+// pub mod mortal;
 
 // pub mod artemis;
 // pub mod hephaestus;
@@ -131,11 +133,41 @@ impl ResultsMapper<BoardStateWithAction> for FullChoiceMapper {
 
 pub struct GodPower {
     pub god_name: GodName,
+    pub get_all_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    pub get_actions_for_move:
+        fn(board: &BoardState, action: GenericMove) -> Vec<BoardStateWithAction>,
+    pub get_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    pub get_wins: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    pub make_move: fn(board: &mut BoardState, action: GenericMove),
+    pub unmake_move: fn(board: &mut BoardState, action: GenericMove),
+}
+
+impl GodPower {
+    pub fn get_next_states(&self, board: &BoardState) -> Vec<BoardStateWithAction> {
+        (self.get_all_moves)(board, board.current_player)
+            .into_iter()
+            .flat_map(|action| {
+                let mut new_board = board.clone();
+                let result_state = (self.make_move)(&mut new_board, action);
+                let action_paths = (self.get_actions_for_move)(board, action);
+
+                action_paths
+                    .into_iter()
+                    .map(|full_actions| BoardStateWithAction::new(new_board.clone(), full_actions))
+            })
+            .collect()
+    }
+}
+
+/*
+pub struct GodPower {
+    pub god_name: GodName,
     pub player_advantage_fn: PlayerAdvantageFn,
     pub next_states: NextStatesOnlyFn,
     pub next_states_interactive: NextStatesInteractiveFn,
     pub has_win: HasWinFn,
 }
+*/
 
 impl std::fmt::Debug for GodPower {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -152,7 +184,13 @@ impl PartialEq for GodPower {
 impl Eq for GodPower {}
 
 pub const ALL_GODS_BY_ID: [GodPower; 1] = [
-    build_mortal(),
+    GodPower {
+        god_name: GodName::Mortal,
+        get_all_moves: mortal_move_gen::<0>,
+        get_moves: mortal_move_gen::<{ STOP_ON_MATE }>,
+        get_wins: mortal_move_gen::<{ ANY_MATE_CHECK }>,
+    },
+    // build_mortal(),
     // build_artemis(),
     // build_hephaestus(),
     // build_pan(),
