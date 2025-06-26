@@ -15,7 +15,7 @@ fn main() {
         let mut search_state = SearchContext::new(&mut tt);
 
         let now = Instant::now();
-        search_with_state::<MaxDepthStaticSearchTerminator<6>>(&mut search_state, &state);
+        search_with_state::<MaxDepthStaticSearchTerminator<7>>(&mut search_state, &state);
         let end = Instant::now();
 
         let duration = end - now;

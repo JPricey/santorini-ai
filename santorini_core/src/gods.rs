@@ -3,7 +3,7 @@ use std::result;
 use super::search::Hueristic;
 use crate::{
     board::{BoardState, FullGameState},
-    gods::generic::{mortal_make_move, mortal_move_gen, mortal_move_to_actions, mortal_unmake_move, ANY_MATE_CHECK, STOP_ON_MATE},
+    gods::generic::{mortal_make_move, mortal_move_gen, mortal_move_to_actions, mortal_unmake_move, ANY_MATE_CHECK, INCLUDE_SCORE, STOP_ON_MATE},
     move_container::GenericMove,
     player::Player,
     square::Square,
@@ -200,7 +200,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 1] = [
         god_name: GodName::Mortal,
         get_all_moves: mortal_move_gen::<0>,
         get_actions_for_move: mortal_move_to_actions,
-        get_moves: mortal_move_gen::<{ STOP_ON_MATE }>,
+        get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
         get_win: mortal_move_gen::<{ ANY_MATE_CHECK }>,
         make_move: mortal_make_move,
         unmake_move: mortal_unmake_move,

@@ -388,6 +388,8 @@ fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
         i += 1
     }
 
+    // eprintln!("best_score: {best_score}");
+
     if best_index != start_index {
         actions.swap(start_index, best_index);
     }
