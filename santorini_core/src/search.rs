@@ -647,26 +647,41 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
     use super::*;
 
     #[test]
-    fn test_search() {
+    fn test_pv_regression() {
+        // Guard against this regression scenario:
+        // 1. P1 performs move ordering, and puts a bad move up first that gets mated on the spot. Because this is the first searched move, this becomes the PV.
+        // 2. Later in the move ordering, a better move is found to become the PV.
+        // 3. We get to a further search depth
+        // 4. TT lookup fails for some reason, and we search the bad move from 1 again, and go back
+        //    to thinking we're losing temporarily
         let state_string = "0000001440001220222204421/2/mortal:13,18/mortal:14,17";
         let full_state = FullGameState::try_from(state_string).unwrap();
+        let orig_loss_counter = Rc::new(RefCell::new(0));
+        let loss_counter = orig_loss_counter.clone();
         let mut tt = TranspositionTable::new();
-        let mut search_context = super::SearchContext::new(&mut tt);
-
-        println!("Starting:");
-        full_state.print_to_console();
-        println!("");
+        let mut search_context = SearchContext {
+            tt: &mut tt,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+            new_best_move_callback: Box::new(move |new_best_move| {
+                if new_best_move.score < -WINNING_SCORE_BUFFER {
+                    // increment loss counter
+                    *loss_counter.borrow_mut() += 1;
+                }
+            }),
+        };
 
         let search_state = search_with_state::<MaxDepthStaticSearchTerminator<5>>(
             &mut search_context,
             &full_state,
         );
 
-        dbg!(&search_state);
-
-        search_state.best_move.unwrap().state.print_to_console();
+        let best_move = search_state.best_move.unwrap();
+        assert!(best_move.score > -WINNING_SCORE_BUFFER);
+        assert!(orig_loss_counter.borrow().clone() <= 1);
     }
 }
