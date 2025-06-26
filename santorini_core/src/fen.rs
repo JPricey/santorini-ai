@@ -176,32 +176,22 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
 
 #[cfg(test)]
 mod tests {
-    use rand::{seq::SliceRandom, thread_rng};
+    use crate::random_utils::GameStateFuzzer;
 
     use super::*;
 
     #[test]
-    fn fuzz_test_string_and_collect() {
-        let mut rng = thread_rng();
+    fn test_fuzz_string_and_collect() {
+        let game_state_fuzzer = GameStateFuzzer::default();
 
-        for _ in 0..10 {
-            let mut state = FullGameState::new_basic_state_mortals();
-            loop {
-                let state_string = format!("{state:?}");
-                let rebuilt_state = FullGameState::try_from(state_string.as_str()).unwrap();
+        for state in game_state_fuzzer {
+            let state_string = format!("{state:?}");
+            let rebuilt_state = FullGameState::try_from(state_string.as_str()).unwrap();
 
-                assert_eq!(
-                    state, rebuilt_state,
-                    "State mismatch after string conversion"
-                );
-
-                if state.board.get_winner().is_some() {
-                    break;
-                }
-
-                let child_states = state.get_next_states();
-                state = child_states.choose(&mut rng).unwrap().clone();
-            }
+            assert_eq!(
+                state, rebuilt_state,
+                "State mismatch after string conversion"
+            );
         }
     }
 }

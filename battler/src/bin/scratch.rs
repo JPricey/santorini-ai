@@ -1,30 +1,18 @@
 use battler::{Corpus, StartingPosition, read_corpus};
 use rand::{
     Rng,
-    seq::{IteratorRandom, SliceRandom},
     thread_rng,
 };
-use santorini_core::{board::FullGameState, gods::GodName};
-
-fn _get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
-    let mut result = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
-    let worker_spots: Vec<usize> = (0..25).choose_multiple(rng, 4).iter().cloned().collect();
-
-    result.board.workers[0].0 |= 1 << worker_spots[0];
-    result.board.workers[0].0 |= 1 << worker_spots[1];
-
-    result.board.workers[1].0 |= 1 << worker_spots[2];
-    result.board.workers[1].0 |= 1 << worker_spots[3];
-
-    result
-}
+use santorini_core::{
+    board::FullGameState,
+    random_utils::{get_board_with_random_placements, get_random_move},
+};
 
 fn _get_board_with_random_moves(rng: &mut impl Rng, num_moves: usize) -> FullGameState {
-    let mut position = _get_board_with_random_placements(rng);
+    let mut position = get_board_with_random_placements(rng);
 
     for _ in 0..num_moves {
-        let child_states = position.get_next_states();
-        position = child_states.choose(rng).unwrap().clone();
+        position = get_random_move(&position, rng).unwrap();
     }
 
     position
@@ -35,7 +23,7 @@ fn _seed_corpus(corpus: &mut Corpus) {
     let mut rng = thread_rng();
     // Add some random positions to the starting position corpus
     for i in 0..10 {
-        let position = _get_board_with_random_placements(&mut rng);
+        let position = get_board_with_random_placements(&mut rng);
         corpus.positions.push(StartingPosition {
             name: format!("random_start_{}", i + 1),
             state: position,

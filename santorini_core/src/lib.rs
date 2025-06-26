@@ -11,6 +11,7 @@ pub mod uci_types;
 pub mod utils;
 pub mod nnue;
 pub mod move_container;
+pub mod random_utils;
 
 macro_rules! transmute_enum_masked {
     ($x:expr, $mask:expr) => {
@@ -26,3 +27,7 @@ macro_rules! transmute_enum {
 
 pub(crate) use transmute_enum_masked;
 pub(crate) use transmute_enum;
+
+#[cfg(test)]
+mod tests {
+}

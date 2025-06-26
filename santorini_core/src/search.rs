@@ -652,7 +652,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pv_regression() {
+    fn test_tt_lookup_pv_regression() {
         // Guard against this regression scenario:
         // 1. P1 performs move ordering, and puts a bad move up first that gets mated on the spot. Because this is the first searched move, this becomes the PV.
         // 2. Later in the move ordering, a better move is found to become the PV.
