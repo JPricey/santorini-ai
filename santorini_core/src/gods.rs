@@ -1,4 +1,3 @@
-use std::result;
 
 use super::search::Hueristic;
 use crate::{

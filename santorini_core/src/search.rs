@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    board::{FullGameState, get_all_permutations_for_pair},
+    board::FullGameState,
     gods::{
         GodPower,
         generic::{is_move_winning, mortal_add_score_to_move, mortal_get_score},

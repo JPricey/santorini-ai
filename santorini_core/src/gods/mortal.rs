@@ -7,9 +7,7 @@ use crate::{
     utils::{grid_position_builder, move_all_workers_one_include_original_workers},
 };
 
-use super::{
-    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
-};
+use super::PartialAction;
 
 const POSITION_BONUS: [Hueristic; 25] = grid_position_builder(-1, 0, 0, 2, 1, 1);
 const WORKER_HEIGHT_SCORES: [i32; 4] = [0, 10, 40, 10];
