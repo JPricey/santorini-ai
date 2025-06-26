@@ -13,7 +13,7 @@ type MoveGenFlags = u8;
 pub const STOP_ON_MATE: MoveGenFlags = 1 << 0;
 pub const MATE_ONLY: MoveGenFlags = 1 << 2;
 pub const INCLUDE_SCORE: MoveGenFlags = 1 << 3;
-pub const ANY_MATE_CHECK: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
+pub const RETURN_FIRST_MATE: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 // const INCLUDE_QUIET: MoveGenFlags = 1 << 1;
 
 const LOWER_POSITION_MASK: u8 = 0b11111;

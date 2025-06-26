@@ -235,6 +235,8 @@ fn _q_extend(
     p2_god: &'static GodPower,
     depth: Hueristic,
     q_depth: u32,
+    mut alpha: Hueristic,
+    beta: Hueristic,
 ) -> Hueristic {
     search_state.nodes_visited += 1;
 
@@ -260,16 +262,27 @@ fn _q_extend(
     for child_move in &child_moves {
         (active_god.make_move)(state, *child_move);
 
-        let child_score = _q_extend(
+        let score = -_q_extend(
             state,
             search_state,
             p1_god,
             p2_god,
             depth + 1,
             q_depth + 1,
+            -beta,
+            -alpha,
         );
-        if child_score > best_score {
-            best_score = child_score;
+        if score > best_score {
+            best_score = score;
+
+            if score > alpha {
+                alpha = score;
+
+                if alpha >= beta {
+                    (active_god.unmake_move)(state, *child_move);
+                    break;
+                }
+            }
         }
 
         (active_god.unmake_move)(state, *child_move);
@@ -277,86 +290,6 @@ fn _q_extend(
 
     best_score
 }
-
-/*
- * Ideally we want to order states from most -> least promising.
- * Unfortunately, it's slow to identify the promise of a state, and it's slow to run a classic
- * sort.
- *
- * Instead we pseudo-sort:
- * - Take the "advantage fn" of the current god for the current state, and use that as a baseline
- * score.
- * - Any state with a better score than this goes in the top half of the list.
- * - Any state with worse score goes in the bottom half of the list.
- * - Sort back to front, because because swaps are expensive and moves often hurt more than help
- *
- * - Why not run both advantage functions?
- *  - After some testing, this proved to be worse. not sure if it's because of the wasted time or
- *  numbers are actually less meaningful
- *
- */
-/*
-fn _order_states(
-    states: &mut [BoardState],
-    current_god: &'static GodPower,
-    player: Player,
-    baseline_score: Hueristic,
-) {
-    if states.len() <= 1 {
-        return;
-    }
-    let mut losing = states.len() - 1;
-    let mut back = states.len() - 1;
-    let mut front = 0;
-    let mut best_score = Hueristic::MIN;
-
-    while front < back {
-        if states[back].get_winner().is_some() {
-            if back != losing {
-                states.swap(back, losing);
-            }
-            losing -= 1;
-            back -= 1;
-            continue;
-        }
-
-        let score = (current_god.player_advantage_fn)(&states[back], player);
-
-        if score <= baseline_score {
-            back -= 1;
-        } else {
-            if score > best_score {
-                best_score = score;
-            }
-            states.swap(back, front);
-            front += 1;
-        }
-    }
-
-    if best_score > baseline_score {
-        front = 0;
-    } else {
-        back = losing;
-    }
-
-    if back > 0 && states[back].get_winner().is_some() {
-        if back != losing {
-            states.swap(back, losing);
-        }
-        back -= 1;
-    }
-
-    while front < back {
-        let score = (current_god.player_advantage_fn)(&states[back], player);
-        if score == best_score {
-            states.swap(back, front);
-            front += 1;
-        } else {
-            back -= 1;
-        }
-    }
-}
-*/
 
 fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
     let mut best_index = start_index;
@@ -404,7 +337,7 @@ where
             -(WINNING_SCORE - depth)
         };
     } else if remaining_depth == 0 {
-        return _q_extend(state, search_state, p1_god, p2_god, depth, 0);
+        return _q_extend(state, search_state, p1_god, p2_god, depth, 0, alpha, beta);
     } else {
         search_state.nodes_visited += 1;
     }
@@ -454,6 +387,7 @@ where
         if depth == 0 {
             let mut winning_board = state.clone();
             (active_god.make_move)(&mut winning_board, child_moves[child_moves.len() - 1]);
+            assert!(winning_board.get_winner() == Some(state.current_player));
 
             let new_best_move = NewBestMove::new(
                 FullGameState::new(winning_board, p1_god, p2_god),
@@ -505,15 +439,6 @@ where
             -beta,
             -alpha,
         );
-
-        // if depth == 0 {
-        //     let action_score = mortal_get_score(child_action);
-        //     eprintln!(
-        //         "D:{remaining_depth}, C:{child_action_index}. Action: {:b} with sort score: {action_score}. Result: {score}. (best: {best_score})",
-        //         child_action.0
-        //     );
-        //     state.print_to_console();
-        // }
 
         let should_stop = search_context.should_stop() || T::should_stop(&search_state);
 
