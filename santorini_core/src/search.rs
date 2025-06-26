@@ -75,17 +75,6 @@ impl<A: StaticSearchTerminator, B: StaticSearchTerminator> StaticSearchTerminato
     }
 }
 
-/*
-pub fn judge_non_terminal_state(
-    state: &BoardState,
-    p1_god: &'static GodPower,
-    p2_god: &'static GodPower,
-) -> Hueristic {
-    (p1_god.player_advantage_fn)(state, Player::One)
-        - (p2_god.player_advantage_fn)(state, Player::Two)
-}
-*/
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BestMoveTrigger {
@@ -172,7 +161,6 @@ where
     // eprintln!("nnue eval: {}", eval);
 
     let mut root_board = root_state.board.clone();
-    let color = root_board.current_player.color();
 
     let mut search_state = SearchState::default();
 
@@ -222,7 +210,6 @@ where
             &mut root_board,
             0,
             depth,
-            color,
             Hueristic::MIN + 1,
             Hueristic::MAX,
         );
@@ -246,7 +233,6 @@ fn _q_extend(
     search_state: &mut SearchState,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
-    color: Hueristic,
     depth: Hueristic,
     q_depth: u32,
 ) -> Hueristic {
@@ -266,7 +252,6 @@ fn _q_extend(
     // If opponent isn't threatening a win, take the current score
     if (other_god.get_win)(state, !state.current_player).len() == 0 {
         return evaluate(state);
-        // return color * judge_non_terminal_state(state, p1_god, p2_god);
     }
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
@@ -280,7 +265,6 @@ fn _q_extend(
             search_state,
             p1_god,
             p2_god,
-            -color,
             depth + 1,
             q_depth + 1,
         );
@@ -401,7 +385,6 @@ fn _inner_search<T>(
     state: &mut BoardState,
     depth: Hueristic,
     remaining_depth: usize,
-    color: Hueristic,
     mut alpha: Hueristic,
     beta: Hueristic,
 ) -> Hueristic
@@ -421,43 +404,10 @@ where
             -(WINNING_SCORE - depth)
         };
     } else if remaining_depth == 0 {
-        return _q_extend(state, search_state, p1_god, p2_god, color, depth, 0);
+        return _q_extend(state, search_state, p1_god, p2_god, depth, 0);
     } else {
         search_state.nodes_visited += 1;
     }
-
-    // Old: check if we have a win to quit early.
-    // This got replaced with short circuiting move gen once we spot a win, and checking for it
-    // if (active_god.has_win)(state, state.current_player) {
-    //     let score = WINNING_SCORE - depth - 1;
-
-    //     if depth == 0 {
-    //         let children = (active_god.next_states)(state, state.current_player);
-    //         for child in children.into_iter().rev() {
-    //             if let Some(winner) = child.get_winner() {
-    //                 if winner == state.current_player {
-    //                     let new_best_move = NewBestMove::new(
-    //                         FullGameState::new(child, p1_god, p2_god),
-    //                         score,
-    //                         remaining_depth,
-    //                         BestMoveTrigger::EndOfLine,
-    //                     );
-    //                     search_state.best_move = Some(new_best_move.clone());
-    //                     (search_state.new_best_move_callback)(new_best_move);
-    //                     return score;
-    //                 }
-    //             }
-    //         }
-
-    //         let full_state = FullGameState::new(state.clone(), p1_god, p2_god);
-    //         panic!(
-    //             "Was promised an immediate win but didn't find it? {:?}",
-    //             full_state
-    //         );
-    //     }
-
-    //     return score;
-    // }
 
     let mut track_used = false;
     let mut track_unused = false;
@@ -487,10 +437,6 @@ where
             track_unused = true;
         }
     }
-
-    // if depth == 0 {
-    //     dbg!(&tt_entry);
-    // }
 
     let alpha_orig = alpha;
 
@@ -556,7 +502,6 @@ where
             state,
             depth + 1,
             remaining_depth - 1,
-            -color,
             -beta,
             -alpha,
         );
