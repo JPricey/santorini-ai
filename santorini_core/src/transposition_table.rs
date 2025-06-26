@@ -13,7 +13,7 @@ pub enum SearchScoreType {
     UpperBound,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TTValue {
     // TODO: should be best action?
     pub best_action: GenericMove,

@@ -7,8 +7,8 @@ use santorini_core::{
 };
 
 fn main() {
-    // let state_str = "0000000000000000000000000/1/mortal:2,13/mortal:7,20";
-    let state_str = "0000002100040001111021200/1/mortal:7,16/mortal:17,21";
+    let state_str = "0000000000000000000000000/1/mortal:2,13/mortal:7,20";
+    // let state_str = "0000002100040001111021200/1/mortal:7,16/mortal:17,21";
 
     let state = FullGameState::try_from(state_str).unwrap();
 

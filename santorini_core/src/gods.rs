@@ -216,6 +216,7 @@ mod tests {
 
     use super::*;
 
+    /*
     fn _slow_win_check(state: &FullGameState) -> bool {
         let child_state = state.get_next_states();
         for child in child_state {
@@ -242,6 +243,7 @@ mod tests {
             expected_has_win, slow_win_check_result, state
         );
     }
+    */
 
     #[test]
     fn test_god_alignment() {

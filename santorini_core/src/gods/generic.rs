@@ -19,13 +19,20 @@ pub const ANY_MATE_CHECK: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 const LOWER_POSITION_MASK: u8 = 0b11111;
 const POSITION_WIDTH: usize = 5;
 const MORTAL_BUILD_POSITION_OFFSET: usize = 25;
-const MORTAL_MOVE_IS_WINNING_OFFSET: usize = 63;
-const MORTAL_MOVE_IS_WINNING_MASK: u64 = 1 << MORTAL_MOVE_IS_WINNING_OFFSET;
 
-const MORTAL_SCORE_OFFSET: usize = MORTAL_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const MORTAL_SCORE_WIDTH: usize = 8;
+const MORTAL_SCORE_OFFSET: usize = 64 - MORTAL_SCORE_WIDTH;
+const MORTAL_SCORE_ANTI_MASK: u64 = (1 << MORTAL_SCORE_OFFSET) - 1;
+
+const MORTAL_MOVE_IS_WINNING_OFFSET: usize = MORTAL_SCORE_OFFSET - 1;
+const MORTAL_MOVE_IS_WINNING_MASK: u64 = 1 << MORTAL_MOVE_IS_WINNING_OFFSET;
 
 const GRID_POSITION_SCORES: [u8; 25] = grid_position_builder(0, 1, 2, 3, 4, 5);
 const WORKER_HEIGHT_SCORES: [u8; 4] = [0, 10, 25, 10];
+
+pub fn mask_remove_score(action: GenericMove) -> GenericMove {
+    GenericMove(action.0 & MORTAL_SCORE_ANTI_MASK)
+}
 
 pub fn mortal_add_score_to_move(action: &mut GenericMove, score: u8) {
     action.0 |= (score as u64) << MORTAL_SCORE_OFFSET;

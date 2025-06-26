@@ -9,7 +9,7 @@ use crate::{
     board::FullGameState,
     gods::{
         GodPower,
-        generic::{is_move_winning, mortal_add_score_to_move, mortal_get_score},
+        generic::{is_move_winning, mask_remove_score, mortal_add_score_to_move, mortal_get_score},
     },
     move_container::GenericMove,
     nnue::evaluate,
@@ -488,11 +488,16 @@ where
         }
     }
 
+    // if depth == 0 {
+    //     dbg!(&tt_entry);
+    // }
+
     let alpha_orig = alpha;
 
     // let mut children = (active_god.next_states)(state, state.current_player);
     let mut child_moves = (active_god.get_moves)(state, state.current_player);
     if child_moves.len() == 0 {
+        // TODO: need to do something smarter about losing on smothering
         let score = WINNING_SCORE - depth - 1;
         return -score;
     }
@@ -517,10 +522,9 @@ where
         return score;
     }
 
-    // let baseline_score = (active_god.player_advantage_fn)(&state, state.current_player);
     if let Some(tt_value) = tt_entry {
         for i in 0..child_moves.len() {
-            if child_moves[i] == tt_value.best_action {
+            if mask_remove_score(child_moves[i]) == mask_remove_score(tt_value.best_action) {
                 mortal_add_score_to_move(&mut child_moves[i], u8::MAX);
                 break;
             }
@@ -556,6 +560,15 @@ where
             -beta,
             -alpha,
         );
+
+        // if depth == 0 {
+        //     let action_score = mortal_get_score(child_action);
+        //     eprintln!(
+        //         "D:{remaining_depth}, C:{child_action_index}. Action: {:b} with sort score: {action_score}. Result: {score}. (best: {best_score})",
+        //         child_action.0
+        //     );
+        //     state.print_to_console();
+        // }
 
         let should_stop = search_context.should_stop() || T::should_stop(&search_state);
 
@@ -630,4 +643,30 @@ where
     }
 
     best_score
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_search() {
+        let state_string = "0000001440001220222204421/2/mortal:13,18/mortal:14,17";
+        let full_state = FullGameState::try_from(state_string).unwrap();
+        let mut tt = TranspositionTable::new();
+        let mut search_context = super::SearchContext::new(&mut tt);
+
+        println!("Starting:");
+        full_state.print_to_console();
+        println!("");
+
+        let search_state = search_with_state::<MaxDepthStaticSearchTerminator<5>>(
+            &mut search_context,
+            &full_state,
+        );
+
+        dbg!(&search_state);
+
+        search_state.best_move.unwrap().state.print_to_console();
+    }
 }
