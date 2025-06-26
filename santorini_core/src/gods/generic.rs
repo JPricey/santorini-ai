@@ -5,19 +5,35 @@ use crate::{
     move_container::{self, ChildMoveContainer, GenericMove},
     player::Player,
     square::Square,
+    utils::grid_position_builder,
 };
 
 // TODO: bitflags?
 type MoveGenFlags = u8;
 pub const STOP_ON_MATE: MoveGenFlags = 1 << 0;
 pub const MATE_ONLY: MoveGenFlags = 1 << 2;
+pub const INCLUDE_SCORE: MoveGenFlags = 1 << 3;
 pub const ANY_MATE_CHECK: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 // const INCLUDE_QUIET: MoveGenFlags = 1 << 1;
 
 const LOWER_POSITION_MASK: u8 = 0b11111;
-const MORTAL_BUILD_POSITION_OFFSET: usize = 32;
+const POSITION_WIDTH: usize = 5;
+const MORTAL_BUILD_POSITION_OFFSET: usize = 25;
 const MORTAL_MOVE_IS_WINNING_OFFSET: usize = 63;
 const MORTAL_MOVE_IS_WINNING_MASK: u64 = 1 << MORTAL_MOVE_IS_WINNING_OFFSET;
+
+const MORTAL_SCORE_OFFSET: usize = MORTAL_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+
+const GRID_POSITION_SCORES: [u8; 25] = grid_position_builder(0, 1, 2, 3, 4, 5);
+const WORKER_HEIGHT_SCORES: [u8; 4] = [0, 10, 25, 10];
+
+pub fn mortal_add_score_to_move(action: &mut GenericMove, score: u8) {
+    action.0 |= (score as u64) << MORTAL_SCORE_OFFSET;
+}
+
+pub fn mortal_get_score(action: GenericMove) -> u8 {
+    (action.0 >> MORTAL_SCORE_OFFSET) as u8
+}
 
 fn build_mortal_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -> GenericMove {
     let data: u64 = (move_from_mask.0 | move_to_mask.0) as u64 | MORTAL_MOVE_IS_WINNING_MASK;
@@ -106,7 +122,16 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     }
 }
 
-// TODO: accept a move accumulator and use that instead of returning a vec
+/*
+ * Score calculation:
+ * Mate: 255
+ * Baseline: 128
+ * For each check move that this adds: +50
+ * If we went up: +13
+ * If we went down: -13
+ * + our new GRID_POSITION_SCORES
+ * - our old GRID_POSITION_SCORES
+ */
 pub fn mortal_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
     player: Player,
@@ -121,8 +146,11 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
-
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
+
+        let baseline_score = 50
+            - GRID_POSITION_SCORES[moving_worker_start_pos as usize]
+            - WORKER_HEIGHT_SCORES[worker_starting_height];
 
         let too_high = std::cmp::min(3, worker_starting_height + 1);
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
@@ -133,10 +161,14 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
             worker_moves ^= moves_to_level_3;
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                result.push(build_mortal_winning_move(
+                let mut winning_move = build_mortal_winning_move(
                     moving_worker_start_mask,
                     BitBoard::as_mask(moving_worker_end_pos),
-                ));
+                );
+                if F & INCLUDE_SCORE != 0 {
+                    mortal_add_score_to_move(&mut winning_move, u8::MAX);
+                }
+                result.push(winning_move);
                 if F & STOP_ON_MATE != 0 {
                     return result;
                 }
@@ -151,14 +183,47 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
         let buildable_squares = !(non_selected_workers | board.height_map[3]);
 
         for moving_worker_end_pos in worker_moves.into_iter() {
+            let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
+            let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
+
+            let baseline_score = baseline_score
+                + GRID_POSITION_SCORES[moving_worker_end_pos as usize]
+                + WORKER_HEIGHT_SCORES[worker_end_height as usize];
+
             let worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
 
+            let (check_count, builds_that_result_in_checks, build_that_remove_checks) =
+                if worker_end_height == 2 {
+                    let exactly_level_2 = board.height_map[1] & !board.height_map[2];
+                    let level_3 = board.height_map[2];
+                    // (worker_builds & exactly_level_2)
+                    let check_count = (worker_builds & level_3).0.count_ones();
+                    let builds_that_result_in_checks = worker_builds & exactly_level_2;
+                    let builds_that_remove_checks = worker_builds & level_3;
+                    (
+                        check_count as u8,
+                        builds_that_result_in_checks,
+                        builds_that_remove_checks,
+                    )
+                } else {
+                    (0, BitBoard::EMPTY, BitBoard::EMPTY)
+                };
+
             for worker_build_pos in worker_builds {
-                result.push(build_mortal_move(
+                let mut new_action = build_mortal_move(
                     moving_worker_start_mask,
-                    BitBoard::as_mask(moving_worker_end_pos),
+                    moving_worker_end_mask,
                     worker_build_pos,
-                ));
+                );
+                if F & INCLUDE_SCORE != 0 {
+                    let check_count = check_count
+                        + ((builds_that_result_in_checks & BitBoard::as_mask(worker_build_pos))
+                            .is_not_empty() as u8)
+                        - ((build_that_remove_checks & BitBoard::as_mask(worker_build_pos))
+                            .is_not_empty() as u8);
+                    mortal_add_score_to_move(&mut new_action, baseline_score + check_count * 30);
+                }
+                result.push(new_action);
             }
         }
     }

@@ -21,6 +21,7 @@ pub fn move_all_workers_one_exclude_original_workers(mask: BitBoard) -> BitBoard
     return move_all_workers_one_include_original_workers(mask) & !mask;
 }
 
+#[rustfmt::skip]
 pub const fn grid_position_builder<T: Copy>(
     outer_corner: T,
     outer_edge: T,
@@ -30,37 +31,20 @@ pub const fn grid_position_builder<T: Copy>(
     center: T,
 ) -> [T; 25] {
     [
-        outer_corner,
-        outer_edge,
-        outer_mid,
-        outer_edge,
-        outer_corner,
-        outer_edge,
-        inner_corner,
-        inner_mid,
-        inner_corner,
-        outer_edge,
-        outer_mid,
-        inner_mid,
-        center,
-        inner_mid,
-        outer_mid,
-        outer_edge,
-        inner_corner,
-        inner_mid,
-        inner_corner,
-        outer_edge,
-        outer_corner,
-        outer_edge,
-        outer_mid,
-        outer_edge,
-        outer_corner,
+        outer_corner, outer_edge, outer_mid, outer_edge, outer_corner,
+        outer_edge, inner_corner, inner_mid, inner_corner, outer_edge,
+        outer_mid, inner_mid, center, inner_mid, outer_mid,
+        outer_edge, inner_corner, inner_mid, inner_corner, outer_edge,
+        outer_corner, outer_edge, outer_mid, outer_edge, outer_corner,
     ]
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{board::{FullGameState, NEIGHBOR_MAP}, square::Square};
+    use crate::{
+        board::{FullGameState, NEIGHBOR_MAP},
+        square::Square,
+    };
 
     use super::*;
 

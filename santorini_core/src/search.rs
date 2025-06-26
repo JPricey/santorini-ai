@@ -7,7 +7,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::{FullGameState, get_all_permutations_for_pair},
-    gods::{GodPower, generic::is_move_winning},
+    gods::{
+        GodPower,
+        generic::{is_move_winning, mortal_add_score_to_move, mortal_get_score},
+    },
+    move_container::GenericMove,
     nnue::evaluate,
     player::Player,
     transposition_table::{SearchScoreType, TTValue},
@@ -370,6 +374,25 @@ fn _order_states(
 }
 */
 
+fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
+    let mut best_index = start_index;
+    let mut best_score = mortal_get_score(actions[start_index]);
+    let mut i = start_index + 1;
+    while i < actions.len() {
+        let score = mortal_get_score(actions[i]);
+        if score > best_score {
+            best_score = score;
+            best_index = i;
+        }
+
+        i += 1
+    }
+
+    if best_index != start_index {
+        actions.swap(start_index, best_index);
+    }
+}
+
 fn _inner_search<T>(
     search_context: &mut SearchContext,
     search_state: &mut SearchState,
@@ -498,27 +521,10 @@ where
     if let Some(tt_value) = tt_entry {
         for i in 0..child_moves.len() {
             if child_moves[i] == tt_value.best_action {
-                if i == 0 {
-                    break;
-                } else {
-                    child_moves.swap(0, i);
-                    break;
-                }
+                mortal_add_score_to_move(&mut child_moves[i], u8::MAX);
+                break;
             }
         }
-        // _order_states(
-        //     &mut children[1..],
-        //     active_god,
-        //     state.current_player,
-        //     baseline_score,
-        // );
-    } else {
-        // _order_states(
-        //     &mut children,
-        //     active_god,
-        //     state.current_player,
-        //     baseline_score,
-        // );
     }
 
     if track_used {
@@ -530,16 +536,20 @@ where
     let mut best_action = child_moves[0];
     let mut best_score = Hueristic::MIN;
 
-    let mut child_state = state.clone();
-    for child_action in &child_moves {
-        (active_god.make_move)(&mut child_state, *child_action);
+    let mut child_action_index = 0;
+    while child_action_index < child_moves.len() {
+        _select_next_action(&mut child_moves, child_action_index);
+        let child_action = child_moves[child_action_index];
+        child_action_index += 1;
+
+        (active_god.make_move)(state, child_action);
 
         let score = -_inner_search::<T>(
             search_context,
             search_state,
             p1_god,
             p2_god,
-            &mut child_state,
+            state,
             depth + 1,
             remaining_depth - 1,
             -color,
@@ -551,11 +561,11 @@ where
 
         if score > best_score {
             best_score = score;
-            best_action = *child_action;
+            best_action = child_action;
 
             if depth == 0 && !should_stop {
                 let new_best_move = NewBestMove::new(
-                    FullGameState::new(child_state.clone(), p1_god, p2_god),
+                    FullGameState::new(state.clone(), p1_god, p2_god),
                     score,
                     remaining_depth,
                     BestMoveTrigger::Improvement,
@@ -568,16 +578,18 @@ where
                 alpha = score;
 
                 if alpha >= beta {
+                    (active_god.unmake_move)(state, child_action);
                     break;
                 }
             }
         }
 
         if should_stop {
+            (active_god.unmake_move)(state, child_action);
             break;
         }
 
-        (active_god.unmake_move)(&mut child_state, *child_action);
+        (active_god.unmake_move)(state, child_action);
     }
 
     if !(search_context.should_stop() || T::should_stop(&search_state)) {
