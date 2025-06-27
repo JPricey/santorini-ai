@@ -229,8 +229,13 @@ where
             let mut losing_board = root_state.clone();
             losing_board.board.set_winner(!root_board.current_player);
 
-            let empty_losing_move =
-                BestSearchResult::new(losing_board, -WINNING_SCORE, 0, 0, BestMoveTrigger::EndOfLine);
+            let empty_losing_move = BestSearchResult::new(
+                losing_board,
+                -WINNING_SCORE,
+                0,
+                0,
+                BestMoveTrigger::EndOfLine,
+            );
             search_state.best_move = Some(empty_losing_move.clone());
             (search_context.new_best_move_callback)(empty_losing_move.clone());
             break;

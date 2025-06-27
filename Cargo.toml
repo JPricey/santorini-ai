@@ -18,9 +18,11 @@ clap = {version="4.5.40", features = ["derive"]}
 
 [profile.release]
 opt-level = 3
-debug = false
 rpath = false
 debug-assertions = false
 codegen-units = 1
 lto = true
 panic = "abort"
+debug = false
+
+debug = "line-tables-only"

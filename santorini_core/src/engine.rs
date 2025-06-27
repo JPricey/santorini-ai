@@ -120,7 +120,7 @@ impl EngineThreadWrapper {
                         }),
                     };
 
-                    search_with_state::<DatagenStaticSearchTerminator>(
+                    search_with_state::<NoopStaticSearchTerminator>(
                         &mut search_state,
                         &request.state,
                     );

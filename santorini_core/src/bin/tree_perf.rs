@@ -13,7 +13,7 @@ fn main() {
     let state = FullGameState::try_from(state_str).unwrap();
 
     let mut tt = TranspositionTable::new();
-    for _ in 0..10 {
+    for _ in 0..1 {
         let mut search_state = SearchContext::new(&mut tt);
 
         let now = Instant::now();
@@ -29,4 +29,4 @@ fn main() {
 
 // cargo run -p santorini_core --release --bin tree_perf
 // sudo sysctl kernel.perf_event_paranoid=1
-// CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph -p santorini_core --release
+// RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=v0 -C target-cpu=native" cargo flamegraph -p santorini_core --bin tree_perf --release
