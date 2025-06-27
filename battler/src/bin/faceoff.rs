@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use battler::{BINARY_DIRECTORY, EngineSubprocess, prepare_subprocess, read_corpus};
 use chrono::Utc;
 use clap::Parser;
-use santorini_core::board::{FullGameState};
+use santorini_core::board::FullGameState;
 use santorini_core::fen::game_state_to_fen;
 use santorini_core::player::Player;
 use santorini_core::search::BestMoveTrigger;
@@ -64,11 +64,16 @@ fn do_battle<'a>(
                                 // println!("Message for wrong state");
                                 continue;
                             }
-                            let is_eol = best_move.trigger == BestMoveTrigger::EndOfLine;
-                            saved_best_move = Some(best_move);
-                            if is_eol {
-                                println!("Mate found, ending early");
-                                break;
+                            saved_best_move = Some(best_move.clone());
+                            match best_move.trigger {
+                                BestMoveTrigger::StopFlag => {
+                                    break;
+                                }
+                                BestMoveTrigger::EndOfLine => {
+                                    println!("Mate found, ending early");
+                                    break;
+                                }
+                                BestMoveTrigger::Improvement | BestMoveTrigger::Saved => (),
                             }
                         }
                         _ => {
@@ -97,13 +102,14 @@ fn do_battle<'a>(
         let current_god = saved_best_move.start_state.get_active_god();
 
         println!(
-            "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {}",
+            "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {} secs: {:.04}",
             engine.engine_name,
             saved_best_move.start_state.board.current_player,
             current_god.god_name,
             saved_best_move.meta.actions,
             saved_best_move.meta.calculated_depth,
-            saved_best_move.meta.score
+            saved_best_move.meta.score,
+            started_at.elapsed().as_secs_f32()
         );
         current_state.print_to_console();
 

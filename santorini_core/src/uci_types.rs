@@ -17,7 +17,7 @@ pub struct NextMovesOutput {
     pub next_states: Vec<NextStateOutput>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BestMoveMeta {
     pub score: Hueristic,
     pub calculated_depth: usize,
@@ -25,7 +25,7 @@ pub struct BestMoveMeta {
     pub actions: Vec<PartialAction>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BestMoveOutput {
     pub start_state: FullGameState,
     pub next_state: FullGameState,

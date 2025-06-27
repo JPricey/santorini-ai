@@ -19,10 +19,8 @@ use santorini_core::search::{
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 
-// Visit either 5M nodes (for early in the search),
-// Or, to depth 8 with at least 1M nodes seen (for more accurate endgame tactics)
 type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<4_000_000>,
+    NodesVisitedStaticSearchTerminator<2_000_000>,
     AndStaticSearchTerminator<
         MaxDepthStaticSearchTerminator<8>,
         NodesVisitedStaticSearchTerminator<1_000_000>,

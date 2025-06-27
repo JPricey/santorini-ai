@@ -11,23 +11,14 @@ use std::{
 use crate::{
     board::FullGameState,
     search::{
-        BestSearchResult, NoopStaticSearchTerminator,
+        AndStaticSearchTerminator, BestSearchResult, MaxDepthStaticSearchTerminator,
+        NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator,
         SearchContext, search_with_state,
     },
     transposition_table::TranspositionTable,
 };
 
 type EachMoveCallback = Arc<dyn Fn(BestSearchResult) + Send + Sync>;
-
-/*
-type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<5_000_000>,
-    AndStaticSearchTerminator<
-        MaxDepthStaticSearchTerminator<8>,
-        NodesVisitedStaticSearchTerminator<1_000_000>,
-    >,
->;
-*/
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EngineThreadState {
@@ -61,6 +52,15 @@ pub struct EngineThreadWrapper {
     request_sender: Sender<EngineThreadMessage>,
     worker_state: Arc<Mutex<EngineThreadState>>,
 }
+
+#[allow(dead_code)]
+type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
+    NodesVisitedStaticSearchTerminator<2_000_000>,
+    AndStaticSearchTerminator<
+        MaxDepthStaticSearchTerminator<8>,
+        NodesVisitedStaticSearchTerminator<1_000_000>,
+    >,
+>;
 
 impl EngineThreadWrapper {
     pub fn new() -> Self {
