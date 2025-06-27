@@ -7,11 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::{
-        GodPower,
-        generic::{is_move_winning, mask_remove_score, mortal_add_score_to_move, mortal_get_score},
-    },
-    move_container::GenericMove,
+    gods::GodPower,
+    move_container::{GenericMove, TT_MATCH_SCORE},
     nnue::evaluate,
     player::Player,
     transposition_table::{SearchScoreType, TTValue},
@@ -317,10 +314,10 @@ fn _q_extend(
 
 fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
     let mut best_index = start_index;
-    let mut best_score = mortal_get_score(actions[start_index]);
+    let mut best_score = actions[start_index].get_score();
     let mut i = start_index + 1;
     while i < actions.len() {
-        let score = mortal_get_score(actions[i]);
+        let score = actions[i].get_score();
         if score > best_score {
             best_score = score;
             best_index = i;
@@ -406,7 +403,7 @@ where
     }
 
     // get_moves stops running once it sees a win, so if there is a win it'll be last
-    if is_move_winning(child_moves[child_moves.len() - 1]) {
+    if child_moves[child_moves.len() - 1].get_is_winning() {
         let score = WINNING_SCORE - depth - 1;
         if depth == 0 {
             let mut winning_board = state.clone();
@@ -428,8 +425,8 @@ where
 
     if let Some(tt_value) = tt_entry {
         for i in 0..child_moves.len() {
-            if mask_remove_score(child_moves[i]) == mask_remove_score(tt_value.best_action) {
-                mortal_add_score_to_move(&mut child_moves[i], u8::MAX);
+            if child_moves[i] == tt_value.best_action {
+                child_moves[i].set_score(TT_MATCH_SCORE);
                 break;
             }
         }

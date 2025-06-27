@@ -1,8 +1,10 @@
+use serde_json::map::Iter;
+
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},
     gods::{FullAction, PartialAction},
-    move_container::GenericMove,
+    move_container::{GenericMove, MoveData},
     player::Player,
     square::Square,
     utils::grid_position_builder,
@@ -31,54 +33,73 @@ const MORTAL_MOVE_IS_WINNING_MASK: u64 = 1 << MORTAL_MOVE_IS_WINNING_OFFSET;
 const GRID_POSITION_SCORES: [u8; 25] = grid_position_builder(0, 1, 2, 3, 4, 5);
 const WORKER_HEIGHT_SCORES: [u8; 4] = [0, 10, 25, 10];
 
-pub fn mask_remove_score(action: GenericMove) -> GenericMove {
-    GenericMove(action.0 & MORTAL_SCORE_ANTI_MASK)
+/*
+struct MortalMoveIterator<'a> {
+    pub workers_to_move_iter: BitBoard,
+    pub current_moves_iter: BitBoard,
+    pub board: &'a BoardState,
 }
 
-pub fn mortal_add_score_to_move(action: &mut GenericMove, score: u8) {
-    action.0 |= (score as u64) << MORTAL_SCORE_OFFSET;
+impl<'a> MortalMoveIterator<'a> {
+    pub fn new(board: &'a BoardState, workers_to_move: BitBoard) -> Self {
+        Self {
+            workers_to_move_iter: workers_to_move.into_iter(),
+            board,
+        }
+    }
 }
 
-pub fn mortal_get_score(action: GenericMove) -> u8 {
-    (action.0 >> MORTAL_SCORE_OFFSET) as u8
+impl<'a> Iterator for MortalMoveIterator<'a> {
+    type Item = Square;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
 }
+*/
 
-fn build_mortal_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -> GenericMove {
-    let data: u64 = (move_from_mask.0 | move_to_mask.0) as u64 | MORTAL_MOVE_IS_WINNING_MASK;
-    GenericMove(data)
-}
+impl GenericMove {
+    fn new_mortal_move(
+        move_from_mask: BitBoard,
+        move_to_mask: BitBoard,
+        build_position: Square,
+    ) -> GenericMove {
+        let mut data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
+        data |= (build_position as MoveData) << MORTAL_BUILD_POSITION_OFFSET;
 
-pub fn is_move_winning(action: GenericMove) -> bool {
-    action.0 & MORTAL_MOVE_IS_WINNING_MASK != 0
-}
+        Self::new(data)
+    }
 
-fn build_mortal_move(
-    move_from_mask: BitBoard,
-    move_to_mask: BitBoard,
-    build_position: Square,
-) -> GenericMove {
-    let mut data: u64 = (move_from_mask.0 | move_to_mask.0) as u64;
-    data |= (build_position as u64) << MORTAL_BUILD_POSITION_OFFSET;
+    fn new_mortal_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -> GenericMove {
+        let data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
+        Self::new_winning_move(data)
+    }
 
-    GenericMove(data)
+    fn worker_move_mask(&self) -> u32 {
+        (self.data as u32) & BitBoard::MAIN_SECTION_MASK.0 as u32
+    }
+
+    fn build_position(&self) -> u8 {
+        ((self.data >> MORTAL_BUILD_POSITION_OFFSET) as u8) & LOWER_POSITION_MASK
+    }
 }
 
 pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let current_player = board.current_player;
-    let worker_move_mask: u32 = (action.0 as u32) & BitBoard::MAIN_SECTION_MASK.0;
+    let worker_move_mask = action.worker_move_mask();
     let current_workers = board.workers[current_player as usize];
 
     let moving_worker_mask = current_workers.0 & worker_move_mask;
     let result_worker_mask = worker_move_mask ^ moving_worker_mask;
 
-    if action.0 & MORTAL_MOVE_IS_WINNING_MASK > 0 {
+    if action.get_is_winning() {
         return vec![vec![
             PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
             PartialAction::MoveWorker(Square::from(result_worker_mask.trailing_zeros() as usize)),
         ]];
     }
 
-    let build_position = (action.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+    let build_position = action.build_position();
     return vec![vec![
         PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
         PartialAction::MoveWorker(Square::from(result_worker_mask.trailing_zeros() as usize)),
@@ -89,15 +110,15 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
 pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     let current_player = board.current_player;
     board.flip_current_player();
-    let worker_move_mask: u32 = (action.0 as u32) & BitBoard::MAIN_SECTION_MASK.0;
+    let worker_move_mask = action.worker_move_mask();
     board.workers[current_player as usize].0 ^= worker_move_mask;
 
-    if action.0 & MORTAL_MOVE_IS_WINNING_MASK > 0 {
+    if action.get_is_winning() {
         board.set_winner(current_player);
         return;
     }
 
-    let build_position = (action.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+    let build_position = action.build_position();
     let build_mask = BitBoard::as_mask_u8(build_position);
 
     for height in 0..4 {
@@ -111,15 +132,15 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
 
 pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.flip_current_player();
-    let worker_move_mask: u32 = (action.0 as u32) & BitBoard::MAIN_SECTION_MASK.0;
+    let worker_move_mask = action.worker_move_mask();
     board.workers[board.current_player as usize].0 ^= worker_move_mask;
 
-    if action.0 & MORTAL_MOVE_IS_WINNING_MASK > 0 {
+    if action.get_is_winning() {
         board.unset_winner(board.current_player);
         return;
     }
 
-    let build_position = (action.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+    let build_position = action.build_position();
     let build_mask = BitBoard::as_mask_u8(build_position);
 
     for height in (0..4).rev() {
@@ -169,13 +190,10 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
             worker_moves ^= moves_to_level_3;
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                let mut winning_move = build_mortal_winning_move(
+                let winning_move = GenericMove::new_mortal_winning_move(
                     moving_worker_start_mask,
                     BitBoard::as_mask(moving_worker_end_pos),
                 );
-                if F & INCLUDE_SCORE != 0 {
-                    mortal_add_score_to_move(&mut winning_move, u8::MAX);
-                }
                 result.push(winning_move);
                 if F & STOP_ON_MATE != 0 {
                     return result;
@@ -218,7 +236,7 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
                 };
 
             for worker_build_pos in worker_builds {
-                let mut new_action = build_mortal_move(
+                let mut new_action = GenericMove::new_mortal_move(
                     moving_worker_start_mask,
                     moving_worker_end_mask,
                     worker_build_pos,
@@ -229,7 +247,7 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
                             .is_not_empty() as u8)
                         - ((build_that_remove_checks & BitBoard::as_mask(worker_build_pos))
                             .is_not_empty() as u8);
-                    mortal_add_score_to_move(&mut new_action, baseline_score + check_count * 30);
+                    new_action.set_score(baseline_score + check_count * 30);
                 }
                 result.push(new_action);
             }

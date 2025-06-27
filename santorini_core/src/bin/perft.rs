@@ -12,7 +12,7 @@ use santorini_core::{
 fn main() {
     let depth = 5;
     for _ in 0..5 {
-        run_single_test(depth);
+        // run_single_test(depth);
         run_single_test_makemove(depth);
     }
 }
