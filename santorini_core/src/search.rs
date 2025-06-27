@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::{generic::{GenericMove, TT_MATCH_SCORE}, GodPower},
+    gods::{
+        GodPower,
+        generic::{GenericMove, TT_MATCH_SCORE},
+    },
     nnue::evaluate,
     player::Player,
     transposition_table::{SearchScoreType, TTValue},

@@ -1,10 +1,7 @@
 use super::search::Hueristic;
 use crate::{
     board::{BoardState, FullGameState},
-    gods::{
-        generic::{GenericMove, INCLUDE_SCORE, RETURN_FIRST_MATE, STOP_ON_MATE},
-        mortal::{mortal_make_move, mortal_move_gen, mortal_move_to_actions, mortal_unmake_move},
-    },
+    gods::generic::GenericMove,
     player::Player,
     square::Square,
 };
@@ -194,16 +191,6 @@ impl GodPower {
     }
 }
 
-/*
-pub struct GodPower {
-    pub god_name: GodName,
-    pub player_advantage_fn: PlayerAdvantageFn,
-    pub next_states: NextStatesOnlyFn,
-    pub next_states_interactive: NextStatesInteractiveFn,
-    pub has_win: HasWinFn,
-}
-*/
-
 impl std::fmt::Debug for GodPower {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "GodPower({:?})", self.god_name)
@@ -219,16 +206,7 @@ impl PartialEq for GodPower {
 impl Eq for GodPower {}
 
 pub const ALL_GODS_BY_ID: [GodPower; 1] = [
-    GodPower {
-        god_name: GodName::Mortal,
-        get_all_moves: mortal_move_gen::<0>,
-        get_actions_for_move: mortal_move_to_actions,
-        get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        get_win: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
-        _make_move: mortal_make_move,
-        _unmake_move: mortal_unmake_move,
-    },
-    // build_mortal(),
+    mortal::build_mortal(),
     // build_artemis(),
     // build_hephaestus(),
     // build_pan(),
@@ -236,37 +214,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 1] = [
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
-
-    /*
-    fn _slow_win_check(state: &FullGameState) -> bool {
-        let child_state = state.get_next_states();
-        for child in child_state {
-            if child.board.get_winner() == Some(state.board.current_player) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    pub fn assert_has_win_consistency(state: &FullGameState, expected_has_win: bool) {
-        let slow_win_check_result = _slow_win_check(state);
-        assert_eq!(
-            slow_win_check_result, expected_has_win,
-            "State was meant to have win expectation: {:?}, but was {:?}: {:?}",
-            expected_has_win, slow_win_check_result, state
-        );
-
-        let fast_win_check =
-            (state.get_active_god().has_win)(&state.board, state.board.current_player);
-        assert_eq!(
-            fast_win_check, expected_has_win,
-            "State has_win was meant to have win expectation: {:?}, but was {:?}: {:?}",
-            expected_has_win, slow_win_check_result, state
-        );
-    }
-    */
 
     #[test]
     fn test_god_alignment() {

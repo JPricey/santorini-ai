@@ -2,11 +2,9 @@ use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},
     gods::{
-        FullAction,
         generic::{
-            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
-            MoveData, MoveGenFlags, STOP_ON_MATE, WORKER_HEIGHT_SCORES,
-        },
+            GenericMove, MoveData, MoveGenFlags, GRID_POSITION_SCORES, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY, RETURN_FIRST_MATE, STOP_ON_MATE, WORKER_HEIGHT_SCORES
+        }, FullAction, GodName, GodPower
     },
     player::Player,
     square::Square,
@@ -65,7 +63,7 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
     ]];
 }
 
-pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
+fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     let worker_move_mask = action.worker_move_mask();
     board.workers[board.current_player as usize].0 ^= worker_move_mask;
 
@@ -86,7 +84,7 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     panic!("Expected to build, but couldn't")
 }
 
-pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
+fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     let worker_move_mask = action.worker_move_mask();
     board.workers[board.current_player as usize].0 ^= worker_move_mask;
 
@@ -116,10 +114,7 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
  * + our new GRID_POSITION_SCORES
  * - our old GRID_POSITION_SCORES
  */
-pub fn mortal_move_gen<const F: MoveGenFlags>(
-    board: &BoardState,
-    player: Player,
-) -> Vec<GenericMove> {
+fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
     let mut result = Vec::with_capacity(128);
 
     let current_player_idx = player as usize;
@@ -212,18 +207,17 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
     result
 }
 
-/*
 pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
-        player_advantage_fn: mortal_player_advantage,
-        next_states: mortal_next_states::<BoardState, StateOnlyMapper, true>,
-        // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
-        next_states_interactive: mortal_next_states::<BoardStateWithAction, FullChoiceMapper, false>,
-        has_win: mortal_has_win,
+        get_all_moves: mortal_move_gen::<0>,
+        get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        get_win: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
+        get_actions_for_move: mortal_move_to_actions,
+        _make_move: mortal_make_move,
+        _unmake_move: mortal_unmake_move,
     }
 }
-*/
 
 /*
 #[cfg(test)]
