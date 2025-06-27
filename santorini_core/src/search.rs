@@ -11,7 +11,7 @@ use crate::{
         GodPower,
         generic::{GenericMove, TT_MATCH_SCORE},
     },
-    nnue::evaluate,
+    nnue::{self, LabeledAccumulator},
     player::Player,
     search,
     transposition_table::{SearchScoreType, TTValue},
@@ -187,6 +187,8 @@ where
         }
     } as usize;
 
+    let mut nnue_acc = LabeledAccumulator::new_from_scratch(&root_board);
+
     for depth in starting_depth.. {
         if search_context.should_stop() || T::should_stop(&search_state) {
             if let Some(best_move) = &mut search_state.best_move {
@@ -199,6 +201,7 @@ where
         let score = _inner_search::<T>(
             search_context,
             &mut search_state,
+            &mut nnue_acc,
             root_state.gods[0],
             root_state.gods[1],
             &mut root_board,
@@ -257,6 +260,7 @@ where
 fn _q_extend(
     state: &mut BoardState,
     search_state: &mut SearchState,
+    nnue_acc: &mut LabeledAccumulator,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
     depth: Hueristic,
@@ -279,7 +283,8 @@ fn _q_extend(
 
     // If opponent isn't threatening a win, take the current score
     if (other_god.get_win)(state, !state.current_player).len() == 0 {
-        return evaluate(state);
+        nnue_acc.replace_from_board(state);
+        return nnue_acc.evaluate();
     }
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
@@ -293,6 +298,7 @@ fn _q_extend(
         let score = -_q_extend(
             state,
             search_state,
+            nnue_acc,
             p1_god,
             p2_god,
             depth + 1,
@@ -341,6 +347,7 @@ fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
 fn _inner_search<T>(
     search_context: &mut SearchContext,
     search_state: &mut SearchState,
+    nnue_acc: &mut LabeledAccumulator,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
     state: &mut BoardState,
@@ -365,7 +372,17 @@ where
             -(WINNING_SCORE - depth)
         };
     } else if remaining_depth == 0 {
-        return _q_extend(state, search_state, p1_god, p2_god, depth, 0, alpha, beta);
+        return _q_extend(
+            state,
+            search_state,
+            nnue_acc,
+            p1_god,
+            p2_god,
+            depth,
+            0,
+            alpha,
+            beta,
+        );
     } else {
         search_state.nodes_visited += 1;
     }
@@ -460,6 +477,7 @@ where
         let score = -_inner_search::<T>(
             search_context,
             search_state,
+            nnue_acc,
             p1_god,
             p2_god,
             state,

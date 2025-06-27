@@ -78,7 +78,7 @@ impl Accumulator {
 
 // TODO: equality should be for features only
 #[derive(Clone, PartialEq, Eq)]
-struct LabeledAccumulator {
+pub struct LabeledAccumulator {
     feature_array: FeatureArray,
     accumulator: Accumulator,
 }
@@ -116,6 +116,14 @@ impl LabeledAccumulator {
                 *current = new;
             }
         }
+        // eprintln!("diff count: {}", diff_count);
+        // if diff_count > 10 {
+        // } else {
+        // }
+    }
+
+    pub fn replace_from_board(&mut self, board: &BoardState) {
+        self.replace_features(build_feature_array(board))
     }
 
     pub fn evaluate(&self) -> Hueristic {
@@ -224,11 +232,6 @@ pub fn build_feature_array(board: &BoardState) -> FeatureArray {
     assert_eq!(index, FEATURE_COUNT);
 
     res
-}
-
-pub fn evaluate(board: &BoardState) -> Hueristic {
-    let acc = LabeledAccumulator::new_from_scratch(board);
-    acc.evaluate()
 }
 
 #[cfg(test)]
