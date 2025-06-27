@@ -116,9 +116,10 @@ impl LabeledAccumulator {
                 *current = new;
             }
         }
-        // eprintln!("diff count: {}", diff_count);
-        // if diff_count > 10 {
-        // } else {
+        // if false & diff_count > 10 {
+        //     true
+        // }  else {
+        //     false
         // }
     }
 

@@ -466,6 +466,8 @@ where
     let mut best_action = child_moves[0];
     let mut best_score = Hueristic::MIN;
 
+    let mut child_nnue_acc = nnue_acc.clone();
+
     let mut child_action_index = 0;
     while child_action_index < child_moves.len() {
         _select_next_action(&mut child_moves, child_action_index);
@@ -477,7 +479,7 @@ where
         let score = -_inner_search::<T>(
             search_context,
             search_state,
-            nnue_acc,
+            &mut child_nnue_acc,
             p1_god,
             p2_god,
             state,
