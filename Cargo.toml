@@ -25,4 +25,4 @@ lto = true
 panic = "abort"
 debug = false
 
-debug = "line-tables-only"
+# debug = "line-tables-only"

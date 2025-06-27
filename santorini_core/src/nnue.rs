@@ -1,4 +1,4 @@
-use std::mem;
+use std::{fmt::Debug, mem};
 
 use crate::{bitboard::BitBoard, board::BoardState, player::Player, search::Hueristic};
 
@@ -7,7 +7,7 @@ const QB: i32 = 64;
 
 const SCALE: i32 = 400;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C, align(64))]
 pub struct Accumulator {
     vals: [i16; HIDDEN_SIZE],
@@ -76,19 +76,28 @@ impl Accumulator {
     }
 }
 
-#[derive(Clone)]
+// TODO: equality should be for features only
+#[derive(Clone, PartialEq, Eq)]
 struct LabeledAccumulator {
     feature_array: FeatureArray,
     accumulator: Accumulator,
 }
 
+impl Debug for LabeledAccumulator {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("LabeledAccumulator")
+            .field("feature_array", &self.feature_array)
+            .finish()
+    }
+}
+
 impl LabeledAccumulator {
     pub fn new_from_scratch(board: &BoardState) -> Self {
-        let mut feature_array = get_feature_array(board);
+        let feature_array = build_feature_array(board);
         let mut accumulator = Accumulator::new();
 
         for feature in feature_array {
-            accumulator.add_feature(feature);
+            accumulator.add_feature(feature as usize);
         }
 
         LabeledAccumulator {
@@ -98,17 +107,19 @@ impl LabeledAccumulator {
     }
 
     pub fn replace_features(&mut self, feature_array: FeatureArray) {
-        for (current, new) in self.feature_array.iter_mut().zip(feature_array.iter) {
-            if current != new {
-                self.accumulator.remove_feature(current);
-                self.accumulator.add(new);
+        let mut diff_count = 0;
+        for (current, &new) in self.feature_array.iter_mut().zip(feature_array.iter()) {
+            if *current != new {
+                diff_count += 1;
+                self.accumulator.remove_feature(*current as usize);
+                self.accumulator.add_feature(new as usize);
                 *current = new;
             }
         }
     }
 
     pub fn evaluate(&self) -> Hueristic {
-        MODEL.evaluate(&self.accumulator)   
+        MODEL.evaluate(&self.accumulator)
     }
 }
 
@@ -145,7 +156,7 @@ impl Network {
     }
 }
 
-pub fn get_feature_array(board: &BoardState) -> FeatureArray {
+pub fn build_feature_array(board: &BoardState) -> FeatureArray {
     let mut res = FeatureArray::default();
     let mut index = 0;
 
@@ -157,7 +168,7 @@ pub fn get_feature_array(board: &BoardState) -> FeatureArray {
         while height_mask.0 > 0 {
             let pos = height_mask.0.trailing_zeros() as FeatureType;
             height_mask.0 &= height_mask.0 - 1;
-            let feature = (pos * 5(height as FeatureType) + 1) as FeatureType;
+            let feature = (pos * 5 + (height as FeatureType) + 1) as FeatureType;
             res[index] = feature;
             index += 1;
         }
@@ -175,15 +186,16 @@ pub fn get_feature_array(board: &BoardState) -> FeatureArray {
     res[0..index].sort();
 
     fn _add_worker_features(
-        mut worker_map: u32,
+        board: &BoardState,
+        worker_map: BitBoard,
         features: &mut FeatureArray,
-        index: usize,
+        feature_offset: FeatureType,
+        mut index: usize,
     ) -> usize {
-        while worker_map > 0 {
-            let pos = worker_map.trailing_zeros();
-            let worker_height = board.get_height_for_worker(BitBoard(1 << pos));
-            worker_map &= worker_map - 1;
-            let feature = feature_offset + 5 * pos as usize + worker_height as usize;
+        for pos in worker_map {
+            let worker_height = board.get_height_for_worker(BitBoard::as_mask(pos));
+            let feature: FeatureType =
+                feature_offset + 5 * (pos as FeatureType) + worker_height as FeatureType;
             features[index] = feature;
             index += 1
         }
@@ -194,8 +206,54 @@ pub fn get_feature_array(board: &BoardState) -> FeatureArray {
         Player::Two => (1, 0),
     };
 
-    index = _add_worker_features(board.workers[own_workers].0, &mut features, index);
-    index = _add_worker_features(board.workers[other_workers].0, &mut features, index);
+    index = _add_worker_features(
+        board,
+        board.workers[own_workers] & BitBoard::MAIN_SECTION_MASK,
+        &mut res,
+        5 * 25,
+        index,
+    );
+    index = _add_worker_features(
+        board,
+        board.workers[other_workers] & BitBoard::MAIN_SECTION_MASK,
+        &mut res,
+        5 * 25 * 2,
+        index,
+    );
+
+    assert_eq!(index, FEATURE_COUNT);
 
     res
+}
+
+pub fn evaluate(board: &BoardState) -> Hueristic {
+    let acc = LabeledAccumulator::new_from_scratch(board);
+    acc.evaluate()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::array::from_mut;
+
+    use super::*;
+    use crate::{
+        board::BoardState,
+        random_utils::{GameStateFuzzer, RandomSingleGameStateGenerator},
+    };
+
+    #[test]
+    fn test_incremental_updates() {
+        let game_iter = RandomSingleGameStateGenerator::default();
+        let mut acc = LabeledAccumulator::new_from_scratch(&game_iter.peek_unsafe().board);
+
+        for state in game_iter {
+            state.print_to_console();
+
+            let from_scratch = LabeledAccumulator::new_from_scratch(&state.board);
+            acc.replace_features(build_feature_array(&state.board));
+
+            assert_eq!(from_scratch, acc);
+            assert_eq!(from_scratch.evaluate(), acc.evaluate());
+        }
+    }
 }

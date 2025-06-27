@@ -28,7 +28,7 @@ pub fn get_random_move(state: &FullGameState, rng: &mut impl Rng) -> Option<Full
     child_states.choose(rng).cloned()
 }
 
-struct RandomSingleGameStateGenerator {
+pub struct RandomSingleGameStateGenerator {
     current_state: Option<FullGameState>,
 }
 
@@ -37,6 +37,10 @@ impl RandomSingleGameStateGenerator {
         RandomSingleGameStateGenerator {
             current_state: Some(initial_state),
         }
+    }
+
+    pub fn peek_unsafe(&self) -> FullGameState {
+        self.current_state.clone().unwrap()
     }
 }
 
