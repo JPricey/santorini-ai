@@ -63,7 +63,7 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
     ]];
 }
 
-fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
+pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     let worker_move_mask = action.worker_move_mask();
     board.workers[board.current_player as usize].0 ^= worker_move_mask;
 
@@ -84,7 +84,7 @@ fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     panic!("Expected to build, but couldn't")
 }
 
-fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
+pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     let worker_move_mask = action.worker_move_mask();
     board.workers[board.current_player as usize].0 ^= worker_move_mask;
 

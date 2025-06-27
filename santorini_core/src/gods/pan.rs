@@ -1,164 +1,177 @@
 use crate::{
-    board::{position_to_coord, BitmapType, BoardState, Player, IS_WINNER_MASK, NEIGHBOR_MAP},
-    utils::{move_all_workers_one_include_original_workers, MAIN_SECTION_MASK},
+    bitboard::BitBoard,
+    board::{BoardState, NEIGHBOR_MAP},
+    gods::{
+        GodName, GodPower,
+        generic::{
+            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, MATE_ONLY, MoveData, MoveGenFlags,
+            RETURN_FIRST_MATE, STOP_ON_MATE,
+        },
+        mortal::{mortal_make_move, mortal_move_to_actions, mortal_unmake_move},
+    },
+    player::Player,
+    square::Square,
 };
 
-use super::{
-    BoardStateWithAction, FullChoiceMapper, GodName, GodPower, PartialAction, StateOnlyMapper,
-    mortal::mortal_player_advantage,
-};
+const PAN_BUILD_POSITION_OFFSET: usize = 25;
+const PAN_HEIGHT_SCORES: [u8; 4] = [0, 10, 25, 25];
 
-pub fn pan_next_states<T, M>(state: &BoardState, player: Player) -> Vec<T>
-where
-    M: super::ResultsMapper<T>,
-{
-    let mut result: Vec<T> = Vec::with_capacity(128);
+impl GenericMove {
+    fn new_pan_move(
+        move_from_mask: BitBoard,
+        move_to_mask: BitBoard,
+        build_position: Square,
+    ) -> GenericMove {
+        let mut data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
+        data |= (build_position as MoveData) << PAN_BUILD_POSITION_OFFSET;
 
-    let current_player_idx = player as usize;
-    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
-    let mut current_workers = starting_current_workers;
-
-    let all_workers_mask = state.workers[0] | state.workers[1];
-
-    while current_workers != 0 {
-        let moving_worker_start_pos = current_workers.trailing_zeros() as usize;
-        let moving_worker_start_mask: BitmapType = 1 << moving_worker_start_pos;
-        current_workers ^= moving_worker_start_mask;
-
-        let mut mapper = M::new();
-        mapper.add_action(PartialAction::SelectWorker(position_to_coord(
-            moving_worker_start_pos,
-        )));
-
-        let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let worker_starting_height = state.get_height_for_worker(moving_worker_start_mask);
-
-        // Remember that actual height map is offset by 1
-        let too_high = std::cmp::min(3, worker_starting_height + 1);
-        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos]
-            & !state.height_map[too_high]
-            & !non_selected_workers;
-
-        while worker_moves != 0 {
-            let worker_move_pos = worker_moves.trailing_zeros() as usize;
-            let worker_move_mask: BitmapType = 1 << worker_move_pos;
-            worker_moves ^= worker_move_mask;
-
-            let new_worker_height = state.get_height_for_worker(worker_move_mask);
-            let pan_win = new_worker_height + 2 <= worker_starting_height;
-            let regular_win = new_worker_height == 3 && worker_starting_height < 3;
-
-            let mut mapper = mapper.clone();
-            mapper.add_action(PartialAction::MoveWorker(position_to_coord(
-                worker_move_pos,
-            )));
-
-            if pan_win || regular_win {
-                let mut winning_next_state = state.clone();
-                winning_next_state.workers[current_player_idx] ^=
-                    moving_worker_start_mask | worker_move_mask | IS_WINNER_MASK;
-                winning_next_state.flip_current_player();
-                result.push(mapper.map_result(winning_next_state));
-                continue;
-            }
-
-            let mut worker_builds =
-                NEIGHBOR_MAP[worker_move_pos] & !non_selected_workers & !state.height_map[3];
-
-            while worker_builds != 0 {
-                let worker_build_pos = worker_builds.trailing_zeros() as usize;
-                let worker_build_mask = 1 << worker_build_pos;
-                worker_builds ^= worker_build_mask;
-
-                let mut mapper = mapper.clone();
-                mapper.add_action(PartialAction::Build(position_to_coord(worker_build_pos)));
-
-                let mut next_state = state.clone();
-                next_state.flip_current_player();
-                for height in 0.. {
-                    if next_state.height_map[height] & worker_build_mask == 0 {
-                        next_state.height_map[height] |= worker_build_mask;
-                        break;
-                    }
-                }
-                next_state.workers[current_player_idx] ^=
-                    moving_worker_start_mask | worker_move_mask;
-                result.push(mapper.map_result(next_state))
-            }
-        }
+        Self::new(data)
     }
 
-    if result.len() == 0 {
-        // Lose due to no moves
-        let mut next_state = state.clone();
-        next_state.workers[1 - current_player_idx] |= IS_WINNER_MASK;
-        next_state.flip_current_player();
-        let mut mapper = M::new();
-        mapper.add_action(PartialAction::NoMoves);
-        result.push(mapper.map_result(next_state));
+    fn new_pan_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -> GenericMove {
+        let data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
+        Self::new_winning_move(data)
+    }
+}
+
+/*
+ * Score calculation:
+ * Mate: 255
+ * Baseline: 128
+ * For each check move that this adds: +50
+ * If we went up: +13
+ * If we went down: -13
+ * + our new GRID_POSITION_SCORES
+ * - our old GRID_POSITION_SCORES
+ */
+fn pan_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
+    let mut result = Vec::with_capacity(128);
+
+    let current_player_idx = player as usize;
+    let starting_current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    let current_workers = starting_current_workers;
+
+    let all_workers_mask = board.workers[0] | board.workers[1];
+
+    for moving_worker_start_pos in current_workers.into_iter() {
+        let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
+        let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
+
+        let baseline_score = 50
+            - GRID_POSITION_SCORES[moving_worker_start_pos as usize]
+            - PAN_HEIGHT_SCORES[worker_starting_height];
+
+        let too_high = std::cmp::min(3, worker_starting_height + 1);
+        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
+            & !(board.height_map[too_high] | all_workers_mask);
+
+        let mut winning_moves = BitBoard::EMPTY;
+
+        if worker_starting_height >= 2 {
+            let move_to_fall_height = worker_moves & !board.height_map[worker_starting_height - 2];
+            winning_moves |= move_to_fall_height;
+
+            if worker_starting_height != 3 {
+                let moves_to_level_3 = worker_moves & board.height_map[2];
+                winning_moves |= moves_to_level_3;
+            }
+        }
+
+        for moving_worker_end_pos in winning_moves.into_iter() {
+            let winning_move = GenericMove::new_pan_winning_move(
+                moving_worker_start_mask,
+                BitBoard::as_mask(moving_worker_end_pos),
+            );
+            result.push(winning_move);
+            if F & STOP_ON_MATE != 0 {
+                return result;
+            }
+        }
+
+        if F & MATE_ONLY != 0 {
+            continue;
+        }
+
+        worker_moves ^= winning_moves;
+
+        let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
+        let buildable_squares = !(non_selected_workers | board.height_map[3]);
+
+        for moving_worker_end_pos in worker_moves.into_iter() {
+            let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
+            let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
+
+            let baseline_score = baseline_score
+                + GRID_POSITION_SCORES[moving_worker_end_pos as usize]
+                + PAN_HEIGHT_SCORES[worker_end_height as usize];
+
+            let worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+
+            let (check_count, builds_that_result_in_checks, build_that_remove_checks) =
+                if worker_end_height == 2 {
+                    let exactly_level_2 = board.height_map[1] & !board.height_map[2];
+                    let level_3 = board.height_map[2];
+                    let level_0 = !board.height_map[0];
+                    // (worker_builds & exactly_level_2)
+                    let check_count = (worker_builds & level_3).0.count_ones();
+                    let builds_that_result_in_checks = worker_builds & exactly_level_2;
+                    let builds_that_remove_checks = worker_builds & level_3 & level_0;
+                    (
+                        check_count as u8,
+                        builds_that_result_in_checks,
+                        builds_that_remove_checks,
+                    )
+                } else {
+                    (0, BitBoard::EMPTY, BitBoard::EMPTY)
+                };
+
+            for worker_build_pos in worker_builds {
+                let mut new_action = GenericMove::new_pan_move(
+                    moving_worker_start_mask,
+                    moving_worker_end_mask,
+                    worker_build_pos,
+                );
+                if F & INCLUDE_SCORE != 0 {
+                    let check_count = check_count
+                        + ((builds_that_result_in_checks & BitBoard::as_mask(worker_build_pos))
+                            .is_not_empty() as u8)
+                        - ((build_that_remove_checks & BitBoard::as_mask(worker_build_pos))
+                            .is_not_empty() as u8);
+                    new_action.set_score(baseline_score + check_count * 30);
+                }
+                result.push(new_action);
+            }
+        }
     }
 
     result
 }
 
-pub fn pan_has_win(state: &BoardState, player: Player) -> bool {
-    let current_player_idx = player as usize;
-    let starting_current_workers = state.workers[current_player_idx] & MAIN_SECTION_MASK;
-
-    let level_2_workers = starting_current_workers & (state.height_map[1] & !state.height_map[2]);
-    if level_2_workers != 0 {
-        let moves_from_lvl_2 = move_all_workers_one_include_original_workers(level_2_workers);
-        let open_spaces = !(state.workers[0] | state.workers[1] | state.height_map[3]);
-        let level_3_or_0 = (state.height_map[2] | !state.height_map[0]) & open_spaces;
-        let wins_from_level_2 = moves_from_lvl_2 & level_3_or_0;
-        if wins_from_level_2 != 0 {
-            return true;
-        }
-    }
-
-    let level_3_workers = starting_current_workers & state.height_map[2];
-    if level_3_workers != 0 {
-        let moves_from_lvl_3 = move_all_workers_one_include_original_workers(level_3_workers);
-        let open_spaces = !(state.workers[0] | state.workers[1] | state.height_map[3]);
-        let level_0_or_1 = !state.height_map[1] & open_spaces;
-        let wins_from_level_3 = moves_from_lvl_3 & level_0_or_1;
-        if wins_from_level_3 != 0 {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 pub const fn build_pan() -> GodPower {
     GodPower {
         god_name: GodName::Pan,
-        player_advantage_fn: mortal_player_advantage,
-        next_states: pan_next_states::<BoardState, StateOnlyMapper>,
-        // next_state_with_scores_fn: get_next_states_custom::<StateWithScore, HueristicMapper>,
-        next_states_interactive: pan_next_states::<BoardStateWithAction, FullChoiceMapper>,
-        has_win: pan_has_win,
+        get_all_moves: pan_move_gen::<0>,
+        get_moves: pan_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        get_win: pan_move_gen::<{ RETURN_FIRST_MATE }>,
+        get_actions_for_move: mortal_move_to_actions,
+        _make_move: mortal_make_move,
+        _unmake_move: mortal_unmake_move,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        board::{FullGameState, Player},
-        fen::game_state_to_fen,
-        gods::pan::pan_has_win,
-    };
+    use crate::{board::FullGameState, fen::game_state_to_fen};
+
+    use super::*;
 
     #[test]
     fn test_pan_basic() {
-        let state_str = "2000044444000000000000000/1/pan:0/mortal:23,24";
-        let state = FullGameState::try_from(state_str).unwrap();
+        let state =
+            FullGameState::try_from("2000044444000000000000000/1/pan:0/mortal:23,24").unwrap();
+        state.print_to_console();
 
         let next_states = state.get_next_states_interactive();
-        // for state in &next_states {
-        //     state.state.print_to_console();
-        //     println!("{:?}", state.actions);
-        // }
 
         assert_eq!(next_states.len(), 1);
         assert_eq!(
@@ -169,56 +182,39 @@ mod tests {
 
     #[test]
     fn test_pan_win_checking() {
-        fn slow_win_check(state: &FullGameState) -> bool {
-            let child_state = state.get_next_states();
-            for child in child_state {
-                if child.board.get_winner() == Some(state.board.current_player) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        fn assert_win_checking(state: &FullGameState, expected: bool) {
-            assert_eq!(
-                slow_win_check(state),
-                expected,
-                "State fully expanded win in 1 was not as expected [{:?}] for {:?}",
-                expected,
-                state
-            );
-            assert_eq!(
-                pan_has_win(&state.board, state.board.current_player),
-                expected,
-                "State quick check win in 1 was not as expected [{:?}] for {:?}",
-                expected,
-                state
-            );
-        }
-
         {
             // Regular win con
-            let state_str = "22222 22222 22232 22222 22222/1/pan:12/pan:24";
-            let mut state = FullGameState::try_from(state_str).unwrap();
+            let state =
+                FullGameState::try_from("22222 22222 22232 22222 22222/1/pan:12/pan:24").unwrap();
+            assert_eq!(
+                (GodName::Pan.to_power().get_win)(&state.board, Player::One).len(),
+                1
+            );
 
-            assert_win_checking(&state, true);
-            state.board.current_player = Player::Two;
-            assert_win_checking(&state, false);
+            assert_eq!(
+                (GodName::Pan.to_power().get_win)(&state.board, Player::Two).len(),
+                0
+            );
         }
 
         {
             // Fall from level 2 to 0
-            let state_str = "00000 00000 00200 00000 00030/1/pan:12/pan:13";
-            let state = FullGameState::try_from(state_str).unwrap();
-            assert_win_checking(&state, true);
+            let state =
+                FullGameState::try_from("00000 00000 00200 00000 00030/1/pan:12/pan:13").unwrap();
+            assert_eq!(
+                (GodName::Pan.to_power().get_win)(&state.board, Player::One).len(),
+                1
+            );
         }
 
         {
             // Fall from 3 to 1
-            let state_str = "1111111111113111111111111/1/pan:12/pan:24";
-            let state = FullGameState::try_from(state_str).unwrap();
-
-            assert_win_checking(&state, true);
+            let state =
+                FullGameState::try_from("1111111111113111111111111/1/pan:12/pan:24").unwrap();
+            assert_eq!(
+                (GodName::Pan.to_power().get_win)(&state.board, Player::One).len(),
+                1,
+            );
         }
     }
 }

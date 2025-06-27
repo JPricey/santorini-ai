@@ -8,7 +8,6 @@ use crate::{
 // use artemis::build_artemis;
 // use hephaestus::build_hephaestus;
 // use mortal::build_mortal;
-// use pan::build_pan;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
@@ -17,7 +16,7 @@ pub mod mortal;
 
 // pub mod artemis;
 // pub mod hephaestus;
-// pub mod pan;
+pub mod pan;
 
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
@@ -25,9 +24,9 @@ pub mod mortal;
 #[strum(serialize_all = "lowercase")]
 pub enum GodName {
     Mortal = 0,
+    Pan = 1,
     // Artemis = 1,
     // Hephaestus = 2,
-    // Pan = 3,
 }
 
 impl GodName {
@@ -159,7 +158,7 @@ impl GodPower {
             .into_iter()
             .flat_map(|action| {
                 let mut result_state = board.clone();
-                (self._make_move)(&mut result_state, action);
+                self.make_move(&mut result_state, action);
                 let action_paths = (self.get_actions_for_move)(board, action);
 
                 action_paths.into_iter().map(move |full_actions| {
@@ -174,7 +173,7 @@ impl GodPower {
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
-                (self._make_move)(&mut result_state, action);
+                self.make_move(&mut result_state, action);
                 result_state
             })
             .collect()
@@ -205,11 +204,11 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 1] = [
+pub const ALL_GODS_BY_ID: [GodPower; 2] = [
     mortal::build_mortal(),
+    pan::build_pan()
     // build_artemis(),
     // build_hephaestus(),
-    // build_pan(),
 ];
 
 #[cfg(test)]

@@ -71,9 +71,9 @@ impl fmt::Display for BitBoard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = format!("\n      Bitboard: {}\n", self.0);
 
-        for square in 0..64 {
-            if square % 8 == 0 {
-                s.push_str(format!("\n{}   ", (8 - square / 8)).as_str())
+        for square in 0..25 {
+            if square % 5 == 0 {
+                s.push_str(format!("\n{}   ", (5 - square / 5)).as_str())
             }
 
             if self.get_bit(Square::from(square)) {
@@ -82,7 +82,7 @@ impl fmt::Display for BitBoard {
                 s.push_str("- ");
             }
         }
-        s.push_str("\n\n    A B C D E F G H");
+        s.push_str("\n\n    A B C D E");
         write!(f, "{s}")
     }
 }
