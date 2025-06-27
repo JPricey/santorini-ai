@@ -1,6 +1,6 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::move_container::GenericMove;
+use crate::gods::generic::GenericMove;
 
 use super::{board::BoardState, search::Hueristic};
 

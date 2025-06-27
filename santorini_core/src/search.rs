@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::GodPower,
-    move_container::{GenericMove, TT_MATCH_SCORE},
+    gods::{generic::{GenericMove, TT_MATCH_SCORE}, GodPower},
     nnue::evaluate,
     player::Player,
     transposition_table::{SearchScoreType, TTValue},
@@ -164,7 +163,7 @@ where
         if let Some(tt_entry) = search_context.tt.fetch(&root_state.board) {
             let mut best_child_state = root_board.clone();
             let active_god = root_state.get_active_god();
-            (active_god.make_move)(&mut best_child_state, tt_entry.best_action);
+            active_god.make_move(&mut best_child_state, tt_entry.best_action);
 
             let new_best_move = BestSearchResult::new(
                 FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
@@ -281,7 +280,7 @@ fn _q_extend(
     // Go back to front because wins will be last
     // TODO: should we do full sorting here?
     for child_move in child_moves.iter().rev() {
-        (active_god.make_move)(state, *child_move);
+        active_god.make_move(state, *child_move);
 
         let score = -_q_extend(
             state,
@@ -300,13 +299,13 @@ fn _q_extend(
                 alpha = score;
 
                 if alpha >= beta {
-                    (active_god.unmake_move)(state, *child_move);
+                    active_god.unmake_move(state, *child_move);
                     break;
                 }
             }
         }
 
-        (active_god.unmake_move)(state, *child_move);
+        active_god.unmake_move(state, *child_move);
     }
 
     best_score
@@ -407,7 +406,7 @@ where
         let score = WINNING_SCORE - depth - 1;
         if depth == 0 {
             let mut winning_board = state.clone();
-            (active_god.make_move)(&mut winning_board, child_moves[child_moves.len() - 1]);
+            active_god.make_move(&mut winning_board, child_moves[child_moves.len() - 1]);
             assert!(winning_board.get_winner() == Some(state.current_player));
 
             let new_best_move = BestSearchResult::new(
@@ -447,7 +446,7 @@ where
         let child_action = child_moves[child_action_index];
         child_action_index += 1;
 
-        (active_god.make_move)(state, child_action);
+        active_god.make_move(state, child_action);
 
         let score = -_inner_search::<T>(
             search_context,
@@ -482,18 +481,18 @@ where
                 alpha = score;
 
                 if alpha >= beta {
-                    (active_god.unmake_move)(state, child_action);
+                    active_god.unmake_move(state, child_action);
                     break;
                 }
             }
         }
 
         if should_stop {
-            (active_god.unmake_move)(state, child_action);
+            active_god.unmake_move(state, child_action);
             break;
         }
 
-        (active_god.unmake_move)(state, child_action);
+        active_god.unmake_move(state, child_action);
     }
 
     if !(search_context.should_stop() || T::should_stop(&search_state)) {

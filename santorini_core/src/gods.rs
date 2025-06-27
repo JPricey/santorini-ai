@@ -1,11 +1,10 @@
 use super::search::Hueristic;
 use crate::{
     board::{BoardState, FullGameState},
-    gods::generic::{
-        INCLUDE_SCORE, RETURN_FIRST_MATE, STOP_ON_MATE, mortal_make_move,
-        mortal_move_gen, mortal_move_to_actions, mortal_unmake_move,
+    gods::{
+        generic::{GenericMove, INCLUDE_SCORE, RETURN_FIRST_MATE, STOP_ON_MATE},
+        mortal::{mortal_make_move, mortal_move_gen, mortal_move_to_actions, mortal_unmake_move},
     },
-    move_container::{GenericMove},
     player::Player,
     square::Square,
 };
@@ -140,8 +139,8 @@ pub struct GodPower {
     pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
     pub get_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
     pub get_win: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
-    pub make_move: fn(board: &mut BoardState, action: GenericMove),
-    pub unmake_move: fn(board: &mut BoardState, action: GenericMove),
+    _make_move: fn(board: &mut BoardState, action: GenericMove),
+    _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 }
 
 impl GodPower {
@@ -163,7 +162,7 @@ impl GodPower {
             .into_iter()
             .flat_map(|action| {
                 let mut result_state = board.clone();
-                (self.make_move)(&mut result_state, action);
+                (self._make_move)(&mut result_state, action);
                 let action_paths = (self.get_actions_for_move)(board, action);
 
                 action_paths.into_iter().map(move |full_actions| {
@@ -178,10 +177,20 @@ impl GodPower {
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
-                (self.make_move)(&mut result_state, action);
+                (self._make_move)(&mut result_state, action);
                 result_state
             })
             .collect()
+    }
+
+    pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
+        (self._make_move)(board, action);
+        board.flip_current_player();
+    }
+
+    pub fn unmake_move(&self, board: &mut BoardState, action: GenericMove) {
+        board.flip_current_player();
+        (self._unmake_move)(board, action);
     }
 }
 
@@ -216,8 +225,8 @@ pub const ALL_GODS_BY_ID: [GodPower; 1] = [
         get_actions_for_move: mortal_move_to_actions,
         get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
         get_win: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
-        make_move: mortal_make_move,
-        unmake_move: mortal_unmake_move,
+        _make_move: mortal_make_move,
+        _unmake_move: mortal_unmake_move,
     },
     // build_mortal(),
     // build_artemis(),

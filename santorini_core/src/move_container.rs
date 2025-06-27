@@ -1,56 +1,53 @@
-pub type MoveScore = u8;
-pub type MoveData = u32;
-pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
-
-pub const MOVE_WINNING_SCORE: MoveScore = MoveScore::MAX;
-pub const TT_MATCH_SCORE: MoveScore = MOVE_WINNING_SCORE - 1;
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct GenericMove {
-    pub score: MoveScore,
-    pub data: u32,
-}
-
-impl PartialEq for GenericMove {
-    fn eq(&self, other: &Self) -> bool {
-        self.data == other.data
+/*
+while iter1 {
+    iter2 = new()
+    while iter2 {
+        ...
     }
 }
+*/
 
-impl GenericMove {
-    pub fn new(data: MoveData) -> Self {
-        Self { score: 0, data }
-    }
+/*
+res = iter2.next()
+if res is None
 
-    pub fn new_winning_move(data: MoveData) -> Self {
+let i1 = iter1.next()
+if i1 is None:
+return None
+iter2 = i1
+*/
+
+/*
+struct MortalWorkerMove {
+
+}
+
+struct MortalMoveIterator<'a> {
+    pub workers_to_move_iter: BitBoard,
+    pub current_moves_iter: BitBoard,
+    pub board: &'a BoardState,
+}
+
+impl<'a> MortalMoveIterator<'a> {
+    pub fn new(board: &'a BoardState, workers_to_move: BitBoard) -> Self {
         Self {
-            score: MoveScore::MAX,
-            data: data | MOVE_IS_WINNING_MASK,
+            workers_to_move_iter: workers_to_move.into_iter(),
+            board,
         }
     }
-    pub fn get_score(&self) -> MoveScore {
-        self.score
-    }
-
-    pub fn set_score(&mut self, score: MoveScore) {
-        self.score = score
-    }
-
-    pub fn set_is_winning(&mut self) {
-        self.data |= MOVE_IS_WINNING_MASK;
-    }
-
-    pub fn get_is_winning(&self) -> bool {
-        (self.data & MOVE_IS_WINNING_MASK) != 0
-    }
 }
 
-impl From<MoveData> for GenericMove {
-    fn from(value: MoveData) -> Self {
-        Self::new(value)
+impl<'a> Iterator for MortalMoveIterator<'a> {
+    type Item = MortalWorkerMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
     }
 }
+*/
+
+use crate::gods::generic::GenericMove;
+
 
 // Somehow sharing this between multiple levels is slower than creating a new vec each time.
 // Pretty amazing. Not sure how.
