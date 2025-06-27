@@ -104,16 +104,6 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     }
 }
 
-/*
- * Score calculation:
- * Mate: 255
- * Baseline: 128
- * For each check move that this adds: +50
- * If we went up: +13
- * If we went down: -13
- * + our new GRID_POSITION_SCORES
- * - our old GRID_POSITION_SCORES
- */
 fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
     let mut result = Vec::with_capacity(128);
 
