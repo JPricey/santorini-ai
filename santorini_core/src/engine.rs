@@ -55,11 +55,8 @@ pub struct EngineThreadWrapper {
 
 #[allow(dead_code)]
 type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<2_000_000>,
-    AndStaticSearchTerminator<
-        MaxDepthStaticSearchTerminator<8>,
-        NodesVisitedStaticSearchTerminator<1_000_000>,
-    >,
+    NodesVisitedStaticSearchTerminator<1_500_000>,
+    MaxDepthStaticSearchTerminator<8>,
 >;
 
 impl EngineThreadWrapper {
@@ -123,7 +120,7 @@ impl EngineThreadWrapper {
                         }),
                     };
 
-                    search_with_state::<NoopStaticSearchTerminator>(
+                    search_with_state::<DatagenStaticSearchTerminator>(
                         &mut search_state,
                         &request.state,
                     );
@@ -191,7 +188,7 @@ impl EngineThreadWrapper {
             let result_state = active_execution.best_move.lock().unwrap();
             result_state
                 .clone()
-                .ok_or_else(|| "Search returned no results".to_owned())
+                .ok_or_else(|| format!("Search returned no results. {:?}", active_execution.state))
         } else {
             Err("Attempted to stop, but no active execution".to_owned())
         }

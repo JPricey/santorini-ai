@@ -13,6 +13,7 @@ use crate::{
     },
     nnue::evaluate,
     player::Player,
+    search,
     transposition_table::{SearchScoreType, TTValue},
 };
 
@@ -88,6 +89,7 @@ pub struct BestSearchResult {
     pub child_state: FullGameState,
     pub score: Hueristic,
     pub depth: usize,
+    pub nodes_visited: usize,
     pub trigger: BestMoveTrigger,
 }
 
@@ -96,12 +98,14 @@ impl BestSearchResult {
         state: FullGameState,
         score: Hueristic,
         depth: usize,
+        nodes_visited: usize,
         trigger: BestMoveTrigger,
     ) -> Self {
         BestSearchResult {
             child_state: state,
             score,
             depth,
+            nodes_visited,
             trigger,
         }
     }
@@ -172,6 +176,7 @@ where
                 FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
                 tt_entry.score,
                 tt_entry.search_depth as usize,
+                0,
                 BestMoveTrigger::Saved,
             );
             search_state.best_move = Some(new_best_move.clone());
@@ -184,11 +189,6 @@ where
 
     for depth in starting_depth.. {
         if search_context.should_stop() || T::should_stop(&search_state) {
-            // eprintln!(
-            //     "Stopping search. Last completed depth {}. Duration: {} seconds",
-            //     search_state.last_fully_completed_depth,
-            //     start_time.elapsed().as_secs_f32(),
-            // );
             if let Some(best_move) = &mut search_state.best_move {
                 best_move.trigger = BestMoveTrigger::StopFlag;
                 (search_context.new_best_move_callback)(best_move.clone());
@@ -230,15 +230,15 @@ where
             losing_board.board.set_winner(!root_board.current_player);
 
             let empty_losing_move =
-                BestSearchResult::new(losing_board, -WINNING_SCORE, 0, BestMoveTrigger::EndOfLine);
-            (search_context.new_best_move_callback)(empty_losing_move);
+                BestSearchResult::new(losing_board, -WINNING_SCORE, 0, 0, BestMoveTrigger::EndOfLine);
+            search_state.best_move = Some(empty_losing_move.clone());
+            (search_context.new_best_move_callback)(empty_losing_move.clone());
             break;
         }
 
         if score.abs() > WINNING_SCORE_BUFFER
             && !(search_context.should_stop() || T::should_stop(&search_state))
         {
-            // eprintln!("Mate found, ending search early");
             let mut best_move = search_state.best_move.clone().unwrap();
             best_move.trigger = BestMoveTrigger::EndOfLine;
             (search_context.new_best_move_callback)(best_move);
@@ -416,6 +416,7 @@ where
                 FullGameState::new(winning_board, p1_god, p2_god),
                 score,
                 remaining_depth,
+                search_state.nodes_visited,
                 BestMoveTrigger::EndOfLine,
             );
             search_state.best_move = Some(new_best_move.clone());
@@ -474,6 +475,7 @@ where
                     FullGameState::new(state.clone(), p1_god, p2_god),
                     score,
                     remaining_depth,
+                    search_state.nodes_visited,
                     BestMoveTrigger::Improvement,
                 );
                 search_state.best_move = Some(new_best_move.clone());

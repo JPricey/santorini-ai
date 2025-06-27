@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
-use battler::{BINARY_DIRECTORY, EngineSubprocess, prepare_subprocess, read_corpus};
+use battler::{
+    BINARY_DIRECTORY, EngineSubprocess, create_log_dir, prepare_subprocess, read_corpus,
+};
 use chrono::Utc;
 use clap::Parser;
 use santorini_core::board::FullGameState;
@@ -151,13 +153,15 @@ impl Debug for SidedPosition {
 }
 
 fn main() {
+    create_log_dir();
+
     let args = FaceoffArgs::parse();
     let now = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 
     println!("Game ts: {}", now);
     let game_name = format!(
         "faceoff-{}-{}-{}s-{}",
-        args.engine1, args.engine2, args.secs, now
+        now, args.engine1, args.engine2, args.secs
     );
 
     let c1_logs_name = format!("{}-{}", game_name, args.engine1);

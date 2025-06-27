@@ -173,17 +173,6 @@ mod tests {
         assert_eq!(next_states[0].state.board.get_winner(), Some(Player::One))
     }
 
-    // #[test]
-    // fn test_artemis_climb_ladder() {
-    //     let state_str = "1100000200000000100000210/1/artemis:17/mortal:1,16";
-    //     let state = FullGameState::try_from(state_str).unwrap();
-    //     let next_states = state.get_next_states_interactive();
-    //     for state in next_states {
-    //         state.state.print_to_console();
-    //         println!("{:?}", state.actions);
-    //     }
-    // }
-
     #[test]
     fn test_artemis_win_check() {
         // Regular 1>2>3

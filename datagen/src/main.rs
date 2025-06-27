@@ -20,11 +20,8 @@ use santorini_core::search::{
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 
 type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<2_000_000>,
-    AndStaticSearchTerminator<
-        MaxDepthStaticSearchTerminator<8>,
-        NodesVisitedStaticSearchTerminator<1_000_000>,
-    >,
+    NodesVisitedStaticSearchTerminator<1_500_000>,
+    MaxDepthStaticSearchTerminator<8>,
 >;
 
 #[derive(Debug)]
@@ -77,22 +74,22 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
         let now = Instant::now();
         let game_history = generate_one(&mut tt, &mut rng)?;
 
-        eprintln!(
-            "Done single gen. Created {} examples in {:.4}s",
-            game_history.len(),
-            now.elapsed().as_secs_f32()
-        );
+        // eprintln!(
+        //     "Done single gen. Created {} examples in {:.4}s",
+        //     game_history.len(),
+        //     now.elapsed().as_secs_f32()
+        // );
 
         for game_turn in game_history {
-            eprintln!(
-                "{:?} {} {} {} {} {}",
-                game_turn.game_state,
-                game_turn.winner as usize + 1,
-                game_turn.score,
-                game_turn.move_count,
-                game_turn.calculated_depth,
-                game_turn.nodes_visited,
-            );
+            // eprintln!(
+            //     "{:?} {} {} {} {} {}",
+            //     game_turn.game_state,
+            //     game_turn.winner as usize + 1,
+            //     game_turn.score,
+            //     game_turn.move_count,
+            //     game_turn.calculated_depth,
+            //     game_turn.nodes_visited,
+            // );
 
             writeln!(
                 data_file,
@@ -131,7 +128,7 @@ fn generate_one(
     tt: &mut TranspositionTable,
     rng: &mut impl Rng,
 ) -> Result<Vec<SingleState>, Box<dyn std::error::Error>> {
-    let mut game_history = Vec::new();
+    let mut game_history: Vec<SingleState> = Vec::new();
 
     let mut current_state = _get_board_with_random_placements(rng);
     let mut move_count = 0;
@@ -160,7 +157,23 @@ fn generate_one(
         let search_result =
             search_with_state::<DatagenStaticSearchTerminator>(&mut search_context, &current_state);
 
-        let best_child = search_result.best_move.ok_or("Search returned no moves")?;
+        let Some(best_child) = search_result.best_move else {
+            eprint!("Search returned no results for state {:?}", current_state);
+
+            for game_turn in game_history {
+                eprintln!(
+                    "{:?} {} {} {} {} {}",
+                    game_turn.game_state,
+                    game_turn.winner as usize + 1,
+                    game_turn.score,
+                    game_turn.move_count,
+                    game_turn.calculated_depth,
+                    game_turn.nodes_visited,
+                );
+            }
+
+            return Err("Search returned no results".to_owned().into());
+        };
 
         if let Some(winner) = best_child.child_state.board.get_winner() {
             break winner;
@@ -226,6 +239,6 @@ pub fn main() {
     }
 }
 
-// cargo run -p datagen --release
-// For 8 threads (max on my PC)
+// RUSTFLAGS='-C target-cpu=native' cargo run -p datagen --release
+// For specific threadcount (default is to use num_cpus):
 // cargo run -p datagen --release -- -j 8

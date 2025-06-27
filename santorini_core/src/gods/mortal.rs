@@ -12,7 +12,7 @@ use crate::{
 
 use super::PartialAction;
 
-const MORTAL_BUILD_POSITION_OFFSET: usize = 25;
+pub const MORTAL_BUILD_POSITION_OFFSET: usize = 25;
 
 impl GenericMove {
     pub fn new_mortal_move(
