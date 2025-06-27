@@ -4,35 +4,15 @@ use crate::{
     gods::{
         GodName, GodPower,
         generic::{
-            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, MATE_ONLY, MoveData, MoveGenFlags,
+            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, MATE_ONLY, MoveGenFlags,
             RETURN_FIRST_MATE, STOP_ON_MATE,
         },
         mortal::{mortal_make_move, mortal_move_to_actions, mortal_unmake_move},
     },
     player::Player,
-    square::Square,
 };
 
-const PAN_BUILD_POSITION_OFFSET: usize = 25;
 const PAN_HEIGHT_SCORES: [u8; 4] = [0, 10, 25, 25];
-
-impl GenericMove {
-    fn new_pan_move(
-        move_from_mask: BitBoard,
-        move_to_mask: BitBoard,
-        build_position: Square,
-    ) -> GenericMove {
-        let mut data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
-        data |= (build_position as MoveData) << PAN_BUILD_POSITION_OFFSET;
-
-        Self::new(data)
-    }
-
-    fn new_pan_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -> GenericMove {
-        let data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
-        Self::new_winning_move(data)
-    }
-}
 
 fn pan_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
     let mut result = Vec::with_capacity(128);
@@ -68,7 +48,7 @@ fn pan_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Ve
         }
 
         for moving_worker_end_pos in winning_moves.into_iter() {
-            let winning_move = GenericMove::new_pan_winning_move(
+            let winning_move = GenericMove::new_mortal_winning_move(
                 moving_worker_start_mask,
                 BitBoard::as_mask(moving_worker_end_pos),
             );
@@ -116,7 +96,7 @@ fn pan_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Ve
                 };
 
             for worker_build_pos in worker_builds {
-                let mut new_action = GenericMove::new_pan_move(
+                let mut new_action = GenericMove::new_mortal_move(
                     moving_worker_start_mask,
                     moving_worker_end_mask,
                     worker_build_pos,

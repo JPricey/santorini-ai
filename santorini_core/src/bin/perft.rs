@@ -2,12 +2,12 @@ use std::time::Instant;
 
 use santorini_core::{
     board::{BoardState, FullGameState},
-    gods::{ALL_GODS_BY_ID, GodName, GodPower},
+    gods::{GodName, GodPower},
 };
 
 fn main() {
-    let depth = 5;
-    let god = GodName::Mortal.to_power();
+    let depth = 4;
+    let god = GodName::Artemis.to_power();
     for _ in 0..5 {
         run_single_test_makemove(depth, god);
     }

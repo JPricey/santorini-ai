@@ -13,8 +13,7 @@ use strum::{EnumString, IntoStaticStr};
 
 pub mod generic;
 pub mod mortal;
-
-// pub mod artemis;
+pub mod artemis;
 // pub mod hephaestus;
 pub mod pan;
 
@@ -25,7 +24,7 @@ pub mod pan;
 pub enum GodName {
     Mortal = 0,
     Pan = 1,
-    // Artemis = 1,
+    Artemis = 2,
     // Hephaestus = 2,
 }
 
@@ -204,10 +203,10 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 2] = [
+pub const ALL_GODS_BY_ID: [GodPower; 3] = [
     mortal::build_mortal(),
-    pan::build_pan()
-    // build_artemis(),
+    pan::build_pan(),
+    artemis::build_artemis(),
     // build_hephaestus(),
 ];
 
