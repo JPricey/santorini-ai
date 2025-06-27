@@ -11,7 +11,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use santorini_core::board::{FullGameState};
+use santorini_core::board::FullGameState;
 use santorini_core::search::{
     AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator,
     NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext, search_with_state,
@@ -202,13 +202,8 @@ pub fn main() {
     }
 
     let num_cpus = num_cpus::get();
-    let num_worker_threads = args
-        .threads
-        .unwrap_or_else(|| std::cmp::max(1, num_cpus - 1));
-    println!(
-        "Found {} CPUs. Using {} worker threads",
-        num_cpus, num_worker_threads
-    );
+    let num_worker_threads = args.threads.unwrap_or_else(|| std::cmp::max(1, num_cpus));
+    println!("Found {num_cpus} CPUs. Creating {num_worker_threads} threads",);
 
     let mut worker_threads = Vec::new();
 
