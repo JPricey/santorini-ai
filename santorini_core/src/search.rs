@@ -23,6 +23,10 @@ pub const WINNING_SCORE: Hueristic = 10_000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
 pub static mut NUM_SEARCHES: usize = 0;
 
+pub const fn win_at_depth(depth: Hueristic) -> Hueristic {
+    WINNING_SCORE - depth
+}
+
 /// Trait to check if a search should stop at some static boundary
 pub trait StaticSearchTerminator {
     fn should_stop(search_state: &SearchState) -> bool;
@@ -265,7 +269,7 @@ fn _q_extend(
     depth: Hueristic,
     q_depth: u32,
     mut alpha: Hueristic,
-    beta: Hueristic,
+    mut beta: Hueristic,
 ) -> Hueristic {
     search_state.nodes_visited += 1;
 
@@ -276,7 +280,7 @@ fn _q_extend(
 
     // If we have a win right now, just take it
     if (active_god.get_win)(state, state.current_player).len() > 0 {
-        let score = WINNING_SCORE - depth - 1;
+        let score = win_at_depth(depth) - 1;
         return score;
     }
 
@@ -287,7 +291,7 @@ fn _q_extend(
     }
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
-    let mut best_score = WINNING_SCORE - depth - 1;
+    let mut best_score = win_at_depth(depth) - 1;
     let child_moves = (active_god.get_moves)(state, state.current_player);
     // Go back to front because wins will be last
     // TODO: should we do full sorting here?
@@ -353,7 +357,7 @@ fn _inner_search<T>(
     depth: Hueristic,
     remaining_depth: usize,
     mut alpha: Hueristic,
-    beta: Hueristic,
+    mut beta: Hueristic,
 ) -> Hueristic
 where
     T: StaticSearchTerminator,
@@ -366,9 +370,9 @@ where
     if let Some(winner) = state.get_winner() {
         search_state.nodes_visited += 1;
         return if winner == state.current_player {
-            WINNING_SCORE - depth
+            win_at_depth(depth)
         } else {
-            -(WINNING_SCORE - depth)
+            -win_at_depth(depth)
         };
     } else if remaining_depth == 0 {
         return _q_extend(
@@ -382,6 +386,16 @@ where
             alpha,
             beta,
         );
+    } else if depth != 0 {
+        search_state.nodes_visited += 1;
+
+        // Worst possible outcome is losing right now (due to a smother)
+        // Best possible outcome is winning right now
+        alpha = alpha.max(-win_at_depth(depth));
+        beta = beta.min(win_at_depth(depth));
+        if alpha >= beta {
+            return alpha;
+        }
     } else {
         search_state.nodes_visited += 1;
     }
@@ -421,13 +435,13 @@ where
     let mut child_moves = (active_god.get_moves)(state, state.current_player);
     if child_moves.len() == 0 {
         // TODO: need to do something smarter about losing on smothering
-        let score = WINNING_SCORE - depth - 1;
+        let score = win_at_depth(depth) - 1;
         return -score;
     }
 
     // get_moves stops running once it sees a win, so if there is a win it'll be last
     if child_moves[child_moves.len() - 1].get_is_winning() {
-        let score = WINNING_SCORE - depth - 1;
+        let score = win_at_depth(depth) - 1;
         if depth == 0 {
             let mut winning_board = state.clone();
             active_god.make_move(&mut winning_board, child_moves[child_moves.len() - 1]);

@@ -6,22 +6,26 @@ use santorini_core::{
     transposition_table::TranspositionTable,
 };
 
-fn main() {
-    let state_str = "0000000000000000000000000/1/mortal:2,13/mortal:7,20";
-    // let state_str = "0000002100040001111021200/1/mortal:7,16/mortal:17,21";
+// const STATE_STR: &str = "0000000000000000000000000/1/mortal:2,13/mortal:7,20";
+// const DEPTH: usize = 7;
+const STATE_STR: &str = "0000002100040001111021200/1/mortal:7,16/mortal:17,21";
+const DEPTH: usize = 10;
 
-    let state = FullGameState::try_from(state_str).unwrap();
+fn main() {
+
+    let state = FullGameState::try_from(STATE_STR).unwrap();
 
     let mut tt = TranspositionTable::new();
     for _ in 0..5 {
         let mut search_state = SearchContext::new(&mut tt);
 
         let now = Instant::now();
-        search_with_state::<MaxDepthStaticSearchTerminator<7>>(&mut search_state, &state);
+        let res = search_with_state::<MaxDepthStaticSearchTerminator<DEPTH>>(&mut search_state, &state);
         let end = Instant::now();
 
         let duration = end - now;
         println!("Took {:.4}s", duration.as_secs_f32());
+        println!("{:?}", res);
         println!("{:?}", tt);
         tt.reset();
     }
