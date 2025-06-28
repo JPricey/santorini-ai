@@ -1,16 +1,13 @@
-use std::{arch::x86_64::_mm_hadd_epi16, collections::HashSet, fmt::Debug, mem};
+use std::{fmt::Debug, mem};
 
-use crate::{
-    bitboard::BitBoard, board::BoardState, player::Player,
-    random_utils::RandomSingleGameStateGenerator, search::Hueristic,
-};
+use crate::{bitboard::BitBoard, board::BoardState, player::Player, random_utils::RandomSingleGameStateGenerator, search::Hueristic};
 
 const QA: i32 = 255;
 const QB: i32 = 64;
 
 const SCALE: i32 = 400;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C, align(64))]
 pub struct Accumulator {
     vals: [i16; HIDDEN_SIZE],
@@ -93,140 +90,124 @@ impl Accumulator {
 }
 
 // TODO: equality should be for features only
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct LabeledAccumulator {
-    board: BoardState,
-    pf1: PlayerFeatures,
-    pf2: PlayerFeatures,
+    features: FeatureSet,
     p1_acc: Accumulator,
     p2_acc: Accumulator,
+    board: BoardState,
+}
+
+impl Debug for LabeledAccumulator {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("LabeledAccumulator")
+            .field("features", &self.features)
+            .finish()
+    }
 }
 
 impl LabeledAccumulator {
     pub fn new_from_scratch(board: &BoardState) -> Self {
+        let features = extract_features(board);
         let mut p1_acc = Accumulator::new();
-        _extract_board_features(board, |feature| {
-            p1_acc.add_feature(feature);
-        });
 
+        for feature in features.board_features {
+            p1_acc.add_feature(feature as usize);
+        }
         let mut p2_acc = p1_acc.clone();
-        let pf1 = _extract_player_features(board, Player::One);
-        let pf2 = _extract_player_features(board, Player::Two);
 
-        for feature in pf1 {
-            p1_acc.add_feature(feature as usize + FEATURE_SEGMENT_SIZE);
-            p2_acc.add_feature(feature as usize + FEATURE_SEGMENT_SIZE * 2);
+        for feature in features.p1_features {
+            let p1_f = FEATURE_SEGMENT_SIZE + feature as usize;
+            let p2_f = 2 * FEATURE_SEGMENT_SIZE + feature as usize;
+
+            p1_acc.add_feature(p1_f);
+            p2_acc.add_feature(p2_f);
         }
 
-        for feature in pf2 {
-            p1_acc.add_feature(feature as usize + FEATURE_SEGMENT_SIZE * 2);
-            p2_acc.add_feature(feature as usize + FEATURE_SEGMENT_SIZE);
+        for feature in features.p2_features {
+            let p1_f = 2 * FEATURE_SEGMENT_SIZE + feature as usize;
+            let p2_f = FEATURE_SEGMENT_SIZE + feature as usize;
+
+            p1_acc.add_feature(p1_f);
+            p2_acc.add_feature(p2_f);
         }
 
         LabeledAccumulator {
-            board: board.clone(),
+            features,
             p1_acc,
             p2_acc,
-            pf1,
-            pf2,
+            board: board.clone(),
         }
     }
 
-    pub fn replace_from_board(&mut self, board: BoardState) {
-        fn _handle_height_diff(
-            acc: &mut LabeledAccumulator,
-            old: BitBoard,
-            new: BitBoard,
-            height: usize,
-        ) -> usize {
-            let mut diffs = 0;
-            for pos in new & !old {
-                let feature: usize = (pos as usize) * 5 + (height as usize);
-                acc.p1_acc.add_feature(feature);
-                acc.p2_acc.add_feature(feature);
-                diffs += 1;
-            }
+    pub fn replace_features(&mut self, feature_set: FeatureSet) {
+        let mut diff_count = 0;
+        for (current, &new) in self
+            .features
+            .board_features
+            .iter_mut()
+            .zip(feature_set.board_features.iter())
+        {
+            if *current != new {
+                self.p1_acc.remove_feature(*current as usize);
+                self.p2_acc.remove_feature(*current as usize);
 
-            for pos in old & !new {
-                let feature: usize = (pos as usize) * 5 + (height as usize);
-                acc.p1_acc.remove_feature(feature);
-                acc.p2_acc.remove_feature(feature);
-                diffs += 1;
-            }
-
-            diffs
-        }
-
-        let mut diffs = 0;
-        diffs += _handle_height_diff(self, self.board.height_map[3], board.height_map[3], 4);
-        diffs += _handle_height_diff(
-            self,
-            self.board.height_map[2] & !self.board.height_map[3],
-            board.height_map[2] & !board.height_map[3],
-            3,
-        );
-        diffs += _handle_height_diff(
-            self,
-            self.board.height_map[1] & !self.board.height_map[2],
-            board.height_map[1] & !board.height_map[2],
-            2,
-        );
-        diffs += _handle_height_diff(
-            self,
-            self.board.height_map[0] & !self.board.height_map[1],
-            board.height_map[0] & !board.height_map[1],
-            1,
-        );
-        diffs += _handle_height_diff(self, !self.board.height_map[0], !board.height_map[0], 0);
-
-        let pf1 = _extract_player_features(&board, Player::One);
-        let pf2 = _extract_player_features(&board, Player::Two);
-
-        for p in &pf1 {
-            if !self.pf1.contains(p) {
-                diffs += 1;
-                self.p1_acc.add_feature(*p as usize + FEATURE_SEGMENT_SIZE);
-                self.p2_acc
-                    .add_feature(*p as usize + 2 * FEATURE_SEGMENT_SIZE);
+                self.p1_acc.add_feature(new as usize);
+                self.p2_acc.add_feature(new as usize);
+                *current = new;
+                diff_count += 1;
             }
         }
 
-        for p in &self.pf1 {
-            if !pf1.contains(p) {
-                diffs += 1;
+        for (current, &new) in self
+            .features
+            .p1_features
+            .iter_mut()
+            .zip(feature_set.p1_features.iter())
+        {
+            if *current != new {
+                diff_count += 1;
                 self.p1_acc
-                    .remove_feature(*p as usize + FEATURE_SEGMENT_SIZE);
+                    .remove_feature(FEATURE_SEGMENT_SIZE + *current as usize);
                 self.p2_acc
-                    .remove_feature(*p as usize + 2 * FEATURE_SEGMENT_SIZE);
-            }
-        }
+                    .remove_feature(2 * FEATURE_SEGMENT_SIZE + *current as usize);
 
-        for p in &pf2 {
-            if !self.pf2.contains(p) {
-                diffs += 1;
-                self.p1_acc
-                    .add_feature(*p as usize + 2 * FEATURE_SEGMENT_SIZE);
-                self.p2_acc.add_feature(*p as usize + FEATURE_SEGMENT_SIZE);
-            }
-        }
-
-        for p in &self.pf2 {
-            if !pf2.contains(p) {
-                diffs += 1;
-                self.p1_acc
-                    .remove_feature(*p as usize + 2 * FEATURE_SEGMENT_SIZE);
+                self.p1_acc.add_feature(FEATURE_SEGMENT_SIZE + new as usize);
                 self.p2_acc
-                    .remove_feature(*p as usize + FEATURE_SEGMENT_SIZE);
+                    .add_feature(2 * FEATURE_SEGMENT_SIZE + new as usize);
+                *current = new;
+                diff_count += 1;
             }
         }
 
-        self.pf1 = pf1;
-        self.pf2 = pf2;
-        self.board = board;
+        for (current, &new) in self
+            .features
+            .p2_features
+            .iter_mut()
+            .zip(feature_set.p2_features.iter())
+        {
+            if *current != new {
+                diff_count += 1;
+                self.p1_acc
+                    .remove_feature(2 * FEATURE_SEGMENT_SIZE + *current as usize);
+                self.p2_acc
+                    .remove_feature(FEATURE_SEGMENT_SIZE + *current as usize);
 
-        // if diffs > 10 {
-        //     println!("diffs {diffs}");
-        // }
+                self.p1_acc
+                    .add_feature(2 * FEATURE_SEGMENT_SIZE + new as usize);
+                self.p2_acc.add_feature(FEATURE_SEGMENT_SIZE + new as usize);
+                *current = new;
+                diff_count += 1;
+            }
+        }
+
+        if diff_count > 5 {
+            dbg!(diff_count);
+        }
+    }
+
+    pub fn replace_from_board(&mut self, board: &BoardState) {
+        self.replace_features(extract_features(board))
     }
 
     pub fn evaluate(&self, player: Player) -> Hueristic {
@@ -270,50 +251,62 @@ impl Network {
     }
 }
 
-fn _extract_board_features<F: FnMut(usize)>(board: &BoardState, mut f_callback: F) {
-    let mut remaining_spaces = BitBoard::MAIN_SECTION_MASK;
+fn _extract_board_features(board: &BoardState) -> BoardFeatures {
+    let mut res = BoardFeatures::default();
+    let mut index = 0;
 
+    let mut remaining_spaces = BitBoard((1 << 25) - 1);
     for height in (0..4).rev() {
-        let height_mask = board.height_map[height] & remaining_spaces;
+        let mut height_mask = board.height_map[height] & remaining_spaces;
         remaining_spaces ^= height_mask;
 
-        for pos in height_mask {
-            let feature = (pos as usize) * 5 + (height as usize) + 1;
-            f_callback(feature)
+        while height_mask.0 > 0 {
+            let pos = height_mask.0.trailing_zeros() as SmallFeatureType;
+            height_mask.0 &= height_mask.0 - 1;
+            let feature = pos * 5 + (height as SmallFeatureType) + 1;
+            res[index] = feature;
+            index += 1;
         }
     }
 
     while remaining_spaces.0 > 0 {
-        let pos = remaining_spaces.0.trailing_zeros();
+        let pos = remaining_spaces.0.trailing_zeros() as SmallFeatureType;
         remaining_spaces.0 &= remaining_spaces.0 - 1;
         let feature = pos * 5;
-        f_callback(feature as usize)
+        res[index] = feature;
+        index += 1;
     }
+
+    assert_eq!(index, 25);
+    res.sort();
+
+    res
 }
 
 fn _extract_player_features(board: &BoardState, player: Player) -> PlayerFeatures {
-    let mut result = PlayerFeatures::default();
-    let mut index = 0;
     let worker_map = board.workers[player as usize] & BitBoard::MAIN_SECTION_MASK;
 
+    let mut res = PlayerFeatures::default();
+    let mut index = 0;
+
     for pos in worker_map {
-        let worker_height = board.get_height_for_worker(BitBoard::as_mask(pos)) as SmallFeatureType;
-        let feature = 5 * (pos as SmallFeatureType) + worker_height;
-        result[index] = feature;
-        index += 1;
+        let worker_height = board.get_height_for_worker(BitBoard::as_mask(pos));
+        let feature = 5 * (pos as SmallFeatureType) + (worker_height as SmallFeatureType);
+        res[index] = feature;
+        index += 1
     }
     assert_eq!(index, 2);
 
-    result
+    res
 }
 
-// pub fn extract_features(board: &BoardState) -> FeatureSet {
-//     FeatureSet {
-//         board_features: _extract_board_features(board),
-//         p1_features: _extract_player_features(board, Player::One),
-//         p2_features: _extract_player_features(board, Player::Two),
-//     }
-// }
+pub fn extract_features(board: &BoardState) -> FeatureSet {
+    FeatureSet {
+        board_features: _extract_board_features(board),
+        p1_features: _extract_player_features(board, Player::One),
+        p2_features: _extract_player_features(board, Player::Two),
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -334,7 +327,7 @@ mod tests {
             state.print_to_console();
 
             let from_scratch = LabeledAccumulator::new_from_scratch(&state.board);
-            acc.replace_from_board(state.board.clone());
+            acc.replace_features(extract_features(&state.board));
 
             assert_eq!(from_scratch, acc);
             assert_eq!(
