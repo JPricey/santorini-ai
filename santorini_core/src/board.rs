@@ -231,6 +231,10 @@ impl BoardState {
         self.workers[player_idx] &= ANTI_WINNER_MASK;
     }
 
+    pub fn exactly_level_2(&self) -> BitBoard {
+        self.height_map[2] & !self.height_map[3]
+    }
+
     pub fn print_to_console(&self) {
         if let Some(winner) = self.get_winner() {
             eprintln!("Player {:?} wins!", winner);

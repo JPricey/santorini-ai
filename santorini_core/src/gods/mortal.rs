@@ -2,9 +2,11 @@ use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},
     gods::{
+        FullAction, GodName, GodPower,
         generic::{
-            GenericMove, MoveData, MoveGenFlags, GRID_POSITION_SCORES, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY, RETURN_FIRST_MATE, STOP_ON_MATE, WORKER_HEIGHT_SCORES
-        }, FullAction, GodName, GodPower
+            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
+            MoveData, MoveGenFlags, RETURN_FIRST_MATE, STOP_ON_MATE, WORKER_HEIGHT_SCORES,
+        },
     },
     player::Player,
     square::Square,
@@ -26,7 +28,10 @@ impl GenericMove {
         Self::new(data)
     }
 
-    pub fn new_mortal_winning_move(move_from_mask: BitBoard, move_to_mask: BitBoard) -> GenericMove {
+    pub fn new_mortal_winning_move(
+        move_from_mask: BitBoard,
+        move_to_mask: BitBoard,
+    ) -> GenericMove {
         let data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
         Self::new_winning_move(data)
     }
@@ -108,8 +113,10 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
     let mut result = Vec::with_capacity(128);
 
     let current_player_idx = player as usize;
-    let starting_current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
-    let current_workers = starting_current_workers;
+    let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    if F & MATE_ONLY != 0 {
+        current_workers &= board.exactly_level_2()
+    }
 
     let all_workers_mask = board.workers[0] | board.workers[1];
 
@@ -125,7 +132,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !(board.height_map[too_high] | all_workers_mask);
 
-        if worker_starting_height != 3 {
+        if F & MATE_ONLY > 0 || worker_starting_height != 3 {
             let moves_to_level_3 = worker_moves & board.height_map[2];
             worker_moves ^= moves_to_level_3;
 
