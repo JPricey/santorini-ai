@@ -11,7 +11,7 @@ use std::{
 use crate::{
     board::FullGameState,
     search::{
-        AndStaticSearchTerminator, BestSearchResult, MaxDepthStaticSearchTerminator,
+        BestSearchResult, MaxDepthStaticSearchTerminator,
         NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator,
         SearchContext, search_with_state,
     },

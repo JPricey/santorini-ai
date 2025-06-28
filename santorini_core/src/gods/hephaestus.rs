@@ -4,7 +4,7 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower, PartialAction,
         generic::{
-            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
+            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, MATE_ONLY,
             MoveData, MoveGenFlags, POSITION_WIDTH, RETURN_FIRST_MATE, STOP_ON_MATE,
             WORKER_HEIGHT_SCORES,
         },

@@ -107,18 +107,13 @@ impl LabeledAccumulator {
     }
 
     pub fn replace_features(&mut self, feature_array: FeatureArray) {
-        let mut diff_count = 0;
         for (current, &new) in self.feature_array.iter_mut().zip(feature_array.iter()) {
             if *current != new {
-                diff_count += 1;
                 self.accumulator.remove_feature(*current as usize);
                 self.accumulator.add_feature(new as usize);
                 *current = new;
             }
         }
-        // if diff_count > 10 {
-        //     eprintln!("diff_count: {diff_count}");
-        // }
     }
 
     pub fn replace_from_board(&mut self, board: &BoardState) {
@@ -211,13 +206,9 @@ pub fn build_feature_array(board: &BoardState) -> FeatureArray {
 
 #[cfg(test)]
 mod tests {
-    use std::array::from_mut;
 
     use super::*;
-    use crate::{
-        board::BoardState,
-        random_utils::{GameStateFuzzer, RandomSingleGameStateGenerator},
-    };
+    use crate::random_utils::RandomSingleGameStateGenerator;
 
     #[test]
     fn test_incremental_updates() {

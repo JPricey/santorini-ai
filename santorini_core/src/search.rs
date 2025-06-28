@@ -11,9 +11,8 @@ use crate::{
         GodPower,
         generic::{GenericMove, TT_MATCH_SCORE},
     },
-    nnue::{self, LabeledAccumulator},
+    nnue::LabeledAccumulator,
     player::Player,
-    search,
     transposition_table::{SearchScoreType, TTValue},
 };
 

@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use santorini_core::board::FullGameState;
 use santorini_core::search::{
-    AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator,
+    Hueristic, MaxDepthStaticSearchTerminator,
     NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext, search_with_state,
 };
 
