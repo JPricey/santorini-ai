@@ -13,7 +13,7 @@ fn main() {
     let state = FullGameState::try_from(state_str).unwrap();
 
     let mut tt = TranspositionTable::new();
-    for _ in 0..5 {
+    for _ in 0..2 {
         let mut search_state = SearchContext::new(&mut tt);
 
         let now = Instant::now();

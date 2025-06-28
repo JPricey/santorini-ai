@@ -116,10 +116,8 @@ impl LabeledAccumulator {
                 *current = new;
             }
         }
-        // if false & diff_count > 10 {
-        //     true
-        // }  else {
-        //     false
+        // if diff_count > 10 {
+        //     eprintln!("diff_count: {diff_count}");
         // }
     }
 
@@ -167,32 +165,10 @@ impl Network {
 
 pub fn build_feature_array(board: &BoardState) -> FeatureArray {
     let mut res = FeatureArray::default();
-    let mut index = 0;
-
-    let mut remaining_spaces = BitBoard((1 << 25) - 1);
-    for height in (0..4).rev() {
-        let mut height_mask = board.height_map[height] & remaining_spaces;
-        remaining_spaces ^= height_mask;
-
-        while height_mask.0 > 0 {
-            let pos = height_mask.0.trailing_zeros() as FeatureType;
-            height_mask.0 &= height_mask.0 - 1;
-            let feature = (pos * 5 + (height as FeatureType) + 1) as FeatureType;
-            res[index] = feature;
-            index += 1;
-        }
+    for pos in 0..25 {
+        res[pos] = (pos * 5) as FeatureType
+            + board.get_true_height(BitBoard::as_mask_u8(pos as u8)) as FeatureType;
     }
-
-    while remaining_spaces.0 > 0 {
-        let pos = remaining_spaces.0.trailing_zeros();
-        remaining_spaces.0 &= remaining_spaces.0 - 1;
-        let feature = (pos * 5) as FeatureType;
-        res[index] = feature;
-        index += 1;
-    }
-
-    assert_eq!(index, 25);
-    res[0..index].sort();
 
     fn _add_worker_features(
         board: &BoardState,
@@ -215,22 +191,20 @@ pub fn build_feature_array(board: &BoardState) -> FeatureArray {
         Player::Two => (1, 0),
     };
 
-    index = _add_worker_features(
+    _add_worker_features(
         board,
         board.workers[own_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
         5 * 25,
-        index,
+        25,
     );
-    index = _add_worker_features(
+    _add_worker_features(
         board,
         board.workers[other_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
         5 * 25 * 2,
-        index,
+        27,
     );
-
-    assert_eq!(index, FEATURE_COUNT);
 
     res
 }
