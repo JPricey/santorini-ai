@@ -269,7 +269,7 @@ fn _q_extend(
     depth: Hueristic,
     q_depth: u32,
     mut alpha: Hueristic,
-    mut beta: Hueristic,
+    beta: Hueristic,
 ) -> Hueristic {
     search_state.nodes_visited += 1;
 

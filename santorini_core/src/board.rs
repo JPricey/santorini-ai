@@ -232,7 +232,7 @@ impl BoardState {
     }
 
     pub fn exactly_level_2(&self) -> BitBoard {
-        self.height_map[2] & !self.height_map[3]
+        self.height_map[1] & !self.height_map[2]
     }
 
     pub fn print_to_console(&self) {
