@@ -283,7 +283,7 @@ fn _q_extend(
 
     // If opponent isn't threatening a win, take the current score
     if (other_god.get_win)(state, !state.current_player).len() == 0 {
-        nnue_acc.replace_from_board(state);
+        nnue_acc.replace_from_board(state.clone());
         return nnue_acc.evaluate(state.current_player);
     }
 
@@ -466,7 +466,7 @@ where
     let mut best_action = child_moves[0];
     let mut best_score = Hueristic::MIN;
 
-    nnue_acc.replace_from_board(state);
+    // nnue_acc.replace_from_board(state.clone());
     let mut child_nnue_acc = nnue_acc.clone();
 
     let mut child_action_index = 0;
