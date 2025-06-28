@@ -74,11 +74,11 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
         let now = Instant::now();
         let game_history = generate_one(&mut tt, &mut rng)?;
 
-        // eprintln!(
-        //     "Done single gen. Created {} examples in {:.4}s",
-        //     game_history.len(),
-        //     now.elapsed().as_secs_f32()
-        // );
+        eprintln!(
+            "Done single gen. Created {} examples in {:.4}s",
+            game_history.len(),
+            now.elapsed().as_secs_f32()
+        );
 
         for game_turn in game_history {
             // eprintln!(
