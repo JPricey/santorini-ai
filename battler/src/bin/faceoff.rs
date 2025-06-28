@@ -104,13 +104,14 @@ fn do_battle<'a>(
         let current_god = saved_best_move.start_state.get_active_god();
 
         println!(
-            "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {} secs: {:.04}",
+            "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {}, visited: {:?} secs: {:.04}",
             engine.engine_name,
             saved_best_move.start_state.board.current_player,
             current_god.god_name,
             saved_best_move.meta.actions,
             saved_best_move.meta.calculated_depth,
             saved_best_move.meta.score,
+            saved_best_move.meta.nodes_visited,
             started_at.elapsed().as_secs_f32()
         );
         current_state.print_to_console();

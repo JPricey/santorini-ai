@@ -21,6 +21,7 @@ pub struct NextMovesOutput {
 pub struct BestMoveMeta {
     pub score: Hueristic,
     pub calculated_depth: usize,
+    pub nodes_visited: Option<usize>,
     pub elapsed_seconds: f32,
     pub actions: Vec<PartialAction>,
 }

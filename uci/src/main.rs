@@ -99,6 +99,7 @@ fn handle_command(
                     meta: BestMoveMeta {
                         score: new_best_move.score,
                         calculated_depth: new_best_move.depth,
+                        nodes_visited: Some(new_best_move.nodes_visited),
                         elapsed_seconds: start_time.elapsed().as_secs_f32(),
                         actions: action_path,
                     },
