@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::time::{Duration, Instant};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use santorini_core::uci_types::EngineOutput;
 
@@ -16,11 +16,17 @@ const CORPUS_FILE_PATH: &str = "data/corpus.yaml";
 
 pub const BINARY_DIRECTORY: &str = "all_versions";
 
-#[derive(Serialize, Deserialize)]
+fn _true_value() -> bool {
+    true
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct StartingPosition {
     pub name: String,
     pub state: FullGameState,
     pub notes: String,
+    #[serde(default = "_true_value")]
+    pub is_enabled: bool,
 }
 
 #[derive(Serialize, Deserialize)]

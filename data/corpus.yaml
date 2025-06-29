@@ -10,7 +10,8 @@ positions:
   notes: ''
 - name: mid_vs_edges
   state: 0000000000000000000000000/1/mortal:11,13/mortal:0,20
-  notes: ''
+  notes: 'Really imbalanced position. First player has huge advantage'
+  is_enabled: false
 - name: edges_vs_mid
   state: 0000000000000000000000000/1/mortal:0,20/mortal:11,13
   notes: ''

@@ -183,6 +183,12 @@ fn main() {
     let mut e2_wins: Vec<SidedPosition> = Vec::new();
 
     for position in corpus.positions {
+        dbg!(&position);
+        if !position.is_enabled {
+            println!("Skipping position");
+            continue;
+        }
+
         {
             let battle_result_1 = do_battle(
                 &position.state,
