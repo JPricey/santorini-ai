@@ -50,12 +50,14 @@ impl PartialEq for GenericMove {
     }
 }
 
+pub const NULL_MOVE: GenericMove = GenericMove::new(0);
+
 impl GenericMove {
-    pub fn new(data: MoveData) -> Self {
+    pub const fn new(data: MoveData) -> Self {
         Self { score: 0, data }
     }
 
-    pub fn new_winning_move(data: MoveData) -> Self {
+    pub const fn new_winning_move(data: MoveData) -> Self {
         Self {
             score: MoveScore::MAX,
             data: data | MOVE_IS_WINNING_MASK,

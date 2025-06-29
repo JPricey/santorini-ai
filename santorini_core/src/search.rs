@@ -469,7 +469,7 @@ where
         return score;
     }
 
-    let rfp_valid = depth <= 4;
+    let rfp_valid = remaining_depth <= 8;
     let needs_eval = rfp_valid;
 
     let eval = if let Some(tt_value) = tt_entry {
@@ -483,9 +483,9 @@ where
 
     // Reverse Futility Pruning
     if rfp_valid {
-        if eval - 250 > beta {
-            // println!("RFP triggered");
-            return eval;
+        let rfp_margin = 150 + 100 * remaining_depth as Hueristic; // TODO: add improving score
+        if rfp_valid && eval - rfp_margin >= beta {
+            return beta;
         }
     }
 
