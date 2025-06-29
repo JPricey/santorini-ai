@@ -20,6 +20,7 @@ pub struct TTValue {
     pub search_depth: u8,
     pub score_type: SearchScoreType,
     pub score: Hueristic,
+    pub eval: Hueristic,
 }
 
 #[derive(Clone)]

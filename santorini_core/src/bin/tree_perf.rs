@@ -54,11 +54,11 @@ fn main() {
         let duration = end - now;
         println!("Took {:.4}s", duration.as_secs_f32());
         println!("{:?}", res);
-        println!("{:?}", tt);
+        // println!("{:?}", tt);
         tt.reset();
     }
 }
 
-// cargo run -p santorini_core --release --bin tree_perf
+// cargo run -p santorini_core --release --bin tree_perf -- -s 0
 // sudo sysctl kernel.perf_event_paranoid=1
 // RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=v0 -C target-cpu=native" cargo flamegraph -p santorini_core --bin tree_perf --release

@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     board::FullGameState,
     gods::{
-        generic::{GenericMove, KILLER_MATCH_SCORE, LOWEST_SPECIAL_SCORE, TT_MATCH_SCORE}, GodPower
+        GodPower,
+        generic::{GenericMove, KILLER_MATCH_SCORE, LOWEST_SPECIAL_SCORE, TT_MATCH_SCORE},
     },
     nnue::LabeledAccumulator,
     player::Player,
@@ -468,6 +469,17 @@ where
         return score;
     }
 
+    nnue_acc.replace_from_board(state);
+    let eval = nnue_acc.evaluate();
+
+    // Reverse Futility Pruning
+    if depth <= 4 {
+        if eval - 250 > beta {
+            // println!("RFP triggered");
+            return eval;
+        }
+    }
+
     let mut special_score_index = 0;
 
     if let Some(tt_value) = tt_entry {
@@ -564,7 +576,6 @@ where
         child_action_index += 1;
     }
 
-
     if !(search_context.should_stop() || T::should_stop(&search_state)) {
         let tt_score_type = if best_score <= alpha_orig {
             SearchScoreType::UpperBound
@@ -597,6 +608,7 @@ where
             search_depth: remaining_depth as u8,
             score_type: tt_score_type,
             score: best_score,
+            eval,
         };
 
         search_context.tt.insert(state, tt_value);
