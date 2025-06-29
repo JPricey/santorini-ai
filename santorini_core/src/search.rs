@@ -469,11 +469,20 @@ where
         return score;
     }
 
-    nnue_acc.replace_from_board(state);
-    let eval = nnue_acc.evaluate();
+    let rfp_valid = depth <= 4;
+    let needs_eval = rfp_valid;
+
+    let eval = if let Some(tt_value) = tt_entry {
+        tt_value.eval
+    } else if needs_eval {
+        nnue_acc.replace_from_board(state);
+        nnue_acc.evaluate()
+    } else {
+        0
+    };
 
     // Reverse Futility Pruning
-    if depth <= 4 {
+    if rfp_valid {
         if eval - 250 > beta {
             // println!("RFP triggered");
             return eval;
