@@ -1,33 +1,54 @@
+use clap::Parser;
 use std::time::Instant;
 
 use santorini_core::{
     board::FullGameState,
-    search::{MaxDepthStaticSearchTerminator, SearchContext, search_with_state},
+    search::{MaxDepthStaticSearchTerminator, SearchContext, SearchState, search_with_state},
     transposition_table::TranspositionTable,
 };
 
-// Starting position
-const STATE_STR: &str = "0000000000000000000000000/1/mortal:2,13/mortal:7,20";
-const DEPTH: usize = 7;
+fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
+    let mut search_state = SearchContext::new(tt);
+    match scenario {
+        0 => {
+            // Starting position
+            let state =
+                FullGameState::try_from("0000000000000000000000000/1/mortal:2,13/mortal:7,20")
+                    .unwrap();
+            search_with_state::<MaxDepthStaticSearchTerminator<7>>(&mut search_state, &state)
+        }
+        1 => {
+            // Starting position
+            let state =
+                FullGameState::try_from("0000002100040001111021200/1/mortal:7,16/mortal:17,21")
+                    .unwrap();
+            search_with_state::<MaxDepthStaticSearchTerminator<8>>(&mut search_state, &state)
+        }
+        2 => {
+            // Starting position
+            let state =
+                FullGameState::try_from("0000011000020004003011112/2/mortal:21,23/mortal:11,16")
+                    .unwrap();
+            search_with_state::<MaxDepthStaticSearchTerminator<9>>(&mut search_state, &state)
+        }
+        _ => panic!("Unknown scenario"),
+    }
+}
 
-// Midgame
-// const STATE_STR: &str = "0000002100040001111021200/1/mortal:7,16/mortal:17,21";
-// const DEPTH: usize = 8;
-
-// Very uneven
-// const STATE_STR: &str = "0000011000020004003011112/2/mortal:21,23/mortal:11,16";
-// const DEPTH: usize = 9;
+#[derive(Parser, Debug)]
+struct TreePerfCliArgs {
+    #[arg(short = 's', long, default_value_t = 0)]
+    scenario: usize,
+}
 
 fn main() {
-    let state = FullGameState::try_from(STATE_STR).unwrap();
+    let args = TreePerfCliArgs::parse();
+    println!("Running Scenario {}", args.scenario);
 
     let mut tt = TranspositionTable::new();
     for _ in 0..5 {
-        let mut search_state = SearchContext::new(&mut tt);
-
         let now = Instant::now();
-        let res =
-            search_with_state::<MaxDepthStaticSearchTerminator<DEPTH>>(&mut search_state, &state);
+        let res = test(&mut tt, args.scenario);
         let end = Instant::now();
 
         let duration = end - now;
