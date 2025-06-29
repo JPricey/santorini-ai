@@ -1,4 +1,5 @@
 use std::{
+    array,
     marker::PhantomData,
     sync::{Arc, atomic::AtomicBool},
 };
@@ -25,8 +26,8 @@ pub const WINNING_SCORE: Hueristic = 10_000;
 pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub const fn win_at_depth(depth: Hueristic) -> Hueristic {
-    WINNING_SCORE - depth
+pub const fn win_at_depth(depth: usize) -> Hueristic {
+    WINNING_SCORE - depth as Hueristic
 }
 
 /// Trait to check if a search should stop at some static boundary
@@ -122,12 +123,18 @@ pub struct SearchContext<'a> {
     pub new_best_move_callback: Box<dyn FnMut(BestSearchResult)>,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SearchStackEntry {
+    pub eval: Hueristic,
+}
+
 #[derive(Debug, Clone)]
 pub struct SearchState {
     pub last_fully_completed_depth: usize,
     pub best_move: Option<BestSearchResult>,
     pub nodes_visited: usize,
     pub killer_move_table: [Option<GenericMove>; MAX_DEPTH],
+    pub search_stack: [SearchStackEntry; MAX_DEPTH],
 }
 
 impl Default for SearchState {
@@ -137,6 +144,7 @@ impl Default for SearchState {
             best_move: None,
             nodes_visited: 0,
             killer_move_table: [None; MAX_DEPTH],
+            search_stack: array::from_fn(|_| SearchStackEntry::default()),
         }
     }
 }
@@ -270,7 +278,7 @@ fn _q_extend(
     nnue_acc: &mut LabeledAccumulator,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
-    depth: Hueristic,
+    depth: usize,
     q_depth: u32,
     mut alpha: Hueristic,
     beta: Hueristic,
@@ -362,7 +370,7 @@ fn _inner_search<T>(
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
     state: &mut BoardState,
-    depth: Hueristic,
+    ply: usize,
     remaining_depth: usize,
     mut alpha: Hueristic,
     mut beta: Hueristic,
@@ -378,9 +386,9 @@ where
     if let Some(winner) = state.get_winner() {
         search_state.nodes_visited += 1;
         return if winner == state.current_player {
-            win_at_depth(depth)
+            win_at_depth(ply)
         } else {
-            -win_at_depth(depth)
+            -win_at_depth(ply)
         };
     } else if remaining_depth == 0 {
         return _q_extend(
@@ -389,18 +397,18 @@ where
             nnue_acc,
             p1_god,
             p2_god,
-            depth,
+            ply,
             0,
             alpha,
             beta,
         );
-    } else if depth != 0 {
+    } else if ply != 0 {
         search_state.nodes_visited += 1;
 
         // Worst possible outcome is losing right now (due to a smother)
         // Best possible outcome is winning right now
-        alpha = alpha.max(-win_at_depth(depth));
-        beta = beta.min(win_at_depth(depth));
+        alpha = alpha.max(-win_at_depth(ply));
+        beta = beta.min(win_at_depth(ply));
         if alpha >= beta {
             return alpha;
         }
@@ -443,14 +451,14 @@ where
     let mut child_moves = (active_god.get_moves)(state, state.current_player);
     if child_moves.len() == 0 {
         // TODO: need to do something smarter about losing on smothering
-        let score = win_at_depth(depth) - 1;
+        let score = win_at_depth(ply) - 1;
         return -score;
     }
 
     // get_moves stops running once it sees a win, so if there is a win it'll be last
     if child_moves[child_moves.len() - 1].get_is_winning() {
-        let score = win_at_depth(depth) - 1;
-        if depth == 0 {
+        let score = win_at_depth(ply) - 1;
+        if ply == 0 {
             let mut winning_board = state.clone();
             active_god.make_move(&mut winning_board, child_moves[child_moves.len() - 1]);
             assert!(winning_board.get_winner() == Some(state.current_player));
@@ -470,20 +478,28 @@ where
     }
 
     let rfp_valid = remaining_depth <= 8;
-    let needs_eval = rfp_valid;
 
     let eval = if let Some(tt_value) = tt_entry {
         tt_value.eval
-    } else if needs_eval {
+    } else {
         nnue_acc.replace_from_board(state);
         nnue_acc.evaluate()
+    };
+
+    let ss = &mut search_state.search_stack;
+    ss[ply].eval = eval;
+
+    let improving = if ply >= 2 {
+        ss[ply].eval > ss[ply - 2].eval
+    } else if ply >= 4 {
+        ss[ply].eval > ss[ply - 4].eval
     } else {
-        0
+        true
     };
 
     // Reverse Futility Pruning
     if rfp_valid {
-        let rfp_margin = 150 + 100 * remaining_depth as Hueristic; // TODO: add improving score
+        let rfp_margin = 150 + 100 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
         if rfp_valid && eval - rfp_margin >= beta {
             return beta;
         }
@@ -504,7 +520,7 @@ where
         }
     }
 
-    if let Some(killer) = search_state.killer_move_table[depth as usize] {
+    if let Some(killer) = search_state.killer_move_table[ply as usize] {
         for i in special_score_index..child_moves.len() {
             if child_moves[i] == killer {
                 child_moves[i].set_score(KILLER_MATCH_SCORE);
@@ -541,7 +557,7 @@ where
             p1_god,
             p2_god,
             state,
-            depth + 1,
+            ply + 1,
             remaining_depth - 1,
             -beta,
             -alpha,
@@ -554,7 +570,7 @@ where
             best_action = child_action;
             best_action_idx = child_action_index;
 
-            if depth == 0 && !should_stop {
+            if ply == 0 && !should_stop {
                 let new_best_move = BestSearchResult::new(
                     FullGameState::new(state.clone(), p1_god, p2_god),
                     score,
@@ -595,7 +611,7 @@ where
         };
 
         if alpha != alpha_orig && best_action_idx > 2 {
-            search_state.killer_move_table[depth as usize] = Some(best_action);
+            search_state.killer_move_table[ply as usize] = Some(best_action);
         }
 
         // Early on in the game, add all permutations of a board state to the TT, to help
@@ -625,7 +641,7 @@ where
         search_context.tt.insert(state, tt_value);
     }
 
-    if depth == 0 {
+    if ply == 0 {
         search_state.last_fully_completed_depth = remaining_depth;
     }
 
