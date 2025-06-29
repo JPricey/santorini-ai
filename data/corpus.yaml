@@ -1,4 +1,7 @@
 positions:
+- name: mid_and_flank
+  state: 0000000000000000000000000/1/mortal:12,13/mortal:7,17
+  notes: middle position taken
 - name: mixed_mid_edges
   state: 0000000000000000000000000/1/mortal:11,13/mortal:7,17
   notes: standard mid-edges starting state

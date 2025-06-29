@@ -182,7 +182,7 @@ where
     }
 
     let starting_depth = {
-        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board) {
+        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board) && tt_entry.best_action != GenericMove::NULL_MOVE {
             let mut best_child_state = root_board.clone();
             let active_god = root_state.get_active_god();
             active_god.make_move(&mut best_child_state, tt_entry.best_action);

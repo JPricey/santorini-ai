@@ -88,7 +88,7 @@ fn do_battle<'a>(
                     break;
                 }
                 Err(e) => {
-                    eprintln!("Error receiving message: {:?}", e);
+                    panic!("Error receiving message: {:?}", e);
                 }
             }
         }
