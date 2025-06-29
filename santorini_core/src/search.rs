@@ -9,7 +9,7 @@ use crate::{
     board::FullGameState,
     gods::{
         GodPower,
-        generic::{GenericMove, TT_MATCH_SCORE},
+        generic::{GenericMove, KILLER_MATCH_SCORE, TT_MATCH_SCORE},
     },
     nnue::LabeledAccumulator,
     player::Player,
@@ -17,6 +17,8 @@ use crate::{
 };
 
 use super::{board::BoardState, transposition_table::TranspositionTable};
+
+pub const MAX_DEPTH: usize = 127;
 
 pub type Hueristic = i32;
 pub const WINNING_SCORE: Hueristic = 10_000;
@@ -125,6 +127,7 @@ pub struct SearchState {
     pub last_fully_completed_depth: usize,
     pub best_move: Option<BestSearchResult>,
     pub nodes_visited: usize,
+    pub killer_move_table: [Option<GenericMove>; MAX_DEPTH],
 }
 
 impl Default for SearchState {
@@ -133,6 +136,7 @@ impl Default for SearchState {
             last_fully_completed_depth: 0,
             best_move: None,
             nodes_visited: 0,
+            killer_move_table: [None; MAX_DEPTH],
         }
     }
 }
@@ -470,12 +474,24 @@ where
         }
     }
 
+    let mut killer_old_idx = 1000;
+    if let Some(killer) = search_state.killer_move_table[depth as usize] {
+        for i in 0..child_moves.len() {
+            killer_old_idx = i;
+            if child_moves[i] == killer {
+                child_moves[i].set_score(KILLER_MATCH_SCORE);
+                break;
+            }
+        }
+    }
+
     if track_used {
         search_context.tt.stats.used_value += 1;
     } else if track_unused {
         search_context.tt.stats.unused_value += 1;
     }
 
+    let mut best_action_idx = 0;
     let mut best_action = child_moves[0];
     let mut best_score = Hueristic::MIN;
 
@@ -485,7 +501,6 @@ where
     while child_action_index < child_moves.len() {
         _select_next_action(&mut child_moves, child_action_index);
         let child_action = child_moves[child_action_index];
-        child_action_index += 1;
 
         active_god.make_move(state, child_action);
 
@@ -507,6 +522,7 @@ where
         if score > best_score {
             best_score = score;
             best_action = child_action;
+            best_action_idx = child_action_index;
 
             if depth == 0 && !should_stop {
                 let new_best_move = BestSearchResult::new(
@@ -536,6 +552,7 @@ where
         }
 
         active_god.unmake_move(state, child_action);
+        child_action_index += 1;
     }
 
     if !(search_context.should_stop() || T::should_stop(&search_state)) {
@@ -546,6 +563,10 @@ where
         } else {
             SearchScoreType::Exact
         };
+
+        if alpha != alpha_orig && best_action_idx > 2 {
+            search_state.killer_move_table[depth as usize] = Some(best_action);
+        }
 
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
