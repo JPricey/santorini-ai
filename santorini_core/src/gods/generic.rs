@@ -17,6 +17,7 @@ pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 pub const MOVE_WINNING_SCORE: MoveScore = MoveScore::MAX;
 pub const TT_MATCH_SCORE: MoveScore = MOVE_WINNING_SCORE - 1;
 pub const KILLER_MATCH_SCORE: MoveScore = TT_MATCH_SCORE - 1;
+pub const LOWEST_SPECIAL_SCORE: MoveScore = KILLER_MATCH_SCORE;
 
 pub const LOWER_POSITION_MASK: u8 = 0b11111;
 pub const POSITION_WIDTH: usize = 5;

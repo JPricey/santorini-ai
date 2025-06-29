@@ -124,7 +124,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
 
-        let baseline_score = 50
+        let baseline_score = 70
             - GRID_POSITION_SCORES[moving_worker_start_pos as usize]
             - WORKER_HEIGHT_SCORES[worker_starting_height];
 

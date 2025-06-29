@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     board::FullGameState,
     gods::{
-        GodPower,
-        generic::{GenericMove, KILLER_MATCH_SCORE, TT_MATCH_SCORE},
+        generic::{GenericMove, KILLER_MATCH_SCORE, LOWEST_SPECIAL_SCORE, TT_MATCH_SCORE}, GodPower
     },
     nnue::LabeledAccumulator,
     player::Player,
@@ -335,6 +334,10 @@ fn _q_extend(
 fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
     let mut best_index = start_index;
     let mut best_score = actions[start_index].get_score();
+    if best_score >= LOWEST_SPECIAL_SCORE {
+        return;
+    }
+
     let mut i = start_index + 1;
     while i < actions.len() {
         let score = actions[i].get_score();
@@ -465,21 +468,28 @@ where
         return score;
     }
 
+    let mut special_score_index = 0;
+
     if let Some(tt_value) = tt_entry {
         for i in 0..child_moves.len() {
             if child_moves[i] == tt_value.best_action {
                 child_moves[i].set_score(TT_MATCH_SCORE);
+                if i != special_score_index {
+                    child_moves.swap(special_score_index, i);
+                    special_score_index += 1;
+                }
                 break;
             }
         }
     }
 
-    let mut killer_old_idx = 1000;
     if let Some(killer) = search_state.killer_move_table[depth as usize] {
-        for i in 0..child_moves.len() {
-            killer_old_idx = i;
+        for i in special_score_index..child_moves.len() {
             if child_moves[i] == killer {
                 child_moves[i].set_score(KILLER_MATCH_SCORE);
+                if i != special_score_index {
+                    child_moves.swap(special_score_index, i);
+                }
                 break;
             }
         }
@@ -501,7 +511,6 @@ where
     while child_action_index < child_moves.len() {
         _select_next_action(&mut child_moves, child_action_index);
         let child_action = child_moves[child_action_index];
-
         active_god.make_move(state, child_action);
 
         let score = -_inner_search::<T>(
@@ -554,6 +563,7 @@ where
         active_god.unmake_move(state, child_action);
         child_action_index += 1;
     }
+
 
     if !(search_context.should_stop() || T::should_stop(&search_state)) {
         let tt_score_type = if best_score <= alpha_orig {
