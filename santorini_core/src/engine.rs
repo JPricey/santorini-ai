@@ -53,10 +53,10 @@ pub struct EngineThreadWrapper {
 
 #[allow(dead_code)]
 type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<1_000_000>,
+    NodesVisitedStaticSearchTerminator<700_000>,
     AndStaticSearchTerminator<
         MaxDepthStaticSearchTerminator<8>,
-        NodesVisitedStaticSearchTerminator<500_000>,
+        NodesVisitedStaticSearchTerminator<350_000>,
     >,
 >;
 

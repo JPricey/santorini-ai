@@ -13,15 +13,17 @@ use std::time::{Duration, Instant};
 
 use santorini_core::board::FullGameState;
 use santorini_core::search::{
-    Hueristic, MaxDepthStaticSearchTerminator,
-    NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext, search_with_state,
+    search_with_state, AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext
 };
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 
 type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<1_500_000>,
-    MaxDepthStaticSearchTerminator<8>,
+    NodesVisitedStaticSearchTerminator<700_000>,
+    AndStaticSearchTerminator<
+        MaxDepthStaticSearchTerminator<8>,
+        NodesVisitedStaticSearchTerminator<350_000>,
+    >,
 >;
 
 #[derive(Debug)]
