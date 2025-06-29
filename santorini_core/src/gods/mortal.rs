@@ -5,7 +5,8 @@ use crate::{
         FullAction, GodName, GodPower,
         generic::{
             GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
-            MoveData, MoveGenFlags, RETURN_FIRST_MATE, STOP_ON_MATE, WORKER_HEIGHT_SCORES,
+            MoveData, MoveGenFlags, MoveScore, RETURN_FIRST_MATE, STOP_ON_MATE,
+            WORKER_HEIGHT_SCORES,
         },
     },
     player::Player,
@@ -124,7 +125,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
 
-        let baseline_score = 70
+        let baseline_score:MoveScore = 70
             - GRID_POSITION_SCORES[moving_worker_start_pos as usize]
             - WORKER_HEIGHT_SCORES[worker_starting_height];
 
@@ -174,7 +175,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                     let builds_that_result_in_checks = worker_builds & exactly_level_2;
                     let builds_that_remove_checks = worker_builds & level_3;
                     (
-                        check_count as u8,
+                        check_count as MoveScore,
                         builds_that_result_in_checks,
                         builds_that_remove_checks,
                     )
@@ -191,9 +192,9 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                 if F & INCLUDE_SCORE != 0 {
                     let check_count = check_count
                         + ((builds_that_result_in_checks & BitBoard::as_mask(worker_build_pos))
-                            .is_not_empty() as u8)
+                            .is_not_empty() as MoveScore)
                         - ((build_that_remove_checks & BitBoard::as_mask(worker_build_pos))
-                            .is_not_empty() as u8);
+                            .is_not_empty() as MoveScore);
                     new_action.set_score(baseline_score + check_count * 30);
                 }
                 result.push(new_action);

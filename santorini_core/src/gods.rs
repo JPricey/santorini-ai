@@ -11,11 +11,12 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
-pub mod artemis;
-pub mod generic;
-pub mod hephaestus;
 pub mod mortal;
-pub mod pan;
+pub mod generic;
+
+// pub mod artemis;
+// pub mod hephaestus;
+// pub mod pan;
 
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
@@ -203,11 +204,11 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 4] = [
+pub const ALL_GODS_BY_ID: [GodPower; 1] = [
     mortal::build_mortal(),
-    pan::build_pan(),
-    artemis::build_artemis(),
-    hephaestus::build_hephaestus(),
+    // pan::build_pan(),
+    // artemis::build_artemis(),
+    // hephaestus::build_hephaestus(),
 ];
 
 #[cfg(test)]

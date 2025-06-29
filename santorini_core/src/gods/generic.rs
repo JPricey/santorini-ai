@@ -7,8 +7,8 @@ pub const MATE_ONLY: MoveGenFlags = 1 << 2;
 pub const INCLUDE_SCORE: MoveGenFlags = 1 << 3;
 pub const RETURN_FIRST_MATE: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 
-pub const GRID_POSITION_SCORES: [u8; 25] = grid_position_builder(0, 1, 2, 3, 4, 5);
-pub const WORKER_HEIGHT_SCORES: [u8; 4] = [0, 20, 50, 21];
+pub const GRID_POSITION_SCORES: [MoveScore; 25] = grid_position_builder(0, 1, 2, 3, 4, 5);
+pub const WORKER_HEIGHT_SCORES: [MoveScore; 4] = [0, 20, 50, 21];
 
 pub type MoveScore = u8;
 pub type MoveData = u32;
