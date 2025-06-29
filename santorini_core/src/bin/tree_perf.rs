@@ -29,7 +29,7 @@ fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
             let state =
                 FullGameState::try_from("0000011000020004003011112/2/mortal:21,23/mortal:11,16")
                     .unwrap();
-            search_with_state::<MaxDepthStaticSearchTerminator<9>>(&mut search_state, &state)
+            search_with_state::<MaxDepthStaticSearchTerminator<11>>(&mut search_state, &state)
         }
         _ => panic!("Unknown scenario"),
     }
@@ -61,4 +61,4 @@ fn main() {
 
 // cargo run -p santorini_core --release --bin tree_perf -- -s 0
 // sudo sysctl kernel.perf_event_paranoid=1
-// RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=v0 -C target-cpu=native" cargo flamegraph -p santorini_core --bin tree_perf --release
+// RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=v0 -C target-cpu=native" cargo flamegraph -p santorini_core --bin tree_perf --release -- -s 2

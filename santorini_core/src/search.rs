@@ -616,7 +616,7 @@ where
 
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
-        if state.height_map[0].0.count_ones() <= 3 {
+        if state.height_map[0].count_ones() <= 1 {
             for base in state.get_all_permutations::<false>() {
                 let tt_value = TTValue {
                     best_action: GenericMove::NULL_MOVE,
