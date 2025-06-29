@@ -120,6 +120,10 @@ impl BitBoard {
     pub const fn is_not_empty(self) -> bool {
         self.0 != 0
     }
+
+    pub const fn count_ones(&self) -> u32 {
+        self.0.count_ones()
+    }
 }
 
 impl Iterator for BitBoard {

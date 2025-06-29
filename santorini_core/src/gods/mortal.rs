@@ -121,11 +121,32 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
 
     let all_workers_mask = board.workers[0] | board.workers[1];
 
+    let mut help_oppo_builds = BitBoard::EMPTY;
+    let mut hurt_oppo_builds = BitBoard::EMPTY;
+
+    for oppo_pos in board.workers[1 - current_player_idx] {
+        let oppo_height = board.get_height_for_worker(BitBoard::as_mask(oppo_pos));
+        let ns = NEIGHBOR_MAP[oppo_pos as usize];
+        hurt_oppo_builds |= ns & board.height_map[oppo_height];
+        help_oppo_builds |= ns & !board.height_map[oppo_height];
+    }
+
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
 
-        let baseline_score:MoveScore = 70
+        let mut help_self_builds = BitBoard::EMPTY;
+        let mut hurt_self_builds = BitBoard::EMPTY;
+
+        let other_self_workers = current_workers ^ moving_worker_start_mask;
+        for other_self_pos in other_self_workers {
+            let other_height = board.get_height_for_worker(BitBoard::as_mask(other_self_pos));
+            let ns = NEIGHBOR_MAP[other_self_pos as usize];
+            help_self_builds |= ns & !board.height_map[other_height];
+            hurt_self_builds |= ns & board.height_map[other_height];
+        }
+
+        let baseline_score: MoveScore = 0
             - GRID_POSITION_SCORES[moving_worker_start_pos as usize]
             - WORKER_HEIGHT_SCORES[worker_starting_height];
 
@@ -160,6 +181,10 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
 
+            let ns = NEIGHBOR_MAP[moving_worker_end_pos as usize];
+            let help_self_builds = help_self_builds | ns & !board.height_map[worker_end_height];
+            let hurt_self_builds = hurt_self_builds | ns & board.height_map[worker_end_height];
+
             let baseline_score = baseline_score
                 + GRID_POSITION_SCORES[moving_worker_end_pos as usize]
                 + WORKER_HEIGHT_SCORES[worker_end_height as usize];
@@ -190,12 +215,27 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                     worker_build_pos,
                 );
                 if F & INCLUDE_SCORE != 0 {
+                    let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                    let build_height = board.get_height_for_worker(worker_build_mask);
+
+                    let build_scores = 0
+                        + (help_self_builds & worker_build_mask).count_ones() as MoveScore
+                            * 9
+                            * (build_height + 1) as MoveScore
+                        - (hurt_self_builds & worker_build_mask).count_ones() as MoveScore * 40
+                        + (hurt_oppo_builds & worker_build_mask).count_ones() as MoveScore * 50
+                        - (help_oppo_builds & worker_build_mask).count_ones() as MoveScore
+                            * 11
+                            * (build_height + 1) as MoveScore;
+
                     let check_count = check_count
                         + ((builds_that_result_in_checks & BitBoard::as_mask(worker_build_pos))
                             .is_not_empty() as MoveScore)
                         - ((build_that_remove_checks & BitBoard::as_mask(worker_build_pos))
                             .is_not_empty() as MoveScore);
-                    new_action.set_score(baseline_score + check_count * 30);
+
+                    // new_action.set_score(baseline_score + build_height as MoveScore);
+                    new_action.set_score(baseline_score + build_scores * 20 + check_count * 2500);
                 }
                 result.push(new_action);
             }
