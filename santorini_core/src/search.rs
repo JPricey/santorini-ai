@@ -600,18 +600,21 @@ where
 
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
-        // TODO: bring this back??
-        // if state.height_map[0].0.count_ones() <= 3 {
-        //     for (base, child) in get_all_permutations_for_pair(state, &best_board) {
-        //         let tt_value = TTValue {
-        //             best_action: best_action,
-        //             search_depth: remaining_depth as u8,
-        //             score_type: tt_score_type,
-        //             score: best_score,
-        //         };
+        if state.height_map[0].0.count_ones() <= 3 {
+            for base in state.get_all_permutations::<false>() {
+                let tt_value = TTValue {
+                    best_action: GenericMove::NULL_MOVE,
+                    search_depth: remaining_depth as u8,
+                    score_type: tt_score_type,
+                    score: best_score,
+                    eval,
+                };
 
-        //         search_context.tt.insert(&base, tt_value);
-        //     }
+                search_context
+                    .tt
+                    .conditionally_insert_permutation(&base, tt_value);
+            }
+        }
         let tt_value = TTValue {
             best_action: best_action,
             search_depth: remaining_depth as u8,
@@ -619,7 +622,6 @@ where
             score: best_score,
             eval,
         };
-
         search_context.tt.insert(state, tt_value);
     }
 

@@ -80,6 +80,23 @@ impl TranspositionTable {
         self.entries[destination as usize] = Some(TTEntry { hash_code, value });
     }
 
+    pub fn conditionally_insert_permutation(&mut self, state: &BoardState, value: TTValue) {
+        if TranspositionTable::IS_TRACKING_STATS {
+            self.stats.insert += 1;
+        }
+
+        let hash_code = hash_obj(state);
+        let destination = hash_code % TABLE_SIZE;
+
+        // Don't replace other actually scored moves
+        if let Some(current_entry) = &self.entries[destination as usize] {
+            if current_entry.hash_code == hash_code {
+                return;
+            }
+        }
+        self.entries[destination as usize] = Some(TTEntry { hash_code, value });
+    }
+
     pub fn fetch(&mut self, state: &BoardState) -> Option<&TTValue> {
         let hash_code = hash_obj(state);
         let destination = hash_code % TABLE_SIZE;

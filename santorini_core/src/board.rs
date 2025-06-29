@@ -332,7 +332,7 @@ impl BoardState {
         result
     }
 
-    pub fn get_all_permutations(&self) -> Vec<Self> {
+    pub fn get_all_permutations<const INCLUDE_SELF: bool>(&self) -> Vec<Self> {
         let horz = self._flip_horz_clone();
         let vert = self._flip_vertical_clone();
         let hv = horz._flip_vertical_clone();
@@ -341,26 +341,30 @@ impl BoardState {
         let tv = trans._flip_vertical_clone();
         let tvh = th._flip_vertical_clone();
 
-        vec![self.clone(), horz, vert, hv, trans, th, tv, tvh]
+        if INCLUDE_SELF {
+            vec![self.clone(), horz, vert, hv, trans, th, tv, tvh]
+        } else {
+            vec![horz, vert, hv, trans, th, tv, tvh]
+        }
     }
 
-    /// Returns a canonically permuted board state
-    /// WARNING: this is done somewhat inefficiently by actually constructing a list of all permutations and
-    /// then finding the "smallest". We'll probably want this in the search loop at some point, but maybe not in this form.
-    pub fn get_canonical_permutation(&self) -> Self {
-        self.get_all_permutations()
-            .into_iter()
-            .min_by(|a, b| {
-                a.height_map[0]
-                    .cmp(b.height_map[0])
-                    .then(a.height_map[1].cmp(b.height_map[1]))
-                    .then(a.height_map[2].cmp(b.height_map[2]))
-                    .then(a.height_map[3].cmp(b.height_map[3]))
-                    .then(a.workers[0].cmp(b.workers[0]))
-                    .then(a.workers[1].cmp(b.workers[1]))
-            })
-            .unwrap()
-    }
+    // Returns a canonically permuted board state
+    // WARNING: this is done somewhat inefficiently by actually constructing a list of all permutations and
+    // then finding the "smallest". We'll probably want this in the search loop at some point, but maybe not in this form.
+    // pub fn get_canonical_permutation(&self) -> Self {
+    //     self.get_all_permutations()
+    //         .into_iter()
+    //         .min_by(|a, b| {
+    //             a.height_map[0]
+    //                 .cmp(b.height_map[0])
+    //                 .then(a.height_map[1].cmp(b.height_map[1]))
+    //                 .then(a.height_map[2].cmp(b.height_map[2]))
+    //                 .then(a.height_map[3].cmp(b.height_map[3]))
+    //                 .then(a.workers[0].cmp(b.workers[0]))
+    //                 .then(a.workers[1].cmp(b.workers[1]))
+    //         })
+    //         .unwrap()
+    // }
 }
 
 pub fn get_all_permutations_for_pair(

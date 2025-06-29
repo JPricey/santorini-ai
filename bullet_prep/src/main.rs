@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for line in reader.lines() {
             let (board, score, result) = convert_row_to_board_and_meta(&line?);
-            for perm in board.get_all_permutations() {
+            for perm in board.get_all_permutations::<true>() {
                 let bullet_board = BulletSantoriniBoard {
                     height_maps: perm.height_map,
                     worker_maps: perm.workers,

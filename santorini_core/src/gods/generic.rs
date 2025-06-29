@@ -50,9 +50,10 @@ impl PartialEq for GenericMove {
     }
 }
 
-pub const NULL_MOVE: GenericMove = GenericMove::new(0);
 
 impl GenericMove {
+    pub const NULL_MOVE: GenericMove = GenericMove::new(0);
+
     pub const fn new(data: MoveData) -> Self {
         Self { score: 0, data }
     }
