@@ -15,7 +15,7 @@ fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
             let state =
                 FullGameState::try_from("0000000000000000000000000/1/mortal:2,13/mortal:7,20")
                     .unwrap();
-            search_with_state::<MaxDepthStaticSearchTerminator<7>>(&mut search_state, &state)
+            search_with_state::<MaxDepthStaticSearchTerminator<8>>(&mut search_state, &state)
         }
         1 => {
             // Starting position
@@ -29,7 +29,7 @@ fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
             let state =
                 FullGameState::try_from("0000011000020004003011112/2/mortal:21,23/mortal:11,16")
                     .unwrap();
-            search_with_state::<MaxDepthStaticSearchTerminator<11>>(&mut search_state, &state)
+            search_with_state::<MaxDepthStaticSearchTerminator<12>>(&mut search_state, &state)
         }
         _ => panic!("Unknown scenario"),
     }
