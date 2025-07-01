@@ -1,3 +1,5 @@
+#![feature(portable_simd)]
+
 pub mod board;
 pub mod bitboard;
 pub mod square;

@@ -1,3 +1,4 @@
+
 use battler::{Corpus, StartingPosition, read_corpus};
 use rand::{
     Rng,
@@ -28,6 +29,7 @@ fn _seed_corpus(corpus: &mut Corpus) {
             name: format!("random_start_{}", i + 1),
             state: position,
             notes: "Position after completely random worker placements".to_owned(),
+            is_enabled: true,
         });
     }
 
@@ -37,6 +39,7 @@ fn _seed_corpus(corpus: &mut Corpus) {
             name: format!("random_2_moves_{}", i + 1),
             state: position,
             notes: "Position after random worker placements and random 2 ply".to_owned(),
+            is_enabled: true,
         });
     }
 
@@ -46,6 +49,7 @@ fn _seed_corpus(corpus: &mut Corpus) {
             name: format!("random_3_moves_{}", i + 1),
             state: position,
             notes: "Position after random worker placements followed by random 3 ply".to_owned(),
+            is_enabled: true,
         });
     }
 }

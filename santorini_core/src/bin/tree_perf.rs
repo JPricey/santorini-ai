@@ -3,8 +3,8 @@ use std::time::Instant;
 
 use santorini_core::{
     board::FullGameState,
-    search::{MaxDepthStaticSearchTerminator, SearchContext, SearchState, search_with_state},
-    transposition_table::TranspositionTable,
+    search::{search_with_state, MaxDepthStaticSearchTerminator, SearchContext, SearchState},
+    transposition_table::TranspositionTable, utils::print_cpu_arch,
 };
 
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
@@ -43,6 +43,7 @@ struct TreePerfCliArgs {
 
 fn main() {
     let args = TreePerfCliArgs::parse();
+    print_cpu_arch();
     println!("Running Scenario {}", args.scenario);
 
     let mut tt = TranspositionTable::new();

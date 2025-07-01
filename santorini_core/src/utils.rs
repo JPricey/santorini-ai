@@ -1,3 +1,6 @@
+#![feature(stdarch_x86_avx512)]
+#![feature(avx512_target_feature)]
+
 #![allow(unused)]
 use crate::{bitboard::BitBoard, board::BOARD_WIDTH};
 
@@ -99,8 +102,15 @@ pub fn print_cpu_arch() {
     {
         println!("sse2: {}", std::is_x86_feature_detected!("sse2"));
         println!("avx: {}", std::is_x86_feature_detected!("avx"));
+        println!("avx512f: {}", std::is_x86_feature_detected!("avx512f"));
         println!("avx2: {}", std::is_x86_feature_detected!("avx2"));
         println!("fma: {}", std::is_x86_feature_detected!("fma"));
         println!("bmi2: {}", std::is_x86_feature_detected!("bmi2"));
+    }
+
+    #[cfg(target_feature = "avx2")]
+    {
+        use std::arch::x86_64::*;
+        println!("using avx2");
     }
 }

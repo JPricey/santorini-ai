@@ -1,4 +1,9 @@
-use std::{fmt::Debug, mem};
+use std::{
+    fmt::Debug,
+    mem,
+    ops::{Deref, DerefMut},
+    simd::{Simd, cmp::SimdOrd, num::SimdInt},
+};
 
 use crate::{bitboard::BitBoard, board::BoardState, player::Player, search::Hueristic};
 
@@ -7,10 +12,28 @@ const QB: i32 = 64;
 
 const SCALE: i32 = 400;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+const EVAL_LANES: usize = 64;
+const FEATURE_LANES: usize = 64;
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[repr(C, align(64))]
+pub struct Align64<T>(pub T);
+
+impl<T, const SIZE: usize> Deref for Align64<[T; SIZE]> {
+    type Target = [T; SIZE];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T, const SIZE: usize> DerefMut for Align64<[T; SIZE]> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Accumulator {
-    vals: [i16; HIDDEN_SIZE],
+    vals: Align64<[i16; HIDDEN_SIZE]>,
 }
 
 #[repr(C)]
@@ -20,14 +43,6 @@ pub struct Network {
     output_weights: [i16; HIDDEN_SIZE],
     output_bias: i16,
 }
-
-// const FEATURES: usize = 16 * (5 * 5 * 5 * 5 + 3 * 3 * 3 * 3);
-// const HIDDEN_SIZE: usize = 256;
-// static MODEL: Network = unsafe {
-//     mem::transmute(*include_bytes!(
-//         "../.././models/double_tuple-100/quantised.bin"
-//     ))
-// };
 
 const FEATURES: usize = 375;
 const HIDDEN_SIZE: usize = 512;
@@ -42,36 +57,44 @@ static MODEL: Network = unsafe {
     ))
 };
 
-// const FEATURES: usize = 375;
-// const HIDDEN_SIZE: usize = 512;
-// static MODEL: Network = unsafe {
-//     mem::transmute(*include_bytes!(
-//         "../.././models/per_square_fixed-10/quantised.bin"
-//     ))
-// };
-
 impl Accumulator {
     pub fn new() -> Self {
-        MODEL.feature_bias
+        MODEL.feature_bias.clone()
     }
 
     pub fn add_feature(&mut self, feature_idx: usize) {
-        for (i, d) in self
-            .vals
-            .iter_mut()
-            .zip(&MODEL.feature_weights[feature_idx].vals)
-        {
-            *i += *d
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let wts = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[feature_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sum = acc + wts;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
         }
     }
 
     pub fn remove_feature(&mut self, feature_idx: usize) {
-        for (i, d) in self
-            .vals
-            .iter_mut()
-            .zip(&MODEL.feature_weights[feature_idx].vals)
-        {
-            *i -= *d
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let wts = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[feature_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sum = acc - wts;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
+        }
+    }
+
+    pub fn add_remove_feature(&mut self, add_idx: usize, sub_idx: usize) {
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let add = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[add_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sub = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[sub_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sum = add - sub + acc;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
         }
     }
 }
@@ -109,8 +132,8 @@ impl LabeledAccumulator {
     pub fn replace_features(&mut self, feature_array: FeatureArray) {
         for (current, &new) in self.feature_array.iter_mut().zip(feature_array.iter()) {
             if *current != new {
-                self.accumulator.remove_feature(*current as usize);
-                self.accumulator.add_feature(new as usize);
+                self.accumulator
+                    .add_remove_feature(new as usize, *current as usize);
                 *current = new;
             }
         }
@@ -138,19 +161,28 @@ fn crelu(x: i16) -> i32 {
 }
 
 impl Network {
-    #[inline(never)]
     pub fn evaluate(&self, us: &Accumulator) -> i32 {
-        // Crelu init:
-        // let mut output: i32 = MODEL.output_bias as i32;
-        // Screlu init:
-        let mut output: i32 = 0;
+        let mut simd_sum = Simd::<i32, EVAL_LANES>::splat(0);
 
-        for (&input, &weight) in us.vals.iter().zip(&self.output_weights[..HIDDEN_SIZE]) {
-            output += screlu(input) * i32::from(weight);
+        let min = Simd::splat(0 as i16);
+        let max = Simd::splat(QA as i16);
+
+        for i in (0..HIDDEN_SIZE).step_by(EVAL_LANES) {
+            let acc = Simd::<i16, EVAL_LANES>::from_slice(&us.vals[i..i + EVAL_LANES])
+                .simd_clamp(min, max)
+                .cast::<i32>();
+            let acc = acc * acc;
+            let weights =
+                Simd::<i16, EVAL_LANES>::from_slice(&MODEL.output_weights[i..i + EVAL_LANES])
+                    .cast::<i32>();
+
+            let prod = acc * weights;
+            simd_sum += prod;
         }
-        // Screlu only adjustment
-        output = (output / QA) + MODEL.output_bias as i32;
 
+        let mut output = simd_sum.reduce_sum();
+
+        output = (output / QA) + MODEL.output_bias as i32;
         output *= SCALE;
         output /= i32::from(QA) * i32::from(QB);
 
@@ -208,7 +240,7 @@ pub fn build_feature_array(board: &BoardState) -> FeatureArray {
 mod tests {
 
     use super::*;
-    use crate::random_utils::RandomSingleGameStateGenerator;
+    use crate::{board::FullGameState, random_utils::RandomSingleGameStateGenerator};
 
     #[test]
     fn test_incremental_updates() {
@@ -223,6 +255,21 @@ mod tests {
 
             assert_eq!(from_scratch, acc);
             assert_eq!(from_scratch.evaluate(), acc.evaluate());
+        }
+    }
+
+    #[test]
+    fn test_consistent_choices() {
+        // Not really a test I just want to see some example outputs that aren't random
+        let mut game_state = FullGameState::new_basic_state_mortals();
+
+        while game_state.board.get_winner().is_none() {
+            let from_scratch = LabeledAccumulator::new_from_scratch(&game_state.board);
+            let eval = from_scratch.evaluate();
+
+            println!("{:?}: {}", game_state, eval);
+
+            game_state = game_state.get_next_states()[0].clone();
         }
     }
 }
