@@ -89,3 +89,18 @@ mod tests {
         }
     }
 }
+
+pub fn print_cpu_arch() {
+    println!("Target arch: {}", std::env::consts::ARCH);
+    println!("Target family: {}", std::env::consts::FAMILY);
+    println!("Target os: {}", std::env::consts::OS);
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        println!("sse2: {}", std::is_x86_feature_detected!("sse2"));
+        println!("avx: {}", std::is_x86_feature_detected!("avx"));
+        println!("avx2: {}", std::is_x86_feature_detected!("avx2"));
+        println!("fma: {}", std::is_x86_feature_detected!("fma"));
+        println!("bmi2: {}", std::is_x86_feature_detected!("bmi2"));
+    }
+}
