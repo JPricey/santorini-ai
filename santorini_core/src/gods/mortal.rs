@@ -81,13 +81,8 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     let build_position = action.mortal_build_position();
     let build_mask = BitBoard::as_mask_u8(build_position);
 
-    for height in 0..4 {
-        if (board.height_map[height] & build_mask).is_empty() {
-            board.height_map[height] ^= build_mask;
-            return;
-        }
-    }
-    panic!("Expected to build, but couldn't")
+    let build_height = board.get_height_for_worker(build_mask);
+    board.height_map[build_height] |= build_mask;
 }
 
 pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
@@ -102,12 +97,8 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     let build_position = action.mortal_build_position();
     let build_mask = BitBoard::as_mask_u8(build_position);
 
-    for height in (0..4).rev() {
-        if (board.height_map[height] & build_mask).is_not_empty() {
-            board.height_map[height] ^= build_mask;
-            break;
-        }
-    }
+    let build_height = board.get_true_height(build_mask);
+    board.height_map[build_height - 1] ^= build_mask;
 }
 
 fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
