@@ -7,13 +7,13 @@ use std::{
 
 use crate::{bitboard::BitBoard, board::BoardState, player::Player, search::Hueristic};
 
-const QA: i32 = 255;
-const QB: i32 = 64;
+pub const QA: i32 = 255;
+pub const QB: i32 = 64;
 
-const SCALE: i32 = 400;
+pub const SCALE: i32 = 400;
 
-const EVAL_LANES: usize = 64;
-const FEATURE_LANES: usize = 64;
+pub const EVAL_LANES: usize = 64;
+pub const FEATURE_LANES: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[repr(C, align(64))]
@@ -33,25 +33,25 @@ impl<T, const SIZE: usize> DerefMut for Align64<[T; SIZE]> {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Accumulator {
-    vals: Align64<[i16; HIDDEN_SIZE]>,
+    pub vals: Align64<[i16; HIDDEN_SIZE]>,
 }
 
 #[repr(C)]
 pub struct Network {
-    feature_weights: [Accumulator; FEATURES],
-    feature_bias: Accumulator,
-    output_weights: [i16; HIDDEN_SIZE],
-    output_bias: i16,
+    pub feature_weights: [Accumulator; FEATURES],
+    pub feature_bias: Accumulator,
+    pub output_weights: [i16; HIDDEN_SIZE],
+    pub output_bias: i16,
 }
 
-const FEATURES: usize = 375;
-const HIDDEN_SIZE: usize = 512;
-const FEATURE_COUNT: usize = 29;
+pub const FEATURES: usize = 375;
+pub const HIDDEN_SIZE: usize = 512;
+pub const FEATURE_COUNT: usize = 29;
 
 type FeatureType = u16;
 type FeatureArray = [u16; FEATURE_COUNT];
 
-static MODEL: Network = unsafe {
+pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
         "../.././models/basic_screlu_fixed-100/quantised.bin"
     ))

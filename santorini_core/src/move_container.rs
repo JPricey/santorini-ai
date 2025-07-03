@@ -89,7 +89,7 @@ pub struct ChildMoveContainer<'a> {
 }
 
 impl<'a> ChildMoveContainer<'a> {
-    pub fn get_child(&mut self) -> ChildMoveContainer {
+    pub fn get_child(&mut self) -> ChildMoveContainer<'_> {
         ChildMoveContainer {
             parent_move_container: self.parent_move_container,
             head: self.tail,
