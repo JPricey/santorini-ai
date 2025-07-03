@@ -102,17 +102,12 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
 }
 
 fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
-
     let current_player_idx = player as usize;
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     if F & MATE_ONLY != 0 {
         current_workers &= board.exactly_level_2()
     }
-    let capacity = if F & MATE_ONLY != 0 {
-        1
-    } else {
-        128
-    };
+    let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
 
     let mut result = Vec::with_capacity(capacity);
 
@@ -215,12 +210,16 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                     let build_height = board.get_height_for_worker(worker_build_mask);
 
+                    let bh2 = ((build_height + 1) * (build_height + 1)) as MoveScore;
+
                     let build_scores = 0
                         + (help_self_builds & worker_build_mask).count_ones() as MoveScore
                             * 9
                             * (build_height + 1) as MoveScore
-                        - (hurt_self_builds & worker_build_mask).count_ones() as MoveScore * 40
-                        + (hurt_oppo_builds & worker_build_mask).count_ones() as MoveScore * 50
+                        - bh2 * (hurt_self_builds & worker_build_mask).count_ones() as MoveScore
+                        + bh2
+                            * (hurt_oppo_builds & worker_build_mask).count_ones() as MoveScore
+                            * 2
                         - (help_oppo_builds & worker_build_mask).count_ones() as MoveScore
                             * 11
                             * (build_height + 1) as MoveScore;
