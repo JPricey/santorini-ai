@@ -120,6 +120,12 @@ fn print_hidden(hidden: &HiddenVis) {
                     print!("{square}");
                 }
                 print!(" ");
+                if o > 0 && h >= 2 {
+                    break;
+                }
+            }
+            if o < 2 {
+            print!("|");
             }
         }
         println!("");
