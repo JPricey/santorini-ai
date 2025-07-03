@@ -241,6 +241,6 @@ pub fn main() {
     }
 }
 
-// RUSTFLAGS='-C target-cpu=native' cargo run -p datagen --release
+// cargo run -p datagen --release
 // For specific threadcount (default is to use num_cpus):
 // cargo run -p datagen --release -- -j 8
