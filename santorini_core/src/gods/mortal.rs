@@ -102,13 +102,19 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
 }
 
 fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
-    let mut result = Vec::with_capacity(128);
 
     let current_player_idx = player as usize;
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     if F & MATE_ONLY != 0 {
         current_workers &= board.exactly_level_2()
     }
+    let capacity = if F & MATE_ONLY != 0 {
+        1
+    } else {
+        128
+    };
+
+    let mut result = Vec::with_capacity(capacity);
 
     let all_workers_mask = board.workers[0] | board.workers[1];
 
