@@ -53,7 +53,7 @@ type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/gen_2_512-100/quantised.bin"
+        "../.././models/gen_2_512_screlu-100/quantised.bin"
     ))
 };
 
@@ -159,7 +159,7 @@ impl Network {
             let acc = Simd::<i16, EVAL_LANES>::from_slice(&us.vals[i..i + EVAL_LANES])
                 .simd_clamp(min, max)
                 .cast::<i32>();
-            // let acc = acc * acc;
+            let acc = acc * acc;
             let weights =
                 Simd::<i16, EVAL_LANES>::from_slice(&MODEL.output_weights[i..i + EVAL_LANES])
                     .cast::<i32>();
@@ -170,8 +170,8 @@ impl Network {
 
         let mut output = simd_sum.reduce_sum();
 
-        // output = (output / QA) + MODEL.output_bias as i32;
-        output += MODEL.output_bias as i32;
+        output = (output / QA) + MODEL.output_bias as i32;
+        // output += MODEL.output_bias as i32;
 
         output *= SCALE;
         output /= i32::from(QA) * i32::from(QB);

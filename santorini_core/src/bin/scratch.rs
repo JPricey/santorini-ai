@@ -97,7 +97,7 @@ fn scale_value(value: i16, range: i16) -> f64 {
     f_value
 }
 
-const HIDDEN_SCALE_VAL: i16 = 250;
+const HIDDEN_SCALE_VAL: i16 = 500;
 
 fn hidden_weight_to_color(weight: i16) -> colored::Color {
     let gradient = colorous::INFERNO;
