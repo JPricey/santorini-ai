@@ -100,7 +100,7 @@ fn scale_value(value: i16, range: i16) -> f64 {
 const HIDDEN_SCALE_VAL: i16 = 500;
 
 fn hidden_weight_to_color(weight: i16) -> colored::Color {
-    let gradient = colorous::INFERNO;
+    let gradient = colorous::VIRIDIS;
     let colorous::Color { r, g, b } =
         gradient.eval_continuous(scale_value(weight, HIDDEN_SCALE_VAL));
     let color = colored::Color::TrueColor { r, g, b };
