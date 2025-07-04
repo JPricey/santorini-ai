@@ -53,7 +53,7 @@ type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/basic_screlu_fixed-100/quantised.bin"
+        "../.././models/gen_2_512-100/quantised.bin"
     ))
 };
 
@@ -148,18 +148,6 @@ impl LabeledAccumulator {
     }
 }
 
-#[allow(dead_code)]
-fn screlu(x: i16) -> i32 {
-    let v = i32::from(x.clamp(0, QA as i16));
-    v * v
-}
-
-#[allow(dead_code)]
-fn crelu(x: i16) -> i32 {
-    let v = i32::from(x.clamp(0, QA as i16));
-    v
-}
-
 impl Network {
     pub fn evaluate(&self, us: &Accumulator) -> i32 {
         let mut simd_sum = Simd::<i32, EVAL_LANES>::splat(0);
@@ -171,7 +159,7 @@ impl Network {
             let acc = Simd::<i16, EVAL_LANES>::from_slice(&us.vals[i..i + EVAL_LANES])
                 .simd_clamp(min, max)
                 .cast::<i32>();
-            let acc = acc * acc;
+            // let acc = acc * acc;
             let weights =
                 Simd::<i16, EVAL_LANES>::from_slice(&MODEL.output_weights[i..i + EVAL_LANES])
                     .cast::<i32>();
@@ -182,7 +170,9 @@ impl Network {
 
         let mut output = simd_sum.reduce_sum();
 
-        output = (output / QA) + MODEL.output_bias as i32;
+        // output = (output / QA) + MODEL.output_bias as i32;
+        output += MODEL.output_bias as i32;
+
         output *= SCALE;
         output /= i32::from(QA) * i32::from(QB);
 

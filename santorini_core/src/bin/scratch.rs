@@ -125,13 +125,19 @@ fn print_hidden(hidden: &HiddenVis) {
                 }
             }
             if o < 2 {
-            print!("|");
+                print!("|");
             }
         }
         println!("");
     }
     for h in 0..5 {
-        print!("{h}A B C D E ");
+        print!(" ABCDE");
+    }
+    for _ in 0..2 {
+        print!("  ");
+        for h in 0..3 {
+            print!(" ABCDE");
+        }
     }
     println!("");
 }

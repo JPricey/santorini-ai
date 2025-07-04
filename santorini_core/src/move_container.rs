@@ -48,7 +48,6 @@ impl<'a> Iterator for MortalMoveIterator<'a> {
 
 use crate::gods::generic::GenericMove;
 
-
 // Somehow sharing this between multiple levels is slower than creating a new vec each time.
 // Pretty amazing. Not sure how.
 pub struct ParentMoveContainer {
@@ -67,7 +66,7 @@ impl ParentMoveContainer {
         }
     }
 
-    pub fn get_child(&mut self) -> ChildMoveContainer {
+    pub fn get_child(&mut self) -> ChildMoveContainer<'_> {
         ChildMoveContainer {
             parent_move_container: self,
             head: 0,
