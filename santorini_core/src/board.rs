@@ -287,6 +287,14 @@ impl BoardState {
         workers_mask.into_iter().collect()
     }
 
+    pub fn as_basic_game_state(&self) -> FullGameState {
+        FullGameState::new(
+            self.clone(),
+            GodName::Mortal.to_power(),
+            GodName::Mortal.to_power(),
+        )
+    }
+
     fn _flip_vertical_mut(&mut self) {
         self.height_map[0] = _flip_bitboard_vertical(self.height_map[0]);
         self.height_map[1] = _flip_bitboard_vertical(self.height_map[1]);

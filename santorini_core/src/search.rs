@@ -182,7 +182,9 @@ where
     }
 
     let starting_depth = {
-        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board) && tt_entry.best_action != GenericMove::NULL_MOVE {
+        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board)
+            && tt_entry.best_action != GenericMove::NULL_MOVE
+        {
             let mut best_child_state = root_board.clone();
             let active_god = root_state.get_active_god();
             active_god.make_move(&mut best_child_state, tt_entry.best_action);
@@ -225,6 +227,8 @@ where
             Hueristic::MIN + 1,
             Hueristic::MAX,
         );
+
+        search_state.last_fully_completed_depth = depth;
 
         if search_state.best_move.is_none()
             && !(search_context.should_stop() || T::should_stop(&search_state))
@@ -490,20 +494,28 @@ where
     ss[ply].eval = eval;
 
     let improving = if ply >= 2 {
-        ss[ply].eval > ss[ply - 2].eval
+        eval > ss[ply - 2].eval
     } else if ply >= 4 {
-        ss[ply].eval > ss[ply - 4].eval
+        eval > ss[ply - 4].eval
     } else {
         true
     };
 
+    // Eval shifts we care about:
+    // go from winning to even more winning within one move
+    //  -> we're doing better than we think we are
+    // We're winning, but our best move reduces eval
+    //  -> doesn't work to check _all_ moves, becuase we will just look at bad moves
+    // Even/odd. The current perspective has a positive bias. So we'll always think we're a bit
+    // better than we really are.
+
     // Reverse Futility Pruning
-    if rfp_valid {
-        let rfp_margin = 150 + 100 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
-        if rfp_valid && eval - rfp_margin >= beta {
-            return beta;
-        }
-    }
+    // if rfp_valid {
+    //     let rfp_margin = 300 + 150 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
+    //     if rfp_valid && eval - rfp_margin >= beta {
+    //         return beta;
+    //     }
+    // }
 
     let mut special_score_index = 0;
 
@@ -639,10 +651,6 @@ where
             eval,
         };
         search_context.tt.insert(state, tt_value);
-    }
-
-    if ply == 0 {
-        search_state.last_fully_completed_depth = remaining_depth;
     }
 
     best_score
