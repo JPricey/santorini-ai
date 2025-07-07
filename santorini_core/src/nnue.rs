@@ -45,7 +45,7 @@ pub struct Network {
 }
 
 pub const FEATURES: usize = 375;
-pub const HIDDEN_SIZE: usize = 1024;
+pub const HIDDEN_SIZE: usize = 512;
 pub const FEATURE_COUNT: usize = 29;
 
 type FeatureType = u16;
@@ -53,7 +53,7 @@ type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/gen_2_1024-100/quantised.bin"
+        "../.././models/gen_2_512_screlu-100/quantised.bin"
     ))
 };
 

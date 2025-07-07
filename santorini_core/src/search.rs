@@ -12,7 +12,7 @@ use crate::{
         GodPower,
         generic::{GenericMove, KILLER_MATCH_SCORE, LOWEST_SPECIAL_SCORE, TT_MATCH_SCORE},
     },
-    nnue::LabeledAccumulator,
+    nnue::{self, LabeledAccumulator},
     player::Player,
     transposition_table::{SearchScoreType, TTValue},
 };
@@ -652,6 +652,24 @@ where
         };
         search_context.tt.insert(state, tt_value);
     }
+
+    // if best_score > eval + 1000 {
+    //     eprintln!("SCORE DELTA: {best_score} {eval}");
+    //     state.print_to_console();
+    // }
+
+    // if best_score < eval - 1000 {
+    //     state.print_to_console();
+    //     active_god.make_move(state, best_action);
+
+    //     nnue_acc.replace_from_board(state);
+    //     let next_eval = nnue_acc.evaluate();
+
+    //     state.print_to_console();
+    //     active_god.unmake_move(state, best_action);
+
+    //     eprintln!("^^^ SCORE DELTA: best: {best_score} eval: {eval} next_eval: {next_eval}");
+    // }
 
     best_score
 }
