@@ -12,7 +12,7 @@ use crate::{
         GodPower,
         generic::{GenericMove, KILLER_MATCH_SCORE, LOWEST_SPECIAL_SCORE, TT_MATCH_SCORE},
     },
-    nnue::{self, LabeledAccumulator},
+    nnue::LabeledAccumulator,
     player::Player,
     transposition_table::{SearchScoreType, TTValue},
 };
@@ -501,21 +501,13 @@ where
         true
     };
 
-    // Eval shifts we care about:
-    // go from winning to even more winning within one move
-    //  -> we're doing better than we think we are
-    // We're winning, but our best move reduces eval
-    //  -> doesn't work to check _all_ moves, becuase we will just look at bad moves
-    // Even/odd. The current perspective has a positive bias. So we'll always think we're a bit
-    // better than we really are.
-
     // Reverse Futility Pruning
-    // if rfp_valid {
-    //     let rfp_margin = 300 + 150 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
-    //     if rfp_valid && eval - rfp_margin >= beta {
-    //         return beta;
-    //     }
-    // }
+    if rfp_valid {
+        let rfp_margin = 400 + 210 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
+        if rfp_valid && eval - rfp_margin >= beta {
+            return beta;
+        }
+    }
 
     let mut special_score_index = 0;
 
@@ -652,24 +644,6 @@ where
         };
         search_context.tt.insert(state, tt_value);
     }
-
-    // if best_score > eval + 1000 {
-    //     eprintln!("SCORE DELTA: {best_score} {eval}");
-    //     state.print_to_console();
-    // }
-
-    // if best_score < eval - 1000 {
-    //     state.print_to_console();
-    //     active_god.make_move(state, best_action);
-
-    //     nnue_acc.replace_from_board(state);
-    //     let next_eval = nnue_acc.evaluate();
-
-    //     state.print_to_console();
-    //     active_god.unmake_move(state, best_action);
-
-    //     eprintln!("^^^ SCORE DELTA: best: {best_score} eval: {eval} next_eval: {next_eval}");
-    // }
 
     best_score
 }

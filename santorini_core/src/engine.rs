@@ -11,7 +11,9 @@ use std::{
 use crate::{
     board::FullGameState,
     search::{
-        search_with_state, AndStaticSearchTerminator, BestSearchResult, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator, SearchContext
+        AndStaticSearchTerminator, BestSearchResult, MaxDepthStaticSearchTerminator,
+        NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator,
+        SearchContext, search_with_state,
     },
     transposition_table::TranspositionTable,
 };
@@ -92,7 +94,7 @@ impl EngineThreadWrapper {
                 let mut worker_state = engine_thread_ctx.worker_state.lock().unwrap();
                 *worker_state = EngineThreadState::Pending;
             }
-            eprintln!("Engine thread is pending");
+            // println!("Engine thread is pending");
 
             let Ok(msg) = engine_thread_ctx.receiver.recv() else {
                 eprintln!("EngineThread receiver received error");
