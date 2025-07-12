@@ -3,8 +3,9 @@ use std::time::Instant;
 
 use santorini_core::{
     board::FullGameState,
-    search::{search_with_state, MaxDepthStaticSearchTerminator, SearchContext, SearchState},
-    transposition_table::TranspositionTable, utils::print_cpu_arch,
+    search::{MaxDepthStaticSearchTerminator, SearchContext, SearchState, search_with_state},
+    transposition_table::TranspositionTable,
+    utils::print_cpu_arch,
 };
 
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
@@ -55,7 +56,7 @@ fn main() {
         let duration = end - now;
         println!("Took {:.4}s", duration.as_secs_f32());
         println!("{:?}", res);
-        // println!("{:?}", tt);
+        println!("{:?}", tt);
         tt.reset();
     }
 }

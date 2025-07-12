@@ -27,7 +27,7 @@ pub struct TTValue {
 pub struct TTEntry {
     pub hash_code: HashCodeType,
     pub value: TTValue,
-    pub board: BoardState,
+    // pub board: BoardState,
 }
 
 pub struct TranspositionTable {
@@ -81,7 +81,7 @@ impl TranspositionTable {
         self.entries[destination as usize] = Some(TTEntry {
             hash_code,
             value,
-            board: state.clone(),
+            // board: state.clone(),
         });
     }
 
@@ -102,7 +102,7 @@ impl TranspositionTable {
         self.entries[destination as usize] = Some(TTEntry {
             hash_code,
             value,
-            board: state.clone(),
+            // board: state.clone(),
         });
     }
 
@@ -118,9 +118,9 @@ impl TranspositionTable {
 
                 return Some(&entry.value);
             } else if TranspositionTable::IS_TRACKING_STATS {
-                eprintln!("TT COLLISION: {}", hash_code);
-                state.print_to_console();
-                entry.board.print_to_console();
+                // eprintln!("TT COLLISION: {}", hash_code);
+                // state.print_to_console();
+                // entry.board.print_to_console();
                 self.stats.read_collision += 1;
             }
         }

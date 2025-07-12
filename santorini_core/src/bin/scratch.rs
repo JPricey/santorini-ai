@@ -2,6 +2,7 @@
 #![feature(portable_simd)]
 
 use colored::Colorize;
+use rand::Rng;
 use santorini_core::nnue::{self, Accumulator, FEATURE_LANES, FEATURES, HIDDEN_SIZE, MODEL, QB};
 use santorini_core::utils::print_cpu_arch;
 
@@ -180,8 +181,30 @@ fn nnue_analysis() {
     // println!("Feature bias weights: {:?}", feature_bias);
 }
 
+fn tt_randomness_check() {
+    const TT_SIZE: usize = 10_000_019;
+    let mut tt = vec![false; TT_SIZE];
+    let mut rng = rand::thread_rng();
+
+    let counts = 2_700_000;
+    for _ in 0..counts {
+        let slot = rng.gen_range(0..TT_SIZE);
+        tt[slot] = true;
+    }
+
+    let mut count: usize = 0;
+    for item in &tt {
+        count += *item as usize; 
+    }
+    let collide = counts - count;
+
+    let fill_pct = count as f32 / TT_SIZE as f32;
+    eprintln!("{} / {} x {} = {:.2}. {} collisions", count, TT_SIZE, counts, fill_pct, collide);
+}
+
 fn main() {
-    nnue_analysis();
+    tt_randomness_check();
+    // nnue_analysis();
 
     // print_cpu_arch();
 
