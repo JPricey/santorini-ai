@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
+use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -19,7 +20,7 @@ use crate::{
 
 use super::{board::BoardState, transposition_table::TranspositionTable};
 
-pub const MAX_DEPTH: usize = 127;
+pub const MAX_PLY: usize = 127;
 
 pub type Hueristic = i32;
 pub const WINNING_SCORE: Hueristic = 10_000;
@@ -128,13 +129,41 @@ pub struct SearchStackEntry {
     pub eval: Hueristic,
 }
 
+// Examples only store pv for reporting. I'm much less interested now
+#[derive(Clone, Debug)]
+pub struct PVariation {
+    pub moves: ArrayVec<GenericMove, MAX_PLY>,
+}
+
+impl PVariation {
+    const EMPTY: Self = Self {
+        moves: ArrayVec::new_const(),
+    };
+
+    pub fn moves(&self) -> &[GenericMove] {
+        &self.moves
+    }
+
+    pub const fn default_const() -> Self {
+        Self::EMPTY
+    }
+
+    pub(crate) fn load_from(&mut self, m: GenericMove, rest: &Self) {
+        self.moves.clear();
+        self.moves.push(m);
+        self.moves
+            .try_extend_from_slice(&rest.moves)
+            .expect("attempted to construct a PV longer than MAX_PLY.");
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SearchState {
     pub last_fully_completed_depth: usize,
     pub best_move: Option<BestSearchResult>,
     pub nodes_visited: usize,
-    pub killer_move_table: [Option<GenericMove>; MAX_DEPTH],
-    pub search_stack: [SearchStackEntry; MAX_DEPTH],
+    pub killer_move_table: [Option<GenericMove>; MAX_PLY],
+    pub search_stack: [SearchStackEntry; MAX_PLY],
 }
 
 impl Default for SearchState {
@@ -143,7 +172,7 @@ impl Default for SearchState {
             last_fully_completed_depth: 0,
             best_move: None,
             nodes_visited: 0,
-            killer_move_table: [None; MAX_DEPTH],
+            killer_move_table: [None; MAX_PLY],
             search_stack: array::from_fn(|_| SearchStackEntry::default()),
         }
     }
@@ -596,8 +625,6 @@ where
                 }
             }
         }
-
-        active_god.unmake_move(state, child_action);
 
         if should_stop {
             break;
