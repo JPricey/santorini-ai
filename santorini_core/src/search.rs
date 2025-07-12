@@ -626,6 +626,8 @@ where
             }
         }
 
+        active_god.unmake_move(state, child_action);
+
         if should_stop {
             break;
         }
