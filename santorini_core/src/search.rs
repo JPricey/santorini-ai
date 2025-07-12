@@ -597,12 +597,12 @@ where
             }
         }
 
+        active_god.unmake_move(state, child_action);
+
         if should_stop {
-            active_god.unmake_move(state, child_action);
             break;
         }
 
-        active_god.unmake_move(state, child_action);
         child_action_index += 1;
     }
 
