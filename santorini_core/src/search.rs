@@ -582,6 +582,7 @@ where
                     search_state.nodes_visited,
                     BestMoveTrigger::Improvement,
                 );
+
                 search_state.best_move = Some(new_best_move.clone());
                 (search_context.new_best_move_callback)(new_best_move);
             }

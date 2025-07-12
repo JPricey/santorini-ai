@@ -130,12 +130,12 @@ fn print_hidden(hidden: &HiddenVis) {
         }
         println!("");
     }
-    for h in 0..5 {
+    for _h in 0..5 {
         print!(" ABCDE");
     }
     for _ in 0..2 {
         print!("  ");
-        for h in 0..3 {
+        for _h in 0..3 {
             print!(" ABCDE");
         }
     }

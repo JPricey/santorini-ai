@@ -1,7 +1,6 @@
-use std::error;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, prelude::*};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use rand::seq::SliceRandom;
 use rand::thread_rng;
@@ -139,8 +138,6 @@ fn convert_files_to_permuted_bullet_lines(
 
     Ok(())
 }
-
-fn interleave_files(input_dir: PathBuf, output_dir: PathBuf) {}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input_path = PathBuf::new().join("raw_data");

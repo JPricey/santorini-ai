@@ -1,4 +1,5 @@
 use crate::utils::grid_position_builder;
+use std::fmt::Debug;
 
 // TODO: bitflags?
 pub type MoveGenFlags = u8;
@@ -47,7 +48,7 @@ pub const POSITION_WIDTH: usize = 5;
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct GenericMove {
     pub score: MoveScore,
     pub data: MoveData,
@@ -92,5 +93,24 @@ impl GenericMove {
 impl From<MoveData> for GenericMove {
     fn from(value: MoveData) -> Self {
         Self::new(value)
+    }
+}
+
+impl Debug for GenericMove {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if *self == GenericMove::NULL_MOVE {
+            return write!(f, "NULL");
+        }
+
+        let move_from = self.move_from_position();
+        let move_to = self.move_to_position();
+        let build = self.mortal_build_position();
+        let is_win = self.get_is_winning();
+
+        if is_win {
+            write!(f, "{}>{}#", move_from, move_to)
+        } else {
+            write!(f, "{}>{}^{}", move_from, move_to, build)
+        }
     }
 }

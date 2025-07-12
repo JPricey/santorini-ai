@@ -51,12 +51,12 @@ impl GenericMove {
         Square::from((self.data >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn mortal_move_mask(self) -> BitBoard {
-        BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
+    pub fn mortal_build_position(self) -> Square {
+        Square::from((self.data >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn mortal_build_position(self) -> u8 {
-        ((self.data >> MORTAL_BUILD_POSITION_OFFSET) as u8) & LOWER_POSITION_MASK
+    pub fn mortal_move_mask(self) -> BitBoard {
+        BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 }
 
@@ -93,7 +93,7 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     }
 
     let build_position = action.mortal_build_position();
-    let build_mask = BitBoard::as_mask_u8(build_position);
+    let build_mask = BitBoard::as_mask(build_position);
 
     let build_height = board.get_height_for_worker(build_mask);
     board.height_map[build_height] |= build_mask;
@@ -109,7 +109,7 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     }
 
     let build_position = action.mortal_build_position();
-    let build_mask = BitBoard::as_mask_u8(build_position);
+    let build_mask = BitBoard::as_mask(build_position);
 
     let build_height = board.get_true_height(build_mask);
     board.height_map[build_height - 1] ^= build_mask;
