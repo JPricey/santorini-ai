@@ -11,8 +11,8 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
-pub mod mortal;
 pub mod generic;
+pub mod mortal;
 
 // pub mod artemis;
 // pub mod hephaestus;

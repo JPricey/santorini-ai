@@ -7,7 +7,7 @@ use santorini_core::{
 
 fn main() {
     let depth = 4;
-    let god = GodName::Artemis.to_power();
+    let god = GodName::Mortal.to_power();
     for _ in 0..5 {
         run_single_test_makemove(depth, god);
     }
@@ -44,7 +44,7 @@ fn _test_depth_makemove(state: &mut BoardState, god: &'static GodPower, depth: u
     }
 }
 
-// RUSTFLAGS='-C target-cpu=native' cargo run -p santorini_core  --bin perft --release
+// cargo run -p santorini_core  --bin perft --release
 // cargo flamegraph -p santorini_core  --bin perft --release
 // sudo sysctl kernel.perf_event_paranoid=1
 // CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph -p santorini_core  --bin perft --release

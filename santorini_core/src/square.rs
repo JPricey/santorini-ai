@@ -52,6 +52,18 @@ impl From<usize> for Square {
     }
 }
 
+impl From<u8> for Square {
+    fn from(index: u8) -> Self {
+        transmute_enum!(index as u8)
+    }
+}
+
+impl From<u16> for Square {
+    fn from(index: u16) -> Self {
+        transmute_enum!(index as u8)
+    }
+}
+
 impl Square {
     pub const COUNT: usize = 25;
 

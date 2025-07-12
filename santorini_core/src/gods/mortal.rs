@@ -5,8 +5,8 @@ use crate::{
         FullAction, GodName, GodPower,
         generic::{
             GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
-            MoveData, MoveGenFlags, MoveScore, RETURN_FIRST_MATE, STOP_ON_MATE,
-            WORKER_HEIGHT_SCORES,
+            MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore, POSITION_WIDTH,
+            RETURN_FIRST_MATE, STOP_ON_MATE, WORKER_HEIGHT_SCORES,
         },
     },
     player::Player,
@@ -15,30 +15,44 @@ use crate::{
 
 use super::PartialAction;
 
-pub const MORTAL_BUILD_POSITION_OFFSET: usize = 25;
+// from(5)|to(5)|build(5)|win(1)
+pub const MORTAL_MOVE_FROM_POSITION_OFFSET: usize = 0;
+pub const MORTAL_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+pub const MORTAL_BUILD_POSITION_OFFSET: usize = POSITION_WIDTH * 2;
 
 impl GenericMove {
     pub fn new_mortal_move(
-        move_from_mask: BitBoard,
-        move_to_mask: BitBoard,
+        move_from_position: Square,
+        move_to_position: Square,
         build_position: Square,
     ) -> GenericMove {
-        let mut data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
-        data |= (build_position as MoveData) << MORTAL_BUILD_POSITION_OFFSET;
+        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << MORTAL_BUILD_POSITION_OFFSET);
 
         Self::new(data)
     }
 
     pub fn new_mortal_winning_move(
-        move_from_mask: BitBoard,
-        move_to_mask: BitBoard,
+        move_from_position: Square,
+        move_to_position: Square,
     ) -> GenericMove {
-        let data: MoveData = (move_from_mask.0 | move_to_mask.0) as MoveData;
+        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
+            | MOVE_IS_WINNING_MASK;
         Self::new_winning_move(data)
     }
 
-    pub fn mortal_move_mask(self) -> u32 {
-        (self.data as u32) & BitBoard::MAIN_SECTION_MASK.0 as u32
+    pub fn move_from_position(&self) -> Square {
+        Square::from((self.data as u8) & LOWER_POSITION_MASK)
+    }
+
+    pub fn move_to_position(&self) -> Square {
+        Square::from((self.data >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
+    }
+
+    pub fn mortal_move_mask(self) -> BitBoard {
+        BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
     pub fn mortal_build_position(self) -> u8 {
@@ -51,7 +65,7 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
     let worker_move_mask = action.mortal_move_mask();
     let current_workers = board.workers[current_player as usize];
 
-    let moving_worker_mask = current_workers.0 & worker_move_mask;
+    let moving_worker_mask = current_workers & worker_move_mask;
     let result_worker_mask = worker_move_mask ^ moving_worker_mask;
 
     if action.get_is_winning() {
@@ -71,7 +85,7 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
 
 pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     let worker_move_mask = action.mortal_move_mask();
-    board.workers[board.current_player as usize].0 ^= worker_move_mask;
+    board.workers[board.current_player as usize] ^= worker_move_mask;
 
     if action.get_is_winning() {
         board.set_winner(board.current_player);
@@ -87,7 +101,7 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
 
 pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     let worker_move_mask = action.mortal_move_mask();
-    board.workers[board.current_player as usize].0 ^= worker_move_mask;
+    board.workers[board.current_player as usize] ^= worker_move_mask;
 
     if action.get_is_winning() {
         board.unset_winner(board.current_player);
@@ -152,8 +166,8 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = GenericMove::new_mortal_winning_move(
-                    moving_worker_start_mask,
-                    BitBoard::as_mask(moving_worker_end_pos),
+                    moving_worker_start_pos,
+                    moving_worker_end_pos,
                 );
                 result.push(winning_move);
                 if F & STOP_ON_MATE != 0 {
@@ -188,7 +202,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                     let exactly_level_2 = board.height_map[1] & !board.height_map[2];
                     let level_3 = board.height_map[2];
                     // (worker_builds & exactly_level_2)
-                    let check_count = (worker_builds & level_3).0.count_ones();
+                    let check_count = (worker_builds & level_3).count_ones();
                     let builds_that_result_in_checks = worker_builds & exactly_level_2;
                     let builds_that_remove_checks = worker_builds & level_3;
                     (
@@ -202,8 +216,8 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
 
             for worker_build_pos in worker_builds {
                 let mut new_action = GenericMove::new_mortal_move(
-                    moving_worker_start_mask,
-                    moving_worker_end_mask,
+                    moving_worker_start_pos,
+                    moving_worker_end_pos,
                     worker_build_pos,
                 );
                 if F & INCLUDE_SCORE != 0 {

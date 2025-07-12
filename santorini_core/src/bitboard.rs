@@ -71,7 +71,7 @@ impl fmt::Display for BitBoard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = format!("\n      Bitboard: {}\n", self.0);
 
-        for square in 0..25 {
+        for square in 0_usize..25 {
             if square % 5 == 0 {
                 s.push_str(format!("\n{}   ", (5 - square / 5)).as_str())
             }
@@ -123,6 +123,10 @@ impl BitBoard {
 
     pub const fn count_ones(&self) -> u32 {
         self.0.count_ones()
+    }
+
+    pub const fn trailing_zeros(&self) -> u32 {
+        self.0.trailing_zeros()
     }
 }
 

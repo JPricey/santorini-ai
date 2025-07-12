@@ -26,8 +26,7 @@ pub const WORKER_HEIGHT_SCORES: [MoveScore; 4] = [
 ];
 
 pub type MoveScore = i16;
-pub type MoveData = u32;
-pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
+pub type MoveData = u16;
 
 pub const MOVE_WINNING_SCORE: MoveScore = MoveScore::MAX;
 pub const TT_MATCH_SCORE: MoveScore = MOVE_WINNING_SCORE - 1;
@@ -37,11 +36,21 @@ pub const LOWEST_SPECIAL_SCORE: MoveScore = KILLER_MATCH_SCORE;
 pub const LOWER_POSITION_MASK: u8 = 0b11111;
 pub const POSITION_WIDTH: usize = 5;
 
+// A move will be
+// 5 bits from
+// 5 bits to
+// 1 bit win?
+// 5 bits build
+// > 16 bits
+// would be nice to include some metadata about heights and stuff, but whatever
+
+pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct GenericMove {
     pub score: MoveScore,
-    pub data: u32,
+    pub data: MoveData,
 }
 
 impl PartialEq for GenericMove {
@@ -49,7 +58,6 @@ impl PartialEq for GenericMove {
         self.data == other.data
     }
 }
-
 
 impl GenericMove {
     pub const NULL_MOVE: GenericMove = GenericMove::new(0);

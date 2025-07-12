@@ -56,7 +56,10 @@ fn handle_command(
         }
         "ping" => Ok(Some("pong".to_owned())),
         "stop" => match engine.stop() {
-            Ok(best_move) => Err(format!("Stopping with best move: {:?}", best_move.child_state)),
+            Ok(best_move) => Err(format!(
+                "Stopping with best move: {:?}",
+                best_move.child_state
+            )),
             Err(e) => Err(e),
         },
         "set_position" => {
@@ -80,7 +83,8 @@ fn handle_command(
 
             let callback = Arc::new(move |new_best_move: BestSearchResult| {
                 eprintln!("{:?}", new_best_move);
-                let Some(action_path) = find_action_path(&state_2, &new_best_move.child_state) else {
+                let Some(action_path) = find_action_path(&state_2, &new_best_move.child_state)
+                else {
                     eprintln!("from move:");
                     state_2.print_to_console();
                     eprintln!("to move:");
