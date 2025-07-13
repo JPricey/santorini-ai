@@ -64,6 +64,7 @@ pub fn prepare_subprocess(log_path: &Path, engine_path: &Path) -> EngineSubproce
     let stderr_file = std::fs::File::create(log_path).expect("Failed to create error log file");
 
     let mut child = Command::new(engine_path)
+        // .env("RUST_BACKTRACE", "full")
         .stdin(Stdio::piped())
         .stderr(std::process::Stdio::from(stderr_file))
         .stdout(Stdio::piped())

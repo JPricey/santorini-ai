@@ -14,6 +14,8 @@ use strum::{EnumString, IntoStaticStr};
 pub mod generic;
 pub mod mortal;
 
+pub type StaticGod = &'static GodPower;
+
 // pub mod artemis;
 // pub mod hephaestus;
 // pub mod pan;
@@ -133,8 +135,10 @@ pub struct GodPower {
     pub god_name: GodName,
     pub get_all_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
     pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
-    pub get_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
     pub get_win: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    _score_improvers: fn(board: &BoardState, move_list: &mut [GenericMove]),
+    _score_remaining: fn(board: &BoardState, move_list: &mut [GenericMove]),
+    _get_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
     _make_move: fn(board: &mut BoardState, action: GenericMove),
     _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 }
@@ -179,6 +183,10 @@ impl GodPower {
             .collect()
     }
 
+    pub fn get_moves_for_search(&self, board: &BoardState, player: Player) -> Vec<GenericMove> {
+        (self._get_moves)(board, player)
+    }
+
     pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
         (self._make_move)(board, action);
         board.flip_current_player();
@@ -187,6 +195,14 @@ impl GodPower {
     pub fn unmake_move(&self, board: &mut BoardState, action: GenericMove) {
         board.flip_current_player();
         (self._unmake_move)(board, action);
+    }
+
+    pub fn score_improvers(&self, board: &BoardState, move_list: &mut [GenericMove]) {
+        (self._score_improvers)(board, move_list);
+    }
+
+    pub fn score_remaining(&self, board: &BoardState, move_list: &mut [GenericMove]) {
+        (self._score_remaining)(board, move_list);
     }
 }
 

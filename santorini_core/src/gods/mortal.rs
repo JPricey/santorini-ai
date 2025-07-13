@@ -4,9 +4,11 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower,
         generic::{
-            GRID_POSITION_SCORES, GenericMove, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
-            MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore, POSITION_WIDTH,
-            RETURN_FIRST_MATE, STOP_ON_MATE, WORKER_HEIGHT_SCORES,
+            ENEMY_WORKER_BUILD_SCORES, GRID_POSITION_SCORES, GenericMove,
+            IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
+            LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags,
+            MoveScore, NON_IMPROVER_SENTINEL_SCORE, POSITION_WIDTH, RETURN_FIRST_MATE,
+            STOP_ON_MATE, WORKER_HEIGHT_SCORES,
         },
     },
     player::Player,
@@ -127,16 +129,6 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
 
     let all_workers_mask = board.workers[0] | board.workers[1];
 
-    let mut help_oppo_builds = BitBoard::EMPTY;
-    let mut hurt_oppo_builds = BitBoard::EMPTY;
-
-    for oppo_pos in board.workers[1 - current_player_idx] {
-        let oppo_height = board.get_height_for_worker(BitBoard::as_mask(oppo_pos));
-        let ns = NEIGHBOR_MAP[oppo_pos as usize];
-        hurt_oppo_builds |= ns & board.height_map[oppo_height];
-        help_oppo_builds |= ns & !board.height_map[oppo_height];
-    }
-
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
@@ -151,10 +143,6 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
             help_self_builds |= ns & !board.height_map[other_height];
             hurt_self_builds |= ns & board.height_map[other_height];
         }
-
-        let baseline_score: MoveScore = 0
-            - GRID_POSITION_SCORES[moving_worker_start_pos as usize]
-            - WORKER_HEIGHT_SCORES[worker_starting_height];
 
         let too_high = std::cmp::min(3, worker_starting_height + 1);
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
@@ -187,32 +175,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
 
-            let ns = NEIGHBOR_MAP[moving_worker_end_pos as usize];
-            let help_self_builds = help_self_builds | ns & !board.height_map[worker_end_height];
-            let hurt_self_builds = hurt_self_builds | ns & board.height_map[worker_end_height];
-
-            let baseline_score = baseline_score
-                + GRID_POSITION_SCORES[moving_worker_end_pos as usize]
-                + WORKER_HEIGHT_SCORES[worker_end_height as usize];
-
             let worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
-
-            let (check_count, builds_that_result_in_checks, build_that_remove_checks) =
-                if worker_end_height == 2 {
-                    let exactly_level_2 = board.height_map[1] & !board.height_map[2];
-                    let level_3 = board.height_map[2];
-                    // (worker_builds & exactly_level_2)
-                    let check_count = (worker_builds & level_3).count_ones();
-                    let builds_that_result_in_checks = worker_builds & exactly_level_2;
-                    let builds_that_remove_checks = worker_builds & level_3;
-                    (
-                        check_count as MoveScore,
-                        builds_that_result_in_checks,
-                        builds_that_remove_checks,
-                    )
-                } else {
-                    (0, BitBoard::EMPTY, BitBoard::EMPTY)
-                };
 
             for worker_build_pos in worker_builds {
                 let mut new_action = GenericMove::new_mortal_move(
@@ -221,31 +184,13 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                     worker_build_pos,
                 );
                 if F & INCLUDE_SCORE != 0 {
-                    let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let build_height = board.get_height_for_worker(worker_build_mask);
-
-                    let bh2 = ((build_height + 1) * (build_height + 1)) as MoveScore;
-
-                    let build_scores = 0
-                        + (help_self_builds & worker_build_mask).count_ones() as MoveScore
-                            * 9
-                            * (build_height + 1) as MoveScore
-                        - bh2 * (hurt_self_builds & worker_build_mask).count_ones() as MoveScore
-                        + bh2
-                            * (hurt_oppo_builds & worker_build_mask).count_ones() as MoveScore
-                            * 2
-                        - (help_oppo_builds & worker_build_mask).count_ones() as MoveScore
-                            * 11
-                            * (build_height + 1) as MoveScore;
-
-                    let check_count = check_count
-                        + ((builds_that_result_in_checks & BitBoard::as_mask(worker_build_pos))
-                            .is_not_empty() as MoveScore)
-                        - ((build_that_remove_checks & BitBoard::as_mask(worker_build_pos))
-                            .is_not_empty() as MoveScore);
-
-                    // new_action.set_score(baseline_score + build_height as MoveScore);
-                    new_action.set_score(baseline_score + build_scores * 20 + check_count * 2500);
+                    let is_improving = worker_end_height > worker_starting_height;
+                    let score = if is_improving {
+                        IMPROVER_SENTINEL_SCORE
+                    } else {
+                        NON_IMPROVER_SENTINEL_SCORE
+                    };
+                    new_action.set_score(score);
                 }
                 result.push(new_action);
             }
@@ -255,63 +200,71 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
     result
 }
 
+fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
+    board: &BoardState,
+    move_list: &mut [GenericMove],
+) {
+    let mut build_score_map: [MoveScore; 25] = [0; 25];
+    for enemy_worker_pos in board.workers[1 - board.current_player as usize] {
+        let enemy_worker_height = board.get_height_for_worker(BitBoard::as_mask(enemy_worker_pos));
+        let ns = NEIGHBOR_MAP[enemy_worker_pos as usize];
+        for n_pos in ns {
+            let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
+            build_score_map[n_pos as usize] +=
+                2 * ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
+        }
+    }
+
+    for worker_pos in board.workers[board.current_player as usize] {
+        let worker_height = board.get_height_for_worker(BitBoard::as_mask(worker_pos));
+        let ns = NEIGHBOR_MAP[worker_pos as usize];
+        for n_pos in ns {
+            let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
+            build_score_map[n_pos as usize] -=
+                ENEMY_WORKER_BUILD_SCORES[worker_height as usize][n_height as usize] / 4;
+        }
+    }
+
+    for action in move_list {
+        if IMPROVERS_ONLY && action.score != IMPROVER_SENTINEL_SCORE {
+            continue;
+        }
+
+        let mut score: MoveScore = 0;
+
+        let from = action.move_from_position();
+        let from_height = board.get_height_for_worker(BitBoard::as_mask(from));
+        let to = action.move_to_position();
+        let to_height = board.get_height_for_worker(BitBoard::as_mask(to));
+
+        let build_at = action.mortal_build_position();
+        let build_pre_height = board.get_true_height(BitBoard::as_mask(build_at));
+
+        score -= GRID_POSITION_SCORES[from as usize];
+        score += GRID_POSITION_SCORES[to as usize];
+        score -= WORKER_HEIGHT_SCORES[from_height as usize] / 3;
+        score += WORKER_HEIGHT_SCORES[to_height as usize] / 3;
+
+        score += build_score_map[build_at as usize];
+
+        if IMPROVERS_ONLY {
+            score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+        }
+
+        action.set_score(score);
+    }
+}
+
 pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
         get_all_moves: mortal_move_gen::<0>,
-        get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        _get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
         get_win: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
         get_actions_for_move: mortal_move_to_actions,
+        _score_improvers: mortal_score_moves::<true>,
+        _score_remaining: mortal_score_moves::<false>,
         _make_move: mortal_make_move,
         _unmake_move: mortal_unmake_move,
     }
 }
-
-/*
-#[cfg(test)]
-mod tests {
-    use crate::{board::FullGameState, gods::tests::assert_has_win_consistency, player::Player};
-
-    #[test]
-    fn test_mortal_win_checking() {
-        {
-            let state_str = "00000 00000 00230 00000 00030/1/mortal:12/mortal:24";
-            let mut state = FullGameState::try_from(state_str).unwrap();
-
-            assert_has_win_consistency(&state, true);
-            state.board.current_player = Player::Two;
-            assert_has_win_consistency(&state, false);
-        }
-
-        {
-            // level 3 is next, but it's blocked by a worker
-            let state_str = "00000 00000 00230 00000 00030/1/mortal:12/mortal:13";
-            let state = FullGameState::try_from(state_str).unwrap();
-
-            assert_has_win_consistency(&state, false);
-        }
-
-        {
-            // level 3 is next, but you're already on level 3
-            let state_str = "00000 00000 00330 00000 00030/1/mortal:12/mortal:24";
-            let state = FullGameState::try_from(state_str).unwrap();
-
-            assert_has_win_consistency(&state, false);
-        }
-
-        {
-            let state_str = "2300000000000000000000000/2/mortal:2,13/mortal:0,17";
-            let state = FullGameState::try_from(state_str).unwrap();
-
-            assert_has_win_consistency(&state, true);
-        }
-
-        {
-            let state_str = "2144330422342221044000400/2/mortal:1,13/mortal:8,9";
-            let state = FullGameState::try_from(state_str).unwrap();
-
-            assert_has_win_consistency(&state, true);
-        }
-    }
-}
-*/

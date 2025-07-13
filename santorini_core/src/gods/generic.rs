@@ -8,6 +8,9 @@ pub const MATE_ONLY: MoveGenFlags = 1 << 2;
 pub const INCLUDE_SCORE: MoveGenFlags = 1 << 3;
 pub const RETURN_FIRST_MATE: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 
+pub const NON_IMPROVER_SENTINEL_SCORE: MoveScore = MoveScore::MIN + 1;
+pub const IMPROVER_SENTINEL_SCORE: MoveScore = NON_IMPROVER_SENTINEL_SCORE + 1;
+
 const POSITION_SCORE_MULT: MoveScore = 1;
 pub const GRID_POSITION_SCORES: [MoveScore; 25] = grid_position_builder(
     0 * POSITION_SCORE_MULT,
@@ -18,12 +21,26 @@ pub const GRID_POSITION_SCORES: [MoveScore; 25] = grid_position_builder(
     5 * POSITION_SCORE_MULT,
 );
 
-const WORKER_HEIGHT_OFFSET: MoveScore = 50;
+const WORKER_HEIGHT_COEFF: MoveScore = 1;
 pub const WORKER_HEIGHT_SCORES: [MoveScore; 4] = [
-    0 * WORKER_HEIGHT_OFFSET,
-    100 * WORKER_HEIGHT_OFFSET,
-    300 * WORKER_HEIGHT_OFFSET,
-    101 * WORKER_HEIGHT_OFFSET,
+    0 * WORKER_HEIGHT_COEFF,
+    100 * WORKER_HEIGHT_COEFF,
+    300 * WORKER_HEIGHT_COEFF,
+    101 * WORKER_HEIGHT_COEFF,
+];
+
+pub const IMPROVER_BUILD_HEIGHT_SCORES: [[MoveScore; 4]; 4] = [
+    [0, 0, 0, 0],
+    [8, 50, -20, 0],
+    [4, 10, 100, -800],
+    [0, 0, 0, 0],
+];
+
+pub const ENEMY_WORKER_BUILD_SCORES: [[MoveScore; 5]; 4] = [
+    [-111, 20, 30, 40, 0],
+    [-20, -50, 150, 200, 0],
+    [-4, -40, -5000, 6000, 0],
+    [0, 0, 0, 0, 0],
 ];
 
 pub type MoveScore = i16;

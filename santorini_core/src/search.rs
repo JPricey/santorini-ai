@@ -10,10 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::{
-        GodPower,
-        generic::{GenericMove, KILLER_MATCH_SCORE, LOWEST_SPECIAL_SCORE, TT_MATCH_SCORE},
-    },
+    gods::{GodPower, generic::GenericMove},
+    move_picker::{self, MovePicker},
     nnue::LabeledAccumulator,
     player::Player,
     transposition_table::{SearchScoreType, TTValue},
@@ -320,7 +318,7 @@ where
             // 2. We got smothered.
             // This is rare enough to bother doing a full check for
             let active_god = root_state.get_active_god();
-            let moves = (active_god.get_moves)(&root_board, root_board.current_player);
+            let moves = active_god.get_moves_for_search(&root_board, root_board.current_player);
 
             if moves.len() > 0 {
                 panic!(
@@ -391,7 +389,7 @@ fn _q_extend(
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
     let mut best_score = win_at_depth(depth) - 1;
-    let child_moves = (active_god.get_moves)(state, state.current_player);
+    let child_moves = active_god.get_moves_for_search(state, state.current_player);
     // Go back to front because wins will be last
     // TODO: should we do full sorting here?
     for child_move in child_moves.iter().rev() {
@@ -425,30 +423,6 @@ fn _q_extend(
     }
 
     best_score
-}
-
-// Places the next best action at start_index
-fn _prepare_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
-    let mut best_index = start_index;
-    let mut best_score = actions[start_index].get_score();
-    if best_score >= LOWEST_SPECIAL_SCORE {
-        return;
-    }
-
-    let mut i = start_index + 1;
-    while i < actions.len() {
-        let score = actions[i].get_score();
-        if score > best_score {
-            best_score = score;
-            best_index = i;
-        }
-
-        i += 1
-    }
-
-    if best_index != start_index {
-        actions.swap(start_index, best_index);
-    }
 }
 
 fn _inner_search<T, NT>(
@@ -538,17 +512,20 @@ where
 
     let alpha_orig = alpha;
 
-    // let mut children = (active_god.next_states)(state, state.current_player);
-    let mut child_moves = (active_god.get_moves)(state, state.current_player);
-    if child_moves.len() == 0 {
+    let mut move_picker = MovePicker::new(
+        state.current_player,
+        active_god,
+        tt_entry.as_ref().map(|e| e.best_action),
+        search_state.killer_move_table[ply as usize],
+    );
+
+    if !move_picker.has_any_moves(&state) {
         // TODO: need to do something smarter about losing on smothering
         let score = win_at_depth(ply) - 1;
         return -score;
     }
 
-    // get_moves stops running once it sees a win, so if there is a win it'll be last
-    if child_moves[child_moves.len() - 1].get_is_winning() {
-        let winning_action = child_moves[child_moves.len() - 1];
+    if let Some(winning_action) = move_picker.get_winning_move(&state) {
         let score = win_at_depth(ply) - 1;
         if NT::ROOT {
             let mut winning_board = state.clone();
@@ -630,54 +607,24 @@ where
         }
     }
 
-    {
-        // Score TT move and killer move
-        let mut special_score_index = 0;
-        if let Some(tt_value) = tt_entry {
-            for i in 0..child_moves.len() {
-                if child_moves[i] == tt_value.best_action {
-                    child_moves[i].set_score(TT_MATCH_SCORE);
-                    if i != special_score_index {
-                        child_moves.swap(special_score_index, i);
-                        special_score_index += 1;
-                    }
-                    break;
-                }
-            }
-        }
-
-        if let Some(killer) = search_state.killer_move_table[ply as usize] {
-            for i in special_score_index..child_moves.len() {
-                if child_moves[i] == killer {
-                    child_moves[i].set_score(KILLER_MATCH_SCORE);
-                    if i != special_score_index {
-                        child_moves.swap(special_score_index, i);
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
     if track_used {
         search_context.tt.stats.used_value += 1;
     } else if track_unused {
         search_context.tt.stats.unused_value += 1;
     }
 
-    let mut best_action_idx = 0;
-    let mut best_action = child_moves[0];
+    let mut best_action = GenericMove::NULL_MOVE;
     let mut best_score = Hueristic::MIN;
 
-    let mut child_action_index = 0;
     let mut should_stop = false;
-    while child_action_index < child_moves.len() {
-        _prepare_next_action(&mut child_moves, child_action_index);
-        let child_action = child_moves[child_action_index];
+    let mut move_idx = 0;
+    let mut best_action_idx = 0;
+    while let Some(child_action) = move_picker.next(&state) {
+        move_idx += 1;
         active_god.make_move(state, child_action);
 
         let mut score;
-        if child_action_index == 0 {
+        if move_idx == 1 {
             score = -_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
@@ -727,7 +674,7 @@ where
         if score > best_score {
             best_score = score;
             best_action = child_action;
-            best_action_idx = child_action_index;
+            best_action_idx = move_idx - 1;
 
             if NT::ROOT && !should_stop {
                 let new_best_move = BestSearchResult::new(
@@ -758,8 +705,6 @@ where
         if should_stop {
             break;
         }
-
-        child_action_index += 1;
     }
 
     if !should_stop {
