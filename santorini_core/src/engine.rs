@@ -13,7 +13,7 @@ use crate::{
     search::{
         AndStaticSearchTerminator, BestSearchResult, MaxDepthStaticSearchTerminator,
         NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator,
-        SearchContext, search_with_state,
+        SearchContext, negamax_search,
     },
     transposition_table::TranspositionTable,
 };
@@ -126,7 +126,7 @@ impl EngineThreadWrapper {
                         }),
                     };
 
-                    search_with_state::<EngineStaticSearchTerminator>(
+                    negamax_search::<EngineStaticSearchTerminator>(
                         &mut search_state,
                         &request.state,
                     );

@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use santorini_core::board::FullGameState;
 use santorini_core::search::{
-    search_with_state, AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext
+    negamax_search, AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext
 };
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
@@ -157,7 +157,7 @@ fn generate_one(
         let mut search_context = SearchContext::new(tt);
 
         let search_result =
-            search_with_state::<DatagenStaticSearchTerminator>(&mut search_context, &current_state);
+            negamax_search::<DatagenStaticSearchTerminator>(&mut search_context, &current_state);
 
         let Some(best_child) = search_result.best_move else {
             eprint!("Search returned no results for state {:?}", current_state);

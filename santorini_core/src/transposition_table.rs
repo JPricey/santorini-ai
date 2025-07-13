@@ -106,7 +106,7 @@ impl TranspositionTable {
         });
     }
 
-    pub fn fetch(&mut self, state: &BoardState) -> Option<&TTValue> {
+    pub fn fetch(&mut self, state: &BoardState) -> Option<TTValue> {
         let hash_code = hash_obj(state);
         let destination = hash_code % TABLE_SIZE;
 
@@ -116,7 +116,7 @@ impl TranspositionTable {
                     self.stats.hit += 1;
                 }
 
-                return Some(&entry.value);
+                return Some(entry.value.clone());
             } else if TranspositionTable::IS_TRACKING_STATS {
                 // eprintln!("TT COLLISION: {}", hash_code);
                 // state.print_to_console();

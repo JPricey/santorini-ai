@@ -1,5 +1,6 @@
 use std::{
     array,
+    fmt::Debug,
     marker::PhantomData,
     sync::{Arc, atomic::AtomicBool},
 };
@@ -94,6 +95,7 @@ pub enum BestMoveTrigger {
 #[derive(Clone, Debug)]
 pub struct BestSearchResult {
     pub child_state: FullGameState,
+    pub action: GenericMove,
     pub score: Hueristic,
     pub depth: usize,
     pub nodes_visited: usize,
@@ -103,6 +105,7 @@ pub struct BestSearchResult {
 impl BestSearchResult {
     pub fn new(
         state: FullGameState,
+        action: GenericMove,
         score: Hueristic,
         depth: usize,
         nodes_visited: usize,
@@ -110,6 +113,7 @@ impl BestSearchResult {
     ) -> Self {
         BestSearchResult {
             child_state: state,
+            action,
             score,
             depth,
             nodes_visited,
@@ -127,6 +131,7 @@ pub struct SearchContext<'a> {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SearchStackEntry {
     pub eval: Hueristic,
+    pub is_null_move: bool,
 }
 
 // Examples only store pv for reporting. I'm much less interested now
@@ -148,7 +153,7 @@ impl PVariation {
         Self::EMPTY
     }
 
-    pub(crate) fn load_from(&mut self, m: GenericMove, rest: &Self) {
+    pub fn load_from(&mut self, m: GenericMove, rest: &Self) {
         self.moves.clear();
         self.moves.push(m);
         self.moves
@@ -157,13 +162,60 @@ impl PVariation {
     }
 }
 
-#[derive(Debug, Clone)]
+pub trait NodeType {
+    const PV: bool;
+    const ROOT: bool;
+    type Next: NodeType;
+}
+
+struct Root;
+struct OnPV;
+struct OffPV;
+// struct CheckForced;
+
+impl NodeType for Root {
+    const PV: bool = true;
+    const ROOT: bool = true;
+    type Next = OnPV;
+}
+impl NodeType for OnPV {
+    const PV: bool = true;
+    const ROOT: bool = false;
+    type Next = Self;
+}
+impl NodeType for OffPV {
+    const PV: bool = false;
+    const ROOT: bool = false;
+    type Next = Self;
+}
+// impl NodeType for CheckForced {
+//     const PV: bool = false;
+//     const ROOT: bool = true;
+//     type Next = OffPV;
+// }
+
+#[derive(Clone)]
 pub struct SearchState {
     pub last_fully_completed_depth: usize,
     pub best_move: Option<BestSearchResult>,
     pub nodes_visited: usize,
     pub killer_move_table: [Option<GenericMove>; MAX_PLY],
     pub search_stack: [SearchStackEntry; MAX_PLY],
+}
+
+impl Debug for SearchState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SearchState")
+            .field(
+                "last_fully_completed_depth",
+                &self.last_fully_completed_depth,
+            )
+            .field("best_move", &self.best_move)
+            .field("nodes_visited", &self.nodes_visited)
+            // .field("killer_move_table", &self.killer_move_table)
+            // .field("search_stack", &self.search_stack)
+            .finish()
+    }
 }
 
 impl Default for SearchState {
@@ -196,7 +248,7 @@ impl<'a> SearchContext<'a> {
     }
 }
 
-pub fn search_with_state<T>(
+pub fn negamax_search<T>(
     search_context: &mut SearchContext,
     root_state: &FullGameState,
 ) -> SearchState
@@ -220,6 +272,7 @@ where
 
             let new_best_move = BestSearchResult::new(
                 FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
+                tt_entry.best_action,
                 tt_entry.score,
                 tt_entry.search_depth as usize,
                 0,
@@ -244,7 +297,7 @@ where
             break;
         }
 
-        let score = _inner_search::<T>(
+        let score = _inner_search::<T, Root>(
             search_context,
             &mut search_state,
             &mut nnue_acc,
@@ -282,6 +335,7 @@ where
 
             let empty_losing_move = BestSearchResult::new(
                 losing_board,
+                GenericMove::NULL_MOVE,
                 -WINNING_SCORE,
                 0,
                 0,
@@ -373,7 +427,8 @@ fn _q_extend(
     best_score
 }
 
-fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
+// Places the next best action at start_index
+fn _prepare_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
     let mut best_index = start_index;
     let mut best_score = actions[start_index].get_score();
     if best_score >= LOWEST_SPECIAL_SCORE {
@@ -396,7 +451,7 @@ fn _select_next_action(actions: &mut Vec<GenericMove>, start_index: usize) {
     }
 }
 
-fn _inner_search<T>(
+fn _inner_search<T, NT>(
     search_context: &mut SearchContext,
     search_state: &mut SearchState,
     nnue_acc: &mut LabeledAccumulator,
@@ -410,13 +465,16 @@ fn _inner_search<T>(
 ) -> Hueristic
 where
     T: StaticSearchTerminator,
+    NT: NodeType,
 {
     let active_god = match state.current_player {
         Player::One => p1_god,
         Player::Two => p2_god,
     };
 
-    if let Some(winner) = state.get_winner() {
+    if !NT::ROOT
+        && let Some(winner) = state.get_winner()
+    {
         search_state.nodes_visited += 1;
         return if winner == state.current_player {
             win_at_depth(ply)
@@ -435,7 +493,7 @@ where
             alpha,
             beta,
         );
-    } else if ply != 0 {
+    } else if !NT::ROOT {
         search_state.nodes_visited += 1;
 
         // Worst possible outcome is losing right now (due to a smother)
@@ -452,7 +510,7 @@ where
     let mut track_used = false;
     let mut track_unused = false;
     let tt_entry = search_context.tt.fetch(state);
-    if let Some(tt_value) = tt_entry {
+    if let Some(tt_value) = &tt_entry {
         if tt_value.search_depth >= remaining_depth as u8 {
             if TranspositionTable::IS_TRACKING_STATS {
                 track_used = true;
@@ -490,14 +548,16 @@ where
 
     // get_moves stops running once it sees a win, so if there is a win it'll be last
     if child_moves[child_moves.len() - 1].get_is_winning() {
+        let winning_action = child_moves[child_moves.len() - 1];
         let score = win_at_depth(ply) - 1;
-        if ply == 0 {
+        if NT::ROOT {
             let mut winning_board = state.clone();
-            active_god.make_move(&mut winning_board, child_moves[child_moves.len() - 1]);
+            active_god.make_move(&mut winning_board, winning_action);
             assert!(winning_board.get_winner() == Some(state.current_player));
 
             let new_best_move = BestSearchResult::new(
                 FullGameState::new(winning_board, p1_god, p2_god),
+                winning_action,
                 score,
                 remaining_depth,
                 search_state.nodes_visited,
@@ -510,9 +570,7 @@ where
         return score;
     }
 
-    let rfp_valid = remaining_depth <= 8;
-
-    let eval = if let Some(tt_value) = tt_entry {
+    let eval = if let Some(tt_value) = &tt_entry {
         tt_value.eval
     } else {
         nnue_acc.replace_from_board(state);
@@ -530,37 +588,73 @@ where
         true
     };
 
-    // Reverse Futility Pruning
-    if rfp_valid {
-        let rfp_margin = 400 + 210 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
-        if rfp_valid && eval - rfp_margin >= beta {
-            return beta;
+    let mut child_nnue_acc = nnue_acc.clone();
+    if !NT::ROOT && !NT::PV {
+        // Reverse Futility Pruning
+        if remaining_depth <= 8 {
+            let rfp_margin =
+                150 + 100 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
+            if eval - rfp_margin >= beta {
+                return beta;
+            }
         }
-    }
 
-    let mut special_score_index = 0;
+        // Null move pruning
+        if remaining_depth > 3
+            && eval + 45 * (improving as Hueristic) >= beta
+            && !ss[ply - 1].is_null_move
+        {
+            let reduction = (4 + remaining_depth / 4).min(remaining_depth);
 
-    if let Some(tt_value) = tt_entry {
-        for i in 0..child_moves.len() {
-            if child_moves[i] == tt_value.best_action {
-                child_moves[i].set_score(TT_MATCH_SCORE);
-                if i != special_score_index {
-                    child_moves.swap(special_score_index, i);
-                    special_score_index += 1;
-                }
-                break;
+            search_state.search_stack[ply].is_null_move = true;
+            state.flip_current_player();
+            let null_value = -_inner_search::<T, OffPV>(
+                search_context,
+                search_state,
+                &mut child_nnue_acc,
+                p1_god,
+                p2_god,
+                state,
+                ply + 1,
+                remaining_depth - reduction,
+                -beta,
+                -beta + 1,
+            );
+            state.flip_current_player();
+            search_state.search_stack[ply].is_null_move = false;
+
+            // cutoff above beta
+            if null_value >= beta {
+                return beta;
             }
         }
     }
 
-    if let Some(killer) = search_state.killer_move_table[ply as usize] {
-        for i in special_score_index..child_moves.len() {
-            if child_moves[i] == killer {
-                child_moves[i].set_score(KILLER_MATCH_SCORE);
-                if i != special_score_index {
-                    child_moves.swap(special_score_index, i);
+    {
+        // Score TT move and killer move
+        let mut special_score_index = 0;
+        if let Some(tt_value) = tt_entry {
+            for i in 0..child_moves.len() {
+                if child_moves[i] == tt_value.best_action {
+                    child_moves[i].set_score(TT_MATCH_SCORE);
+                    if i != special_score_index {
+                        child_moves.swap(special_score_index, i);
+                        special_score_index += 1;
+                    }
+                    break;
                 }
-                break;
+            }
+        }
+
+        if let Some(killer) = search_state.killer_move_table[ply as usize] {
+            for i in special_score_index..child_moves.len() {
+                if child_moves[i] == killer {
+                    child_moves[i].set_score(KILLER_MATCH_SCORE);
+                    if i != special_score_index {
+                        child_moves.swap(special_score_index, i);
+                    }
+                    break;
+                }
             }
         }
     }
@@ -575,37 +669,70 @@ where
     let mut best_action = child_moves[0];
     let mut best_score = Hueristic::MIN;
 
-    let mut child_nnue_acc = nnue_acc.clone();
-
     let mut child_action_index = 0;
+    let mut should_stop = false;
     while child_action_index < child_moves.len() {
-        _select_next_action(&mut child_moves, child_action_index);
+        _prepare_next_action(&mut child_moves, child_action_index);
         let child_action = child_moves[child_action_index];
         active_god.make_move(state, child_action);
 
-        let score = -_inner_search::<T>(
-            search_context,
-            search_state,
-            &mut child_nnue_acc,
-            p1_god,
-            p2_god,
-            state,
-            ply + 1,
-            remaining_depth - 1,
-            -beta,
-            -alpha,
-        );
+        let mut score;
+        if child_action_index == 0 {
+            score = -_inner_search::<T, NT::Next>(
+                search_context,
+                search_state,
+                &mut child_nnue_acc,
+                p1_god,
+                p2_god,
+                state,
+                ply + 1,
+                remaining_depth - 1,
+                -beta,
+                -alpha,
+            )
+        } else {
+            // Try a 0-window search
+            score = -_inner_search::<T, OffPV>(
+                search_context,
+                search_state,
+                &mut child_nnue_acc,
+                p1_god,
+                p2_god,
+                state,
+                ply + 1,
+                remaining_depth - 1,
+                -alpha - 1,
+                -alpha,
+            );
 
-        let should_stop = search_context.should_stop() || T::should_stop(&search_state);
+            // The search failed, try again
+            if score > alpha && score < beta {
+                score = -_inner_search::<T, NT::Next>(
+                    search_context,
+                    search_state,
+                    &mut child_nnue_acc,
+                    p1_god,
+                    p2_god,
+                    state,
+                    ply + 1,
+                    remaining_depth - 1,
+                    -beta,
+                    -alpha,
+                )
+            }
+        };
+
+        should_stop = search_context.should_stop() || T::should_stop(&search_state);
 
         if score > best_score {
             best_score = score;
             best_action = child_action;
             best_action_idx = child_action_index;
 
-            if ply == 0 && !should_stop {
+            if NT::ROOT && !should_stop {
                 let new_best_move = BestSearchResult::new(
                     FullGameState::new(state.clone(), p1_god, p2_god),
+                    best_action,
                     score,
                     remaining_depth,
                     search_state.nodes_visited,
@@ -635,7 +762,7 @@ where
         child_action_index += 1;
     }
 
-    if !(search_context.should_stop() || T::should_stop(&search_state)) {
+    if !should_stop {
         let tt_score_type = if best_score <= alpha_orig {
             SearchScoreType::UpperBound
         } else if best_score >= beta {
@@ -708,10 +835,8 @@ mod tests {
             }),
         };
 
-        let search_state = search_with_state::<MaxDepthStaticSearchTerminator<5>>(
-            &mut search_context,
-            &full_state,
-        );
+        let search_state =
+            negamax_search::<MaxDepthStaticSearchTerminator<5>>(&mut search_context, &full_state);
 
         let best_move = search_state.best_move.unwrap();
         assert!(best_move.score > -WINNING_SCORE_BUFFER);

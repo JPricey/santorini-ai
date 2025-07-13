@@ -3,9 +3,8 @@ use std::time::Instant;
 
 use santorini_core::{
     board::FullGameState,
-    search::{MaxDepthStaticSearchTerminator, SearchContext, SearchState, search_with_state},
+    search::{MaxDepthStaticSearchTerminator, SearchContext, SearchState, negamax_search},
     transposition_table::TranspositionTable,
-    utils::print_cpu_arch,
 };
 
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
@@ -16,21 +15,21 @@ fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
             let state =
                 FullGameState::try_from("0000000000000000000000000/1/mortal:2,13/mortal:7,20")
                     .unwrap();
-            search_with_state::<MaxDepthStaticSearchTerminator<8>>(&mut search_state, &state)
+            negamax_search::<MaxDepthStaticSearchTerminator<8>>(&mut search_state, &state)
         }
         1 => {
             // Starting position
             let state =
                 FullGameState::try_from("0000002100040001111021200/1/mortal:7,16/mortal:17,21")
                     .unwrap();
-            search_with_state::<MaxDepthStaticSearchTerminator<8>>(&mut search_state, &state)
+            negamax_search::<MaxDepthStaticSearchTerminator<8>>(&mut search_state, &state)
         }
         2 => {
             // Starting position
             let state =
                 FullGameState::try_from("0000011000020004003011112/2/mortal:21,23/mortal:11,16")
                     .unwrap();
-            search_with_state::<MaxDepthStaticSearchTerminator<12>>(&mut search_state, &state)
+            negamax_search::<MaxDepthStaticSearchTerminator<12>>(&mut search_state, &state)
         }
         _ => panic!("Unknown scenario"),
     }
@@ -44,7 +43,6 @@ struct TreePerfCliArgs {
 
 fn main() {
     let args = TreePerfCliArgs::parse();
-    print_cpu_arch();
     println!("Running Scenario {}", args.scenario);
 
     let mut tt = TranspositionTable::new();
@@ -63,4 +61,4 @@ fn main() {
 
 // cargo run -p santorini_core --release --bin tree_perf -- -s 0
 // sudo sysctl kernel.perf_event_paranoid=1
-// RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=v0 -C target-cpu=native" cargo flamegraph -p santorini_core --bin tree_perf --release -- -s 2
+// RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=v0 -C target-cpu=native" cargo flamegraph -p santorini_core --bin tree_perf --release -- -s 0
