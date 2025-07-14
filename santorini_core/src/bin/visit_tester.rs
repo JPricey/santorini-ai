@@ -83,7 +83,7 @@ fn run_all_scenarios() -> TestSummary {
     for (i, (state_str, depth)) in SEARCH_TEST_SCENARIOS.iter().cloned().enumerate() {
         let game_state = FullGameState::try_from(state_str).unwrap();
 
-        // let depth = (depth as i32 - 4).max(5) as usize;
+        let depth = (depth as i32 - 4).max(5) as usize;
 
         tt.reset();
         let (result, duration) = run_scenario(&mut tt, &game_state, depth);
