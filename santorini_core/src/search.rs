@@ -389,7 +389,7 @@ fn _q_extend(
 
     // Opponent is threatening a win right now. Keep looking to confirm if we can block it
     let mut best_score = win_at_depth(depth) - 1;
-    let child_moves = active_god.get_moves_for_search(state, state.current_player);
+    let child_moves = active_god.get_moves_for_quiessence(state, state.current_player);
     // Go back to front because wins will be last
     // TODO: should we do full sorting here?
     for child_move in child_moves.iter().rev() {

@@ -139,6 +139,7 @@ pub struct GodPower {
     _score_improvers: fn(board: &BoardState, move_list: &mut [GenericMove]),
     _score_remaining: fn(board: &BoardState, move_list: &mut [GenericMove]),
     _get_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    _get_moves_without_scores: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
     _make_move: fn(board: &mut BoardState, action: GenericMove),
     _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 }
@@ -185,6 +186,10 @@ impl GodPower {
 
     pub fn get_moves_for_search(&self, board: &BoardState, player: Player) -> Vec<GenericMove> {
         (self._get_moves)(board, player)
+    }
+
+    pub fn get_moves_for_quiessence(&self, board: &BoardState, player: Player) -> Vec<GenericMove> {
+        (self._get_moves_without_scores)(board, player)
     }
 
     pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {

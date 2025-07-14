@@ -260,6 +260,7 @@ pub const fn build_mortal() -> GodPower {
         god_name: GodName::Mortal,
         get_all_moves: mortal_move_gen::<0>,
         _get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        _get_moves_without_scores: mortal_move_gen::<{ STOP_ON_MATE }>,
         get_win: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
         get_actions_for_move: mortal_move_to_actions,
         _score_improvers: mortal_score_moves::<true>,
