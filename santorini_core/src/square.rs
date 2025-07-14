@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_serde_square() {
-        for position in 0..25 {
+        for position in 0_usize..25 {
             let square = Square::from(position);
             let square_str = serde_json::to_string(&square).unwrap();
             let parsed_square: Square = serde_json::from_str(&square_str).unwrap();

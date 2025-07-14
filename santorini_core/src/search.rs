@@ -708,6 +708,8 @@ where
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
+    use crate::search_terminators::DynamicMaxDepthSearchTerminator;
+
     use super::*;
 
     #[test]
@@ -732,10 +734,11 @@ mod tests {
                     *loss_counter.borrow_mut() += 1;
                 }
             }),
+            terminator: DynamicMaxDepthSearchTerminator::new(5),
         };
 
         let search_state =
-            negamax_search::<MaxDepthStaticSearchTerminator<5>>(&mut search_context, &full_state);
+            negamax_search(&mut search_context, &full_state);
 
         let best_move = search_state.best_move.unwrap();
         assert!(best_move.score > -WINNING_SCORE_BUFFER);
