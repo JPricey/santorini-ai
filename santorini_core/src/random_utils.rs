@@ -1,4 +1,3 @@
-
 use rand::{
     Rng,
     seq::{IteratorRandom, SliceRandom},
@@ -95,9 +94,7 @@ impl Iterator for GameStateFuzzer {
 
         for _ in 0..10 {
             match self.current_generator.next() {
-                None => {
-                    self.current_generator = RandomSingleGameStateGenerator::default()
-                },
+                None => self.current_generator = RandomSingleGameStateGenerator::default(),
                 Some(result) => return Some(result),
             }
         }

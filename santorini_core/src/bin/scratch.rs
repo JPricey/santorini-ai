@@ -3,7 +3,10 @@
 
 use colored::Colorize;
 use rand::Rng;
+use santorini_core::gods::GodName;
+use santorini_core::gods::generic::IMPROVER_SENTINEL_SCORE;
 use santorini_core::nnue::{self, Accumulator, FEATURE_LANES, FEATURES, HIDDEN_SIZE, MODEL, QB};
+use santorini_core::random_utils::GameStateFuzzer;
 use santorini_core::transposition_table::{TTEntry, TTValue};
 use santorini_core::utils::print_cpu_arch;
 
@@ -195,19 +198,47 @@ fn tt_randomness_check() {
 
     let mut count: usize = 0;
     for item in &tt {
-        count += *item as usize; 
+        count += *item as usize;
     }
     let collide = counts - count;
 
     let fill_pct = count as f32 / TT_SIZE as f32;
-    eprintln!("{} / {} x {} = {:.2}. {} collisions", count, TT_SIZE, counts, fill_pct, collide);
+    eprintln!(
+        "{} / {} x {} = {:.2}. {} collisions",
+        count, TT_SIZE, counts, fill_pct, collide
+    );
+}
+
+fn test_improvers() {
+    let game_state_fuzzer = GameStateFuzzer::new(5);
+
+    for state in game_state_fuzzer {
+        let mortal = GodName::Mortal.to_power();
+        let mut actions = mortal.get_moves_for_search(&state.board, state.board.current_player);
+        actions.sort_by_key(|a| -a.score);
+
+        state.board.print_to_console();
+
+        for action in actions {
+            let mut board = state.board.clone();
+            let improving_string = if action.score == IMPROVER_SENTINEL_SCORE {
+                "IMPROVER"
+            } else {
+                "QUIET"
+            };
+            println!("{}: {:?}", improving_string, action.action);
+            mortal.make_move(&mut board, action.action);
+            board.print_to_console();
+        }
+    }
 }
 
 fn main() {
-    println!("{}", size_of::<TTValue>());
-    println!("{}", size_of::<Option<TTValue>>());
+    test_improvers();
+    // println!("{}", size_of::<TTValue>());
+    // println!("{}", size_of::<Option<TTValue>>());
 
-    tt_randomness_check();
+    // tt_randomness_check();
     // nnue_analysis();
 
     // print_cpu_arch();
