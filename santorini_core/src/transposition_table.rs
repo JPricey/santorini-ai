@@ -1,4 +1,8 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    ptr::hash,
+    u8,
+};
 
 use crate::gods::generic::GenericMove;
 
@@ -6,7 +10,7 @@ use super::{board::BoardState, search::Hueristic};
 
 pub type HashCodeType = u64;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SearchScoreType {
     Exact,
     LowerBound,
@@ -23,7 +27,19 @@ pub struct TTValue {
     pub eval: Hueristic,
 }
 
-#[derive(Clone)]
+impl Default for TTValue {
+    fn default() -> Self {
+        TTValue {
+            best_action: GenericMove::NULL_MOVE,
+            search_depth: 0,
+            score_type: SearchScoreType::LowerBound,
+            score: 0,
+            eval: 0,
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug)]
 pub struct TTEntry {
     pub hash_code: HashCodeType,
     pub value: TTValue,
@@ -31,7 +47,7 @@ pub struct TTEntry {
 }
 
 pub struct TranspositionTable {
-    pub entries: Vec<Option<TTEntry>>,
+    pub entries: Vec<TTEntry>,
     pub stats: TTStats,
 }
 
@@ -65,77 +81,128 @@ impl TranspositionTable {
 
     pub fn new() -> Self {
         Self {
-            entries: vec![None; TABLE_SIZE as usize],
+            entries: vec![
+                TTEntry {
+                    hash_code: 0,
+                    value: TTValue::default(),
+                };
+                TABLE_SIZE as usize
+            ],
             stats: Default::default(),
         }
     }
 
-    pub fn insert(&mut self, state: &BoardState, value: TTValue) {
-        if TranspositionTable::IS_TRACKING_STATS {
-            self.stats.insert += 1;
-        }
+    /// Get a key that wraps around the table size, avoiding using Modulo.
+    /// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+    fn get_key(&self, hash: u64) -> usize {
+        (hash % TABLE_SIZE) as usize
+        // let key = hash as u128;
+        // let len = TABLE_SIZE as u128;
 
-        let hash_code = hash_obj(state);
-        let destination = hash_code % TABLE_SIZE;
-
-        self.entries[destination as usize] = Some(TTEntry {
-            hash_code,
-            value,
-            // board: state.clone(),
-        });
+        // ((key * len) >> 64) as usize
     }
 
-    pub fn conditionally_insert_permutation(&mut self, state: &BoardState, value: TTValue) {
+    pub fn insert(
+        &mut self,
+        state: &BoardState,
+        best_action: GenericMove,
+        depth: u8,
+        score_type: SearchScoreType,
+        search_score: Hueristic,
+        current_eval: Hueristic,
+    ) {
+        let hash_code = hash_obj(state);
+        let destination = self.get_key(hash_code);
+
+        let new_entry = TTEntry {
+            value: TTValue {
+                best_action,
+                search_depth: depth,
+                score_type,
+                score: search_score,
+                eval: current_eval,
+            },
+            hash_code,
+        };
+
+        self.entries[destination] = new_entry;
+
         if TranspositionTable::IS_TRACKING_STATS {
             self.stats.insert += 1;
         }
+    }
 
+    pub fn conditionally_insert(
+        &mut self,
+        state: &BoardState,
+        mut best_action: GenericMove,
+        depth: u8,
+        score_type: SearchScoreType,
+        search_score: Hueristic,
+        current_eval: Hueristic,
+    ) {
         let hash_code = hash_obj(state);
-        let destination = hash_code % TABLE_SIZE;
+        let destination = self.get_key(hash_code);
 
-        // Don't replace other actually scored moves
-        if let Some(current_entry) = &self.entries[destination as usize] {
-            if current_entry.hash_code == hash_code {
+        let old_entry = &mut self.entries[destination];
+        if old_entry.hash_code == hash_code {
+            if old_entry.value.search_depth >= depth {
                 return;
             }
+
+            best_action = old_entry.value.best_action;
         }
-        self.entries[destination as usize] = Some(TTEntry {
+
+        let new_entry = TTEntry {
+            value: TTValue {
+                best_action,
+                search_depth: depth,
+                score_type,
+                score: search_score,
+                eval: current_eval,
+            },
             hash_code,
-            value,
-            // board: state.clone(),
-        });
+        };
+
+        self.entries[destination] = new_entry;
+
+        if TranspositionTable::IS_TRACKING_STATS {
+            self.stats.insert += 1;
+        }
     }
 
     pub fn fetch(&mut self, state: &BoardState) -> Option<TTValue> {
         let hash_code = hash_obj(state);
-        let destination = hash_code % TABLE_SIZE;
+        let destination = self.get_key(hash_code);
 
-        if let Some(entry) = &self.entries[destination as usize] {
-            if entry.hash_code == hash_code {
-                if TranspositionTable::IS_TRACKING_STATS {
-                    self.stats.hit += 1;
-                }
+        let entry = &self.entries[destination];
+        if entry.hash_code == hash_code {
+            if TranspositionTable::IS_TRACKING_STATS {
+                self.stats.hit += 1;
+            }
 
-                return Some(entry.value.clone());
-            } else if TranspositionTable::IS_TRACKING_STATS {
-                // eprintln!("TT COLLISION: {}", hash_code);
-                // state.print_to_console();
-                // entry.board.print_to_console();
+            return Some(entry.value.clone());
+        } else if TranspositionTable::IS_TRACKING_STATS {
+            // eprintln!("TT COLLISION: {}", hash_code);
+            // state.print_to_console();
+            // entry.board.print_to_console();
+            if entry.hash_code == 0 {
+                self.stats.missed += 1;
+            } else {
                 self.stats.read_collision += 1;
             }
-        }
-        if TranspositionTable::IS_TRACKING_STATS {
-            self.stats.missed += 1;
         }
         None
     }
 
     pub fn count_filled_entries(&self) -> usize {
-        self.entries.iter().filter(|e| e.is_some()).count()
+        self.entries.iter().filter(|e| e.hash_code != 0).count()
     }
 
     pub fn reset(&mut self) {
-        self.entries.fill(None);
+        self.entries
+            .iter_mut()
+            .for_each(|entry| *entry = Default::default());
         self.stats = Default::default();
     }
 }

@@ -724,27 +724,25 @@ where
         // deduplicate identical searches
         if state.height_map[0].count_ones() <= 1 {
             for base in state.get_all_permutations::<false>() {
-                let tt_value = TTValue {
-                    best_action: GenericMove::NULL_MOVE,
-                    search_depth: remaining_depth as u8,
-                    score_type: tt_score_type,
-                    score: best_score,
+                search_context.tt.conditionally_insert(
+                    &base,
+                    GenericMove::NULL_MOVE,
+                    remaining_depth as u8,
+                    tt_score_type,
+                    best_score,
                     eval,
-                };
-
-                search_context
-                    .tt
-                    .conditionally_insert_permutation(&base, tt_value);
+                );
             }
         }
-        let tt_value = TTValue {
-            best_action: best_action,
-            search_depth: remaining_depth as u8,
-            score_type: tt_score_type,
-            score: best_score,
+
+        search_context.tt.insert(
+            state,
+            best_action,
+            remaining_depth as u8,
+            tt_score_type,
+            best_score,
             eval,
-        };
-        search_context.tt.insert(state, tt_value);
+        );
     }
 
     best_score
