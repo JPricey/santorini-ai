@@ -22,14 +22,14 @@ fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
             let state =
                 FullGameState::try_from("0000002100040001111021200/1/mortal:7,16/mortal:17,21")
                     .unwrap();
-            negamax_search::<MaxDepthStaticSearchTerminator<8>>(&mut search_state, &state)
+            negamax_search::<MaxDepthStaticSearchTerminator<14>>(&mut search_state, &state)
         }
         2 => {
             // Starting position
             let state =
                 FullGameState::try_from("0000011000020004003011112/2/mortal:21,23/mortal:11,16")
                     .unwrap();
-            negamax_search::<MaxDepthStaticSearchTerminator<12>>(&mut search_state, &state)
+            negamax_search::<MaxDepthStaticSearchTerminator<15>>(&mut search_state, &state)
         }
         _ => panic!("Unknown scenario"),
     }
