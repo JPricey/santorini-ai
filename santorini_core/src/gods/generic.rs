@@ -25,22 +25,22 @@ pub const GRID_POSITION_SCORES: [MoveScore; 25] = grid_position_builder(
 const WORKER_HEIGHT_COEFF: MoveScore = 1;
 pub const WORKER_HEIGHT_SCORES: [MoveScore; 4] = [
     0 * WORKER_HEIGHT_COEFF,
-    90 * WORKER_HEIGHT_COEFF,
-    300 * WORKER_HEIGHT_COEFF,
-    101 * WORKER_HEIGHT_COEFF,
+    30 * WORKER_HEIGHT_COEFF,
+    100 * WORKER_HEIGHT_COEFF,
+    31 * WORKER_HEIGHT_COEFF,
 ];
 
 pub const IMPROVER_BUILD_HEIGHT_SCORES: [[MoveScore; 4]; 4] = [
     [0, 0, 0, 0],
-    [8, 50, -20, 0],
-    [4, 10, 100, -800],
+    [8, 45, -388, 0],
+    [3, 14, 69, -800],
     [0, 0, 0, 0],
 ];
 
 pub const ENEMY_WORKER_BUILD_SCORES: [[MoveScore; 5]; 4] = [
-    [-111, 20, 30, 40, 0],
-    [-20, -50, 150, 200, 0],
-    [-4, -40, -5000, 6000, 0],
+    [-111, 39, 41, 80, 0],
+    [-40, -100, 299, 400, 0],
+    [-8, -80, -10000, 12000, 0],
     [0, 0, 0, 0, 0],
 ];
 

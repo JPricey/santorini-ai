@@ -213,7 +213,7 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
         for n_pos in ns {
             let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
             build_score_map[n_pos as usize] +=
-                2 * ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
+                ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
         }
     }
 
@@ -223,7 +223,7 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
         for n_pos in ns {
             let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
             build_score_map[n_pos as usize] -=
-                ENEMY_WORKER_BUILD_SCORES[worker_height as usize][n_height as usize] / 4;
+                ENEMY_WORKER_BUILD_SCORES[worker_height as usize][n_height as usize] / 8;
         }
     }
 
@@ -245,8 +245,8 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
 
         score -= GRID_POSITION_SCORES[from as usize];
         score += GRID_POSITION_SCORES[to as usize];
-        score -= WORKER_HEIGHT_SCORES[from_height as usize] / 3;
-        score += WORKER_HEIGHT_SCORES[to_height as usize] / 3;
+        score -= WORKER_HEIGHT_SCORES[from_height as usize];
+        score += WORKER_HEIGHT_SCORES[to_height as usize];
 
         score += build_score_map[build_at as usize];
 
