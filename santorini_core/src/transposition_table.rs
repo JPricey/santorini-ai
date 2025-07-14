@@ -1,6 +1,5 @@
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
-    ptr::hash,
     u8,
 };
 

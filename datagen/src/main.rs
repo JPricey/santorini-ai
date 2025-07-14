@@ -6,8 +6,8 @@ use santorini_core::gods::GodName;
 use santorini_core::player::Player;
 use santorini_core::search::{negamax_search, Hueristic, SearchContext};
 use santorini_core::search_terminators::{
-    AndStaticSearchTerminator, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator,
-    OrStaticSearchTerminator,
+    AndSearchTerminator, StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator,
+    OrSearchTerminator,
 };
 use santorini_core::transposition_table::TranspositionTable;
 use std::io::Write;
@@ -20,11 +20,11 @@ use santorini_core::board::FullGameState;
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 
-type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<700_000>,
-    AndStaticSearchTerminator<
-        MaxDepthStaticSearchTerminator<8>,
-        NodesVisitedStaticSearchTerminator<350_000>,
+type DatagenStaticSearchTerminator = OrSearchTerminator<
+    StaticNodesVisitedSearchTerminator<700_000>,
+    AndSearchTerminator<
+        StaticMaxDepthSearchTerminator<8>,
+        StaticNodesVisitedSearchTerminator<350_000>,
     >,
 >;
 

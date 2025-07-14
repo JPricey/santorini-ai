@@ -12,7 +12,7 @@ use crate::{
     board::FullGameState,
     search::{negamax_search, BestSearchResult, SearchContext},
     search_terminators::{
-        AndStaticSearchTerminator, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator
+        AndSearchTerminator, StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator, NoopSearchTerminator, OrSearchTerminator
     },
     transposition_table::TranspositionTable,
 };
@@ -53,16 +53,16 @@ pub struct EngineThreadWrapper {
 }
 
 #[allow(dead_code)]
-type DatagenStaticSearchTerminator = OrStaticSearchTerminator<
-    NodesVisitedStaticSearchTerminator<700_000>,
-    AndStaticSearchTerminator<
-        MaxDepthStaticSearchTerminator<8>,
-        NodesVisitedStaticSearchTerminator<350_000>,
+type DatagenStaticSearchTerminator = OrSearchTerminator<
+    StaticNodesVisitedSearchTerminator<700_000>,
+    AndSearchTerminator<
+        StaticMaxDepthSearchTerminator<8>,
+        StaticNodesVisitedSearchTerminator<350_000>,
     >,
 >;
 
 // type EngineStaticSearchTerminator = DatagenStaticSearchTerminator;
-type EngineStaticSearchTerminator = NoopStaticSearchTerminator;
+type EngineStaticSearchTerminator = NoopSearchTerminator;
 
 impl EngineThreadWrapper {
     pub fn new() -> Self {

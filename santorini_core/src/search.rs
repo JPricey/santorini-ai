@@ -10,11 +10,11 @@ use serde::{Deserialize, Serialize};
 use crate::{
     board::FullGameState,
     gods::{GodPower, generic::GenericMove},
-    move_picker::{self, MovePicker},
+    move_picker::MovePicker,
     nnue::LabeledAccumulator,
     player::Player,
-    search_terminators::StaticSearchTerminator,
-    transposition_table::{SearchScoreType, TTValue},
+    search_terminators::SearchTerminator,
+    transposition_table::SearchScoreType,
 };
 
 use super::{board::BoardState, transposition_table::TranspositionTable};
@@ -200,7 +200,7 @@ pub fn negamax_search<T>(
     root_state: &FullGameState,
 ) -> SearchState
 where
-    T: StaticSearchTerminator,
+    T: SearchTerminator,
 {
     let mut root_board = root_state.board.clone();
     let mut search_state = SearchState::default();
@@ -388,7 +388,7 @@ fn _inner_search<T, NT>(
     mut beta: Hueristic,
 ) -> Hueristic
 where
-    T: StaticSearchTerminator,
+    T: SearchTerminator,
     NT: NodeType,
 {
     let active_god = match state.current_player {
