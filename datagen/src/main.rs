@@ -4,6 +4,11 @@ use rand::seq::IteratorRandom;
 use rand::{Rng, seq::SliceRandom, thread_rng};
 use santorini_core::gods::GodName;
 use santorini_core::player::Player;
+use santorini_core::search::{negamax_search, Hueristic, SearchContext};
+use santorini_core::search_terminators::{
+    AndStaticSearchTerminator, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator,
+    OrStaticSearchTerminator,
+};
 use santorini_core::transposition_table::TranspositionTable;
 use std::io::Write;
 use std::path::PathBuf;
@@ -12,9 +17,6 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use santorini_core::board::FullGameState;
-use santorini_core::search::{
-    negamax_search, AndStaticSearchTerminator, Hueristic, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator, OrStaticSearchTerminator, SearchContext
-};
 
 const MIN_NUM_RANDOM_MOVES: usize = 4;
 

@@ -2,9 +2,7 @@ use clap::Parser;
 use std::time::Instant;
 
 use santorini_core::{
-    board::FullGameState,
-    search::{MaxDepthStaticSearchTerminator, SearchContext, SearchState, negamax_search},
-    transposition_table::TranspositionTable,
+    board::FullGameState, search::{negamax_search, SearchContext, SearchState}, search_terminators::MaxDepthStaticSearchTerminator, transposition_table::TranspositionTable
 };
 
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {

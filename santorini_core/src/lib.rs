@@ -15,6 +15,7 @@ pub mod nnue;
 pub mod move_container;
 pub mod random_utils;
 pub mod move_picker;
+pub mod search_terminators;
 
 macro_rules! transmute_enum_masked {
     ($x:expr, $mask:expr) => {

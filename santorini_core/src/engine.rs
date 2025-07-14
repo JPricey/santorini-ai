@@ -10,10 +10,9 @@ use std::{
 
 use crate::{
     board::FullGameState,
-    search::{
-        AndStaticSearchTerminator, BestSearchResult, MaxDepthStaticSearchTerminator,
-        NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator,
-        SearchContext, negamax_search,
+    search::{negamax_search, BestSearchResult, SearchContext},
+    search_terminators::{
+        AndStaticSearchTerminator, MaxDepthStaticSearchTerminator, NodesVisitedStaticSearchTerminator, NoopStaticSearchTerminator, OrStaticSearchTerminator
     },
     transposition_table::TranspositionTable,
 };
