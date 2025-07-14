@@ -69,10 +69,11 @@ impl BestSearchResult {
     }
 }
 
-pub struct SearchContext<'a> {
+pub struct SearchContext<'a, T: SearchTerminator> {
     pub tt: &'a mut TranspositionTable,
     pub stop_flag: Arc<AtomicBool>,
     pub new_best_move_callback: Box<dyn FnMut(BestSearchResult)>,
+    pub terminator: T,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -177,12 +178,13 @@ impl Default for SearchState {
     }
 }
 
-impl<'a> SearchContext<'a> {
-    pub fn should_stop(&self) -> bool {
+impl<'a, T: SearchTerminator> SearchContext<'a, T> {
+    pub fn should_stop(&self, state: &SearchState) -> bool {
         self.stop_flag.load(std::sync::atomic::Ordering::Relaxed)
+            || self.terminator.should_stop(state)
     }
 
-    pub fn new(tt: &'a mut TranspositionTable) -> Self {
+    pub fn new(tt: &'a mut TranspositionTable, terminator: T) -> Self {
         let new_best_move_callback = Box::new(|_new_best_move: BestSearchResult| {
             // eprintln!("{:?}", _new_best_move);
         });
@@ -191,12 +193,13 @@ impl<'a> SearchContext<'a> {
             tt,
             new_best_move_callback,
             stop_flag: Arc::new(AtomicBool::new(false)),
+            terminator,
         }
     }
 }
 
 pub fn negamax_search<T>(
-    search_context: &mut SearchContext,
+    search_context: &mut SearchContext<T>,
     root_state: &FullGameState,
 ) -> SearchState
 where
@@ -236,7 +239,7 @@ where
     let mut nnue_acc = LabeledAccumulator::new_from_scratch(&root_board);
 
     for depth in starting_depth.. {
-        if search_context.should_stop() || T::should_stop(&search_state) {
+        if search_context.should_stop(&search_state) {
             if let Some(best_move) = &mut search_state.best_move {
                 best_move.trigger = BestMoveTrigger::StopFlag;
                 (search_context.new_best_move_callback)(best_move.clone());
@@ -259,9 +262,7 @@ where
 
         search_state.last_fully_completed_depth = depth;
 
-        if search_state.best_move.is_none()
-            && !(search_context.should_stop() || T::should_stop(&search_state))
-        {
+        if search_state.best_move.is_none() && !search_context.should_stop(&search_state) {
             // We didn't find _any_ move. Could be:
             // 1. There's a bug
             // 2. We got smothered.
@@ -294,9 +295,7 @@ where
             break;
         }
 
-        if score.abs() > WINNING_SCORE_BUFFER
-            && !(search_context.should_stop() || T::should_stop(&search_state))
-        {
+        if score.abs() > WINNING_SCORE_BUFFER && !search_context.should_stop(&search_state) {
             let mut best_move = search_state.best_move.clone().unwrap();
             best_move.trigger = BestMoveTrigger::EndOfLine;
             (search_context.new_best_move_callback)(best_move);
@@ -376,7 +375,7 @@ fn _q_extend(
 }
 
 fn _inner_search<T, NT>(
-    search_context: &mut SearchContext,
+    search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
     nnue_acc: &mut LabeledAccumulator,
     p1_god: &'static GodPower,
@@ -626,7 +625,7 @@ where
             }
         };
 
-        should_stop = search_context.should_stop() || T::should_stop(&search_state);
+        should_stop = search_context.should_stop(&search_state);
 
         if score > best_score {
             best_score = score;

@@ -10,9 +10,10 @@ use std::{
 
 use crate::{
     board::FullGameState,
-    search::{negamax_search, BestSearchResult, SearchContext},
+    search::{BestSearchResult, SearchContext, negamax_search},
     search_terminators::{
-        AndSearchTerminator, StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator, NoopSearchTerminator, OrSearchTerminator
+        AndSearchTerminator, NoopSearchTerminator, OrSearchTerminator,
+        StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator,
     },
     transposition_table::TranspositionTable,
 };
@@ -110,7 +111,7 @@ impl EngineThreadWrapper {
                         *worker_state = EngineThreadState::Running;
                     }
 
-                    let mut search_state = SearchContext {
+                    let mut search_state = SearchContext::<NoopSearchTerminator> {
                         tt: &mut transposition_table,
                         stop_flag: request.stop_flag.clone(),
                         new_best_move_callback: Box::new(move |new_best_move: BestSearchResult| {
@@ -123,6 +124,7 @@ impl EngineThreadWrapper {
 
                             let _ = best_move_sender.send(new_best_move.clone());
                         }),
+                        terminator: NoopSearchTerminator::default(),
                     };
 
                     negamax_search::<EngineStaticSearchTerminator>(

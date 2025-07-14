@@ -4,10 +4,10 @@ use rand::seq::IteratorRandom;
 use rand::{Rng, seq::SliceRandom, thread_rng};
 use santorini_core::gods::GodName;
 use santorini_core::player::Player;
-use santorini_core::search::{negamax_search, Hueristic, SearchContext};
+use santorini_core::search::{Hueristic, SearchContext, negamax_search};
 use santorini_core::search_terminators::{
-    AndSearchTerminator, StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator,
-    OrSearchTerminator,
+    AndSearchTerminator, OrSearchTerminator, StaticMaxDepthSearchTerminator,
+    StaticNodesVisitedSearchTerminator,
 };
 use santorini_core::transposition_table::TranspositionTable;
 use std::io::Write;
@@ -156,7 +156,7 @@ fn generate_one(
     }
 
     let winner = loop {
-        let mut search_context = SearchContext::new(tt);
+        let mut search_context = SearchContext::new(tt, DatagenStaticSearchTerminator::default());
 
         let search_result =
             negamax_search::<DatagenStaticSearchTerminator>(&mut search_context, &current_state);

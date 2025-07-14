@@ -2,35 +2,24 @@ use clap::Parser;
 use std::time::Instant;
 
 use santorini_core::{
-    board::FullGameState, search::{negamax_search, SearchContext, SearchState}, search_terminators::StaticMaxDepthSearchTerminator, transposition_table::TranspositionTable
+    board::FullGameState,
+    search::{SearchContext, SearchState, negamax_search},
+    search_terminators::DynamicMaxDepthSearchTerminator,
+    transposition_table::TranspositionTable,
 };
 
+const SCENARIOS: [(&'static str, usize); 3] = [
+    ("0000000000000000000000000/1/mortal:2,13/mortal:7,20", 8),
+    ("0000002100040001111021200/1/mortal:7,16/mortal:17,21", 14),
+    ("0000011000020004003011112/2/mortal:21,23/mortal:11,16", 15),
+];
+
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
-    let mut search_state = SearchContext::new(tt);
-    match scenario {
-        0 => {
-            // Starting position
-            let state =
-                FullGameState::try_from("0000000000000000000000000/1/mortal:2,13/mortal:7,20")
-                    .unwrap();
-            negamax_search::<StaticMaxDepthSearchTerminator<8>>(&mut search_state, &state)
-        }
-        1 => {
-            // Starting position
-            let state =
-                FullGameState::try_from("0000002100040001111021200/1/mortal:7,16/mortal:17,21")
-                    .unwrap();
-            negamax_search::<StaticMaxDepthSearchTerminator<14>>(&mut search_state, &state)
-        }
-        2 => {
-            // Starting position
-            let state =
-                FullGameState::try_from("0000011000020004003011112/2/mortal:21,23/mortal:11,16")
-                    .unwrap();
-            negamax_search::<StaticMaxDepthSearchTerminator<15>>(&mut search_state, &state)
-        }
-        _ => panic!("Unknown scenario"),
-    }
+    let (state_str, depth) = SCENARIOS[scenario];
+    let game_state = FullGameState::try_from(state_str).unwrap();
+    let mut search_state = SearchContext::new(tt, DynamicMaxDepthSearchTerminator::new(depth));
+
+    negamax_search(&mut search_state, &game_state)
 }
 
 #[derive(Parser, Debug)]
