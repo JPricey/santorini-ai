@@ -9,9 +9,9 @@ use santorini_core::{
 };
 
 const SCENARIOS: [(&'static str, usize); 3] = [
-    ("0000000000000000000000000/1/mortal:2,13/mortal:7,20", 8),
-    ("0000002100040001111021200/1/mortal:7,16/mortal:17,21", 14),
-    ("0000011000020004003011112/2/mortal:21,23/mortal:11,16", 15),
+    ("0000000000000000000000000/1/mortal:2,13/mortal:7,20", 10),
+    ("0000002100040001111021200/1/mortal:7,16/mortal:17,21", 16),
+    ("0000011000020004003011112/2/mortal:21,23/mortal:11,16", 18),
 ];
 
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
