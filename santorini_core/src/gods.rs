@@ -1,7 +1,7 @@
 use super::search::Hueristic;
 use crate::{
     board::{BoardState, FullGameState},
-    gods::generic::GenericMove,
+    gods::generic::{GenericMove, ScoredMove},
     player::Player,
     square::Square,
 };
@@ -133,13 +133,13 @@ impl ResultsMapper<BoardStateWithAction> for FullChoiceMapper {
 
 pub struct GodPower {
     pub god_name: GodName,
-    pub get_all_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    pub get_all_moves: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
     pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
-    pub get_win: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
-    _score_improvers: fn(board: &BoardState, move_list: &mut [GenericMove]),
-    _score_remaining: fn(board: &BoardState, move_list: &mut [GenericMove]),
-    _get_moves: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
-    _get_moves_without_scores: fn(board: &BoardState, player: Player) -> Vec<GenericMove>,
+    pub get_win: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
+    _score_improvers: fn(board: &BoardState, move_list: &mut [ScoredMove]),
+    _score_remaining: fn(board: &BoardState, move_list: &mut [ScoredMove]),
+    _get_moves: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
+    _get_moves_without_scores: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
     _make_move: fn(board: &mut BoardState, action: GenericMove),
     _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 }
@@ -163,8 +163,8 @@ impl GodPower {
             .into_iter()
             .flat_map(|action| {
                 let mut result_state = board.clone();
-                self.make_move(&mut result_state, action);
-                let action_paths = (self.get_actions_for_move)(board, action);
+                self.make_move(&mut result_state, action.action);
+                let action_paths = (self.get_actions_for_move)(board, action.action);
 
                 action_paths.into_iter().map(move |full_actions| {
                     BoardStateWithAction::new(result_state.clone(), full_actions)
@@ -178,17 +178,17 @@ impl GodPower {
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
-                self.make_move(&mut result_state, action);
+                self.make_move(&mut result_state, action.action);
                 result_state
             })
             .collect()
     }
 
-    pub fn get_moves_for_search(&self, board: &BoardState, player: Player) -> Vec<GenericMove> {
+    pub fn get_moves_for_search(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
         (self._get_moves)(board, player)
     }
 
-    pub fn get_moves_for_quiessence(&self, board: &BoardState, player: Player) -> Vec<GenericMove> {
+    pub fn get_moves_for_quiessence(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
         (self._get_moves_without_scores)(board, player)
     }
 
@@ -202,11 +202,11 @@ impl GodPower {
         (self._unmake_move)(board, action);
     }
 
-    pub fn score_improvers(&self, board: &BoardState, move_list: &mut [GenericMove]) {
+    pub fn score_improvers(&self, board: &BoardState, move_list: &mut [ScoredMove]) {
         (self._score_improvers)(board, move_list);
     }
 
-    pub fn score_remaining(&self, board: &BoardState, move_list: &mut [GenericMove]) {
+    pub fn score_remaining(&self, board: &BoardState, move_list: &mut [ScoredMove]) {
         (self._score_remaining)(board, move_list);
     }
 }

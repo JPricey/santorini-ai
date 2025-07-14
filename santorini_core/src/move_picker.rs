@@ -2,7 +2,7 @@ use crate::{
     board::BoardState,
     gods::{
         StaticGod,
-        generic::{GenericMove, NON_IMPROVER_SENTINEL_SCORE},
+        generic::{GenericMove, NON_IMPROVER_SENTINEL_SCORE, ScoredMove},
     },
     player::Player,
 };
@@ -23,7 +23,7 @@ pub enum MovePickerStage {
 pub struct MovePicker {
     player: Player,
     active_god: StaticGod,
-    move_list: Vec<GenericMove>,
+    move_list: Vec<ScoredMove>,
     tt_move: Option<GenericMove>,
     killer_move: Option<GenericMove>,
     pub stage: MovePickerStage,
@@ -87,7 +87,7 @@ impl MovePicker {
         // get_moves_for_search stops running once it sees a win, so if there is a win it'll be last
         if let Some(last_move) = self.move_list.last() {
             if last_move.get_is_winning() {
-                return Some(last_move.clone());
+                return Some(last_move.action.clone());
             }
         }
 
@@ -136,7 +136,7 @@ impl MovePicker {
                     self.move_list.swap(self.index, best_index);
                 }
 
-                let result_move = Some(self.move_list[self.index]);
+                let result_move = Some(self.move_list[self.index].action);
                 self.index += 1;
 
                 if result_move == self.tt_move {
@@ -152,7 +152,7 @@ impl MovePicker {
             if self.killer_move != self.tt_move
                 && let Some(killer_move) = self.killer_move
             {
-                if let Some(killer_index) = self.move_list.iter().position(|m| *m == killer_move) {
+                if let Some(killer_index) = self.move_list.iter().position(|m| m.action == killer_move) {
                     if killer_index > self.index {
                         self.move_list.swap(self.index, killer_index);
                     }
@@ -186,7 +186,7 @@ impl MovePicker {
                 self.move_list.swap(self.index, best_index);
             }
 
-            let result_move = Some(self.move_list[self.index]);
+            let result_move = Some(self.move_list[self.index].action);
             self.index += 1;
 
             if result_move == self.tt_move {

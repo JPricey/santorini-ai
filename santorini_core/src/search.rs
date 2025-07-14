@@ -342,7 +342,7 @@ fn _q_extend(
     // Go back to front because wins will be last
     // TODO: should we do full sorting here?
     for child_move in child_moves.iter().rev() {
-        active_god.make_move(state, *child_move);
+        active_god.make_move(state, child_move.action);
 
         let score = -_q_extend(
             state,
@@ -362,13 +362,13 @@ fn _q_extend(
                 alpha = score;
 
                 if alpha >= beta {
-                    active_god.unmake_move(state, *child_move);
+                    active_god.unmake_move(state, child_move.action);
                     break;
                 }
             }
         }
 
-        active_god.unmake_move(state, *child_move);
+        active_god.unmake_move(state, child_move.action);
     }
 
     best_score

@@ -36,9 +36,9 @@ fn _test_depth_makemove(state: &mut BoardState, god: &'static GodPower, depth: u
         let mut sum: usize = 0;
         let actions = (god.get_all_moves)(state, state.current_player);
         for action in actions {
-            god.make_move(state, action);
+            god.make_move(state, action.action);
             sum += _test_depth_makemove(state, god, depth - 1);
-            god.unmake_move(state, action);
+            god.unmake_move(state, action.action);
         }
         sum
     }

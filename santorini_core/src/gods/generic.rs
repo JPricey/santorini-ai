@@ -1,4 +1,4 @@
-use crate::utils::grid_position_builder;
+use crate::{search::WINNING_SCORE, utils::grid_position_builder};
 use std::fmt::Debug;
 
 // TODO: bitflags?
@@ -64,32 +64,31 @@ pub const POSITION_WIDTH: usize = 5;
 
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct GenericMove {
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct GenericMove(pub MoveData);
+
+#[derive(Copy, Clone, Debug)]
+pub struct ScoredMove {
+    pub action: GenericMove,
     pub score: MoveScore,
-    pub data: MoveData,
 }
 
-impl PartialEq for GenericMove {
-    fn eq(&self, other: &Self) -> bool {
-        self.data == other.data
-    }
-}
-
-impl GenericMove {
-    pub const NULL_MOVE: GenericMove = GenericMove::new(0);
-
-    pub const fn new(data: MoveData) -> Self {
-        Self { score: 0, data }
+impl ScoredMove {
+    pub const fn new(action: GenericMove, score: MoveScore) -> Self {
+        Self { action, score }
     }
 
-    pub const fn new_winning_move(data: MoveData) -> Self {
+    pub const fn new_winning_move(action: GenericMove) -> Self {
         Self {
-            score: MoveScore::MAX,
-            data: data | MOVE_IS_WINNING_MASK,
+            action,
+            score: MOVE_WINNING_SCORE,
         }
     }
+
+    pub fn get_is_winning(&self) -> bool {
+        self.action.get_is_winning()
+    }
+
     pub fn get_score(&self) -> MoveScore {
         self.score
     }
@@ -97,13 +96,25 @@ impl GenericMove {
     pub fn set_score(&mut self, score: MoveScore) {
         self.score = score
     }
+}
 
-    pub fn set_is_winning(&mut self) {
-        self.data |= MOVE_IS_WINNING_MASK;
+impl GenericMove {
+    pub const NULL_MOVE: GenericMove = GenericMove::new(0);
+
+    pub const fn new(data: MoveData) -> Self {
+        Self(data)
     }
 
+    pub const fn new_winning_move(data: MoveData) -> Self {
+        Self(data | MOVE_IS_WINNING_MASK)
+    }
+
+    // pub fn set_is_winning(&mut self) {
+    //     self.0 |= MOVE_IS_WINNING_MASK;
+    // }
+
     pub fn get_is_winning(&self) -> bool {
-        (self.data & MOVE_IS_WINNING_MASK) != 0
+        (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }
 

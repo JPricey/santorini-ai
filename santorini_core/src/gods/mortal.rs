@@ -8,7 +8,7 @@ use crate::{
             IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
             LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags,
             MoveScore, NON_IMPROVER_SENTINEL_SCORE, POSITION_WIDTH, RETURN_FIRST_MATE,
-            STOP_ON_MATE, WORKER_HEIGHT_SCORES,
+            STOP_ON_MATE, ScoredMove, WORKER_HEIGHT_SCORES,
         },
     },
     player::Player,
@@ -46,15 +46,15 @@ impl GenericMove {
     }
 
     pub fn move_from_position(&self) -> Square {
-        Square::from((self.data as u8) & LOWER_POSITION_MASK)
+        Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
     pub fn move_to_position(&self) -> Square {
-        Square::from((self.data >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
     pub fn mortal_build_position(self) -> Square {
-        Square::from((self.data >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
     pub fn mortal_move_mask(self) -> BitBoard {
@@ -117,7 +117,7 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height - 1] ^= build_mask;
 }
 
-fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<GenericMove> {
+fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<ScoredMove> {
     let current_player_idx = player as usize;
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     if F & MATE_ONLY != 0 {
@@ -125,7 +125,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
     }
     let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
 
-    let mut result = Vec::with_capacity(capacity);
+    let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
 
     let all_workers_mask = board.workers[0] | board.workers[1];
 
@@ -153,10 +153,11 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
             worker_moves ^= moves_to_level_3;
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                let winning_move = GenericMove::new_mortal_winning_move(
-                    moving_worker_start_pos,
-                    moving_worker_end_pos,
-                );
+                let winning_move =
+                    ScoredMove::new_winning_move(GenericMove::new_mortal_winning_move(
+                        moving_worker_start_pos,
+                        moving_worker_end_pos,
+                    ));
                 result.push(winning_move);
                 if F & STOP_ON_MATE != 0 {
                     return result;
@@ -178,7 +179,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
             let worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
 
             for worker_build_pos in worker_builds {
-                let mut new_action = GenericMove::new_mortal_move(
+                let new_action = GenericMove::new_mortal_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
@@ -190,9 +191,10 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                     } else {
                         NON_IMPROVER_SENTINEL_SCORE
                     };
-                    new_action.set_score(score);
+                    result.push(ScoredMove::new(new_action, score));
+                } else {
+                    result.push(ScoredMove::new(new_action, 0));
                 }
-                result.push(new_action);
             }
         }
     }
@@ -202,7 +204,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
 
 fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
-    move_list: &mut [GenericMove],
+    move_list: &mut [ScoredMove],
 ) {
     let mut build_score_map: [MoveScore; 25] = [0; 25];
     for enemy_worker_pos in board.workers[1 - board.current_player as usize] {
@@ -225,11 +227,12 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
         }
     }
 
-    for action in move_list {
-        if IMPROVERS_ONLY && action.score != IMPROVER_SENTINEL_SCORE {
+    for scored_action in move_list {
+        if IMPROVERS_ONLY && scored_action.score != IMPROVER_SENTINEL_SCORE {
             continue;
         }
 
+        let action = scored_action.action;
         let mut score: MoveScore = 0;
 
         let from = action.move_from_position();
@@ -251,7 +254,7 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
             score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
         }
 
-        action.set_score(score);
+        scored_action.set_score(score);
     }
 }
 
