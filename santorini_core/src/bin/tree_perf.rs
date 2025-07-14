@@ -6,16 +6,11 @@ use santorini_core::{
     search::{SearchContext, SearchState, negamax_search},
     search_terminators::DynamicMaxDepthSearchTerminator,
     transposition_table::TranspositionTable,
+    utils::SEARCH_TEST_SCENARIOS,
 };
 
-const SCENARIOS: [(&'static str, usize); 3] = [
-    ("0000000000000000000000000/1/mortal:2,13/mortal:7,20", 10),
-    ("0000002100040001111021200/1/mortal:7,16/mortal:17,21", 16),
-    ("0000011000020004003011112/2/mortal:21,23/mortal:11,16", 18),
-];
-
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
-    let (state_str, depth) = SCENARIOS[scenario];
+    let (state_str, depth) = SEARCH_TEST_SCENARIOS[scenario];
     let game_state = FullGameState::try_from(state_str).unwrap();
     let mut search_state = SearchContext::new(tt, DynamicMaxDepthSearchTerminator::new(depth));
 

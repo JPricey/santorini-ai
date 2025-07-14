@@ -10,5 +10,5 @@ serde = {workspace=true}
 serde_json = {workspace=true}
 chrono = "0.4.41"
 clap = {workspace=true}
-serde_yaml = "0.9.34"
+serde_yaml = {workspace=true}
 rand = {workspace=true}

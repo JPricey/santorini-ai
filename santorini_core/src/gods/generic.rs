@@ -1,7 +1,8 @@
-use crate::{search::WINNING_SCORE, utils::grid_position_builder};
+use serde::{Deserialize, Serialize};
+
+use crate::utils::grid_position_builder;
 use std::fmt::Debug;
 
-// TODO: bitflags?
 pub type MoveGenFlags = u8;
 pub const STOP_ON_MATE: MoveGenFlags = 1 << 0;
 pub const MATE_ONLY: MoveGenFlags = 1 << 2;
@@ -64,7 +65,7 @@ pub const POSITION_WIDTH: usize = 5;
 
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GenericMove(pub MoveData);
 
 #[derive(Copy, Clone, Debug)]
