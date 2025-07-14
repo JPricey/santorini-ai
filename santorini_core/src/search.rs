@@ -321,9 +321,10 @@ where
             let moves = active_god.get_moves_for_search(&root_board, root_board.current_player);
 
             if moves.len() > 0 {
+                root_board.print_to_console();
                 panic!(
-                    "Moves were available, but didn't make any: {:?}",
-                    root_board
+                    "Moves were available, but didn't make any: {:?}, {:?}",
+                    root_board, moves
                 );
             }
 
@@ -433,7 +434,7 @@ fn _inner_search<T, NT>(
     p2_god: &'static GodPower,
     state: &mut BoardState,
     ply: usize,
-    remaining_depth: usize,
+    mut remaining_depth: usize,
     mut alpha: Hueristic,
     mut beta: Hueristic,
 ) -> Hueristic
@@ -511,6 +512,13 @@ where
     }
 
     let alpha_orig = alpha;
+
+    // internal iterative reduction
+    // reduce repth on a tt miss
+    // my variant: exclude PV lines from this rule
+    if !NT::ROOT && !NT::PV && remaining_depth >= 4 && tt_entry.is_none() {
+        remaining_depth -= 1;
+    }
 
     let mut move_picker = MovePicker::new(
         state.current_player,
