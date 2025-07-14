@@ -149,7 +149,7 @@ impl LabeledAccumulator {
 }
 
 impl Network {
-    pub fn evaluate(&self, us: &Accumulator) -> i32 {
+    pub fn evaluate(&self, us: &Accumulator) -> Hueristic {
         let mut simd_sum = Simd::<i32, EVAL_LANES>::splat(0);
 
         let min = Simd::splat(0 as i16);
@@ -176,7 +176,7 @@ impl Network {
         output *= SCALE;
         output /= i32::from(QA) * i32::from(QB);
 
-        output
+        output as Hueristic
     }
 }
 

@@ -4,6 +4,7 @@
 use colored::Colorize;
 use rand::Rng;
 use santorini_core::nnue::{self, Accumulator, FEATURE_LANES, FEATURES, HIDDEN_SIZE, MODEL, QB};
+use santorini_core::transposition_table::{TTEntry, TTValue};
 use santorini_core::utils::print_cpu_arch;
 
 use std::simd;
@@ -203,6 +204,9 @@ fn tt_randomness_check() {
 }
 
 fn main() {
+    println!("{}", size_of::<TTValue>());
+    println!("{}", size_of::<Option<TTValue>>());
+
     tt_randomness_check();
     // nnue_analysis();
 
