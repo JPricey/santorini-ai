@@ -342,10 +342,6 @@ pub const fn build_mortal() -> GodPower {
 
 #[cfg(test)]
 mod tests {
-    use clap::ArgAction;
-
-    use crate::{board::FullGameState, random_utils::GameStateFuzzer};
-
     use super::*;
 
     #[test]
