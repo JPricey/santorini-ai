@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use santorini_core::{
+    bitboard::BitBoard,
     board::{BoardState, FullGameState},
     gods::{GodName, GodPower},
 };
@@ -34,7 +35,7 @@ fn _test_depth_makemove(state: &mut BoardState, god: &'static GodPower, depth: u
         (state.height_map[0].0 > 0) as usize
     } else {
         let mut sum: usize = 0;
-        let actions = (god.get_all_moves)(state, state.current_player);
+        let actions = (god._get_all_moves)(state, state.current_player, BitBoard::EMPTY);
         for action in actions {
             god.make_move(state, action.action);
             sum += _test_depth_makemove(state, god, depth - 1);

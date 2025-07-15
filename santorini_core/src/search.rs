@@ -8,6 +8,7 @@ use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    bitboard::BitBoard,
     board::FullGameState,
     gods::{GodPower, generic::GenericMove},
     move_picker::MovePicker,
@@ -317,6 +318,9 @@ fn _q_extend(
     mut alpha: Hueristic,
     beta: Hueristic,
 ) -> Hueristic {
+    // if q_depth > 10 {
+    //     println!("{q_depth}");
+    // }
     search_state.nodes_visited += 1;
 
     let (active_god, other_god) = match state.current_player {
@@ -325,22 +329,43 @@ fn _q_extend(
     };
 
     // If we have a win right now, just take it
-    if active_god.get_winning_moves(state, state.current_player).len() > 0 {
+    if active_god
+        .get_winning_moves(state, state.current_player)
+        .len()
+        > 0
+    {
         let score = win_at_depth(depth) - 1;
         return score;
     }
 
-    // If opponent isn't threatening a win, take the current score
-    if other_god.get_winning_moves(state, !state.current_player).len() == 0 {
+    let eval;
+    let child_moves;
+    let opponent_wins = other_god.get_winning_moves(state, !state.current_player);
+
+    // If opponent is threatening a win, we must respond to it. Don't bother taking the current
+    // eval, just know that we're losing
+    if opponent_wins.len() > 0 {
+        eval = -(WINNING_SCORE - 1);
+        let mut blocker_board = BitBoard::EMPTY;
+        for action in &opponent_wins {
+            blocker_board |= action.action.get_blocker_board();
+        }
+        child_moves = active_god.get_blocker_moves(state, state.current_player, blocker_board);
+    } else {
         nnue_acc.replace_from_board(state);
-        return nnue_acc.evaluate();
+        eval = nnue_acc.evaluate();
+        child_moves = active_god.get_improver_moves(state, state.current_player);
     }
 
-    // Opponent is threatening a win right now. Keep looking to confirm if we can block it
-    let mut best_score = win_at_depth(depth) - 1;
-    let child_moves = active_god.get_moves_for_quiessence(state, state.current_player);
-    // Go back to front because wins will be last
-    // TODO: should we do full sorting here?
+    // check standing pat
+    let old_alpha = alpha; // TODO: use TT?
+    alpha = alpha.max(eval);
+    if eval >= beta {
+        return beta;
+    }
+
+    let mut best_score = eval;
+
     for child_move in child_moves.iter().rev() {
         active_god.make_move(state, child_move.action);
 

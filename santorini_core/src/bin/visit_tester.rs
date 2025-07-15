@@ -120,3 +120,5 @@ pub fn main() {
     let toml_string = serde_yaml::to_string(&summary).expect("Failed to serialize summary");
     std::fs::write("data/move_test.yaml", toml_string).expect("Failed to write corpus to file");
 }
+
+// cargo run -p santorini_core --bin visit_tester --release

@@ -5,10 +5,11 @@ use crate::{
         FullAction, GodName, GodPower,
         generic::{
             CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
-            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
-            MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore, NON_IMPROVER_SENTINEL_SCORE,
-            POSITION_WIDTH, RETURN_FIRST_MATE, STOP_ON_MATE, ScoredMove, WORKER_HEIGHT_SCORES,
+            GENERATE_IMPROVERS_ONLY, GRID_POSITION_SCORES, GenericMove,
+            IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
+            INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK,
+            MoveData, MoveGenFlags, MoveScore, NON_IMPROVER_SENTINEL_SCORE, POSITION_WIDTH,
+            STOP_ON_MATE, ScoredMove, WORKER_HEIGHT_SCORES,
         },
     },
     player::Player,
@@ -59,6 +60,10 @@ impl GenericMove {
 
     pub fn mortal_move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
+    }
+
+    pub fn get_blocker_board(&self) -> BitBoard {
+        BitBoard::as_mask(self.move_to_position())
     }
 }
 
@@ -117,7 +122,11 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height - 1] ^= build_mask;
 }
 
-fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) -> Vec<ScoredMove> {
+fn mortal_move_gen<const F: MoveGenFlags>(
+    board: &BoardState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
     let current_player_idx = player as usize;
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     if F & MATE_ONLY != 0 {
@@ -184,20 +193,39 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
+
             let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
 
-            let worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+            let mut worker_builds =
+                NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+
+            if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
+                if (moving_worker_end_mask & key_squares).is_empty() {
+                    worker_builds = worker_builds & key_squares;
+                }
+            }
 
             let mut check_if_builds = neighbor_check_if_builds;
             let mut anti_check_builds = BitBoard::EMPTY;
             let mut is_already_check = false;
 
-            if F & INCLUDE_SCORE != 0 {
+            if F & (INCLUDE_SCORE | GENERATE_IMPROVERS_ONLY) != 0 {
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & board.exactly_level_2();
                     anti_check_builds =
                         NEIGHBOR_MAP[moving_worker_end_pos as usize] & board.exactly_level_3();
                     is_already_check = anti_check_builds != BitBoard::EMPTY;
+                }
+            }
+
+            if F & GENERATE_IMPROVERS_ONLY != 0 {
+                if is_already_check {
+                    let must_avoid_build = anti_check_builds & worker_builds;
+                    if must_avoid_build.count_ones() == 1 {
+                        worker_builds ^= must_avoid_build;
+                    }
+                } else {
+                    worker_builds &= check_if_builds;
                 }
             }
 
@@ -296,10 +324,13 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
 pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
-        get_all_moves: mortal_move_gen::<0>,
+        _get_all_moves: mortal_move_gen::<0>,
         _get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_moves_without_scores: mortal_move_gen::<{ STOP_ON_MATE }>,
-        _get_wins: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
+        _get_wins: mortal_move_gen::<{ MATE_ONLY }>,
+        _get_win_blockers: mortal_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
+        _get_improver_moves_only: mortal_move_gen::<
+            { STOP_ON_MATE | GENERATE_IMPROVERS_ONLY | INCLUDE_SCORE },
+        >,
         get_actions_for_move: mortal_move_to_actions,
         _score_improvers: mortal_score_moves::<true>,
         _score_remaining: mortal_score_moves::<false>,
@@ -310,6 +341,8 @@ pub const fn build_mortal() -> GodPower {
 
 #[cfg(test)]
 mod tests {
+    use clap::ArgAction;
+
     use crate::{board::FullGameState, random_utils::GameStateFuzzer};
 
     use super::*;
@@ -349,6 +382,65 @@ mod tests {
                     board.print_to_console();
                     assert_eq!(is_check_move, is_winning_next_turn);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn test_mortal_improver_checks_only() {
+        let mortal = GodName::Mortal.to_power();
+        let game_state_fuzzer = GameStateFuzzer::default();
+
+        for state in game_state_fuzzer {
+            let current_player = state.board.current_player;
+
+            if state.board.get_winner().is_some() {
+                continue;
+            }
+            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            if current_win.len() != 0 {
+                continue;
+            }
+
+            let mut improver_moves = mortal.get_improver_moves(&state.board, current_player);
+            for action in &improver_moves {
+                if action.score != CHECK_SENTINEL_SCORE {
+                    let mut board = state.board.clone();
+                    mortal.make_move(&mut board, action.action);
+
+                    println!("Move promised to be improver only but wasn't: {:?}", action,);
+                    println!("{:?}", state);
+                    state.board.print_to_console();
+                    println!("{:?}", action.action);
+                    board.print_to_console();
+                    assert_eq!(action.score, CHECK_SENTINEL_SCORE);
+                }
+            }
+
+            let mut all_moves = mortal.get_moves_for_search(&state.board, current_player);
+            let check_count = all_moves
+                .iter()
+                .filter(|a| a.score == CHECK_SENTINEL_SCORE)
+                .count();
+
+            if improver_moves.len() != check_count {
+                println!("Move count mismatch");
+                state.board.print_to_console();
+                println!("{:?}", state);
+
+                improver_moves.sort_by_key(|a| -a.score);
+                all_moves.sort_by_key(|a| -a.score);
+
+                println!("IMPROVERS:");
+                for a in &improver_moves {
+                    println!("{:?}", a);
+                }
+                println!("ALL:");
+                for a in &all_moves {
+                    println!("{:?}", a);
+                }
+
+                assert_eq!(improver_moves.len(), check_count);
             }
         }
     }

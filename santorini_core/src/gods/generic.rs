@@ -7,7 +7,8 @@ pub type MoveGenFlags = u8;
 pub const STOP_ON_MATE: MoveGenFlags = 1 << 0;
 pub const MATE_ONLY: MoveGenFlags = 1 << 2;
 pub const INCLUDE_SCORE: MoveGenFlags = 1 << 3;
-pub const RETURN_FIRST_MATE: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
+pub const INTERACT_WITH_KEY_SQUARES: MoveGenFlags = 1 << 4;
+pub const GENERATE_IMPROVERS_ONLY: MoveGenFlags = 1 << 5;
 
 pub const NON_IMPROVER_SENTINEL_SCORE: MoveScore = MoveScore::MIN + 1;
 pub const IMPROVER_SENTINEL_SCORE: MoveScore = NON_IMPROVER_SENTINEL_SCORE + 1;
