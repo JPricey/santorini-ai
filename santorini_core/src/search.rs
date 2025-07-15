@@ -239,6 +239,12 @@ where
 
     let mut nnue_acc = LabeledAccumulator::new_from_scratch(&root_board);
 
+    let is_in_check = root_state
+        .get_other_god()
+        .get_winning_moves(&root_board, !root_board.current_player)
+        .len()
+        > 0;
+
     for depth in starting_depth.. {
         if search_context.should_stop(&search_state) {
             if let Some(best_move) = &mut search_state.best_move {
@@ -255,6 +261,7 @@ where
             root_state.gods[0],
             root_state.gods[1],
             &mut root_board,
+            is_in_check,
             0,
             depth,
             Hueristic::MIN + 1,
@@ -348,7 +355,7 @@ fn _q_extend(
         eval = -(WINNING_SCORE - 1);
         let mut blocker_board = BitBoard::EMPTY;
         for action in &opponent_wins {
-            blocker_board |= action.action.get_blocker_board();
+            blocker_board |= other_god.get_blocker_board(action.action);
         }
         child_moves = active_god.get_blocker_moves(state, state.current_player, blocker_board);
     } else {
@@ -358,11 +365,10 @@ fn _q_extend(
     }
 
     // check standing pat
-    let old_alpha = alpha; // TODO: use TT?
-    alpha = alpha.max(eval);
     if eval >= beta {
         return beta;
     }
+    alpha = alpha.max(eval);
 
     let mut best_score = eval;
 
@@ -406,6 +412,7 @@ fn _inner_search<T, NT>(
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
     state: &mut BoardState,
+    is_in_check: bool,
     ply: usize,
     mut remaining_depth: usize,
     mut alpha: Hueristic,
@@ -547,7 +554,7 @@ where
     };
 
     let mut child_nnue_acc = nnue_acc.clone();
-    if !NT::ROOT && !NT::PV {
+    if !NT::ROOT && !NT::PV && !is_in_check {
         // Reverse Futility Pruning
         if remaining_depth <= 8 {
             let rfp_margin =
@@ -573,6 +580,7 @@ where
                 p1_god,
                 p2_god,
                 state,
+                false,
                 ply + 1,
                 remaining_depth - reduction,
                 -beta,
@@ -601,8 +609,16 @@ where
     let mut move_idx = 0;
     let mut best_action_idx = 0;
     while let Some(child_action) = move_picker.next(&state) {
+        let child_is_check = child_action.get_is_check();
         move_idx += 1;
         active_god.make_move(state, child_action);
+
+        // check extension
+        let next_depth = if child_is_check {
+            remaining_depth
+        } else {
+            remaining_depth - 1
+        };
 
         let mut score;
         if move_idx == 1 {
@@ -613,8 +629,9 @@ where
                 p1_god,
                 p2_god,
                 state,
+                child_is_check,
                 ply + 1,
-                remaining_depth - 1,
+                next_depth,
                 -beta,
                 -alpha,
             )
@@ -627,8 +644,9 @@ where
                 p1_god,
                 p2_god,
                 state,
+                child_is_check,
                 ply + 1,
-                remaining_depth - 1,
+                next_depth,
                 -alpha - 1,
                 -alpha,
             );
@@ -642,8 +660,9 @@ where
                     p1_god,
                     p2_god,
                     state,
+                    child_is_check,
                     ply + 1,
-                    remaining_depth - 1,
+                    next_depth,
                     -beta,
                     -alpha,
                 )

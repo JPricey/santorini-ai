@@ -61,10 +61,6 @@ impl GenericMove {
     pub fn mortal_move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
-
-    pub fn get_blocker_board(&self) -> BitBoard {
-        BitBoard::as_mask(self.move_to_position())
-    }
 }
 
 pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
@@ -321,6 +317,10 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     }
 }
 
+fn mortal_blocker_board(action: GenericMove) -> BitBoard {
+    BitBoard::as_mask(action.move_to_position())
+}
+
 pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
@@ -334,6 +334,7 @@ pub const fn build_mortal() -> GodPower {
         get_actions_for_move: mortal_move_to_actions,
         _score_improvers: mortal_score_moves::<true>,
         _score_remaining: mortal_score_moves::<false>,
+        _get_blocker_board: mortal_blocker_board,
         _make_move: mortal_make_move,
         _unmake_move: mortal_unmake_move,
     }

@@ -152,7 +152,9 @@ impl MovePicker {
             if self.killer_move != self.tt_move
                 && let Some(killer_move) = self.killer_move
             {
-                if let Some(killer_index) = self.move_list.iter().position(|m| m.action == killer_move) {
+                if let Some(killer_index) =
+                    self.move_list.iter().position(|m| m.action == killer_move)
+                {
                     if killer_index > self.index {
                         self.move_list.swap(self.index, killer_index);
                     }

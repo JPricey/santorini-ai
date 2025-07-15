@@ -48,7 +48,7 @@ pub const ENEMY_WORKER_BUILD_SCORES: [[MoveScore; 5]; 4] = [
 pub const CHECK_MOVE_BONUS: MoveScore = 6000;
 
 pub type MoveScore = i16;
-pub type MoveData = u16;
+pub type MoveData = u32;
 
 pub const MOVE_WINNING_SCORE: MoveScore = MoveScore::MAX;
 pub const TT_MATCH_SCORE: MoveScore = MOVE_WINNING_SCORE - 1;
@@ -67,6 +67,7 @@ pub const POSITION_WIDTH: usize = 5;
 // would be nice to include some metadata about heights and stuff, but whatever
 
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
+pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
 
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GenericMove(pub MoveData);
@@ -113,9 +114,13 @@ impl GenericMove {
         Self(data | MOVE_IS_WINNING_MASK)
     }
 
-    // pub fn set_is_winning(&mut self) {
-    //     self.0 |= MOVE_IS_WINNING_MASK;
-    // }
+    pub fn set_is_check(&mut self) {
+        self.0 |= MOVE_IS_CHECK_MASK;
+    }
+
+    pub fn get_is_check(&self) -> bool {
+        self.0 & MOVE_IS_CHECK_MASK != 0
+    }
 
     pub fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0

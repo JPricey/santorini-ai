@@ -4,7 +4,7 @@
 use colored::Colorize;
 use rand::Rng;
 use santorini_core::gods::GodName;
-use santorini_core::gods::generic::IMPROVER_SENTINEL_SCORE;
+use santorini_core::gods::generic::{IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK};
 use santorini_core::nnue::{self, Accumulator, FEATURE_LANES, FEATURES, HIDDEN_SIZE, MODEL, QB};
 use santorini_core::random_utils::GameStateFuzzer;
 use santorini_core::transposition_table::{TTEntry, TTValue};
@@ -234,7 +234,9 @@ fn test_improvers() {
 }
 
 fn main() {
-    test_improvers();
+    println!("{:b}", MOVE_IS_WINNING_MASK);
+    println!("{:b}", MOVE_IS_CHECK_MASK);
+    // test_improvers();
     // println!("{}", size_of::<TTValue>());
     // println!("{}", size_of::<Option<TTValue>>());
 

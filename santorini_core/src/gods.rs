@@ -149,6 +149,9 @@ pub struct GodPower {
     _score_improvers: fn(board: &BoardState, move_list: &mut [ScoredMove]),
     _score_remaining: fn(board: &BoardState, move_list: &mut [ScoredMove]),
 
+    // Check detection
+    _get_blocker_board: fn(action: GenericMove) -> BitBoard,
+
     // Make/Unmake
     _make_move: fn(board: &mut BoardState, action: GenericMove),
     _unmake_move: fn(board: &mut BoardState, action: GenericMove),
@@ -213,12 +216,12 @@ impl GodPower {
         (self._get_win_blockers)(board, player, key_moves)
     }
 
-    pub fn get_improver_moves(
-        &self,
-        board: &BoardState,
-        player: Player,
-    ) -> Vec<ScoredMove> {
+    pub fn get_improver_moves(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
         (self._get_improver_moves_only)(board, player, BitBoard::EMPTY)
+    }
+
+    pub fn get_blocker_board(&self, action: GenericMove) -> BitBoard {
+        (self._get_blocker_board)(action)
     }
 
     pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
