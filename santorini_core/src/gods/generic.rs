@@ -14,6 +14,8 @@ pub const NON_IMPROVER_SENTINEL_SCORE: MoveScore = MoveScore::MIN + 1;
 pub const IMPROVER_SENTINEL_SCORE: MoveScore = NON_IMPROVER_SENTINEL_SCORE + 1;
 pub const CHECK_SENTINEL_SCORE: MoveScore = IMPROVER_SENTINEL_SCORE + 1;
 
+pub const NULL_MOVE_DATA: MoveData = 0;
+
 const POSITION_SCORE_MULT: MoveScore = 1;
 pub const GRID_POSITION_SCORES: [MoveScore; 25] = grid_position_builder(
     0 * POSITION_SCORE_MULT,
@@ -69,7 +71,7 @@ pub const POSITION_WIDTH: usize = 5;
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
 
-#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct GenericMove(pub MoveData);
 
 #[derive(Copy, Clone, Debug)]
@@ -104,7 +106,7 @@ impl ScoredMove {
 }
 
 impl GenericMove {
-    pub const NULL_MOVE: GenericMove = GenericMove::new(0);
+    pub const NULL_MOVE: GenericMove = GenericMove::new(NULL_MOVE_DATA);
 
     pub const fn new(data: MoveData) -> Self {
         Self(data)
@@ -130,24 +132,5 @@ impl GenericMove {
 impl From<MoveData> for GenericMove {
     fn from(value: MoveData) -> Self {
         Self::new(value)
-    }
-}
-
-impl Debug for GenericMove {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if *self == GenericMove::NULL_MOVE {
-            return write!(f, "NULL");
-        }
-
-        let move_from = self.move_from_position();
-        let move_to = self.move_to_position();
-        let build = self.mortal_build_position();
-        let is_win = self.get_is_winning();
-
-        if is_win {
-            write!(f, "{}>{}#", move_from, move_to)
-        } else {
-            write!(f, "{}>{}^{}", move_from, move_to, build)
-        }
     }
 }
