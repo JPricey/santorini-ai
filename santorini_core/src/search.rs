@@ -274,8 +274,8 @@ where
             if moves.len() > 0 {
                 root_board.print_to_console();
                 panic!(
-                    "Moves were available, but didn't make any: {:?}, {:?}",
-                    root_board, moves
+                    "Moves were available, but didn't make any: {:?}, {:?}. {:?}",
+                    root_board, moves, search_state
                 );
             }
 
