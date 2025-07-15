@@ -124,6 +124,7 @@ fn do_battle<'a>(
         writeln!(other.stdin, "stop").expect("Failed to write to stdin");
 
         let state_string = game_state_to_fen(&current_state);
+        eprintln!("set_position {}", state_string);
         writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
 
         let started_at = Instant::now();
@@ -163,7 +164,7 @@ fn do_battle<'a>(
                     break;
                 }
                 Err(e) => {
-                    eprintln!("Error receiving message: {:?}", e);
+                    panic!("Error receiving message: {:?}", e);
                 }
             }
         }

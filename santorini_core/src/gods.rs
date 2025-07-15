@@ -6,19 +6,16 @@ use crate::{
     player::Player,
     square::Square,
 };
-// use artemis::build_artemis;
-// use hephaestus::build_hephaestus;
-// use mortal::build_mortal;
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
 pub mod generic;
 pub mod mortal;
 pub mod pan;
+pub mod artemis;
 
 pub type StaticGod = &'static GodPower;
 
-// pub mod artemis;
 // pub mod hephaestus;
 
 #[derive(
@@ -260,7 +257,7 @@ impl Eq for GodPower {}
 pub const ALL_GODS_BY_ID: [GodPower; 2] = [
     mortal::build_mortal(),
     pan::build_pan(),
-    // artemis::build_artemis(),
+    artemis::build_artemis(),
     // hephaestus::build_hephaestus(),
 ];
 

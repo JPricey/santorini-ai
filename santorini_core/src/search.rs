@@ -314,7 +314,8 @@ where
     search_state
 }
 
-fn _q_extend(
+fn _q_extend<T>(
+    search_context: &mut SearchContext<T>,
     state: &mut BoardState,
     search_state: &mut SearchState,
     nnue_acc: &mut LabeledAccumulator,
@@ -324,10 +325,10 @@ fn _q_extend(
     q_depth: u32,
     mut alpha: Hueristic,
     beta: Hueristic,
-) -> Hueristic {
-    // if q_depth > 10 {
-    //     println!("{q_depth}");
-    // }
+) -> Hueristic
+where
+    T: SearchTerminator,
+{
     search_state.nodes_visited += 1;
 
     let (active_god, other_god) = match state.current_player {
@@ -376,6 +377,7 @@ fn _q_extend(
         active_god.make_move(state, child_move.action);
 
         let score = -_q_extend(
+            search_context,
             state,
             search_state,
             nnue_acc,
@@ -400,6 +402,10 @@ fn _q_extend(
         }
 
         active_god.unmake_move(state, child_move.action);
+
+        if search_context.should_stop(&search_state) {
+            break;
+        }
     }
 
     best_score
@@ -438,6 +444,7 @@ where
         };
     } else if remaining_depth == 0 {
         return _q_extend(
+            search_context,
             state,
             search_state,
             nnue_acc,
