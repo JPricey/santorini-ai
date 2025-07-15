@@ -68,7 +68,7 @@ fn handle_command(
             }
 
             let fen = parts.remove(0);
-            // eprintln!("set_position: {:?}", fen);
+            eprintln!("set_position: {:?}", fen);
 
             let state =
                 FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;

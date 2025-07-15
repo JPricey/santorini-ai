@@ -231,12 +231,32 @@ impl BoardState {
         self.workers[player_idx] &= ANTI_WINNER_MASK;
     }
 
+    pub fn exactly_level_0(&self) -> BitBoard {
+        !self.at_least_level_1()
+    }
+
+    pub fn exactly_level_1(&self) -> BitBoard {
+        self.height_map[0] & !self.height_map[1]
+    }
+
     pub fn exactly_level_2(&self) -> BitBoard {
         self.height_map[1] & !self.height_map[2]
     }
 
     pub fn exactly_level_3(&self) -> BitBoard {
         self.height_map[2] & !self.height_map[3]
+    }
+
+    pub fn at_least_level_1(&self) -> BitBoard {
+        self.height_map[0]
+    }
+
+    pub fn at_least_level_2(&self) -> BitBoard {
+        self.height_map[1]
+    }
+
+    pub fn at_least_level_3(&self) -> BitBoard {
+        self.height_map[2]
     }
 
     pub fn print_to_console(&self) {

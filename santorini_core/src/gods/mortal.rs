@@ -5,7 +5,7 @@ use crate::{
         FullAction, GodName, GodPower,
         generic::{
             CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GENERATE_IMPROVERS_ONLY, GRID_POSITION_SCORES, GenericMove,
+            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove,
             IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
             INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK,
             MoveData, MoveGenFlags, MoveScore, NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA,
@@ -24,7 +24,7 @@ pub const MORTAL_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 pub const MORTAL_BUILD_POSITION_OFFSET: usize = POSITION_WIDTH * 2;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-struct MortalMove(pub MoveData);
+pub struct MortalMove(pub MoveData);
 
 impl Into<GenericMove> for MortalMove {
     fn into(self) -> GenericMove {
@@ -186,17 +186,6 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
         }
 
-        let mut help_self_builds = BitBoard::EMPTY;
-        let mut hurt_self_builds = BitBoard::EMPTY;
-
-        let other_self_workers = current_workers ^ moving_worker_start_mask;
-        for other_self_pos in other_self_workers {
-            let other_height = board.get_height_for_worker(BitBoard::as_mask(other_self_pos));
-            let ns = NEIGHBOR_MAP[other_self_pos as usize];
-            help_self_builds |= ns & !board.height_map[other_height];
-            hurt_self_builds |= ns & board.height_map[other_height];
-        }
-
         let too_high = std::cmp::min(3, worker_starting_height + 1);
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !(board.height_map[too_high] | all_workers_mask);
@@ -245,7 +234,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             let mut anti_check_builds = BitBoard::EMPTY;
             let mut is_already_check = false;
 
-            if F & (INCLUDE_SCORE | GENERATE_IMPROVERS_ONLY) != 0 {
+            if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & board.exactly_level_2();
                     anti_check_builds =
@@ -254,7 +243,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            if F & GENERATE_IMPROVERS_ONLY != 0 {
+            if F & GENERATE_THREATS_ONLY != 0 {
                 if is_already_check {
                     let must_avoid_build = anti_check_builds & worker_builds;
                     if must_avoid_build.count_ones() == 1 {
@@ -297,7 +286,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
     result
 }
 
-fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
+pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
 ) {
@@ -357,7 +346,7 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     }
 }
 
-fn mortal_blocker_board(action: GenericMove) -> BitBoard {
+pub fn mortal_blocker_board(action: GenericMove) -> BitBoard {
     let action: MortalMove = action.into();
     BitBoard::as_mask(action.move_to_position())
 }
@@ -366,11 +355,11 @@ pub const fn build_mortal() -> GodPower {
     GodPower {
         god_name: GodName::Mortal,
         _get_all_moves: mortal_move_gen::<0>,
-        _get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        _get_moves_for_search: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
         _get_wins: mortal_move_gen::<{ MATE_ONLY }>,
         _get_win_blockers: mortal_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
         _get_improver_moves_only: mortal_move_gen::<
-            { STOP_ON_MATE | GENERATE_IMPROVERS_ONLY | INCLUDE_SCORE },
+            { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
         >,
         get_actions_for_move: mortal_move_to_actions,
         _score_improvers: mortal_score_moves::<true>,
@@ -383,6 +372,8 @@ pub const fn build_mortal() -> GodPower {
 
 #[cfg(test)]
 mod tests {
+    use crate::random_utils::GameStateFuzzer;
+
     use super::*;
 
     #[test]

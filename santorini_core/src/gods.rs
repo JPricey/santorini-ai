@@ -14,12 +14,12 @@ use strum::{EnumString, IntoStaticStr};
 
 pub mod generic;
 pub mod mortal;
+pub mod pan;
 
 pub type StaticGod = &'static GodPower;
 
 // pub mod artemis;
 // pub mod hephaestus;
-// pub mod pan;
 
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
@@ -141,7 +141,7 @@ pub struct GodPower {
     _get_wins: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
     _get_win_blockers:
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_moves: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
+    _get_moves_for_search: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
     _get_improver_moves_only:
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
 
@@ -200,7 +200,7 @@ impl GodPower {
     }
 
     pub fn get_moves_for_search(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
-        (self._get_moves)(board, player, BitBoard::EMPTY)
+        (self._get_moves_for_search)(board, player, BitBoard::EMPTY)
     }
 
     pub fn get_winning_moves(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
@@ -257,9 +257,9 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 1] = [
+pub const ALL_GODS_BY_ID: [GodPower; 2] = [
     mortal::build_mortal(),
-    // pan::build_pan(),
+    pan::build_pan(),
     // artemis::build_artemis(),
     // hephaestus::build_hephaestus(),
 ];

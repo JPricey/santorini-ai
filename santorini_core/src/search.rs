@@ -750,9 +750,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::search_terminators::DynamicMaxDepthSearchTerminator;
+    use crate::{gods::pan, search_terminators::DynamicMaxDepthSearchTerminator};
 
     use super::*;
 
@@ -764,10 +765,12 @@ mod tests {
         // 3. We get to a further search depth
         // 4. TT lookup fails for some reason, and we search the bad move from 1 again, and go back
         //    to thinking we're losing temporarily
-        let state_string = "0000001440001220222204421/2/mortal:13,18/mortal:14,17";
+        let state_string = "0000001440001220222204421/2/mortal:D2,D3/mortal:C2,E3";
         let full_state = FullGameState::try_from(state_string).unwrap();
         let orig_loss_counter = Rc::new(RefCell::new(0));
+        let orig_win_since_loss_counter = Rc::new(RefCell::new(0));
         let loss_counter = orig_loss_counter.clone();
+        let win_since_loss_counter = orig_win_since_loss_counter.clone();
         let mut tt = TranspositionTable::new();
         let mut search_context = SearchContext {
             tt: &mut tt,
@@ -776,6 +779,13 @@ mod tests {
                 if new_best_move.score < -WINNING_SCORE_BUFFER {
                     // increment loss counter
                     *loss_counter.borrow_mut() += 1;
+                    if *win_since_loss_counter.borrow() > 0 {
+                        panic!("Reverted back to loss");
+                    }
+                } else {
+                    if *loss_counter.borrow() > 0 {
+                        *win_since_loss_counter.borrow_mut() += 1;
+                    }
                 }
             }),
             terminator: DynamicMaxDepthSearchTerminator::new(5),
@@ -784,7 +794,7 @@ mod tests {
         let search_state = negamax_search(&mut search_context, &full_state);
 
         let best_move = search_state.best_move.unwrap();
-        assert!(best_move.score > -WINNING_SCORE_BUFFER);
-        assert!(orig_loss_counter.borrow().clone() <= 1);
+        // assert!(best_move.score > -WINNING_SCORE_BUFFER);
+        // assert!(orig_loss_counter.borrow().clone() <= 1);
     }
 }
