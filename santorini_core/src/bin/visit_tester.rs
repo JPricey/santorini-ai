@@ -112,7 +112,10 @@ fn run_all_scenarios() -> TestSummary {
 
 pub fn main() {
     let summary = run_all_scenarios();
-    // eprint!("{:?}", summary);
+    eprintln!(
+        "Nodes Visited: {} Duration sum: {:.2}",
+        summary.nodes_visited_sum, summary.duration_sum
+    );
 
     let toml_string = serde_yaml::to_string(&summary).expect("Failed to serialize summary");
     std::fs::write("data/move_test.yaml", toml_string).expect("Failed to write corpus to file");

@@ -1,395 +1,395 @@
 all_scenarios:
-- duration_seconds: 0.015941514
+- duration_seconds: 0.018632485
   nodes_visited: 52146
   best_move: 8589
   best_move_str: D3>C3^D4
   best_move_state: 0000000010000000000000000/2/mortal:C3,C5/mortal:A1,C4
   score: 117
   depth: 5
-- duration_seconds: 0.2749023
-  nodes_visited: 1657268
+- duration_seconds: 0.16166767
+  nodes_visited: 827519
   best_move: 7367
   best_move_str: C4>B4^C4
   best_move_state: 0000002200040001111021200/2/mortal:B2,B4/mortal:B1,C2
-  score: 273
+  score: 371
   depth: 12
-- duration_seconds: 0.45421508
-  nodes_visited: 2299647
+- duration_seconds: 0.4459772
+  nodes_visited: 2352763
   best_move: 19152
   best_move_str: B2>C1^D2
   best_move_state: 0000011000020004004011112/1/mortal:B1,D1/mortal:B3,C1
   score: 1177
   depth: 14
-- duration_seconds: 0.000247473
-  nodes_visited: 1196
+- duration_seconds: 0.000261711
+  nodes_visited: 1328
   best_move: 10442
   best_move_str: A3>B4^A3
   best_move_state: 3444441122204224302401000/2/mortal:B4,D3/mortal:B3,E4
   score: 1053
   depth: 5
-- duration_seconds: 0.009649913
-  nodes_visited: 49013
+- duration_seconds: 0.011753132
+  nodes_visited: 61357
   best_move: 5456
   best_move_str: B2>A3^A4
   best_move_state: 3444441122104224202401000/2/mortal:A3,D3/mortal:B4,E4
-  score: 1623
+  score: 1214
   depth: 11
-- duration_seconds: 0.07328893
-  nodes_visited: 349850
+- duration_seconds: 0.07880144
+  nodes_visited: 341533
   best_move: 18862
   best_move_str: E3>D3^D2
   best_move_state: 2444431122104224202401000/2/mortal:B2,D3/mortal:A3,E4
   score: 509
   depth: 16
-- duration_seconds: 0.1525771
-  nodes_visited: 750224
+- duration_seconds: 0.28302938
+  nodes_visited: 1272887
   best_move: 15882
   best_move_str: A3>B2^A2
   best_move_state: 2444431122104223201401000/2/mortal:B2,E3/mortal:B4,E4
-  score: 893
+  score: 351
   depth: 20
-- duration_seconds: 0.17818694
-  nodes_visited: 945118
+- duration_seconds: 0.18254194
+  nodes_visited: 973401
   best_move: 18889
   best_move_str: E4>E3^D2
   best_move_state: 2444431122104122201401000/2/mortal:A3,E3/mortal:B4,D4
-  score: 568
+  score: 1688
   depth: 18
-- duration_seconds: 0.5516241
-  nodes_visited: 2504788
+- duration_seconds: 0.47099555
+  nodes_visited: 2123618
   best_move: 8488
   best_move_str: D4>E4^D4
   best_move_state: 2443431122104122200401000/2/mortal:A3,E4/mortal:B4,E3
-  score: 568
+  score: 198
   depth: 20
-- duration_seconds: 0.48294583
-  nodes_visited: 2812430
+- duration_seconds: 0.43075833
+  nodes_visited: 2478457
   best_move: 3342
   best_move_str: E3>D4^D5
   best_move_state: 2443431111104122200401000/2/mortal:A3,D4/mortal:B4,D3
   score: 680
   depth: 16
-- duration_seconds: 0.42675346
-  nodes_visited: 2592926
+- duration_seconds: 0.40833396
+  nodes_visited: 2355281
   best_move: 19913
   best_move_str: E4>E3^E2
   best_move_state: 2442431111104122200301000/2/mortal:A3,E3/mortal:B4,D4
   score: 578
   depth: 17
-- duration_seconds: 0.4567947
-  nodes_visited: 2926623
+- duration_seconds: 0.334706
+  nodes_visited: 2102439
   best_move: 14638
   best_move_str: E3>E4^E3
   best_move_state: 2442331111104122200201000/2/mortal:A3,E4/mortal:B4,C4
-  score: 511
+  score: 551
   depth: 16
-- duration_seconds: 0.30838504
-  nodes_visited: 2164339
+- duration_seconds: 0.38000473
+  nodes_visited: 2468497
   best_move: 14637
   best_move_str: D3>E4^E3
   best_move_state: 2441331111104122200101000/2/mortal:A3,E4/mortal:B4,D4
-  score: 254
+  score: 218
   depth: 12
-- duration_seconds: 0.27952206
-  nodes_visited: 1859353
+- duration_seconds: 0.23107931
+  nodes_visited: 1434788
   best_move: 19880
   best_move_str: D4>D3^E2
   best_move_state: 2441331011104112200101000/2/mortal:A3,D3/mortal:B4,E4
   score: 170
   depth: 12
-- duration_seconds: 0.25268966
-  nodes_visited: 1690232
+- duration_seconds: 0.2673757
+  nodes_visited: 1591847
   best_move: 5445
   best_move_str: A4>A3^A4
   best_move_state: 2441331011104012200001000/2/mortal:A3,D4/mortal:B4,D5
   score: 154
   depth: 12
-- duration_seconds: 0.104406
-  nodes_visited: 783736
+- duration_seconds: 0.121331505
+  nodes_visited: 870264
   best_move: 1194
   best_move_str: A3>A4^B5
   best_move_state: 2431321011104012200001000/2/mortal:A4,D4/mortal:A5,D5
   score: 76
   depth: 11
-- duration_seconds: 0.31108114
-  nodes_visited: 2284535
+- duration_seconds: 0.46374738
+  nodes_visited: 3524192
   best_move: 16709
   best_move_str: A4>A3^B2
   best_move_state: 2331311011104012200001000/2/mortal:A3,D4/mortal:B4,D5
-  score: 76
+  score: 68
   depth: 11
-- duration_seconds: 0.10118747
-  nodes_visited: 875202
+- duration_seconds: 0.13410577
+  nodes_visited: 1217268
   best_move: 166
   best_move_str: B4>A4^A5
   best_move_state: 2331311011103012100001000/2/mortal:A4,D4/mortal:A3,D5
   score: 6
   depth: 9
-- duration_seconds: 0.19041502
-  nodes_visited: 1296771
+- duration_seconds: 0.1860684
+  nodes_visited: 1294394
   best_move: 2245
   best_move_str: A4>B4^C5
   best_move_state: 1321311011103012100001000/2/mortal:B4,D4/mortal:A3,E4
   score: 33
   depth: 10
-- duration_seconds: 0.000284507
-  nodes_visited: 1497
-  best_move: 8649
-  best_move_str: E4>E3^D4
-  best_move_state: 0444433122410421424104011/1/mortal:A2,E2/mortal:B3,E3
-  score: 3420
-  depth: 5
-- duration_seconds: 0.001128498
-  nodes_visited: 4633
+- duration_seconds: 0.000036948
+  nodes_visited: 27
+  best_move: 9673
+  best_move_str: E4>E3^E4
+  best_move_state: 0444433113410421424104011/1/mortal:A2,E2/mortal:B3,E3
+  score: 9997
+  depth: 3
+- duration_seconds: 0.000971569
+  nodes_visited: 4219
   best_move: 10609
   best_move_str: C2>B3^A3
   best_move_state: 0444433112410411424104000/1/mortal:A2,E2/mortal:B3,E3
   score: 4222
   depth: 8
-- duration_seconds: 0.001310733
-  nodes_visited: 5551
+- duration_seconds: 0.001080191
+  nodes_visited: 4264
   best_move: 22069
   best_move_str: B1>C2^B1
   best_move_state: 0444433112310411424103000/1/mortal:B3,E2/mortal:C2,E3
   score: 4222
   depth: 10
-- duration_seconds: 0.002196386
-  nodes_visited: 7760
+- duration_seconds: 0.001863554
+  nodes_visited: 6308
   best_move: 18097
   best_move_str: C2>B1^C2
   best_move_state: 0444433112310411324102000/1/mortal:A2,E2/mortal:B1,E3
   score: 4222
   depth: 12
-- duration_seconds: 0.079724394
-  nodes_visited: 432526
+- duration_seconds: 0.07377549
+  nodes_visited: 333466
   best_move: 8649
   best_move_str: E4>E3^D4
   best_move_state: 0444433112310411314101000/1/mortal:B3,E2/mortal:C2,E3
-  score: 2927
+  score: 3201
   depth: 14
-- duration_seconds: 0.11224382
-  nodes_visited: 607635
+- duration_seconds: 0.1392662
+  nodes_visited: 684995
   best_move: 13613
   best_move_str: D3>E4^D3
   best_move_state: 0444433102310311314101000/1/mortal:B3,E3/mortal:C2,E4
-  score: 2019
+  score: 2844
   depth: 15
-- duration_seconds: 0.5852729
-  nodes_visited: 2731402
+- duration_seconds: 0.62285143
+  nodes_visited: 2606065
   best_move: 16940
   best_move_str: C3>C2^B2
   best_move_state: 0444433102310211314001000/1/mortal:B3,E4/mortal:C2,D3
-  score: 3332
+  score: 2382
   depth: 20
-- duration_seconds: 0.02304242
-  nodes_visited: 117679
+- duration_seconds: 0.027761836
+  nodes_visited: 140176
   best_move: 6536
   best_move_str: D4>C3^B4
   best_move_state: 0444433102310211114001000/1/mortal:C4,E4/mortal:C3,D3
-  score: 513
+  score: 566
   depth: 13
-- duration_seconds: 0.18949473
-  nodes_visited: 1049712
+- duration_seconds: 0.16822532
+  nodes_visited: 943459
   best_move: 3335
   best_move_str: C4>D4^D5
   best_move_state: 0444432102300211114001000/1/mortal:C3,E4/mortal:D3,D4
-  score: 513
+  score: 566
   depth: 15
-- duration_seconds: 0.42567483
-  nodes_visited: 2380331
+- duration_seconds: 0.26021323
+  nodes_visited: 1327582
   best_move: 1259
   best_move_str: B3>C4^B5
   best_move_state: 0442432102300211114001000/1/mortal:C3,D5/mortal:C4,D3
-  score: 511
+  score: 583
   depth: 16
-- duration_seconds: 0.3262792
-  nodes_visited: 1832041
+- duration_seconds: 0.27421647
+  nodes_visited: 1280774
   best_move: 18857
   best_move_str: E4>D3^D2
   best_move_state: 0342432102300211113001000/1/mortal:C4,D5/mortal:B3,D3
-  score: 636
+  score: 514
   depth: 17
-- duration_seconds: 0.28402653
-  nodes_visited: 1591849
+- duration_seconds: 0.29589495
+  nodes_visited: 1585564
   best_move: 13613
   best_move_str: D3>E4^D3
   best_move_state: 0342431102300211112001000/1/mortal:B4,D5/mortal:B3,E4
   score: 692
   depth: 15
-- duration_seconds: 0.2965691
-  nodes_visited: 1902712
+- duration_seconds: 0.28086802
+  nodes_visited: 1765132
   best_move: 17838
   best_move_str: E3>D3^C2
   best_move_state: 0342431101300111112001000/1/mortal:B4,E4/mortal:B3,D3
   score: 462
   depth: 11
-- duration_seconds: 0.18079644
-  nodes_visited: 985147
+- duration_seconds: 0.21756257
+  nodes_visited: 1120833
   best_move: 16742
   best_move_str: B4>B3^B2
   best_move_state: 0342431001300111102001000/1/mortal:C4,E4/mortal:B3,E3
   score: 138
   depth: 8
-- duration_seconds: 0.12337363
-  nodes_visited: 528589
+- duration_seconds: 0.14925995
+  nodes_visited: 600099
   best_move: 18888
   best_move_str: D4>E3^D2
   best_move_state: 0342431001300011002001000/1/mortal:C4,D5/mortal:B4,E3
   score: 102
   depth: 8
-- duration_seconds: 0.17163306
-  nodes_visited: 1182948
+- duration_seconds: 0.1900884
+  nodes_visited: 1330451
   best_move: 11434
   best_move_str: A3>A4^B3
   best_move_state: 0311311011113012000001000/2/mortal:A4,D4/mortal:B4,E4
   score: 31
   depth: 8
-- duration_seconds: 0.08516882
-  nodes_visited: 592981
+- duration_seconds: 0.09432849
+  nodes_visited: 684462
   best_move: 4356
   best_move_str: E5>D4^E5
   best_move_state: 0311311011103002000001000/2/mortal:A3,D4/mortal:B4,D5
   score: -27
   depth: 8
-- duration_seconds: 0.16633712
-  nodes_visited: 1012913
+- duration_seconds: 0.17370288
+  nodes_visited: 1080614
   best_move: 3208
   best_move_str: D4>E5^D5
   best_move_state: 0311211010103002000001000/2/mortal:A3,E5/mortal:B4,C5
   score: 4
   depth: 9
-- duration_seconds: 0.14827809
-  nodes_visited: 749148
+- duration_seconds: 0.15895794
+  nodes_visited: 790438
   best_move: 5456
   best_move_str: B2>A3^A4
   best_move_state: 0310211010102002000001000/2/mortal:A3,D4/mortal:B3,C5
   score: -29
   depth: 9
-- duration_seconds: 0.044488635
-  nodes_visited: 182035
+- duration_seconds: 0.05088921
+  nodes_visited: 220663
   best_move: 15883
   best_move_str: B3>B2^A2
   best_move_state: 0310200010101003000001000/2/mortal:B2,D4/mortal:A3,C5
   score: 54
   depth: 7
-- duration_seconds: 0.10734183
-  nodes_visited: 367769
+- duration_seconds: 0.12545037
+  nodes_visited: 401528
   best_move: 10730
   best_move_str: A3>A2^A3
   best_move_state: 0310200010200001000001000/2/mortal:A2,D4/mortal:B2,C5
   score: 32
   depth: 7
-- duration_seconds: 0.027118083
-  nodes_visited: 90100
+- duration_seconds: 0.028678132
+  nodes_visited: 89987
   best_move: 4359
   best_move_str: C4>D4^E5
   best_move_state: 0310200010100001000000000/2/mortal:A3,D4/mortal:C3,C5
   score: 30
   depth: 6
-- duration_seconds: 0.17021666
-  nodes_visited: 702834
+- duration_seconds: 0.1904885
+  nodes_visited: 839377
   best_move: 4359
   best_move_str: C4>D4^E5
   best_move_state: 0242431001300011001001000/1/mortal:B3,D5/mortal:B4,D4
   score: 102
   depth: 10
-- duration_seconds: 0.058889195
-  nodes_visited: 188304
+- duration_seconds: 0.062178247
+  nodes_visited: 191215
   best_move: 1256
   best_move_str: D4>C4^B5
   best_move_state: 0310100000100001000000000/2/mortal:A3,C4/mortal:C2,C5
   score: 48
   depth: 7
-- duration_seconds: 0.2220801
-  nodes_visited: 1026902
+- duration_seconds: 0.18027106
+  nodes_visited: 858096
   best_move: 1260
   best_move_str: C3>C4^B5
   best_move_state: 0242231001300011001001000/1/mortal:B3,E5/mortal:B4,C4
-  score: 266
+  score: 102
   depth: 12
-- duration_seconds: 0.14331505
-  nodes_visited: 847986
+- duration_seconds: 0.113603674
+  nodes_visited: 625704
   best_move: 5313
   best_move_str: B5>B4^A4
   best_move_state: 0142221001300011001001000/1/mortal:C2,E5/mortal:B4,C3
   score: 313
   depth: 12
-- duration_seconds: 0.09748148
-  nodes_visited: 552430
+- duration_seconds: 0.09772677
+  nodes_visited: 598797
   best_move: 1223
   best_move_str: C4>B4^B5
   best_move_state: 0241201001300011001001000/1/mortal:C2,D5/mortal:B4,C3
   score: 102
   depth: 8
-- duration_seconds: 0.15105549
-  nodes_visited: 594309
+- duration_seconds: 0.16967997
+  nodes_visited: 739801
   best_move: 18888
   best_move_str: D4>E3^D2
   best_move_state: 0141100001300011002001000/1/mortal:C2,E4/mortal:C4,E3
   score: -23
   depth: 7
-- duration_seconds: 0.1077413
-  nodes_visited: 370478
+- duration_seconds: 0.11660842
+  nodes_visited: 415637
   best_move: 17996
   best_move_str: C3>D2^C2
   best_move_state: 0141000001300011011000000/1/mortal:B3,E4/mortal:C4,D2
   score: -81
   depth: 6
-- duration_seconds: 0.03663559
-  nodes_visited: 131960
+- duration_seconds: 0.03761203
+  nodes_visited: 138241
   best_move: 5158
   best_move_str: B4>B5^A4
   best_move_state: 0131010001300001001000000/1/mortal:B3,D4/mortal:B5,C3
   score: -71
   depth: 6
-- duration_seconds: 0.01716037
-  nodes_visited: 53602
+- duration_seconds: 0.017992005
+  nodes_visited: 54645
   best_move: 10433
   best_move_str: B5>B4^A3
   best_move_state: 0130000001300001001000000/1/mortal:B3,C4/mortal:B4,C3
   score: -117
   depth: 6
-- duration_seconds: 0.05520608
-  nodes_visited: 163164
+- duration_seconds: 0.06113013
+  nodes_visited: 177622
   best_move: 10439
   best_move_str: C4>B4^A3
   best_move_state: 0110000001300001001000000/1/mortal:B3,D4/mortal:B4,C3
   score: -62
   depth: 6
-- duration_seconds: 0.08884835
-  nodes_visited: 260601
+- duration_seconds: 0.09748418
+  nodes_visited: 281727
   best_move: 17777
   best_move_str: C2>B3^C2
   best_move_state: 0110000001100001010000000/1/mortal:A3,D4/mortal:B3,C4
   score: -17
   depth: 6
-- duration_seconds: 0.11434051
-  nodes_visited: 349350
+- duration_seconds: 0.12235589
+  nodes_visited: 369419
   best_move: 18829
   best_move_str: D3>C3^D2
   best_move_state: 0110000000100001001000000/2/mortal:A3,C3/mortal:C2,C4
   score: -47
   depth: 6
-- duration_seconds: 0.032618463
+- duration_seconds: 0.033867743
   nodes_visited: 110146
   best_move: 3302
   best_move_str: B4>C4^D5
   best_move_state: 0011000000100001000000000/1/mortal:A3,D3/mortal:C2,C4
   score: 10
   depth: 5
-- duration_seconds: 0.035382263
+- duration_seconds: 0.037049305
   nodes_visited: 117622
   best_move: 15691
   best_move_str: B3>A3^A2
   best_move_state: 0010000000100001000000000/2/mortal:A3,D3/mortal:B4,C2
   score: 95
   depth: 5
-- duration_seconds: 0.021517806
+- duration_seconds: 0.022653207
   nodes_visited: 66465
   best_move: 23057
   best_move_str: C2>B2^C1
   best_move_state: 0000000000100000000000100/1/mortal:B3,D3/mortal:B2,C4
   score: 34
   depth: 5
-duration_sum: 9.359087
-nodes_visited_sum: 51788508
+duration_sum: 9.3078165
+nodes_visited_sum: 49929599

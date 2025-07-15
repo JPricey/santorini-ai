@@ -11,6 +11,7 @@ pub const RETURN_FIRST_MATE: MoveGenFlags = STOP_ON_MATE | MATE_ONLY;
 
 pub const NON_IMPROVER_SENTINEL_SCORE: MoveScore = MoveScore::MIN + 1;
 pub const IMPROVER_SENTINEL_SCORE: MoveScore = NON_IMPROVER_SENTINEL_SCORE + 1;
+pub const CHECK_SENTINEL_SCORE: MoveScore = IMPROVER_SENTINEL_SCORE + 1;
 
 const POSITION_SCORE_MULT: MoveScore = 1;
 pub const GRID_POSITION_SCORES: [MoveScore; 25] = grid_position_builder(
@@ -43,6 +44,7 @@ pub const ENEMY_WORKER_BUILD_SCORES: [[MoveScore; 5]; 4] = [
     [-8, -80, -10000, 12000, 0],
     [0, 0, 0, 0, 0],
 ];
+pub const CHECK_MOVE_BONUS: MoveScore = 6000;
 
 pub type MoveScore = i16;
 pub type MoveData = u16;

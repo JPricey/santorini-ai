@@ -4,11 +4,11 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower,
         generic::{
-            ENEMY_WORKER_BUILD_SCORES, GRID_POSITION_SCORES, GenericMove,
-            IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
-            LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags,
-            MoveScore, NON_IMPROVER_SENTINEL_SCORE, POSITION_WIDTH, RETURN_FIRST_MATE,
-            STOP_ON_MATE, ScoredMove, WORKER_HEIGHT_SCORES,
+            CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
+            GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
+            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, LOWER_POSITION_MASK, MATE_ONLY,
+            MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore, NON_IMPROVER_SENTINEL_SCORE,
+            POSITION_WIDTH, RETURN_FIRST_MATE, STOP_ON_MATE, ScoredMove, WORKER_HEIGHT_SCORES,
         },
     },
     player::Player,
@@ -133,6 +133,16 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
 
+        let mut neighbor_check_if_builds = BitBoard::EMPTY;
+        if F & INCLUDE_SCORE != 0 {
+            let other_own_workers =
+                (current_workers ^ moving_worker_start_mask) & board.exactly_level_2();
+            for other_pos in other_own_workers {
+                neighbor_check_if_builds |=
+                    NEIGHBOR_MAP[other_pos as usize] & board.exactly_level_2();
+            }
+        }
+
         let mut help_self_builds = BitBoard::EMPTY;
         let mut hurt_self_builds = BitBoard::EMPTY;
 
@@ -178,6 +188,19 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
 
             let worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
 
+            let mut check_if_builds = neighbor_check_if_builds;
+            let mut anti_check_builds = BitBoard::EMPTY;
+            let mut is_already_check = false;
+
+            if F & INCLUDE_SCORE != 0 {
+                if worker_end_height == 2 {
+                    check_if_builds |= worker_builds & board.exactly_level_2();
+                    anti_check_builds =
+                        NEIGHBOR_MAP[moving_worker_end_pos as usize] & board.exactly_level_3();
+                    is_already_check = anti_check_builds != BitBoard::EMPTY;
+                }
+            }
+
             for worker_build_pos in worker_builds {
                 let new_action = GenericMove::new_mortal_move(
                     moving_worker_start_pos,
@@ -185,12 +208,20 @@ fn mortal_move_gen<const F: MoveGenFlags>(board: &BoardState, player: Player) ->
                     worker_build_pos,
                 );
                 if F & INCLUDE_SCORE != 0 {
-                    let is_improving = worker_end_height > worker_starting_height;
-                    let score = if is_improving {
-                        IMPROVER_SENTINEL_SCORE
+                    let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                    let score;
+                    if is_already_check && (anti_check_builds & !worker_build_mask).is_not_empty()
+                        || (worker_build_mask & check_if_builds).is_not_empty()
+                    {
+                        score = CHECK_SENTINEL_SCORE;
                     } else {
-                        NON_IMPROVER_SENTINEL_SCORE
-                    };
+                        let is_improving = worker_end_height > worker_starting_height;
+                        score = if is_improving {
+                            IMPROVER_SENTINEL_SCORE
+                        } else {
+                            NON_IMPROVER_SENTINEL_SCORE
+                        };
+                    }
                     result.push(ScoredMove::new(new_action, score));
                 } else {
                     result.push(ScoredMove::new(new_action, 0));
@@ -228,7 +259,7 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     }
 
     for scored_action in move_list {
-        if IMPROVERS_ONLY && scored_action.score != IMPROVER_SENTINEL_SCORE {
+        if IMPROVERS_ONLY && scored_action.score == NON_IMPROVER_SENTINEL_SCORE {
             continue;
         }
 
@@ -250,6 +281,10 @@ fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
 
         score += build_score_map[build_at as usize];
 
+        if scored_action.score == CHECK_SENTINEL_SCORE {
+            score += CHECK_MOVE_BONUS;
+        }
+
         if IMPROVERS_ONLY {
             score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
         }
@@ -264,11 +299,80 @@ pub const fn build_mortal() -> GodPower {
         get_all_moves: mortal_move_gen::<0>,
         _get_moves: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
         _get_moves_without_scores: mortal_move_gen::<{ STOP_ON_MATE }>,
-        get_win: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
+        _get_wins: mortal_move_gen::<{ RETURN_FIRST_MATE }>,
         get_actions_for_move: mortal_move_to_actions,
         _score_improvers: mortal_score_moves::<true>,
         _score_remaining: mortal_score_moves::<false>,
         _make_move: mortal_make_move,
         _unmake_move: mortal_unmake_move,
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{board::FullGameState, random_utils::GameStateFuzzer};
+
+    use super::*;
+
+    #[test]
+    fn test_mortal_check_detection() {
+        let mortal = GodName::Mortal.to_power();
+        let game_state_fuzzer = GameStateFuzzer::default();
+
+        for state in game_state_fuzzer {
+            if state.board.get_winner().is_some() {
+                continue;
+            }
+            let current_player = state.board.current_player;
+            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            if current_win.len() != 0 {
+                continue;
+            }
+
+            let actions = mortal.get_moves_for_search(&state.board, current_player);
+            for action in actions {
+                let mut board = state.board.clone();
+                mortal.make_move(&mut board, action.action);
+
+                let is_check_move = action.score == CHECK_SENTINEL_SCORE;
+                let is_winning_next_turn =
+                    mortal.get_winning_moves(&board, current_player).len() > 0;
+
+                if is_check_move != is_winning_next_turn {
+                    println!(
+                        "Failed check detection. Check guess: {:?}. Actual: {:?}",
+                        is_check_move, is_winning_next_turn
+                    );
+                    println!("{:?}", state);
+                    state.board.print_to_console();
+                    println!("{:?}", action.action);
+                    board.print_to_console();
+                    assert_eq!(is_check_move, is_winning_next_turn);
+                }
+            }
+        }
+    }
+
+    /*
+    #[test]
+    fn test_check_detection_move_into() {
+        let mortal = GodName::Mortal.to_power();
+        let state =
+            FullGameState::try_from("11224 44444 00000 00000 00000/1/mortal:A5,D5/mortal:E1,E2")
+                .unwrap();
+        state.print_to_console();
+
+        println!(
+            "NON_IMPROVER_SENTINEL_SCORE: {}",
+            NON_IMPROVER_SENTINEL_SCORE
+        );
+        println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
+        println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
+
+        let actions = mortal.get_moves_for_search(&state.board, Player::One);
+        for action in actions {
+            println!("{:?}", action);
+        }
+    }
+    */
 }

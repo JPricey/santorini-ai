@@ -135,7 +135,7 @@ pub struct GodPower {
     pub god_name: GodName,
     pub get_all_moves: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
     pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
-    pub get_win: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
+    _get_wins: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
     _score_improvers: fn(board: &BoardState, move_list: &mut [ScoredMove]),
     _score_remaining: fn(board: &BoardState, move_list: &mut [ScoredMove]),
     _get_moves: fn(board: &BoardState, player: Player) -> Vec<ScoredMove>,
@@ -208,6 +208,10 @@ impl GodPower {
 
     pub fn score_remaining(&self, board: &BoardState, move_list: &mut [ScoredMove]) {
         (self._score_remaining)(board, move_list);
+    }
+
+    pub fn get_winning_moves(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
+        (self._get_wins)(board, player)
     }
 }
 

@@ -325,13 +325,13 @@ fn _q_extend(
     };
 
     // If we have a win right now, just take it
-    if (active_god.get_win)(state, state.current_player).len() > 0 {
+    if active_god.get_winning_moves(state, state.current_player).len() > 0 {
         let score = win_at_depth(depth) - 1;
         return score;
     }
 
     // If opponent isn't threatening a win, take the current score
-    if (other_god.get_win)(state, !state.current_player).len() == 0 {
+    if other_god.get_winning_moves(state, !state.current_player).len() == 0 {
         nnue_acc.replace_from_board(state);
         return nnue_acc.evaluate();
     }
