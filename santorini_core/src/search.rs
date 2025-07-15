@@ -697,7 +697,7 @@ where
             SearchScoreType::Exact
         };
 
-        if alpha != alpha_orig && best_action_idx > 2 {
+        if alpha != alpha_orig && best_action_idx > 1 {
             search_state.killer_move_table[ply as usize] = Some(best_action);
         }
 
