@@ -1,3 +1,5 @@
+use core::panic;
+
 use colored::Colorize;
 
 use crate::{
@@ -13,9 +15,6 @@ use serde::{Deserialize, Serialize};
 // const NUM_LEVELS: usize = 4;
 pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
-
-pub const IS_WINNER_MASK: BitBoard = BitBoard(1 << 31);
-pub const ANTI_WINNER_MASK: BitBoard = BitBoard(!(1 << 31));
 
 pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = [
     BitBoard(98),
@@ -160,6 +159,15 @@ impl FullGameState {
     }
 }
 
+pub const WINNER_MASK_OFFSET: usize = 30;
+pub const IS_WINNER_MASK: BitBoard = BitBoard(0b11 << WINNER_MASK_OFFSET);
+pub const P1_WINNER: BitBoard = BitBoard(0b01 << WINNER_MASK_OFFSET);
+pub const P2_WINNER: BitBoard = BitBoard(0b10 << WINNER_MASK_OFFSET);
+pub const ANTI_WINNER_MASK: BitBoard = BitBoard(!(0b11 << WINNER_MASK_OFFSET));
+pub const WINNER_LOOKUP: [Option<Player>; 3] = [None, Some(Player::One), Some(Player::Two)];
+
+pub const PLAYER_TO_WINNER_LOOKUP: [BitBoard; 2] = [P1_WINNER, P2_WINNER];
+
 /*
  * Bitmap of each level:
  * 0  1  2  3  4
@@ -229,23 +237,16 @@ impl BoardState {
     }
 
     pub fn get_winner(&self) -> Option<Player> {
-        if (self.workers[0] & IS_WINNER_MASK).0 > 0 {
-            Some(Player::One)
-        } else if (self.workers[1] & IS_WINNER_MASK).0 > 0 {
-            Some(Player::Two)
-        } else {
-            None
-        }
+        WINNER_LOOKUP[self.height_map[0].0 as usize >> WINNER_MASK_OFFSET]
     }
 
     pub fn set_winner(&mut self, player: Player) {
-        let player_idx = player as usize;
-        self.workers[player_idx] |= IS_WINNER_MASK;
+        debug_assert_eq!(self.height_map[0].0 as usize >> WINNER_MASK_OFFSET, 0);
+        self.height_map[0] |= PLAYER_TO_WINNER_LOOKUP[player as usize];
     }
 
     pub fn unset_winner(&mut self, player: Player) {
-        let player_idx = player as usize;
-        self.workers[player_idx] &= ANTI_WINNER_MASK;
+        self.height_map[0] &= ANTI_WINNER_MASK;
     }
 
     pub fn exactly_level_0(&self) -> BitBoard {
@@ -283,6 +284,7 @@ impl BoardState {
     pub fn print_for_debugging(&self) {
         for h in 0..4 {
             eprintln!("{h}: {}", self.height_map[h]);
+            eprintln!("{:032b}", self.height_map[h].0);
         }
     }
 
