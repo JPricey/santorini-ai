@@ -195,7 +195,7 @@ fn atlas_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.workers[board.current_player as usize] ^= worker_move_mask;
 
     if action.get_is_winning() {
-        board.unset_winner(board.current_player);
+        board.unset_winner();
         return;
     }
 

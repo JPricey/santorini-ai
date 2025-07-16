@@ -14,7 +14,6 @@ use crate::{
     move_picker::MovePicker,
     nnue::LabeledAccumulator,
     player::Player,
-    search,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
 };

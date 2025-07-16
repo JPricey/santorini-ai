@@ -159,6 +159,7 @@ impl FullGameState {
     }
 }
 
+pub const WINNER_SIGNAL_HEIGHT_BOARD_INDEX: usize = 0;
 pub const WINNER_MASK_OFFSET: usize = 30;
 pub const IS_WINNER_MASK: BitBoard = BitBoard(0b11 << WINNER_MASK_OFFSET);
 pub const P1_WINNER: BitBoard = BitBoard(0b01 << WINNER_MASK_OFFSET);
@@ -167,6 +168,13 @@ pub const ANTI_WINNER_MASK: BitBoard = BitBoard(!(0b11 << WINNER_MASK_OFFSET));
 pub const WINNER_LOOKUP: [Option<Player>; 3] = [None, Some(Player::One), Some(Player::Two)];
 
 pub const PLAYER_TO_WINNER_LOOKUP: [BitBoard; 2] = [P1_WINNER, P2_WINNER];
+
+pub const HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX: usize = 1;
+pub const HEIGHT_RESTRICTION_P1_MASK: BitBoard = P1_WINNER;
+pub const HEIGHT_RESTRICTION_P2_MASK: BitBoard = P2_WINNER;
+pub const HEIGHT_RESTRICTION_MASK_BY_PLAYER: [BitBoard; 2] =
+    [HEIGHT_RESTRICTION_P1_MASK, HEIGHT_RESTRICTION_P2_MASK];
+pub const HEIGHT_RESTRICTION_SECTION_MASK: BitBoard = BitBoard(0b11 << 30);
 
 /*
  * Bitmap of each level:
@@ -195,7 +203,7 @@ pub const PLAYER_TO_WINNER_LOOKUP: [BitBoard; 2] = [P1_WINNER, P2_WINNER];
  * bit 31 represents the amount that player 2 can move up on their next turn
  * move of the time these will be "11", they only change to 0 when playing against athena
  */
-#[derive(Clone, Default, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Default)]
 pub struct BoardState {
     pub current_player: Player,
     // height_map[L - 1][s] represents if square s is GTE L
@@ -245,8 +253,15 @@ impl BoardState {
         self.height_map[0] |= PLAYER_TO_WINNER_LOOKUP[player as usize];
     }
 
-    pub fn unset_winner(&mut self, player: Player) {
+    pub fn unset_winner(&mut self) {
         self.height_map[0] &= ANTI_WINNER_MASK;
+    }
+
+    pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {
+        let height_bonus: usize = (self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX]
+            & HEIGHT_RESTRICTION_MASK_BY_PLAYER[player as usize])
+            .is_empty() as usize;
+        3.min(current_height + height_bonus)
     }
 
     pub fn exactly_level_0(&self) -> BitBoard {
