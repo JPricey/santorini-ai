@@ -5,11 +5,11 @@ use crate::{
         FullAction, GodName, GodPower,
         generic::{
             CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove,
-            IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
-            INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK,
-            MoveData, MoveGenFlags, MoveScore, NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA,
-            POSITION_WIDTH, STOP_ON_MATE, ScoredMove, WORKER_HEIGHT_SCORES,
+            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
+            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
+            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
+            NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
+            WORKER_HEIGHT_SCORES,
         },
     },
     player::Player,
@@ -186,11 +186,10 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
         }
 
-        let too_high = std::cmp::min(3, worker_starting_height + 1);
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
-            & !(board.height_map[too_high] | all_workers_mask);
+            & !(board.height_map[std::cmp::min(3, worker_starting_height + 1)] | all_workers_mask);
 
-        if F & MATE_ONLY > 0 || worker_starting_height != 3 {
+        if F & MATE_ONLY != 0 || worker_starting_height == 2 {
             let moves_to_level_3 = worker_moves & board.height_map[2];
             worker_moves ^= moves_to_level_3;
 
@@ -325,7 +324,7 @@ pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
         let to_height = board.get_height_for_worker(BitBoard::as_mask(to));
 
         let build_at = action.build_position();
-        let build_pre_height = board.get_true_height(BitBoard::as_mask(build_at));
+        let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
 
         score -= GRID_POSITION_SCORES[from as usize];
         score += GRID_POSITION_SCORES[to as usize];

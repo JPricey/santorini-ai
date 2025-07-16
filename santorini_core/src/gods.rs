@@ -9,14 +9,13 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
+pub mod artemis;
 pub mod generic;
+pub mod hephaestus;
 pub mod mortal;
 pub mod pan;
-pub mod artemis;
 
 pub type StaticGod = &'static GodPower;
-
-// pub mod hephaestus;
 
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
@@ -138,7 +137,8 @@ pub struct GodPower {
     _get_wins: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
     _get_win_blockers:
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_moves_for_search: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
+    _get_moves_for_search:
+        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
     _get_improver_moves_only:
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
 
@@ -254,11 +254,11 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 3] = [
+pub const ALL_GODS_BY_ID: [GodPower; 4] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
-    // hephaestus::build_hephaestus(),
+    hephaestus::build_hephaestus(),
 ];
 
 #[cfg(test)]

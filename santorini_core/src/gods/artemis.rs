@@ -151,8 +151,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                         let other_worker_mask = BitBoard::as_mask(other_worker_pos);
                         let other_worker_height = board.get_height_for_worker(other_worker_mask);
                         // println!("other worker: {other_worker_height}");
-                        let other_worker_contribution = NEIGHBOR_MAP
-                            [other_worker_pos as usize]
+                        let other_worker_contribution = NEIGHBOR_MAP[other_worker_pos as usize]
                             & !height_map_clone[std::cmp::min(3, other_worker_height + 1)]
                             | other_worker_mask;
                         moves_1d |= other_worker_contribution;
