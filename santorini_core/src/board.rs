@@ -257,11 +257,14 @@ impl BoardState {
         self.height_map[0] &= ANTI_WINNER_MASK;
     }
 
-    pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {
-        let height_bonus: usize = (self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX]
+    pub fn get_worker_can_climb(&self, player: Player) -> bool {
+        (self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX]
             & HEIGHT_RESTRICTION_MASK_BY_PLAYER[player as usize])
-            .is_empty() as usize;
-        3.min(current_height + height_bonus)
+            .is_empty()
+    }
+
+    pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {
+        3.min(current_height + self.get_worker_can_climb(player) as usize)
     }
 
     pub fn exactly_level_0(&self) -> BitBoard {

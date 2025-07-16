@@ -233,7 +233,8 @@ fn heph_move_gen<const F: MoveGenFlags>(
         }
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
-            & !(board.height_map[std::cmp::min(3, worker_starting_height + 1)] | all_workers_mask);
+            & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
+                | all_workers_mask);
 
         if F & MATE_ONLY != 0 || worker_starting_height == 2 {
             let moves_to_level_3 = worker_moves & board.height_map[2];

@@ -39,6 +39,8 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
     let mut height_map_clone = board.height_map.clone();
 
+    let can_worker_climb = board.get_worker_can_climb(player);
+
     for moving_worker_start_pos in current_workers.into_iter() {
         // if moving_worker_start_pos != Square::E5 {
         //     continue;
@@ -51,7 +53,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
         let mut valid_destinations = !all_workers_mask & !board.at_least_level_4();
 
         let mut worker_1d_moves = (NEIGHBOR_MAP[moving_worker_start_pos as usize]
-            & !board.height_map[std::cmp::min(3, worker_starting_height + 1)]
+            & !board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
             | moving_worker_start_mask)
             & valid_destinations;
 
@@ -97,17 +99,34 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             continue;
         }
 
-        let level_0_moves = move_all_workers_one_include_original_workers(
-            worker_1d_moves & board.exactly_level_0(),
-        ) & !board.at_least_level_2();
-        let level_1_moves = move_all_workers_one_include_original_workers(
-            worker_1d_moves & board.exactly_level_1(),
-        ) & !board.at_least_level_3();
-        let level_23_moves = move_all_workers_one_include_original_workers(
-            worker_1d_moves & board.at_least_level_2(),
-        );
-
-        let worker_moves = valid_destinations & (level_0_moves | level_1_moves | level_23_moves);
+        let worker_moves;
+        if can_worker_climb {
+            let level_0_moves = move_all_workers_one_include_original_workers(
+                worker_1d_moves & board.exactly_level_0(),
+            ) & !board.at_least_level_2();
+            let level_1_moves = move_all_workers_one_include_original_workers(
+                worker_1d_moves & board.exactly_level_1(),
+            ) & !board.at_least_level_3();
+            let level_23_moves = move_all_workers_one_include_original_workers(
+                worker_1d_moves & board.at_least_level_2(),
+            );
+            worker_moves = valid_destinations & (level_0_moves | level_1_moves | level_23_moves);
+        } else {
+            let level_0_moves = move_all_workers_one_include_original_workers(
+                worker_1d_moves & board.exactly_level_0(),
+            ) & !board.at_least_level_1();
+            let level_1_moves = move_all_workers_one_include_original_workers(
+                worker_1d_moves & board.exactly_level_1(),
+            ) & !board.at_least_level_2();
+            let level_2_moves = move_all_workers_one_include_original_workers(
+                worker_1d_moves & starting_exactly_level_2,
+            ) & !board.at_least_level_3();
+            let level_3_moves = move_all_workers_one_include_original_workers(
+                worker_1d_moves & starting_exactly_level_3,
+            );
+            worker_moves = valid_destinations
+                & (level_0_moves | level_1_moves | level_2_moves | level_3_moves);
+        }
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
         let buildable_squares = !(non_selected_workers | board.height_map[3]);
