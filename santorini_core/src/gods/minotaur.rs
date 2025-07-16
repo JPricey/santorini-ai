@@ -19,41 +19,44 @@ use crate::{
 use super::PartialAction;
 
 // from(5)|to(5)|build(5)|win(1)
-pub const MORTAL_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const MORTAL_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const MORTAL_BUILD_POSITION_OFFSET: usize = MORTAL_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const MINOTAUR_MOVE_FROM_POSITION_OFFSET: usize = 0;
+pub const MINOTAUR_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+pub const MINOTAUR_BUILD_POSITION_OFFSET: usize = MINOTAUR_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const MINOTAUR_PUSH_TO_POSITION_OFFSET: usize = MINOTAUR_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct MortalMove(pub MoveData);
+pub struct MinotaurMove(pub MoveData);
 
-impl Into<GenericMove> for MortalMove {
+impl Into<GenericMove> for MinotaurMove {
     fn into(self) -> GenericMove {
         unsafe { std::mem::transmute(self) }
     }
 }
 
-impl From<GenericMove> for MortalMove {
+impl From<GenericMove> for MinotaurMove {
     fn from(value: GenericMove) -> Self {
         unsafe { std::mem::transmute(value) }
     }
 }
 
-impl MortalMove {
-    pub fn new_mortal_move(
+impl MinotaurMove {
+    pub fn new_minotaur_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << MORTAL_BUILD_POSITION_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData)
+            << MINOTAUR_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MINOTAUR_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << MINOTAUR_BUILD_POSITION_OFFSET);
 
         Self(data)
     }
 
-    pub fn new_mortal_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
+    pub fn new_minotaur_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+        let data: MoveData = ((move_from_position as MoveData)
+            << MINOTAUR_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MINOTAUR_MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -67,7 +70,7 @@ impl MortalMove {
     }
 
     pub fn build_position(self) -> Square {
-        Square::from((self.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> MINOTAUR_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
     pub fn move_mask(self) -> BitBoard {
@@ -79,7 +82,7 @@ impl MortalMove {
     }
 }
 
-impl std::fmt::Debug for MortalMove {
+impl std::fmt::Debug for MinotaurMove {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0 == NULL_MOVE_DATA {
             return write!(f, "NULL");
@@ -98,9 +101,9 @@ impl std::fmt::Debug for MortalMove {
     }
 }
 
-type GodMove = MortalMove;
+type GodMove = MinotaurMove;
 
-pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+pub fn minotaur_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
     let current_player = board.current_player;
     let worker_move_mask = action.move_mask();
@@ -124,7 +127,7 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
     ]];
 }
 
-pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
+pub fn minotaur_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
@@ -141,7 +144,7 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height] |= build_mask;
 }
 
-pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
+pub fn minotaur_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
@@ -158,7 +161,7 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height - 1] ^= build_mask;
 }
 
-fn mortal_move_gen<const F: MoveGenFlags>(
+fn minotaur_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
     player: Player,
     key_squares: BitBoard,
@@ -198,7 +201,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    GodMove::new_mortal_winning_move(
+                    GodMove::new_minotaur_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -257,7 +260,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = GodMove::new_mortal_move(
+                let new_action = GodMove::new_minotaur_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
@@ -288,7 +291,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
     result
 }
 
-pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
+pub fn minotaur_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
 ) {
@@ -348,33 +351,33 @@ pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     }
 }
 
-pub fn mortal_blocker_board(action: GenericMove) -> BitBoard {
+pub fn minotaur_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
     BitBoard::as_mask(action.move_to_position())
 }
 
-pub fn mortal_stringify(action: GenericMove) -> String {
+pub fn minotaur_stringify(action: GenericMove) -> String {
     let action: GodMove = action.into();
     format!("{:?}", action)
 }
 
-pub const fn build_mortal() -> GodPower {
+pub const fn build_minotaur() -> GodPower {
     GodPower {
-        god_name: GodName::Mortal,
-        _get_all_moves: mortal_move_gen::<0>,
-        _get_moves_for_search: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: mortal_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: mortal_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: mortal_move_gen::<
+        god_name: GodName::Minotaur,
+        _get_all_moves: minotaur_move_gen::<0>,
+        _get_moves_for_search: minotaur_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        _get_wins: minotaur_move_gen::<{ MATE_ONLY }>,
+        _get_win_blockers: minotaur_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
+        _get_improver_moves_only: minotaur_move_gen::<
             { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
         >,
-        get_actions_for_move: mortal_move_to_actions,
-        _score_improvers: mortal_score_moves::<true>,
-        _score_remaining: mortal_score_moves::<false>,
-        _get_blocker_board: mortal_blocker_board,
-        _make_move: mortal_make_move,
-        _unmake_move: mortal_unmake_move,
-        _stringify_move: mortal_stringify,
+        get_actions_for_move: minotaur_move_to_actions,
+        _score_improvers: minotaur_score_moves::<true>,
+        _score_remaining: minotaur_score_moves::<false>,
+        _get_blocker_board: minotaur_blocker_board,
+        _make_move: minotaur_make_move,
+        _unmake_move: minotaur_unmake_move,
+        _stringify_move: minotaur_stringify,
     }
 }
 
@@ -385,8 +388,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mortal_check_detection() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_minotaur_check_detection() {
+        let minotaur = GodName::Minotaur.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -394,19 +397,19 @@ mod tests {
                 continue;
             }
             let current_player = state.board.current_player;
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = minotaur.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let actions = mortal.get_moves_for_search(&state.board, current_player);
+            let actions = minotaur.get_moves_for_search(&state.board, current_player);
             for action in actions {
                 let mut board = state.board.clone();
-                mortal.make_move(&mut board, action.action);
+                minotaur.make_move(&mut board, action.action);
 
                 let is_check_move = action.score == CHECK_SENTINEL_SCORE;
                 let is_winning_next_turn =
-                    mortal.get_winning_moves(&board, current_player).len() > 0;
+                    minotaur.get_winning_moves(&board, current_player).len() > 0;
 
                 if is_check_move != is_winning_next_turn {
                     println!(
@@ -424,8 +427,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mortal_improver_checks_only() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_minotaur_improver_checks_only() {
+        let minotaur = GodName::Minotaur.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -434,16 +437,16 @@ mod tests {
             if state.board.get_winner().is_some() {
                 continue;
             }
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = minotaur.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let mut improver_moves = mortal.get_improver_moves(&state.board, current_player);
+            let mut improver_moves = minotaur.get_improver_moves(&state.board, current_player);
             for action in &improver_moves {
                 if action.score != CHECK_SENTINEL_SCORE {
                     let mut board = state.board.clone();
-                    mortal.make_move(&mut board, action.action);
+                    minotaur.make_move(&mut board, action.action);
 
                     println!("Move promised to be improver only but wasn't: {:?}", action,);
                     println!("{:?}", state);
@@ -454,7 +457,7 @@ mod tests {
                 }
             }
 
-            let mut all_moves = mortal.get_moves_for_search(&state.board, current_player);
+            let mut all_moves = minotaur.get_moves_for_search(&state.board, current_player);
             let check_count = all_moves
                 .iter()
                 .filter(|a| a.score == CHECK_SENTINEL_SCORE)
@@ -485,9 +488,9 @@ mod tests {
     /*
     #[test]
     fn test_check_detection_move_into() {
-        let mortal = GodName::Mortal.to_power();
+        let minotaur = GodName::Minotaur.to_power();
         let state =
-            FullGameState::try_from("11224 44444 00000 00000 00000/1/mortal:A5,D5/mortal:E1,E2")
+            FullGameState::try_from("11224 44444 00000 00000 00000/1/minotaur:A5,D5/minotaur:E1,E2")
                 .unwrap();
         state.print_to_console();
 
@@ -498,7 +501,7 @@ mod tests {
         println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
         println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
 
-        let actions = mortal.get_moves_for_search(&state.board, Player::One);
+        let actions = minotaur.get_moves_for_search(&state.board, Player::One);
         for action in actions {
             println!("{:?}", action);
         }

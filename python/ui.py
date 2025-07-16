@@ -29,6 +29,10 @@ for i in range(25):
 
 DONE_ACTION_TYPE = "DONE"
 
+DONE_FULL_ACTION = dict(
+    type=DONE_ACTION_TYPE,
+)
+
 
 class EngineProcess:
     def __init__(self, output_callback):
@@ -345,15 +349,9 @@ class ActionSelector():
 
     def get_all_possible_futures(self):
         result = []
-        if len(self.current_action_choices) > 0 and self.current_action_choices[-1]['type'] == DONE_ACTION_TYPE:
-            for future in self.all_futures:
-                if future['actions'] == self.current_action_choices[:-1]:
-                    result.append(future)
-        else:
-            for future in self.all_futures:
-                if self.current_action_choices == future['actions'][:len(self.current_action_choices)]:
-                    result.append(future)
-
+        for future in self.all_futures:
+            if self.current_action_choices == future['actions'][:len(self.current_action_choices)]:
+                result.append(future)
         return result
 
     def update_next_possible_actions(self):
@@ -361,9 +359,7 @@ class ActionSelector():
         possible_futures = self.get_all_possible_futures()
 
         for future in possible_futures:
-            if len(future['actions']) == len(self.current_action_choices):
-                result.add(frozendict(type=DONE_ACTION_TYPE))
-            elif len(future['actions']) > len(self.current_action_choices):
+            if len(future['actions']) > len(self.current_action_choices):
                 next_action = future['actions'][len(
                     self.current_action_choices)]
                 result.add(frozendict(next_action))
@@ -505,6 +501,10 @@ class RootPanel:
         for action in self.action_selector.next_possible_actions:
             if action.get('value') == coord:
                 possibly_pressed_actions.append(action)
+        if len(possibly_pressed_actions) == 0:
+            for action in self.action_selector.next_possible_actions:
+                if action.get('type') == DONE_ACTION_TYPE:
+                    possibly_pressed_actions.append(action)
 
         if len(possibly_pressed_actions) == 1:
             self.action_selector.add_partial_action(
@@ -599,6 +599,9 @@ class RootPanel:
 
     def handle_next_moves_message(self, message):
         start_state = message['start_state']
+        for next_state in message['next_states']:
+            next_state['actions'].append(DONE_FULL_ACTION)
+        print(message)
         self.position_to_action_cache[start_state] = message
         self.try_start_action_sequence()
 
