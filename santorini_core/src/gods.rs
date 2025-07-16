@@ -254,7 +254,7 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 2] = [
+pub const ALL_GODS_BY_ID: [GodPower; 3] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),

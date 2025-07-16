@@ -259,6 +259,10 @@ impl BoardState {
         self.height_map[2]
     }
 
+    pub fn at_least_level_4(&self) -> BitBoard {
+        self.height_map[3]
+    }
+
     pub fn print_to_console(&self) {
         if let Some(winner) = self.get_winner() {
             eprintln!("Player {:?} wins!", winner);
