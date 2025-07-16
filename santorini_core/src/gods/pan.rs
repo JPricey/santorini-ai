@@ -10,11 +10,13 @@ use crate::{
         },
         mortal::{
             MortalMove, mortal_blocker_board, mortal_make_move, mortal_move_to_actions,
-            mortal_score_moves, mortal_unmake_move,
+            mortal_score_moves, mortal_stringify, mortal_unmake_move,
         },
     },
     player::Player,
 };
+
+type GodMove = MortalMove;
 
 fn pan_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
@@ -65,7 +67,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in winning_moves.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    GodMove::new_mortal_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -82,7 +84,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in winning_moves.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    GodMove::new_mortal_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -148,7 +150,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = MortalMove::new_mortal_move(
+                let new_action = GodMove::new_mortal_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
@@ -195,6 +197,7 @@ pub const fn build_pan() -> GodPower {
         _get_blocker_board: mortal_blocker_board,
         _make_move: mortal_make_move,
         _unmake_move: mortal_unmake_move,
+        _stringify_move: mortal_stringify,
     }
 }
 
@@ -319,7 +322,7 @@ mod tests {
 
         let actions = pan.get_moves_for_search(&state.board, Player::One);
         for action in actions {
-            let a: MortalMove = action.action.into();
+            let a: GodMove = action.action.into();
             println!("{:?}, {}", a, action.score);
         }
     }

@@ -131,8 +131,10 @@ impl std::fmt::Debug for AtlasMove {
     }
 }
 
+type GodMove = AtlasMove;
+
 fn atlas_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
-    let action: AtlasMove = action.into();
+    let action: GodMove = action.into();
     let current_player = board.current_player;
     let worker_move_mask = action.move_mask();
     let current_workers = board.workers[current_player as usize];
@@ -165,7 +167,7 @@ fn atlas_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAct
 }
 
 fn atlas_make_move(board: &mut BoardState, action: GenericMove) {
-    let action: AtlasMove = action.into();
+    let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
 
@@ -188,7 +190,7 @@ fn atlas_make_move(board: &mut BoardState, action: GenericMove) {
 }
 
 fn atlas_unmake_move(board: &mut BoardState, action: GenericMove) {
-    let action: AtlasMove = unsafe { std::mem::transmute(action) };
+    let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
 
@@ -255,11 +257,8 @@ fn atlas_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    AtlasMove::new_atlas_winning_move(
-                        moving_worker_start_pos,
-                        moving_worker_end_pos,
-                    )
-                    .into(),
+                    GodMove::new_atlas_winning_move(moving_worker_start_pos, moving_worker_end_pos)
+                        .into(),
                 );
                 result.push(winning_move);
                 if F & STOP_ON_MATE != 0 {
@@ -325,13 +324,13 @@ fn atlas_move_gen<const F: MoveGenFlags>(
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                 let worker_build_height = board.get_height_for_worker(worker_build_mask);
 
-                let new_action = AtlasMove::new_basic_move(
+                let new_action = GodMove::new_basic_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
                     worker_build_height as MoveData,
                 );
-                let mut is_move_based_check =
+                let is_move_based_check =
                     is_already_check && (anti_check_builds & !worker_build_mask).is_not_empty();
                 if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                     let score;
@@ -355,7 +354,7 @@ fn atlas_move_gen<const F: MoveGenFlags>(
                 }
 
                 if (worker_build_mask & can_dome_build_mask).is_not_empty() {
-                    let new_action = AtlasMove::new_dome_build_move(
+                    let new_action = GodMove::new_dome_build_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                         worker_build_pos,
@@ -412,7 +411,7 @@ fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: 
             continue;
         }
 
-        let action: AtlasMove = scored_action.action.into();
+        let action: GodMove = scored_action.action.into();
         let mut score: MoveScore = 0;
 
         let from = action.move_from_position();
@@ -447,8 +446,13 @@ fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: 
 }
 
 fn atlas_blocker_board(action: GenericMove) -> BitBoard {
-    let action: AtlasMove = action.into();
+    let action: GodMove = action.into();
     BitBoard::as_mask(action.move_to_position())
+}
+
+fn atlas_stringify(action: GenericMove) -> String {
+    let action: GodMove = action.into();
+    format!("{:?}", action)
 }
 
 pub const fn build_atlas() -> GodPower {
@@ -467,12 +471,16 @@ pub const fn build_atlas() -> GodPower {
         _get_blocker_board: atlas_blocker_board,
         _make_move: atlas_make_move,
         _unmake_move: atlas_unmake_move,
+        _stringify_move: atlas_stringify,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{board::FullGameState, random_utils::GameStateFuzzer};
+    use crate::{
+        board::{self, FullGameState},
+        random_utils::GameStateFuzzer,
+    };
 
     use super::*;
 
@@ -507,7 +515,7 @@ mod tests {
                     );
                     println!("{:?}", state);
                     state.board.print_to_console();
-                    let acc: AtlasMove = action.action.into();
+                    let acc: GodMove = action.action.into();
                     println!("{:?} {:b}", acc, acc.0);
                     board.print_to_console();
                     assert_eq!(is_check_move, is_winning_next_turn);
@@ -541,7 +549,7 @@ mod tests {
                     println!("Move promised to be improver only but wasn't: {:?}", action);
                     println!("{:?}", state);
                     state.board.print_to_console();
-                    let acc: AtlasMove = action.action.into();
+                    let acc: GodMove = action.action.into();
                     println!("{:?}", acc);
                     board.print_to_console();
                     assert_eq!(action.score, CHECK_SENTINEL_SCORE);
@@ -593,8 +601,30 @@ mod tests {
 
         let actions = atlas.get_moves_for_search(&state.board, Player::One);
         for action in actions {
-            let acc: AtlasMove = action.action.into();
+            let acc: GodMove = action.action.into();
             println!("{:?} : {}", acc, action.score);
+        }
+    }
+
+    #[test]
+    fn test_atlas_make_unmake() {
+        let atlas = GodName::Atlas.to_power();
+        let game_state_fuzzer = GameStateFuzzer::default();
+
+        for state in game_state_fuzzer {
+            let orig_board = state.board.clone();
+            let child_actions =
+                (atlas._get_all_moves)(&orig_board, orig_board.current_player, BitBoard::EMPTY);
+
+            for action in child_actions {
+                let mut board = orig_board.clone();
+                let action = action.action;
+                atlas.make_move(&mut board, action);
+                board.validate_heights();
+                atlas.unmake_move(&mut board, action);
+                board.validate_heights();
+                assert_eq!(board, orig_board);
+            }
         }
     }
 }

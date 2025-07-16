@@ -154,6 +154,8 @@ pub struct GodPower {
     // Make/Unmake
     _make_move: fn(board: &mut BoardState, action: GenericMove),
     _unmake_move: fn(board: &mut BoardState, action: GenericMove),
+
+    _stringify_move: fn(action: GenericMove) -> String,
     // UI
     pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 }
@@ -239,6 +241,10 @@ impl GodPower {
 
     pub fn score_remaining(&self, board: &BoardState, move_list: &mut [ScoredMove]) {
         (self._score_remaining)(board, move_list);
+    }
+
+    pub fn stringify_move(&self, action: GenericMove) -> String {
+        (self._stringify_move)(action)
     }
 }
 

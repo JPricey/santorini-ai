@@ -98,8 +98,10 @@ impl std::fmt::Debug for MortalMove {
     }
 }
 
+type GodMove = MortalMove;
+
 pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
-    let action: MortalMove = action.into();
+    let action: GodMove = action.into();
     let current_player = board.current_player;
     let worker_move_mask = action.move_mask();
     let current_workers = board.workers[current_player as usize];
@@ -123,7 +125,7 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
 }
 
 pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
-    let action: MortalMove = action.into();
+    let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
 
@@ -140,7 +142,7 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
 }
 
 pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
-    let action: MortalMove = unsafe { std::mem::transmute(action) };
+    let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
 
@@ -195,7 +197,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    GodMove::new_mortal_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -254,7 +256,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = MortalMove::new_mortal_move(
+                let new_action = GodMove::new_mortal_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
@@ -315,7 +317,7 @@ pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
             continue;
         }
 
-        let action: MortalMove = scored_action.action.into();
+        let action: GodMove = scored_action.action.into();
         let mut score: MoveScore = 0;
 
         let from = action.move_from_position();
@@ -346,8 +348,13 @@ pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
 }
 
 pub fn mortal_blocker_board(action: GenericMove) -> BitBoard {
-    let action: MortalMove = action.into();
+    let action: GodMove = action.into();
     BitBoard::as_mask(action.move_to_position())
+}
+
+pub fn mortal_stringify(action: GenericMove) -> String {
+    let action: GodMove = action.into();
+    format!("{:?}", action)
 }
 
 pub const fn build_mortal() -> GodPower {
@@ -366,6 +373,7 @@ pub const fn build_mortal() -> GodPower {
         _get_blocker_board: mortal_blocker_board,
         _make_move: mortal_make_move,
         _unmake_move: mortal_unmake_move,
+        _stringify_move: mortal_stringify,
     }
 }
 

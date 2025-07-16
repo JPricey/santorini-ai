@@ -14,6 +14,7 @@ use crate::{
     move_picker::MovePicker,
     nnue::LabeledAccumulator,
     player::Player,
+    search,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
 };
@@ -206,6 +207,10 @@ pub fn negamax_search<T>(
 where
     T: SearchTerminator,
 {
+    search_context
+        .tt
+        .age(root_state.gods[0].god_name, root_state.gods[1].god_name);
+
     let mut root_board = root_state.board.clone();
     let mut search_state = SearchState::default();
 

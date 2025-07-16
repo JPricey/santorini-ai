@@ -10,12 +10,14 @@ use crate::{
         },
         mortal::{
             MortalMove, mortal_make_move, mortal_move_to_actions, mortal_score_moves,
-            mortal_unmake_move,
+            mortal_stringify, mortal_unmake_move,
         },
     },
     player::Player,
     utils::move_all_workers_one_include_original_workers,
 };
+
+type GodMove = MortalMove;
 
 fn artemis_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
@@ -60,7 +62,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    GodMove::new_mortal_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -82,7 +84,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
         for moving_worker_end_pos in moves_to_level_3.into_iter() {
             let winning_move = ScoredMove::new_winning_move(
-                MortalMove::new_mortal_winning_move(moving_worker_start_pos, moving_worker_end_pos)
+                GodMove::new_mortal_winning_move(moving_worker_start_pos, moving_worker_end_pos)
                     .into(),
             );
             result.push(winning_move);
@@ -181,7 +183,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     continue;
                 }
 
-                let new_action = MortalMove::new_mortal_move(
+                let new_action = GodMove::new_mortal_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
@@ -211,7 +213,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 }
 
 pub fn artemis_blocker_board(action: GenericMove) -> BitBoard {
-    let action: MortalMove = action.into();
+    let action: GodMove = action.into();
     let from = action.move_from_position();
     let to = action.move_to_position();
 
@@ -235,6 +237,7 @@ pub const fn build_artemis() -> GodPower {
         _get_blocker_board: artemis_blocker_board,
         _make_move: mortal_make_move,
         _unmake_move: mortal_unmake_move,
+        _stringify_move: mortal_stringify,
     }
 }
 
@@ -242,7 +245,11 @@ pub const fn build_artemis() -> GodPower {
 mod tests {
     use crate::{
         board::FullGameState,
-        gods::{GodName, artemis, generic::CHECK_SENTINEL_SCORE, mortal::MortalMove},
+        gods::{
+            GodName,
+            artemis::{self, GodMove},
+            generic::CHECK_SENTINEL_SCORE,
+        },
         player::Player,
         random_utils::GameStateFuzzer,
     };
@@ -386,7 +393,7 @@ mod tests {
                     );
                     println!("{:?}", state);
                     state.board.print_to_console();
-                    let act: MortalMove = action.action.into();
+                    let act: GodMove = action.action.into();
                     println!("{:?}", act);
                     board.print_to_console();
                     assert_eq!(is_check_move, is_winning_next_turn);
@@ -465,7 +472,7 @@ mod tests {
         let actions = mortal.get_moves_for_search(&state.board, Player::One);
         println!("num actions: {}", actions.len());
         for action in actions {
-            let a: MortalMove = action.action.into();
+            let a: GodMove = action.action.into();
             println!("{:?}, {}", a, action.score);
         }
     }

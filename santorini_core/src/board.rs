@@ -263,6 +263,40 @@ impl BoardState {
         self.height_map[3]
     }
 
+    pub fn print_for_debugging(&self) {
+        for h in 0..4 {
+            eprintln!("{h}: {}", self.height_map[h]);
+        }
+    }
+
+    pub fn confirm_valid(&self) -> Option<usize> {
+        for h in 1..4 {
+            let height = self.height_map[h];
+            let lower = self.height_map[h - 1];
+
+            if (height & !lower).is_not_empty() {
+                return Some(h);
+            }
+        }
+
+        return None;
+    }
+
+    pub fn validate_heights(&self) {
+        for h in 1..4 {
+            let height = self.height_map[h];
+            let lower = self.height_map[h - 1];
+
+            if (height & !lower).is_not_empty() {
+                for h in 0..4 {
+                    eprintln!("{h}: {}", self.height_map[h]);
+                }
+
+                panic!("Board has corrupted state on height {h}");
+            }
+        }
+    }
+
     pub fn print_to_console(&self) {
         if let Some(winner) = self.get_winner() {
             eprintln!("Player {:?} wins!", winner);

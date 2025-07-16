@@ -3,7 +3,7 @@ use std::{
     u8,
 };
 
-use crate::gods::generic::GenericMove;
+use crate::gods::{GodName, generic::GenericMove};
 
 use super::{board::BoardState, search::Hueristic};
 
@@ -48,6 +48,8 @@ pub struct TTEntry {
 pub struct TranspositionTable {
     pub entries: Vec<TTEntry>,
     pub stats: TTStats,
+    pub god1: GodName,
+    pub god2: GodName,
 }
 
 // const TABLE_SIZE: HashCodeType = 999_983;
@@ -88,7 +90,18 @@ impl TranspositionTable {
                 TABLE_SIZE as usize
             ],
             stats: Default::default(),
+            god1: GodName::Mortal,
+            god2: GodName::Mortal,
         }
+    }
+
+    pub fn age(&mut self, god1: GodName, god2: GodName) {
+        if self.god1 != god1 || self.god2 != god2 {
+            self.reset();
+        }
+
+        self.god1 = god1;
+        self.god2 = god2;
     }
 
     /// Get a key that wraps around the table size, avoiding using Modulo.
