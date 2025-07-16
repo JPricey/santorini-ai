@@ -8,6 +8,9 @@ pub const EXCEPT_LEFT_COL: BitBoard =
 pub const EXCEPT_RIGHT_COL: BitBoard =
     BitBoard(0b01111 | 0b01111 << 5 | 0b01111 << 10 | 0b01111 << 15 | 0b01111 << 20);
 
+/// WARNING:
+/// Expects that board bits 25-29 are completely clear
+/// And will wipe out any data in bits 30-31
 pub fn move_all_workers_one_include_original_workers(mask: BitBoard) -> BitBoard {
     let down = mask.0 >> BOARD_WIDTH;
     let up = mask.0 << BOARD_WIDTH;

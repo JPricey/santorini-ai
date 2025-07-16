@@ -168,7 +168,24 @@ impl FullGameState {
  * 15 16 17 18 19
  * 20 21 22 23 24
  *
- * bits 25-31 are unclaimed.
+ * 25 26 27 28 29
+ * 30 31
+ *
+ * bits 25-29 are best kept clear to not mess with worker moving helpers
+ *  eg: move_all_workers_one_include_original_workers
+ *
+ * on board 0:
+ * 30-31 represent winners
+ * 00 for no winner
+ * 10 for player 1 winning
+ * 01 for player 2 winning
+ * 11 is invalid state
+ *
+ * on board 1:
+ * 30-31 represent how much a worker can move up (for athena)
+ * bit 30 represents the amount that player 1 can move up on their next turn
+ * bit 31 represents the amount that player 2 can move up on their next turn
+ * move of the time these will be "11", they only change to 0 when playing against athena
  */
 #[derive(Clone, Default, PartialEq, Eq, Hash, Debug)]
 pub struct BoardState {
