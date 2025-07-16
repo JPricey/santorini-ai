@@ -497,7 +497,6 @@ fn _transpose_bitboard(mut board: BitBoard) -> BitBoard {
     board
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use crate::square::Square;
@@ -506,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_serde_coord() {
-        for position in 0..25 {
+        for position in 0_usize..25 {
             let coord = Square::from(position);
             let coord_str = serde_json::to_string(&coord).unwrap();
             let parsed_coord: Square = serde_json::from_str(&coord_str).unwrap();
@@ -518,7 +517,7 @@ mod tests {
     #[test]
     fn test_flip_board_v() {
         for b in 0..25 {
-            let board = 1 << b;
+            let board: BitBoard = BitBoard(1 << b);
             let row = b / 5;
             let col = b % 5;
 
@@ -535,7 +534,7 @@ mod tests {
     #[test]
     fn test_flip_board_h() {
         for b in 0..25 {
-            let board = 1 << b;
+            let board = BitBoard(1 << b);
             let row = b / 5;
             let col = b % 5;
 
@@ -552,7 +551,7 @@ mod tests {
     #[test]
     fn test_transpose() {
         for b in 0..25 {
-            let board = 1 << b;
+            let board = BitBoard(1 << b);
             let row = b / 5;
             let col = b % 5;
 
@@ -567,4 +566,3 @@ mod tests {
         }
     }
 }
-*/
