@@ -563,6 +563,9 @@ mod tests {
 
             assert_eq!(row, acol);
             assert_eq!(col, arow);
+
+            println!("{board}");
+            println!("{flipped}");
         }
     }
 }

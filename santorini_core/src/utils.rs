@@ -19,10 +19,6 @@ pub fn move_all_workers_one_include_original_workers(mask: BitBoard) -> BitBoard
     BitBoard((verticals | left | right) & BitBoard::MAIN_SECTION_MASK.0)
 }
 
-pub fn move_all_workers_one_exclude_original_workers(mask: BitBoard) -> BitBoard {
-    return move_all_workers_one_include_original_workers(mask) & !mask;
-}
-
 #[rustfmt::skip]
 pub const fn grid_position_builder<T: Copy>(
     outer_corner: T,
@@ -64,8 +60,8 @@ mod tests {
     fn test_move_all_workers_one_worker() {
         for pos in 0..25 {
             let worker_mask = BitBoard::as_mask_u8(pos);
-            let expected = NEIGHBOR_MAP[pos as usize];
-            let computed = move_all_workers_one_exclude_original_workers(worker_mask);
+            let expected = NEIGHBOR_MAP[pos as usize] | worker_mask;
+            let computed = move_all_workers_one_include_original_workers(worker_mask);
 
             assert_eq!(computed, expected);
         }
@@ -76,17 +72,9 @@ mod tests {
         for p1 in 0..25 {
             for p2 in 0..25 {
                 let mask = BitBoard(1 << p1 | 1 << p2);
-                {
-                    let expected = (NEIGHBOR_MAP[p1] | NEIGHBOR_MAP[p2]) & !mask;
-                    let computed = move_all_workers_one_exclude_original_workers(mask);
-                    assert_eq!(computed, expected);
-                }
-
-                {
-                    let expected = (NEIGHBOR_MAP[p1] | NEIGHBOR_MAP[p2]) | mask;
-                    let computed = move_all_workers_one_include_original_workers(mask);
-                    assert_eq!(computed, expected);
-                }
+                let expected = (NEIGHBOR_MAP[p1] | NEIGHBOR_MAP[p2]) | mask;
+                let computed = move_all_workers_one_include_original_workers(mask);
+                assert_eq!(computed, expected);
             }
         }
     }
