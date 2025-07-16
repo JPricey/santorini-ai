@@ -14,7 +14,6 @@ use crate::{
         },
     },
     player::Player,
-    square::Square,
     utils::move_all_workers_one_include_original_workers,
 };
 

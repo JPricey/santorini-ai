@@ -2,11 +2,16 @@ use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},
     gods::{
+        GodName, GodPower,
         generic::{
-            MoveGenFlags, ScoredMove, CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, NON_IMPROVER_SENTINEL_SCORE, STOP_ON_MATE
-        }, mortal::{
-            mortal_blocker_board, mortal_make_move, mortal_move_to_actions, mortal_score_moves, mortal_unmake_move, MortalMove
-        }, GodName, GodPower
+            CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
+            INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, NON_IMPROVER_SENTINEL_SCORE,
+            STOP_ON_MATE, ScoredMove,
+        },
+        mortal::{
+            MortalMove, mortal_blocker_board, mortal_make_move, mortal_move_to_actions,
+            mortal_score_moves, mortal_unmake_move,
+        },
     },
     player::Player,
 };
