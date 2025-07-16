@@ -60,6 +60,9 @@ pub const LOWEST_SPECIAL_SCORE: MoveScore = KILLER_MATCH_SCORE;
 pub const LOWER_POSITION_MASK: u8 = 0b11111;
 pub const POSITION_WIDTH: usize = 5;
 
+pub const FULL_HEIGHT_WIDTH: usize = 3;
+pub const FULL_HEIGHT_MASK: u8 = (1 << FULL_HEIGHT_WIDTH) - 1;
+
 // A move will be
 // 5 bits from
 // 5 bits to

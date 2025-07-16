@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use strum::{EnumString, IntoStaticStr};
 
 pub mod artemis;
+pub mod atlas;
 pub mod generic;
 pub mod hephaestus;
 pub mod mortal;
@@ -26,6 +27,7 @@ pub enum GodName {
     Pan = 1,
     Artemis = 2,
     Hephaestus = 3,
+    Atlas = 4,
 }
 
 impl GodName {
@@ -254,11 +256,12 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 4] = [
+pub const ALL_GODS_BY_ID: [GodPower; 5] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
     hephaestus::build_hephaestus(),
+    atlas::build_atlas(),
 ];
 
 #[cfg(test)]
