@@ -170,6 +170,7 @@ pub const WINNER_LOOKUP: [Option<Player>; 3] = [None, Some(Player::One), Some(Pl
 pub const PLAYER_TO_WINNER_LOOKUP: [BitBoard; 2] = [P1_WINNER, P2_WINNER];
 
 pub const HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX: usize = 1;
+pub const HEIGHT_RESTRICTION_BASE_OFFSET: usize = 30;
 pub const HEIGHT_RESTRICTION_P1_MASK: BitBoard = P1_WINNER;
 pub const HEIGHT_RESTRICTION_P2_MASK: BitBoard = P2_WINNER;
 pub const HEIGHT_RESTRICTION_MASK_BY_PLAYER: [BitBoard; 2] =
@@ -261,6 +262,11 @@ impl BoardState {
         (self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX]
             & HEIGHT_RESTRICTION_MASK_BY_PLAYER[player as usize])
             .is_empty()
+    }
+
+    pub fn flip_worker_can_climb(&mut self, player: Player, bit: bool) {
+        self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX] ^=
+            BitBoard((bit as u32) << (HEIGHT_RESTRICTION_BASE_OFFSET + (player as usize)))
     }
 
     pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {

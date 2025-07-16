@@ -14,6 +14,10 @@ fn player_section_string(state: &FullGameState, player: Player) -> String {
         result += "#";
     }
 
+    if !state.board.get_worker_can_climb(player) {
+        result += "-";
+    }
+
     result += state.get_god_for_player(player).god_name.into();
 
     result += ":";
@@ -66,6 +70,7 @@ struct CharacterFen {
     god: GodName,
     worker_locations: Vec<Square>,
     is_won: bool,
+    is_movement_blocked: bool,
 }
 
 const CHARACTER_FEN_WARNING: &str =
@@ -78,6 +83,9 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
 
     let is_won = s.contains("#");
     let s = s.replace("#", "");
+
+    let is_movement_blocked = s.contains("-");
+    let s = s.replace("-", "");
 
     let colon_splits: Vec<_> = s.split(":").collect();
     if colon_splits.len() > 2 {
@@ -106,6 +114,7 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
         god,
         worker_locations,
         is_won,
+        is_movement_blocked,
     })
 }
 
@@ -165,6 +174,9 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     } else if p2_section.is_won {
         result.set_winner(Player::Two);
     }
+
+    result.flip_worker_can_climb(Player::One, p1_section.is_movement_blocked);
+    result.flip_worker_can_climb(Player::Two, p2_section.is_movement_blocked);
 
     Ok(FullGameState {
         board: result,

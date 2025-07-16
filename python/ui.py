@@ -120,6 +120,7 @@ def parse_game_state(game_state_string):
 
     def parse_worker_string(worker_string):
         worker_string = worker_string.replace('#', '')
+        worker_string = worker_string.replace('-', '')
         # TODO: parse the god
         worker_string_parts = worker_string.split(':')
         if len(worker_string_parts) != 2:
