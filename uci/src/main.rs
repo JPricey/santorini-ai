@@ -109,6 +109,7 @@ fn handle_command(
                         nodes_visited: Some(new_best_move.nodes_visited),
                         elapsed_seconds: start_time.elapsed().as_secs_f32(),
                         actions: action_path,
+                        action_str: Some(new_best_move.action_str),
                     },
                 });
 

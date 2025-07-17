@@ -240,7 +240,7 @@ where
             (search_context.new_best_move_callback)(new_best_move);
             tt_entry.search_depth + 1
         } else {
-            3
+            2
         }
     } as usize;
 

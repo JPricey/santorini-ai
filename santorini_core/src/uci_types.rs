@@ -24,6 +24,7 @@ pub struct BestMoveMeta {
     pub nodes_visited: Option<usize>,
     pub elapsed_seconds: f32,
     pub actions: Vec<PartialAction>,
+    pub action_str: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

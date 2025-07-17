@@ -289,6 +289,14 @@ impl BoardState {
         self.height_map[2] & !self.height_map[3]
     }
 
+    pub fn exactly_level_n(&self, level: usize) -> BitBoard {
+        if level == 0 {
+            self.exactly_level_0()
+        } else {
+            self.height_map[level - 1] & !self.height_map[level]
+        }
+    }
+
     pub fn at_least_level_1(&self) -> BitBoard {
         self.height_map[0]
     }

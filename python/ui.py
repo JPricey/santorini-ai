@@ -526,8 +526,7 @@ class RootPanel:
 
     def on_position_updated(self):
         self.engine_output.delete("1.0", tk.END)
-        self.engine.send_command(
-            f'set_position {self.current_position_string()}')
+        self.engine.send_command( f'set_position {self.current_position_string()}')
         self.game_board.set_position(self.current_position_string())
         self.action_selector = None
         self.try_start_action_sequence()
@@ -607,14 +606,15 @@ class RootPanel:
     def handle_best_move_message(self, message):
         if message['start_state'] != self.current_position_string():
             print('Skipping best move for non-current position')
-            print(message)
             return
 
+        print(message)
         self.last_engine_move = message
 
         trigger = message['trigger']
         meta = message['meta']
-        action_string = pretty_string_for_action_sequence(meta['actions'])
+        # action_string = pretty_string_for_action_sequence(meta['actions'])
+        action_string = meta['action_str']
 
         thinking_string = f"{action_string} (eval: {meta['score']}) ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']}) | {trigger}\n"
 
