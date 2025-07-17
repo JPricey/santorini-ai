@@ -285,8 +285,11 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     let other_workers = board.workers[1 - current_player_idx] & BitBoard::MAIN_SECTION_MASK;
 
+    let exactly_level_2 = board.exactly_level_2();
+    let exactly_level_3 = board.exactly_level_3();
+
     if F & MATE_ONLY != 0 {
-        current_workers &= board.exactly_level_2()
+        current_workers &= exactly_level_2
     }
     let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
 
@@ -300,11 +303,9 @@ fn hermes_move_gen<const F: MoveGenFlags>(
 
         let mut neighbor_check_if_builds = BitBoard::EMPTY;
         if F & INCLUDE_SCORE != 0 {
-            let other_own_workers =
-                (current_workers ^ moving_worker_start_mask) & board.exactly_level_2();
+            let other_own_workers = (current_workers ^ moving_worker_start_mask) & exactly_level_2;
             for other_pos in other_own_workers {
-                neighbor_check_if_builds |=
-                    NEIGHBOR_MAP[other_pos as usize] & board.exactly_level_2();
+                neighbor_check_if_builds |= NEIGHBOR_MAP[other_pos as usize] & exactly_level_2;
             }
         }
 
@@ -374,9 +375,9 @@ fn hermes_move_gen<const F: MoveGenFlags>(
 
             if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                 if worker_end_height == 2 {
-                    check_if_builds |= worker_builds & board.exactly_level_2();
+                    check_if_builds |= worker_builds & exactly_level_2;
                     anti_check_builds =
-                        NEIGHBOR_MAP[moving_worker_end_pos as usize] & board.exactly_level_3();
+                        NEIGHBOR_MAP[moving_worker_end_pos as usize] & exactly_level_3;
                     is_already_check = anti_check_builds != BitBoard::EMPTY;
                 }
             }
@@ -433,16 +434,55 @@ fn hermes_move_gen<const F: MoveGenFlags>(
 
     let f2 = worker_iter.next().unwrap();
     let m2 = BitBoard::as_mask(f2);
+    let h2 = board.get_height_for_worker(m2);
+    let h2_mask = board.exactly_level_n(h2) & !other_workers;
+
+    let level_2_workers = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize] & m1
+        | BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize] & m2;
 
     {
         // Handle neither worker moving
-        let possible_builds = (NEIGHBOR_MAP[f1 as usize] | NEIGHBOR_MAP[f2 as usize])
+        let mut possible_builds = (NEIGHBOR_MAP[f1 as usize] | NEIGHBOR_MAP[f2 as usize])
             & !(all_workers_mask | board.height_map[3]);
 
-        // TODO: check detection
+        if F & INTERACT_WITH_KEY_SQUARES != 0 {
+            if ((m1 | m2) & key_squares).is_empty() {
+                possible_builds &= key_squares;
+            }
+        }
+
+        let l2_neighbors = move_all_workers_one_include_original_workers(level_2_workers);
+        let current_checks = l2_neighbors & exactly_level_3 & possible_builds;
+        let check_if_build = l2_neighbors & exactly_level_2 & possible_builds;
+
+        if F & GENERATE_THREATS_ONLY != 0 {
+            if current_checks.count_ones() == 1 {
+                possible_builds ^= current_checks;
+            }
+            possible_builds = possible_builds & check_if_build
+        }
+
         for build in possible_builds {
             let new_action = GodMove::new_hermes_no_move(build);
-            result.push(ScoredMove::new(new_action.into(), 0));
+            let build_mask = BitBoard::as_mask(build);
+
+            if F & GENERATE_THREATS_ONLY != 0 {
+                result.push(ScoredMove::new(new_action.into(), CHECK_SENTINEL_SCORE));
+            } else if F & INCLUDE_SCORE != 0 {
+                if (build_mask & check_if_build).is_not_empty()
+                    || (current_checks.is_not_empty()
+                        && (current_checks ^ build_mask).is_not_empty())
+                {
+                    result.push(ScoredMove::new(new_action.into(), CHECK_SENTINEL_SCORE));
+                } else {
+                    result.push(ScoredMove::new(
+                        new_action.into(),
+                        NON_IMPROVER_SENTINEL_SCORE,
+                    ));
+                }
+            } else {
+                result.push(ScoredMove::new(new_action.into(), 0));
+            }
         }
     }
 
@@ -504,8 +544,6 @@ fn hermes_move_gen<const F: MoveGenFlags>(
         }
     } else {
         // worker components do not overlap
-        let h2 = board.get_height_for_worker(m2);
-        let h2_mask = board.exactly_level_n(h2) & !other_workers;
         let mut c2 = m2;
         let mut component_size = c2.count_ones();
         loop {
@@ -566,6 +604,17 @@ fn hermes_move_gen<const F: MoveGenFlags>(
 
     result
 }
+
+// fn hermes_move_check_map(
+//     level_2_workers: BitBoard,
+//     exactly_level_2: BitBoard,
+//     exactly_level_3: BitBoard,
+//     buildable_squares: BitBoard,
+// ) -> (BitBoard, BitBoard) {
+//     let l2_neighbors = move_all_workers_one_include_original_workers(level_2_workers);
+//     let current_checks = l2_neighbors & exactly_level_3 & buildable_squares;
+//     let check_if_build = l2_neighbors & exactly_level_2 & buildable_squares;
+// }
 
 pub fn hermes_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,

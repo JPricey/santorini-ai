@@ -92,6 +92,8 @@ impl BitBoard {
     pub const MAIN_SECTION_MASK: Self = Self((1 << 25) - 1);
     pub const OFF_SECTION_MASK: Self = Self(!Self::MAIN_SECTION_MASK.0);
 
+    pub const CONDITIONAL_MASK: [Self; 2] = [Self::EMPTY, Self::MAIN_SECTION_MASK];
+
     pub const fn as_mask(square: Square) -> Self {
         let data = 1u32 << square as u8;
         Self(data)
