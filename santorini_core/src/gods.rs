@@ -17,6 +17,7 @@ pub mod mortal;
 pub mod pan;
 pub mod athena;
 pub mod minotaur;
+pub mod demeter;
 
 pub type StaticGod = &'static GodPower;
 
@@ -32,6 +33,7 @@ pub enum GodName {
     Atlas = 4,
     Athena = 5,
     Minotaur = 6,
+    Demeter = 7,
 }
 
 impl GodName {
@@ -266,7 +268,7 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 7] = [
+pub const ALL_GODS_BY_ID: [GodPower; 8] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
@@ -274,6 +276,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 7] = [
     atlas::build_atlas(),
     athena::build_athena(),
     minotaur::build_minotaur(),
+    demeter::build_demeter(),
 ];
 
 #[cfg(test)]

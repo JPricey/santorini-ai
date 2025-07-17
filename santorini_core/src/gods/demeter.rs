@@ -19,41 +19,62 @@ use crate::{
 use super::PartialAction;
 
 // from(5)|to(5)|build(5)|win(1)
-pub const MORTAL_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const MORTAL_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const MORTAL_BUILD_POSITION_OFFSET: usize = MORTAL_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const DEMETER_MOVE_FROM_POSITION_OFFSET: usize = 0;
+pub const DEMETER_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+pub const DEMETER_BUILD_POSITION_OFFSET: usize = DEMETER_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const DEMETER_SECOND_BUILD_POSITION_OFFSET: usize =
+    DEMETER_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+pub const DEMETER_NO_SECOND_BUILD_VALUE: MoveData = 25 << DEMETER_SECOND_BUILD_POSITION_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct MortalMove(pub MoveData);
+pub struct DemeterMove(pub MoveData);
 
-impl Into<GenericMove> for MortalMove {
+impl Into<GenericMove> for DemeterMove {
     fn into(self) -> GenericMove {
         unsafe { std::mem::transmute(self) }
     }
 }
 
-impl From<GenericMove> for MortalMove {
+impl From<GenericMove> for DemeterMove {
     fn from(value: GenericMove) -> Self {
         unsafe { std::mem::transmute(value) }
     }
 }
 
-impl MortalMove {
-    pub fn new_mortal_move(
+impl DemeterMove {
+    pub fn new_demeter_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << MORTAL_BUILD_POSITION_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData)
+            << DEMETER_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << DEMETER_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << DEMETER_BUILD_POSITION_OFFSET)
+            | DEMETER_NO_SECOND_BUILD_VALUE;
 
         Self(data)
     }
 
-    pub fn new_mortal_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
+    pub fn new_demeter_two_build_move(
+        move_from_position: Square,
+        move_to_position: Square,
+        build_position: Square,
+        build_position_2: Square,
+    ) -> Self {
+        let data: MoveData = ((move_from_position as MoveData)
+            << DEMETER_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << DEMETER_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << DEMETER_BUILD_POSITION_OFFSET)
+            | ((build_position_2 as MoveData) << DEMETER_SECOND_BUILD_POSITION_OFFSET);
+
+        Self(data)
+    }
+
+    pub fn new_demeter_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+        let data: MoveData = ((move_from_position as MoveData)
+            << DEMETER_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << DEMETER_MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -67,7 +88,16 @@ impl MortalMove {
     }
 
     pub fn build_position(self) -> Square {
-        Square::from((self.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> DEMETER_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+    }
+
+    pub fn second_build_position(self) -> Option<Square> {
+        let value = (self.0 >> DEMETER_SECOND_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+        if value == 25 {
+            None
+        } else {
+            Some(Square::from(value))
+        }
     }
 
     pub fn move_mask(self) -> BitBoard {
@@ -79,7 +109,7 @@ impl MortalMove {
     }
 }
 
-impl std::fmt::Debug for MortalMove {
+impl std::fmt::Debug for DemeterMove {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0 == NULL_MOVE_DATA {
             return write!(f, "NULL");
@@ -92,15 +122,17 @@ impl std::fmt::Debug for MortalMove {
 
         if is_win {
             write!(f, "{}>{}#", move_from, move_to)
+        } else if let Some(second_build) = self.second_build_position() {
+            write!(f, "{}>{}^{}^{}", move_from, move_to, build, second_build)
         } else {
             write!(f, "{}>{}^{}", move_from, move_to, build)
         }
     }
 }
 
-type GodMove = MortalMove;
+type GodMove = DemeterMove;
 
-pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+pub fn demeter_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
     let current_player = board.current_player;
     let worker_move_mask = action.move_mask();
@@ -117,14 +149,32 @@ pub fn mortal_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
     }
 
     let build_position = action.build_position();
-    vec![vec![
-        PartialAction::SelectWorker(moving_worker_mask.lsb()),
-        PartialAction::MoveWorker(result_worker_mask.lsb()),
-        PartialAction::Build(build_position),
-    ]]
+
+    if let Some(build_position_2) = action.second_build_position() {
+        vec![
+            vec![
+                PartialAction::SelectWorker(moving_worker_mask.lsb()),
+                PartialAction::MoveWorker(result_worker_mask.lsb()),
+                PartialAction::Build(build_position),
+                PartialAction::Build(build_position_2),
+            ],
+            vec![
+                PartialAction::SelectWorker(moving_worker_mask.lsb()),
+                PartialAction::MoveWorker(result_worker_mask.lsb()),
+                PartialAction::Build(build_position_2),
+                PartialAction::Build(build_position),
+            ],
+        ]
+    } else {
+        vec![vec![
+            PartialAction::SelectWorker(moving_worker_mask.lsb()),
+            PartialAction::MoveWorker(result_worker_mask.lsb()),
+            PartialAction::Build(build_position),
+        ]]
+    }
 }
 
-pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
+pub fn demeter_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
@@ -134,14 +184,21 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
         return;
     }
 
-    let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
+    {
+        let build_position = action.build_position();
+        let build_mask = BitBoard::as_mask(build_position);
+        let build_height = board.get_height_for_worker(build_mask);
+        board.height_map[build_height] |= build_mask;
+    }
 
-    let build_height = board.get_height_for_worker(build_mask);
-    board.height_map[build_height] |= build_mask;
+    if let Some(build_position) = action.second_build_position() {
+        let build_mask = BitBoard::as_mask(build_position);
+        let build_height = board.get_height_for_worker(build_mask);
+        board.height_map[build_height] |= build_mask;
+    }
 }
 
-pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
+pub fn demeter_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
@@ -151,14 +208,21 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
         return;
     }
 
-    let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
+    {
+        let build_position = action.build_position();
+        let build_mask = BitBoard::as_mask(build_position);
+        let build_height = board.get_true_height(build_mask);
+        board.height_map[build_height - 1] ^= build_mask;
+    }
 
-    let build_height = board.get_true_height(build_mask);
-    board.height_map[build_height - 1] ^= build_mask;
+    if let Some(build_position) = action.second_build_position() {
+        let build_mask = BitBoard::as_mask(build_position);
+        let build_height = board.get_true_height(build_mask);
+        board.height_map[build_height - 1] ^= build_mask;
+    }
 }
 
-fn mortal_move_gen<const F: MoveGenFlags>(
+fn demeter_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
     player: Player,
     key_squares: BitBoard,
@@ -198,7 +262,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    GodMove::new_mortal_winning_move(
+                    GodMove::new_demeter_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -225,6 +289,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
 
             let mut worker_builds =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+            let mut second_builds = worker_builds;
 
             if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
                 if (moving_worker_end_mask & key_squares).is_empty() {
@@ -257,29 +322,73 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = GodMove::new_mortal_move(
-                    moving_worker_start_pos,
-                    moving_worker_end_pos,
-                    worker_build_pos,
-                );
-                if F & INCLUDE_SCORE != 0 {
-                    let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let score;
-                    if is_already_check && (anti_check_builds & !worker_build_mask).is_not_empty()
-                        || (worker_build_mask & check_if_builds).is_not_empty()
-                    {
-                        score = CHECK_SENTINEL_SCORE;
-                    } else {
-                        let is_improving = worker_end_height > worker_starting_height;
-                        score = if is_improving {
-                            IMPROVER_SENTINEL_SCORE
+                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                second_builds ^= worker_build_mask;
+
+                {
+                    let is_first_build_check = is_already_check
+                        && (anti_check_builds & !worker_build_mask).is_not_empty()
+                        || (worker_build_mask & check_if_builds).is_not_empty();
+
+                    if F & GENERATE_THREATS_ONLY == 0 || is_first_build_check {
+                        let new_action = GodMove::new_demeter_move(
+                            moving_worker_start_pos,
+                            moving_worker_end_pos,
+                            worker_build_pos,
+                        );
+
+                        if F & INCLUDE_SCORE != 0 {
+                            let score;
+                            if is_first_build_check {
+                                score = CHECK_SENTINEL_SCORE;
+                            } else {
+                                let is_improving = worker_end_height > worker_starting_height;
+                                score = if is_improving {
+                                    IMPROVER_SENTINEL_SCORE
+                                } else {
+                                    NON_IMPROVER_SENTINEL_SCORE
+                                };
+                            }
+                            result.push(ScoredMove::new(new_action.into(), score));
                         } else {
-                            NON_IMPROVER_SENTINEL_SCORE
-                        };
+                            result.push(ScoredMove::new(new_action.into(), 0));
+                        }
                     }
-                    result.push(ScoredMove::new(new_action.into(), score));
-                } else {
-                    result.push(ScoredMove::new(new_action.into(), 0));
+                }
+
+                for second_worker_build_pos in second_builds {
+                    let second_worker_build_mask = BitBoard::as_mask(second_worker_build_pos);
+                    let total_build_mask = worker_build_mask | second_worker_build_mask;
+
+                    let is_second_build_check = is_already_check
+                        && (anti_check_builds & !total_build_mask).is_not_empty()
+                        || (total_build_mask & check_if_builds).is_not_empty();
+
+                    if F & GENERATE_THREATS_ONLY == 0 || is_second_build_check {
+                        let new_action = GodMove::new_demeter_two_build_move(
+                            moving_worker_start_pos,
+                            moving_worker_end_pos,
+                            worker_build_pos,
+                            second_worker_build_pos,
+                        );
+
+                        if F & INCLUDE_SCORE != 0 {
+                            let score;
+                            if is_second_build_check {
+                                score = CHECK_SENTINEL_SCORE;
+                            } else {
+                                let is_improving = worker_end_height > worker_starting_height;
+                                score = if is_improving {
+                                    IMPROVER_SENTINEL_SCORE
+                                } else {
+                                    NON_IMPROVER_SENTINEL_SCORE
+                                };
+                            }
+                            result.push(ScoredMove::new(new_action.into(), score));
+                        } else {
+                            result.push(ScoredMove::new(new_action.into(), 0));
+                        }
+                    }
                 }
             }
         }
@@ -288,7 +397,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
     result
 }
 
-pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
+pub fn demeter_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
 ) {
@@ -326,67 +435,78 @@ pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
         let to = action.move_to_position();
         let to_height = board.get_height_for_worker(BitBoard::as_mask(to));
 
-        let build_at = action.build_position();
-        let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
-
         score -= GRID_POSITION_SCORES[from as usize];
         score += GRID_POSITION_SCORES[to as usize];
         score -= WORKER_HEIGHT_SCORES[from_height as usize];
         score += WORKER_HEIGHT_SCORES[to_height as usize];
 
-        score += build_score_map[build_at as usize];
+        {
+            let build_at = action.build_position();
+            let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
+            score += build_score_map[build_at as usize];
+            if IMPROVERS_ONLY {
+                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+            }
+        }
+
+        if let Some(build_at) = action.second_build_position() {
+            let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
+            score += build_score_map[build_at as usize];
+            if IMPROVERS_ONLY {
+                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+            }
+        }
 
         if scored_action.score == CHECK_SENTINEL_SCORE {
             score += CHECK_MOVE_BONUS;
-        }
-
-        if IMPROVERS_ONLY {
-            score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
         }
 
         scored_action.set_score(score);
     }
 }
 
-pub fn mortal_blocker_board(action: GenericMove) -> BitBoard {
+pub fn demeter_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
     BitBoard::as_mask(action.move_to_position())
 }
 
-pub fn mortal_stringify(action: GenericMove) -> String {
+pub fn demeter_stringify(action: GenericMove) -> String {
     let action: GodMove = action.into();
     format!("{:?}", action)
 }
 
-pub const fn build_mortal() -> GodPower {
+pub const fn build_demeter() -> GodPower {
     GodPower {
-        god_name: GodName::Mortal,
-        _get_all_moves: mortal_move_gen::<0>,
-        _get_moves_for_search: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: mortal_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: mortal_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: mortal_move_gen::<
+        god_name: GodName::Demeter,
+        _get_all_moves: demeter_move_gen::<0>,
+        _get_moves_for_search: demeter_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        _get_wins: demeter_move_gen::<{ MATE_ONLY }>,
+        _get_win_blockers: demeter_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
+        _get_improver_moves_only: demeter_move_gen::<
             { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
         >,
-        get_actions_for_move: mortal_move_to_actions,
-        _score_improvers: mortal_score_moves::<true>,
-        _score_remaining: mortal_score_moves::<false>,
-        _get_blocker_board: mortal_blocker_board,
-        _make_move: mortal_make_move,
-        _unmake_move: mortal_unmake_move,
-        _stringify_move: mortal_stringify,
+        get_actions_for_move: demeter_move_to_actions,
+        _score_improvers: demeter_score_moves::<true>,
+        _score_remaining: demeter_score_moves::<false>,
+        _get_blocker_board: demeter_blocker_board,
+        _make_move: demeter_make_move,
+        _unmake_move: demeter_unmake_move,
+        _stringify_move: demeter_stringify,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::random_utils::GameStateFuzzer;
+    use crate::{
+        board::{self, FullGameState},
+        random_utils::GameStateFuzzer,
+    };
 
     use super::*;
 
     #[test]
-    fn test_mortal_check_detection() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_demeter_check_detection() {
+        let demeter = GodName::Demeter.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -394,19 +514,19 @@ mod tests {
                 continue;
             }
             let current_player = state.board.current_player;
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = demeter.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let actions = mortal.get_moves_for_search(&state.board, current_player);
+            let actions = demeter.get_moves_for_search(&state.board, current_player);
             for action in actions {
                 let mut board = state.board.clone();
-                mortal.make_move(&mut board, action.action);
+                demeter.make_move(&mut board, action.action);
 
                 let is_check_move = action.score == CHECK_SENTINEL_SCORE;
                 let is_winning_next_turn =
-                    mortal.get_winning_moves(&board, current_player).len() > 0;
+                    demeter.get_winning_moves(&board, current_player).len() > 0;
 
                 if is_check_move != is_winning_next_turn {
                     println!(
@@ -415,7 +535,8 @@ mod tests {
                     );
                     println!("{:?}", state);
                     state.board.print_to_console();
-                    println!("{:?}", action.action);
+                    let acc: GodMove = action.action.into();
+                    println!("{:?} {:b}", acc, acc.0);
                     board.print_to_console();
                     assert_eq!(is_check_move, is_winning_next_turn);
                 }
@@ -424,8 +545,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mortal_improver_checks_only() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_demeter_improver_checks_only() {
+        let demeter = GodName::Demeter.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -434,27 +555,28 @@ mod tests {
             if state.board.get_winner().is_some() {
                 continue;
             }
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = demeter.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let mut improver_moves = mortal.get_improver_moves(&state.board, current_player);
+            let mut improver_moves = demeter.get_improver_moves(&state.board, current_player);
             for action in &improver_moves {
                 if action.score != CHECK_SENTINEL_SCORE {
                     let mut board = state.board.clone();
-                    mortal.make_move(&mut board, action.action);
+                    demeter.make_move(&mut board, action.action);
 
-                    println!("Move promised to be improver only but wasn't: {:?}", action,);
+                    println!("Move promised to be improver only but wasn't: {:?}", action);
                     println!("{:?}", state);
                     state.board.print_to_console();
-                    println!("{:?}", action.action);
+                    let acc: GodMove = action.action.into();
+                    println!("{:?}", acc);
                     board.print_to_console();
                     assert_eq!(action.score, CHECK_SENTINEL_SCORE);
                 }
             }
 
-            let mut all_moves = mortal.get_moves_for_search(&state.board, current_player);
+            let mut all_moves = demeter.get_moves_for_search(&state.board, current_player);
             let check_count = all_moves
                 .iter()
                 .filter(|a| a.score == CHECK_SENTINEL_SCORE)
@@ -482,12 +604,11 @@ mod tests {
         }
     }
 
-    /*
     #[test]
-    fn test_check_detection_move_into() {
-        let mortal = GodName::Mortal.to_power();
+    fn debug_demeter_move() {
+        let demeter = GodName::Demeter.to_power();
         let state =
-            FullGameState::try_from("11224 44444 00000 00000 00000/1/mortal:A5,D5/mortal:E1,E2")
+            FullGameState::try_from("0012000020000000000000001/1/mortal:C5,D2/mortal:A3,E5")
                 .unwrap();
         state.print_to_console();
 
@@ -498,10 +619,32 @@ mod tests {
         println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
         println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
 
-        let actions = mortal.get_moves_for_search(&state.board, Player::One);
+        let actions = demeter.get_moves_for_search(&state.board, Player::One);
         for action in actions {
-            println!("{:?}", action);
+            let acc: GodMove = action.action.into();
+            println!("{:?} : {}", acc, action.score);
         }
     }
-    */
+
+    #[test]
+    fn test_demeter_make_unmake() {
+        let demeter = GodName::Demeter.to_power();
+        let game_state_fuzzer = GameStateFuzzer::default();
+
+        for state in game_state_fuzzer {
+            let orig_board = state.board.clone();
+            let child_actions =
+                (demeter._get_all_moves)(&orig_board, orig_board.current_player, BitBoard::EMPTY);
+
+            for action in child_actions {
+                let mut board = orig_board.clone();
+                let action = action.action;
+                demeter.make_move(&mut board, action);
+                board.validate_heights();
+                demeter.unmake_move(&mut board, action);
+                board.validate_heights();
+                assert_eq!(board, orig_board);
+            }
+        }
+    }
 }

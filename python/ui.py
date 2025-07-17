@@ -601,7 +601,6 @@ class RootPanel:
         start_state = message['start_state']
         for next_state in message['next_states']:
             next_state['actions'].append(DONE_FULL_ACTION)
-        print(message)
         self.position_to_action_cache[start_state] = message
         self.try_start_action_sequence()
 
