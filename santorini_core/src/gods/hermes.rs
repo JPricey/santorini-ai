@@ -14,46 +14,69 @@ use crate::{
     },
     player::Player,
     square::Square,
+    utils::move_all_workers_one_include_original_workers,
 };
 
 use super::PartialAction;
 
-// from(5)|to(5)|build(5)|win(1)
-pub const MORTAL_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const MORTAL_MOVE_TO_POSITION_OFFSET: usize = MORTAL_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
-pub const MORTAL_BUILD_POSITION_OFFSET: usize = MORTAL_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const HERMES_MOVE_FROM_POSITION_OFFSET: usize = 0;
+pub const HERMES_MOVE_TO_POSITION_OFFSET: usize = HERMES_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
+pub const HERMES_BUILD_POSITION_OFFSET: usize = HERMES_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const HERMES_MOVE2_FROM_POSITION_OFFSET: usize = HERMES_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+pub const HERMES_MOVE2_TO_POSITION_OFFSET: usize =
+    HERMES_MOVE2_FROM_POSITION_OFFSET + POSITION_WIDTH;
+
+pub const HERMES_NOT_DOING_SPECIAL_MOVE_VALUE: MoveData = 25 << HERMES_MOVE2_FROM_POSITION_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct MortalMove(pub MoveData);
+pub struct HermesMove(pub MoveData);
 
-impl Into<GenericMove> for MortalMove {
+impl Into<GenericMove> for HermesMove {
     fn into(self) -> GenericMove {
         unsafe { std::mem::transmute(self) }
     }
 }
 
-impl From<GenericMove> for MortalMove {
+impl From<GenericMove> for HermesMove {
     fn from(value: GenericMove) -> Self {
         unsafe { std::mem::transmute(value) }
     }
 }
 
-impl MortalMove {
-    pub fn new_mortal_move(
+impl HermesMove {
+    pub fn new_hermes_basic_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << MORTAL_BUILD_POSITION_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData) << HERMES_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << HERMES_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << HERMES_BUILD_POSITION_OFFSET)
+            | HERMES_NOT_DOING_SPECIAL_MOVE_VALUE;
 
         Self(data)
     }
 
-    pub fn new_mortal_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
+    pub fn new_hermes_special_move(
+        move_from_position: Square,
+        move_to_position: Square,
+        move_from2_position: Square,
+        move_to2_position: Square,
+        build_position: Square,
+    ) -> Self {
+        let data: MoveData = ((move_from_position as MoveData) << HERMES_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << HERMES_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << HERMES_BUILD_POSITION_OFFSET)
+            | ((move_from2_position as MoveData) << HERMES_MOVE2_FROM_POSITION_OFFSET)
+            | ((move_to2_position as MoveData) << HERMES_MOVE2_TO_POSITION_OFFSET);
+
+        Self(data)
+    }
+
+    pub fn new_hermes_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+        let data: MoveData = ((move_from_position as MoveData) << HERMES_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << HERMES_MOVE_TO_POSITION_OFFSET)
+            | HERMES_NOT_DOING_SPECIAL_MOVE_VALUE
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -67,11 +90,33 @@ impl MortalMove {
     }
 
     pub fn build_position(self) -> Square {
-        Square::from((self.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> HERMES_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+    }
+
+    pub fn move_from_position2(&self) -> Option<Square> {
+        let value = (self.0 >> HERMES_MOVE2_FROM_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+        if value == 25 {
+            None
+        } else {
+            Some(Square::from(value))
+        }
+    }
+
+    // WARNING: only returns usable values when move_from_position2 has returned a value
+    pub fn move_to_position2(self) -> Square {
+        Square::from((self.0 >> HERMES_MOVE2_TO_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
     pub fn move_mask(self) -> BitBoard {
-        BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
+        if let Some(move2) = self.move_from_position2() {
+            BitBoard::as_mask(self.move_from_position())
+                | BitBoard::as_mask(self.move_to_position())
+                | BitBoard::as_mask(move2)
+                | BitBoard::as_mask(self.move_to_position2())
+        } else {
+            BitBoard::as_mask(self.move_from_position())
+                | BitBoard::as_mask(self.move_to_position())
+        }
     }
 
     pub fn get_is_winning(&self) -> bool {
@@ -79,7 +124,7 @@ impl MortalMove {
     }
 }
 
-impl std::fmt::Debug for MortalMove {
+impl std::fmt::Debug for HermesMove {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0 == NULL_MOVE_DATA {
             return write!(f, "NULL");
@@ -92,15 +137,22 @@ impl std::fmt::Debug for MortalMove {
 
         if is_win {
             write!(f, "{}>{}#", move_from, move_to)
+        } else if let Some(move_from_2) = self.move_from_position2() {
+            let move_to_2 = self.move_to_position2();
+            write!(
+                f,
+                "{}>{} {}>{} ^{}",
+                move_from, move_to, move_from_2, move_to_2, build
+            )
         } else {
             write!(f, "{}>{}^{}", move_from, move_to, build)
         }
     }
 }
 
-type GodMove = MortalMove;
+type GodMove = HermesMove;
 
-pub fn mortal_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+pub fn hermes_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
 
     if action.get_is_winning() {
@@ -109,16 +161,49 @@ pub fn mortal_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<F
             PartialAction::MoveWorker(action.move_to_position()),
         ]];
     }
-
     let build_position = action.build_position();
-    vec![vec![
-        PartialAction::SelectWorker(action.move_from_position()),
-        PartialAction::MoveWorker(action.move_to_position()),
-        PartialAction::Build(build_position),
-    ]]
+
+    if let Some(from2) = action.move_from_position2() {
+        vec![
+            vec![
+                PartialAction::SelectWorker(action.move_from_position()),
+                PartialAction::MoveWorker(action.move_to_position()),
+                PartialAction::SelectWorker(from2),
+                PartialAction::MoveWorker(action.move_to_position2()),
+                PartialAction::Build(build_position),
+            ],
+            vec![
+                PartialAction::SelectWorker(action.move_from_position()),
+                PartialAction::MoveWorker(action.move_to_position2()),
+                PartialAction::SelectWorker(from2),
+                PartialAction::MoveWorker(action.move_to_position()),
+                PartialAction::Build(build_position),
+            ],
+            vec![
+                PartialAction::SelectWorker(from2),
+                PartialAction::MoveWorker(action.move_to_position()),
+                PartialAction::SelectWorker(action.move_from_position()),
+                PartialAction::MoveWorker(action.move_to_position2()),
+                PartialAction::Build(build_position),
+            ],
+            vec![
+                PartialAction::SelectWorker(from2),
+                PartialAction::MoveWorker(action.move_to_position2()),
+                PartialAction::SelectWorker(action.move_from_position()),
+                PartialAction::MoveWorker(action.move_to_position()),
+                PartialAction::Build(build_position),
+            ],
+        ]
+    } else {
+        vec![vec![
+            PartialAction::SelectWorker(action.move_from_position()),
+            PartialAction::MoveWorker(action.move_to_position()),
+            PartialAction::Build(build_position),
+        ]]
+    }
 }
 
-pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
+pub fn hermes_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
@@ -135,7 +220,7 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height] |= build_mask;
 }
 
-pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
+pub fn hermes_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
@@ -152,21 +237,23 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height - 1] ^= build_mask;
 }
 
-fn mortal_move_gen<const F: MoveGenFlags>(
+fn hermes_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
     let current_player_idx = player as usize;
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    let other_workers = board.workers[1 - current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+
     if F & MATE_ONLY != 0 {
         current_workers &= board.exactly_level_2()
     }
     let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
 
     let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
-
     let all_workers_mask = board.workers[0] | board.workers[1];
+    let can_climb = board.get_worker_can_climb(player);
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
@@ -182,9 +269,25 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
         }
 
-        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
-            & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
-                | all_workers_mask);
+        let mut worker_moves;
+        if can_climb {
+            if worker_starting_height == 3 {
+                worker_moves = BitBoard::EMPTY
+            } else {
+                worker_moves = board.height_map[worker_starting_height]
+                    & !board.height_map[worker_starting_height + 1]
+            }
+        } else if F & MATE_ONLY != 0 {
+            continue;
+        } else {
+            worker_moves = BitBoard::EMPTY;
+        };
+
+        if worker_starting_height > 0 {
+            worker_moves |= !board.height_map[worker_starting_height - 1]
+        }
+
+        worker_moves &= NEIGHBOR_MAP[moving_worker_start_pos as usize] & !all_workers_mask;
 
         if F & MATE_ONLY != 0 || worker_starting_height == 2 {
             let moves_to_level_3 = worker_moves & board.height_map[2];
@@ -192,7 +295,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    GodMove::new_mortal_winning_move(
+                    GodMove::new_hermes_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -251,7 +354,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = GodMove::new_mortal_move(
+                let new_action = GodMove::new_hermes_basic_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
@@ -279,10 +382,66 @@ fn mortal_move_gen<const F: MoveGenFlags>(
         }
     }
 
+    if F & MATE_ONLY != 0 {
+        return result;
+    }
+
+    if workers_are_same_height {
+        // DOESNT WORK - WORKERS COULD BE ON DIFFERENT ISLANDS!! and this lets them teleport
+        let board_exact_height;
+        if worker_height == 0 {
+            board_exact_height = !board.height_map[0]
+        } else {
+            board_exact_height =
+                board.height_map[worker_height - 1] & !board.height_map[worker_height]
+        }
+
+        let mut worker_components = current_workers;
+        let mut component_size = worker_components.count_ones();
+        loop {
+            let old_size = component_size;
+            worker_components = move_all_workers_one_include_original_workers(worker_components)
+                & board_exact_height;
+            component_size = worker_components.count_ones();
+            if component_size == old_size {
+                break;
+            }
+        }
+
+        let mut worker_iter = current_workers;
+        let f1 = worker_iter.next().unwrap();
+        let f2 = worker_iter.next().unwrap();
+
+        for p1 in worker_components {
+            worker_components ^= BitBoard::as_mask(p1);
+            let p1_mask = BitBoard::as_mask(p1);
+            for p2 in worker_components {
+                let p2_mask = BitBoard::as_mask(p2);
+                let both_mask = p1_mask | p2_mask;
+
+                let possible_builds = (NEIGHBOR_MAP[p1 as usize] | NEIGHBOR_MAP[p2 as usize])
+                    & !(other_workers | both_mask | board.height_map[3]);
+
+                for build in possible_builds {
+                    let new_action = GodMove::new_hermes_special_move(f1, p1, f2, p2, build);
+                    result.push(ScoredMove::new(new_action.into(), 0));
+                }
+            }
+        }
+    } else {
+        // TODO: handle each worker separate
+    }
+
+    // 2 cases: workers are same height
+    // workers are different heights
+    // if they are the same height... then we constuct a coverage map of just that height, place
+    // both workers on it. boom bam bing.
+    // if they are different heights, then we do the coverage maps separately
+
     result
 }
 
-pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
+pub fn hermes_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
 ) {
@@ -342,33 +501,33 @@ pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     }
 }
 
-pub fn mortal_blocker_board(action: GenericMove) -> BitBoard {
+pub fn hermes_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
     BitBoard::as_mask(action.move_to_position())
 }
 
-pub fn mortal_stringify(action: GenericMove) -> String {
+pub fn hermes_stringify(action: GenericMove) -> String {
     let action: GodMove = action.into();
     format!("{:?}", action)
 }
 
-pub const fn build_mortal() -> GodPower {
+pub const fn build_hermes() -> GodPower {
     GodPower {
-        god_name: GodName::Mortal,
-        _get_all_moves: mortal_move_gen::<0>,
-        _get_moves_for_search: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: mortal_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: mortal_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: mortal_move_gen::<
+        god_name: GodName::Hermes,
+        _get_all_moves: hermes_move_gen::<0>,
+        _get_moves_for_search: hermes_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        _get_wins: hermes_move_gen::<{ MATE_ONLY }>,
+        _get_win_blockers: hermes_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
+        _get_improver_moves_only: hermes_move_gen::<
             { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
         >,
-        get_actions_for_move: mortal_move_to_actions,
-        _score_improvers: mortal_score_moves::<true>,
-        _score_remaining: mortal_score_moves::<false>,
-        _get_blocker_board: mortal_blocker_board,
-        _make_move: mortal_make_move,
-        _unmake_move: mortal_unmake_move,
-        _stringify_move: mortal_stringify,
+        get_actions_for_move: hermes_move_to_actions,
+        _score_improvers: hermes_score_moves::<true>,
+        _score_remaining: hermes_score_moves::<false>,
+        _get_blocker_board: hermes_blocker_board,
+        _make_move: hermes_make_move,
+        _unmake_move: hermes_unmake_move,
+        _stringify_move: hermes_stringify,
     }
 }
 
@@ -379,8 +538,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mortal_check_detection() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_hermes_check_detection() {
+        let hermes = GodName::Hermes.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -388,19 +547,19 @@ mod tests {
                 continue;
             }
             let current_player = state.board.current_player;
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = hermes.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let actions = mortal.get_moves_for_search(&state.board, current_player);
+            let actions = hermes.get_moves_for_search(&state.board, current_player);
             for action in actions {
                 let mut board = state.board.clone();
-                mortal.make_move(&mut board, action.action);
+                hermes.make_move(&mut board, action.action);
 
                 let is_check_move = action.score == CHECK_SENTINEL_SCORE;
                 let is_winning_next_turn =
-                    mortal.get_winning_moves(&board, current_player).len() > 0;
+                    hermes.get_winning_moves(&board, current_player).len() > 0;
 
                 if is_check_move != is_winning_next_turn {
                     println!(
@@ -418,8 +577,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mortal_improver_checks_only() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_hermes_improver_checks_only() {
+        let hermes = GodName::Hermes.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -428,16 +587,16 @@ mod tests {
             if state.board.get_winner().is_some() {
                 continue;
             }
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = hermes.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let mut improver_moves = mortal.get_improver_moves(&state.board, current_player);
+            let mut improver_moves = hermes.get_improver_moves(&state.board, current_player);
             for action in &improver_moves {
                 if action.score != CHECK_SENTINEL_SCORE {
                     let mut board = state.board.clone();
-                    mortal.make_move(&mut board, action.action);
+                    hermes.make_move(&mut board, action.action);
 
                     println!("Move promised to be improver only but wasn't: {:?}", action,);
                     println!("{:?}", state);
@@ -448,7 +607,7 @@ mod tests {
                 }
             }
 
-            let mut all_moves = mortal.get_moves_for_search(&state.board, current_player);
+            let mut all_moves = hermes.get_moves_for_search(&state.board, current_player);
             let check_count = all_moves
                 .iter()
                 .filter(|a| a.score == CHECK_SENTINEL_SCORE)
@@ -479,9 +638,9 @@ mod tests {
     /*
     #[test]
     fn test_check_detection_move_into() {
-        let mortal = GodName::Mortal.to_power();
+        let hermes = GodName::Hermes.to_power();
         let state =
-            FullGameState::try_from("11224 44444 00000 00000 00000/1/mortal:A5,D5/mortal:E1,E2")
+            FullGameState::try_from("11224 44444 00000 00000 00000/1/hermes:A5,D5/hermes:E1,E2")
                 .unwrap();
         state.print_to_console();
 
@@ -492,7 +651,7 @@ mod tests {
         println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
         println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
 
-        let actions = mortal.get_moves_for_search(&state.board, Player::One);
+        let actions = hermes.get_moves_for_search(&state.board, Player::One);
         for action in actions {
             println!("{:?}", action);
         }

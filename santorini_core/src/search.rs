@@ -44,6 +44,7 @@ pub enum BestMoveTrigger {
 pub struct BestSearchResult {
     pub child_state: FullGameState,
     pub action: GenericMove,
+    pub action_str: String,
     pub score: Hueristic,
     pub depth: usize,
     pub nodes_visited: usize,
@@ -59,9 +60,11 @@ impl BestSearchResult {
         nodes_visited: usize,
         trigger: BestMoveTrigger,
     ) -> Self {
+        let action_str = state.get_other_god().stringify_move(action);
         BestSearchResult {
             child_state: state,
             action,
+            action_str,
             score,
             depth,
             nodes_visited,

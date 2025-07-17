@@ -19,41 +19,50 @@ use crate::{
 use super::PartialAction;
 
 // from(5)|to(5)|build(5)|win(1)
-pub const MORTAL_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const MORTAL_MOVE_TO_POSITION_OFFSET: usize = MORTAL_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
-pub const MORTAL_BUILD_POSITION_OFFSET: usize = MORTAL_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const APOLLO_MOVE_FROM_POSITION_OFFSET: usize = 0;
+pub const APOLLO_MOVE_TO_POSITION_OFFSET: usize = APOLLO_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
+pub const APOLLO_BUILD_POSITION_OFFSET: usize = APOLLO_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+pub const APOLLO_DID_SWAP_OFFSET: usize = APOLLO_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+pub const APOLLO_DID_SWAP_MASK: MoveData = 1 << APOLLO_DID_SWAP_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct MortalMove(pub MoveData);
+pub struct ApolloMove(pub MoveData);
 
-impl Into<GenericMove> for MortalMove {
+impl Into<GenericMove> for ApolloMove {
     fn into(self) -> GenericMove {
         unsafe { std::mem::transmute(self) }
     }
 }
 
-impl From<GenericMove> for MortalMove {
+impl From<GenericMove> for ApolloMove {
     fn from(value: GenericMove) -> Self {
         unsafe { std::mem::transmute(value) }
     }
 }
 
-impl MortalMove {
-    pub fn new_mortal_move(
+impl ApolloMove {
+    pub fn new_apollo_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
+        did_swap: bool,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << MORTAL_BUILD_POSITION_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData) << APOLLO_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << APOLLO_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << APOLLO_BUILD_POSITION_OFFSET)
+            | ((did_swap as MoveData) << APOLLO_DID_SWAP_OFFSET);
 
         Self(data)
     }
 
-    pub fn new_mortal_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
+    pub fn new_apollo_winning_move(
+        move_from_position: Square,
+        move_to_position: Square,
+        did_swap: bool,
+    ) -> Self {
+        let data: MoveData = ((move_from_position as MoveData) << APOLLO_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << APOLLO_MOVE_TO_POSITION_OFFSET)
+            | ((did_swap as MoveData) << APOLLO_DID_SWAP_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -67,11 +76,15 @@ impl MortalMove {
     }
 
     pub fn build_position(self) -> Square {
-        Square::from((self.0 >> MORTAL_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> APOLLO_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
     pub fn move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
+    }
+
+    pub fn did_swap(self) -> bool {
+        self.0 & APOLLO_DID_SWAP_MASK != 0
     }
 
     pub fn get_is_winning(&self) -> bool {
@@ -79,7 +92,7 @@ impl MortalMove {
     }
 }
 
-impl std::fmt::Debug for MortalMove {
+impl std::fmt::Debug for ApolloMove {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0 == NULL_MOVE_DATA {
             return write!(f, "NULL");
@@ -92,36 +105,48 @@ impl std::fmt::Debug for MortalMove {
 
         if is_win {
             write!(f, "{}>{}#", move_from, move_to)
+        } else if self.did_swap() {
+            write!(f, "{}<>{}^{}", move_from, move_to, build)
         } else {
             write!(f, "{}>{}^{}", move_from, move_to, build)
         }
     }
 }
 
-type GodMove = MortalMove;
+type GodMove = ApolloMove;
 
-pub fn mortal_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+pub fn apollo_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
+    let current_player = board.current_player;
+    let worker_move_mask = action.move_mask();
+    let current_workers = board.workers[current_player as usize];
+
+    let moving_worker_mask = current_workers & worker_move_mask;
+    let result_worker_mask = worker_move_mask ^ moving_worker_mask;
 
     if action.get_is_winning() {
         return vec![vec![
-            PartialAction::SelectWorker(action.move_from_position()),
-            PartialAction::MoveWorker(action.move_to_position()),
+            PartialAction::SelectWorker(moving_worker_mask.lsb()),
+            PartialAction::MoveWorker(result_worker_mask.lsb()),
         ]];
     }
 
     let build_position = action.build_position();
     vec![vec![
-        PartialAction::SelectWorker(action.move_from_position()),
-        PartialAction::MoveWorker(action.move_to_position()),
+        PartialAction::SelectWorker(moving_worker_mask.lsb()),
+        PartialAction::MoveWorker(result_worker_mask.lsb()),
         PartialAction::Build(build_position),
     ]]
 }
 
-pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
+pub fn apollo_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
+
+    if action.did_swap() {
+        board.workers[1 - (board.current_player as usize)] ^= worker_move_mask;
+    }
 
     if action.get_is_winning() {
         board.set_winner(board.current_player);
@@ -135,10 +160,14 @@ pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height] |= build_mask;
 }
 
-pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
+pub fn apollo_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
     board.workers[board.current_player as usize] ^= worker_move_mask;
+
+    if action.did_swap() {
+        board.workers[1 - (board.current_player as usize)] ^= worker_move_mask;
+    }
 
     if action.get_is_winning() {
         board.unset_winner();
@@ -152,21 +181,24 @@ pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     board.height_map[build_height - 1] ^= build_mask;
 }
 
-fn mortal_move_gen<const F: MoveGenFlags>(
+fn apollo_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
     let current_player_idx = player as usize;
-    let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    let base_current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    let mut current_workers = base_current_workers;
+    let opponent_workers = board.workers[1 - current_player_idx];
+
+    let all_workers_mask = current_workers | opponent_workers;
+
     if F & MATE_ONLY != 0 {
         current_workers &= board.exactly_level_2()
     }
     let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
 
     let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
-
-    let all_workers_mask = board.workers[0] | board.workers[1];
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
@@ -184,17 +216,20 @@ fn mortal_move_gen<const F: MoveGenFlags>(
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
-                | all_workers_mask);
+                | base_current_workers);
 
         if F & MATE_ONLY != 0 || worker_starting_height == 2 {
             let moves_to_level_3 = worker_moves & board.height_map[2];
             worker_moves ^= moves_to_level_3;
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
+                let is_swap =
+                    (BitBoard::as_mask(moving_worker_end_pos) & opponent_workers).is_not_empty();
                 let winning_move = ScoredMove::new_winning_move(
-                    GodMove::new_mortal_winning_move(
+                    GodMove::new_apollo_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
+                        is_swap,
                     )
                     .into(),
                 );
@@ -210,18 +245,23 @@ fn mortal_move_gen<const F: MoveGenFlags>(
         }
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let buildable_squares = !(non_selected_workers | board.height_map[3]);
+        let non_swapped_buildable_squares = !(non_selected_workers | board.height_map[3]);
 
+        let swapped_buildable_squares = !(all_workers_mask | board.height_map[3]);
+
+        let worker_builds_by_is_swap = [non_swapped_buildable_squares, swapped_buildable_squares];
         for moving_worker_end_pos in worker_moves.into_iter() {
+            let is_swap =
+                (BitBoard::as_mask(moving_worker_end_pos) & opponent_workers).is_not_empty();
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
 
             let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
 
-            let mut worker_builds =
-                NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+            let mut worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize]
+                & worker_builds_by_is_swap[is_swap as usize];
 
             if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
-                if (moving_worker_end_mask & key_squares).is_empty() {
+                if !is_swap && (moving_worker_end_mask & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
                 }
             }
@@ -251,10 +291,11 @@ fn mortal_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = GodMove::new_mortal_move(
+                let new_action = GodMove::new_apollo_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
+                    is_swap,
                 );
                 if F & INCLUDE_SCORE != 0 {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
@@ -282,7 +323,7 @@ fn mortal_move_gen<const F: MoveGenFlags>(
     result
 }
 
-pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
+pub fn apollo_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
 ) {
@@ -342,33 +383,33 @@ pub fn mortal_score_moves<const IMPROVERS_ONLY: bool>(
     }
 }
 
-pub fn mortal_blocker_board(action: GenericMove) -> BitBoard {
+pub fn apollo_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
     BitBoard::as_mask(action.move_to_position())
 }
 
-pub fn mortal_stringify(action: GenericMove) -> String {
+pub fn apollo_stringify(action: GenericMove) -> String {
     let action: GodMove = action.into();
     format!("{:?}", action)
 }
 
-pub const fn build_mortal() -> GodPower {
+pub const fn build_apollo() -> GodPower {
     GodPower {
-        god_name: GodName::Mortal,
-        _get_all_moves: mortal_move_gen::<0>,
-        _get_moves_for_search: mortal_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: mortal_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: mortal_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: mortal_move_gen::<
+        god_name: GodName::Apollo,
+        _get_all_moves: apollo_move_gen::<0>,
+        _get_moves_for_search: apollo_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+        _get_wins: apollo_move_gen::<{ MATE_ONLY }>,
+        _get_win_blockers: apollo_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
+        _get_improver_moves_only: apollo_move_gen::<
             { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
         >,
-        get_actions_for_move: mortal_move_to_actions,
-        _score_improvers: mortal_score_moves::<true>,
-        _score_remaining: mortal_score_moves::<false>,
-        _get_blocker_board: mortal_blocker_board,
-        _make_move: mortal_make_move,
-        _unmake_move: mortal_unmake_move,
-        _stringify_move: mortal_stringify,
+        get_actions_for_move: apollo_move_to_actions,
+        _score_improvers: apollo_score_moves::<true>,
+        _score_remaining: apollo_score_moves::<false>,
+        _get_blocker_board: apollo_blocker_board,
+        _make_move: apollo_make_move,
+        _unmake_move: apollo_unmake_move,
+        _stringify_move: apollo_stringify,
     }
 }
 
@@ -379,8 +420,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mortal_check_detection() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_apollo_check_detection() {
+        let apollo = GodName::Apollo.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -388,19 +429,19 @@ mod tests {
                 continue;
             }
             let current_player = state.board.current_player;
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = apollo.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let actions = mortal.get_moves_for_search(&state.board, current_player);
+            let actions = apollo.get_moves_for_search(&state.board, current_player);
             for action in actions {
                 let mut board = state.board.clone();
-                mortal.make_move(&mut board, action.action);
+                apollo.make_move(&mut board, action.action);
 
                 let is_check_move = action.score == CHECK_SENTINEL_SCORE;
                 let is_winning_next_turn =
-                    mortal.get_winning_moves(&board, current_player).len() > 0;
+                    apollo.get_winning_moves(&board, current_player).len() > 0;
 
                 if is_check_move != is_winning_next_turn {
                     println!(
@@ -418,8 +459,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mortal_improver_checks_only() {
-        let mortal = GodName::Mortal.to_power();
+    fn test_apollo_improver_checks_only() {
+        let apollo = GodName::Apollo.to_power();
         let game_state_fuzzer = GameStateFuzzer::default();
 
         for state in game_state_fuzzer {
@@ -428,16 +469,16 @@ mod tests {
             if state.board.get_winner().is_some() {
                 continue;
             }
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
+            let current_win = apollo.get_winning_moves(&state.board, current_player);
             if current_win.len() != 0 {
                 continue;
             }
 
-            let mut improver_moves = mortal.get_improver_moves(&state.board, current_player);
+            let mut improver_moves = apollo.get_improver_moves(&state.board, current_player);
             for action in &improver_moves {
                 if action.score != CHECK_SENTINEL_SCORE {
                     let mut board = state.board.clone();
-                    mortal.make_move(&mut board, action.action);
+                    apollo.make_move(&mut board, action.action);
 
                     println!("Move promised to be improver only but wasn't: {:?}", action,);
                     println!("{:?}", state);
@@ -448,7 +489,7 @@ mod tests {
                 }
             }
 
-            let mut all_moves = mortal.get_moves_for_search(&state.board, current_player);
+            let mut all_moves = apollo.get_moves_for_search(&state.board, current_player);
             let check_count = all_moves
                 .iter()
                 .filter(|a| a.score == CHECK_SENTINEL_SCORE)
@@ -479,9 +520,9 @@ mod tests {
     /*
     #[test]
     fn test_check_detection_move_into() {
-        let mortal = GodName::Mortal.to_power();
+        let apollo = GodName::Apollo.to_power();
         let state =
-            FullGameState::try_from("11224 44444 00000 00000 00000/1/mortal:A5,D5/mortal:E1,E2")
+            FullGameState::try_from("11224 44444 00000 00000 00000/1/apollo:A5,D5/apollo:E1,E2")
                 .unwrap();
         state.print_to_console();
 
@@ -492,7 +533,7 @@ mod tests {
         println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
         println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
 
-        let actions = mortal.get_moves_for_search(&state.board, Player::One);
+        let actions = apollo.get_moves_for_search(&state.board, Player::One);
         for action in actions {
             println!("{:?}", action);
         }

@@ -127,6 +127,10 @@ fn handle_command(
             let state: FullGameState =
                 FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
 
+            if state.board.get_winner().is_some() {
+                return Err("Cannot look for next moves from terminal state".to_owned());
+            }
+
             let child_states = state.get_next_states_interactive();
 
             let output = EngineOutput::NextMoves(NextMovesOutput {
