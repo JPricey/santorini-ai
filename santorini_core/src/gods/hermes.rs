@@ -70,23 +70,20 @@ impl HermesMove {
         Self(data)
     }
 
-    pub fn new_hermes_double_move<const IS_OVERLAP: bool>(
+    pub fn new_hermes_double_move(
         move_from_position: Square,
         move_to_position: Square,
         move_from2_position: Square,
         move_to2_position: Square,
         build_position: Square,
+        is_overlap: bool,
     ) -> Self {
-        let mut data: MoveData = ((move_from_position as MoveData)
-            << HERMES_MOVE_FROM_POSITION_OFFSET)
+        let data: MoveData = ((move_from_position as MoveData) << HERMES_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << HERMES_MOVE_TO_POSITION_OFFSET)
             | ((build_position as MoveData) << HERMES_BUILD_POSITION_OFFSET)
             | ((move_from2_position as MoveData) << HERMES_MOVE2_FROM_POSITION_OFFSET)
-            | ((move_to2_position as MoveData) << HERMES_MOVE2_TO_POSITION_OFFSET);
-
-        if IS_OVERLAP {
-            data |= HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_MASK;
-        }
+            | ((move_to2_position as MoveData) << HERMES_MOVE2_TO_POSITION_OFFSET)
+            | (is_overlap as MoveData) << HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_OFFSET;
 
         Self(data)
     }
@@ -132,17 +129,12 @@ impl HermesMove {
     pub fn move_mask(self) -> BitBoard {
         if let Some(move2) = self.move_from_position2() {
             BitBoard::as_mask(self.move_from_position())
-                | BitBoard::as_mask(self.move_to_position())
-                | BitBoard::as_mask(move2)
-                | BitBoard::as_mask(self.move_to_position2())
+                ^ BitBoard::as_mask(self.move_to_position())
+                ^ BitBoard::as_mask(move2)
+                ^ BitBoard::as_mask(self.move_to_position2())
         } else {
-            let move_mask = BitBoard::as_mask(self.move_from_position())
-                | BitBoard::as_mask(self.move_to_position());
-            if move_mask == HERMES_NO_MOVE_MASK {
-                BitBoard::EMPTY
-            } else {
-                move_mask
-            }
+            BitBoard::as_mask(self.move_from_position())
+                ^ BitBoard::as_mask(self.move_to_position())
         }
     }
 
@@ -192,43 +184,48 @@ pub fn hermes_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<F
     }
     let build_position = action.build_position();
 
-    if action.move_from_position() == action.move_to_position() {
-        return vec![vec![PartialAction::Build(build_position)]];
-    }
+    // if action.move_from_position() == action.move_to_position() {
+    //     return vec![vec![PartialAction::Build(build_position)]];
+    // }
 
     if let Some(from2) = action.move_from_position2() {
-        let mut res = vec![
-            vec![
-                PartialAction::SelectWorker(action.move_from_position()),
-                PartialAction::MoveWorker(action.move_to_position()),
-                PartialAction::SelectWorker(from2),
-                PartialAction::MoveWorker(action.move_to_position2()),
-                PartialAction::Build(build_position),
-            ],
-            vec![
-                PartialAction::SelectWorker(from2),
-                PartialAction::MoveWorker(action.move_to_position2()),
-                PartialAction::SelectWorker(action.move_from_position()),
-                PartialAction::MoveWorker(action.move_to_position()),
-                PartialAction::Build(build_position),
-            ],
-        ];
+        let s = PartialAction::SelectWorker;
+        let m = PartialAction::MoveWorker;
+
+        let mut res = vec![];
+        let f1 = action.move_from_position();
+        let t1 = action.move_to_position();
+        let f2 = from2;
+        let t2 = action.move_to_position2();
+        let build = PartialAction::Build(action.build_position());
+
+        res.push(vec![s(f1), m(t1), s(f2), m(t2), build]);
+        res.push(vec![s(f2), m(t2), s(f1), m(t1), build]);
+        if f1 == t1 {
+            res.push(vec![s(f2), m(t2), build]);
+        }
+        if f2 == t2 {
+            res.push(vec![s(f1), m(t1), build]);
+        }
+        if f1 == t1 && f2 == t2 {
+            res.push(vec![build]);
+        }
 
         if action.are_double_moves_overlapping() {
-            res.push(vec![
-                PartialAction::SelectWorker(from2),
-                PartialAction::MoveWorker(action.move_to_position()),
-                PartialAction::SelectWorker(action.move_from_position()),
-                PartialAction::MoveWorker(action.move_to_position2()),
-                PartialAction::Build(build_position),
-            ]);
-            res.push(vec![
-                PartialAction::SelectWorker(from2),
-                PartialAction::MoveWorker(action.move_to_position2()),
-                PartialAction::SelectWorker(action.move_from_position()),
-                PartialAction::MoveWorker(action.move_to_position()),
-                PartialAction::Build(build_position),
-            ]);
+            res.push(vec![s(f1), m(t2), s(f2), m(t1), build]);
+            res.push(vec![s(f2), m(t1), s(f1), m(t2), build]);
+
+            if f1 == t2 {
+                res.push(vec![s(f2), m(t1), build]);
+            }
+
+            if f2 == t1 {
+                res.push(vec![s(f1), m(t2), build]);
+            }
+
+            if f1 == t2 && f2 == t1 {
+                res.push(vec![build]);
+            }
         }
 
         res
@@ -434,57 +431,6 @@ fn hermes_move_gen<const F: MoveGenFlags>(
 
     let f2 = worker_iter.next().unwrap();
     let m2 = BitBoard::as_mask(f2);
-    let h2 = board.get_height_for_worker(m2);
-    let h2_mask = board.exactly_level_n(h2) & !other_workers;
-
-    let level_2_workers = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize] & m1
-        | BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize] & m2;
-
-    {
-        // Handle neither worker moving
-        let mut possible_builds = (NEIGHBOR_MAP[f1 as usize] | NEIGHBOR_MAP[f2 as usize])
-            & !(all_workers_mask | board.height_map[3]);
-
-        if F & INTERACT_WITH_KEY_SQUARES != 0 {
-            if ((m1 | m2) & key_squares).is_empty() {
-                possible_builds &= key_squares;
-            }
-        }
-
-        let l2_neighbors = move_all_workers_one_include_original_workers(level_2_workers);
-        let current_checks = l2_neighbors & exactly_level_3 & possible_builds;
-        let check_if_build = l2_neighbors & exactly_level_2 & possible_builds;
-
-        if F & GENERATE_THREATS_ONLY != 0 {
-            if current_checks.count_ones() == 1 {
-                possible_builds ^= current_checks;
-            }
-            possible_builds = possible_builds & check_if_build
-        }
-
-        for build in possible_builds {
-            let new_action = GodMove::new_hermes_no_move(build);
-            let build_mask = BitBoard::as_mask(build);
-
-            if F & GENERATE_THREATS_ONLY != 0 {
-                result.push(ScoredMove::new(new_action.into(), CHECK_SENTINEL_SCORE));
-            } else if F & INCLUDE_SCORE != 0 {
-                if (build_mask & check_if_build).is_not_empty()
-                    || (current_checks.is_not_empty()
-                        && (current_checks ^ build_mask).is_not_empty())
-                {
-                    result.push(ScoredMove::new(new_action.into(), CHECK_SENTINEL_SCORE));
-                } else {
-                    result.push(ScoredMove::new(
-                        new_action.into(),
-                        NON_IMPROVER_SENTINEL_SCORE,
-                    ));
-                }
-            } else {
-                result.push(ScoredMove::new(new_action.into(), 0));
-            }
-        }
-    }
 
     let mut c1 = m1;
     let mut component_size = c1.count_ones();
@@ -497,124 +443,96 @@ fn hermes_move_gen<const F: MoveGenFlags>(
         }
     }
 
-    // Worker components overlap
+    let mut c2;
+    let h2;
+    let is_overlap;
     if (c1 & m2).is_not_empty() {
-        c1 &= !all_workers_mask;
-        // Move either worker
-        for t in c1 {
-            let t_mask = BitBoard::as_mask(t);
-            // move f1
-            {
-                let possible_builds = (NEIGHBOR_MAP[t as usize] | NEIGHBOR_MAP[f2 as usize])
-                    & !(other_workers | t_mask | m2 | board.height_map[3]);
-                for build in possible_builds {
-                    let new_action = GodMove::new_hermes_single_move(f1, t, build);
-                    result.push(ScoredMove::new(new_action.into(), 0));
-                }
-            }
-
-            // move f2
-            {
-                let possible_builds = (NEIGHBOR_MAP[t as usize] | NEIGHBOR_MAP[f1 as usize])
-                    & !(other_workers | t_mask | m1 | board.height_map[3]);
-                for build in possible_builds {
-                    let new_action = GodMove::new_hermes_single_move(f2, t, build);
-                    result.push(ScoredMove::new(new_action.into(), 0));
-                }
-            }
-        }
-
-        // Move both workers
-        for t1 in c1 {
-            c1 ^= BitBoard::as_mask(t1);
-            let t1_mask = BitBoard::as_mask(t1);
-
-            for t2 in c1 {
-                let t2_mask = BitBoard::as_mask(t2);
-                let both_mask = t1_mask | t2_mask;
-
-                let possible_builds = (NEIGHBOR_MAP[t1 as usize] | NEIGHBOR_MAP[t2 as usize])
-                    & !(other_workers | both_mask | board.height_map[3]);
-
-                for build in possible_builds {
-                    let new_action = GodMove::new_hermes_double_move::<true>(f1, t1, f2, t2, build);
-                    result.push(ScoredMove::new(new_action.into(), 0));
-                }
-            }
-        }
+        is_overlap = true;
+        c2 = c1;
+        h2 = h1;
     } else {
-        // worker components do not overlap
-        let mut c2 = m2;
+        is_overlap = false;
+        h2 = board.get_height_for_worker(m2);
+        let h2_mask = board.exactly_level_n(h2) & !other_workers;
+
+        c2 = m2;
         let mut component_size = c2.count_ones();
         loop {
             let old_size = component_size;
             c2 = move_all_workers_one_include_original_workers(c2) & h2_mask;
-            component_size = c1.count_ones();
+            component_size = c2.count_ones();
             if component_size == old_size {
                 break;
             }
         }
-        c1 &= !all_workers_mask;
-        c2 &= !all_workers_mask;
+    }
 
-        // Move just 1
-        for t in c1 {
-            let t_mask = BitBoard::as_mask(t);
-            let possible_builds = (NEIGHBOR_MAP[t as usize] | NEIGHBOR_MAP[f2 as usize])
-                & !(other_workers | t_mask | m2 | board.height_map[3]);
-            for build in possible_builds {
-                let new_action = GodMove::new_hermes_single_move(f1, t, build);
-                result.push(ScoredMove::new(new_action.into(), 0));
+    let blocked_squares = other_workers | board.height_map[3];
+
+    let l1 = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize];
+    let l2 = BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize];
+
+    for t1 in c1 {
+        let t1_mask = BitBoard::as_mask(t1);
+        c2 ^= c2 & t1_mask;
+
+        let from_level_2_1 = NEIGHBOR_MAP[t1 as usize] & l1;
+
+        for t2 in c2 {
+            let t2_mask = BitBoard::as_mask(t2);
+            let both_mask = t1_mask | t2_mask;
+
+            let mut possible_builds = (NEIGHBOR_MAP[t1 as usize] | NEIGHBOR_MAP[t2 as usize])
+                & !(blocked_squares | both_mask);
+
+            if F & INTERACT_WITH_KEY_SQUARES != 0 {
+                if ((m1 | m2) & key_squares).is_empty() {
+                    possible_builds &= key_squares;
+                }
             }
-        }
-        // Move just 1
-        for t in c2 {
-            let t_mask = BitBoard::as_mask(t);
-            let possible_builds = (NEIGHBOR_MAP[t as usize] | NEIGHBOR_MAP[f1 as usize])
-                & !(other_workers | t_mask | m1 | board.height_map[3]);
-            for build in possible_builds {
-                let new_action = GodMove::new_hermes_single_move(f2, t, build);
-                result.push(ScoredMove::new(new_action.into(), 0));
+
+            let from_level_2_2 = NEIGHBOR_MAP[t2 as usize] & l2;
+            let l2_neighbors = from_level_2_1 | from_level_2_2;
+
+            let current_checks = l2_neighbors & exactly_level_3 & possible_builds;
+            let check_if_build = l2_neighbors & exactly_level_2 & possible_builds;
+
+            if F & GENERATE_THREATS_ONLY != 0 {
+                let check_counts = current_checks.count_ones();
+                if check_counts == 0 {
+                    possible_builds = possible_builds & check_if_build
+                } else if current_checks.count_ones() == 1 {
+                    possible_builds ^= current_checks;
+                }
             }
-        }
 
-        // move both workers
-        for t1 in c1 {
-            let t1_mask = BitBoard::as_mask(t1);
+            for build in possible_builds {
+                let new_action = GodMove::new_hermes_double_move(f1, t1, f2, t2, build, is_overlap);
+                let build_mask = BitBoard::as_mask(build);
 
-            for t2 in c2 {
-                let t2_mask = BitBoard::as_mask(t2);
-                let both_mask = t1_mask | t2_mask;
-
-                let possible_builds = (NEIGHBOR_MAP[t1 as usize] | NEIGHBOR_MAP[t2 as usize])
-                    & !(other_workers | both_mask | board.height_map[3]);
-
-                for build in possible_builds {
-                    let new_action =
-                        GodMove::new_hermes_double_move::<false>(f1, t1, f2, t2, build);
+                if F & GENERATE_THREATS_ONLY != 0 {
+                    result.push(ScoredMove::new(new_action.into(), CHECK_SENTINEL_SCORE));
+                } else if F & INCLUDE_SCORE != 0 {
+                    if (build_mask & check_if_build).is_not_empty()
+                        || (current_checks.is_not_empty()
+                            && (current_checks ^ build_mask).is_not_empty())
+                    {
+                        result.push(ScoredMove::new(new_action.into(), CHECK_SENTINEL_SCORE));
+                    } else {
+                        result.push(ScoredMove::new(
+                            new_action.into(),
+                            NON_IMPROVER_SENTINEL_SCORE,
+                        ));
+                    }
+                } else {
                     result.push(ScoredMove::new(new_action.into(), 0));
                 }
             }
         }
     }
 
-    // if result.len() >= 2236 {
-    //     eprintln!("len: {}", result.len());
-    // }
-
     result
 }
-
-// fn hermes_move_check_map(
-//     level_2_workers: BitBoard,
-//     exactly_level_2: BitBoard,
-//     exactly_level_3: BitBoard,
-//     buildable_squares: BitBoard,
-// ) -> (BitBoard, BitBoard) {
-//     let l2_neighbors = move_all_workers_one_include_original_workers(level_2_workers);
-//     let current_checks = l2_neighbors & exactly_level_3 & buildable_squares;
-//     let check_if_build = l2_neighbors & exactly_level_2 & buildable_squares;
-// }
 
 pub fn hermes_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
@@ -661,6 +579,13 @@ pub fn hermes_score_moves<const IMPROVERS_ONLY: bool>(
         score += GRID_POSITION_SCORES[to as usize];
         score -= WORKER_HEIGHT_SCORES[from_height as usize];
         score += WORKER_HEIGHT_SCORES[to_height as usize];
+
+        if let Some(f2) = action.move_from_position2() {
+            let t2 = action.move_to_position2();
+
+            score -= GRID_POSITION_SCORES[f2 as usize];
+            score += GRID_POSITION_SCORES[t2 as usize];
+        }
 
         score += build_score_map[build_at as usize];
 

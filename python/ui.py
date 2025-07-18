@@ -608,7 +608,6 @@ class RootPanel:
             print('Skipping best move for non-current position')
             return
 
-        print(message)
         self.last_engine_move = message
 
         trigger = message['trigger']

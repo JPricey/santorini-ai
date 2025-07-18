@@ -628,7 +628,7 @@ where
         active_god.make_move(state, child_action);
 
         // check extension
-        let next_depth = if child_is_check {
+        let mut next_depth = if child_is_check {
             remaining_depth
         } else {
             remaining_depth - 1
@@ -650,6 +650,10 @@ where
                 -alpha,
             )
         } else {
+            if next_depth > 1 && move_idx >= 200 {
+                next_depth -= 1;
+            }
+
             // Try a 0-window search
             score = -_inner_search::<T, OffPV>(
                 search_context,
