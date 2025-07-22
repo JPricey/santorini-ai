@@ -20,6 +20,7 @@ pub mod hermes;
 pub mod minotaur;
 pub mod mortal;
 pub mod pan;
+pub mod prometheus;
 
 pub type StaticGod = &'static GodPower;
 
@@ -38,6 +39,7 @@ pub enum GodName {
     Demeter = 7,
     Apollo = 8,
     Hermes = 9,
+    Prometheus = 10,
 }
 
 impl GodName {
@@ -272,7 +274,7 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
-pub const ALL_GODS_BY_ID: [GodPower; 10] = [
+pub const ALL_GODS_BY_ID: [GodPower; 11] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
@@ -283,6 +285,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 10] = [
     demeter::build_demeter(),
     apollo::build_apollo(),
     hermes::build_hermes(),
+    prometheus::build_prometheus(),
 ];
 
 #[cfg(test)]
