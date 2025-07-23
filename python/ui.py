@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import json
 from frozendict import frozendict
 
-BASIC_START_STRING = "0000000000000000000000000/1/mortal:B3,D3/mortal:C2,C4"
+BASIC_START_STRING = "0000000000000000000000000/1/prometheus:B3,D3/mortal:C2,C4"
 # BASIC_START_STRING = "0000000000000000000000000/1/mortal:11,13/mortal:7,17"
 
 COL_LABEL_MAPPING = 'ABCDE'
@@ -44,6 +44,7 @@ class EngineProcess:
 
     def start_engine(self):
         start_command = shlex.split("cargo run -p uci --release")
+        # start_command = shlex.split("./target/release/uci")
 
         env = os.environ.copy()
         env['RUST_BACKTRACE'] = 'full'
