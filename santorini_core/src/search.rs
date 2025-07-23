@@ -238,7 +238,8 @@ where
             );
             search_state.best_move = Some(new_best_move.clone());
             (search_context.new_best_move_callback)(new_best_move);
-            tt_entry.search_depth + 1
+            // tt_entry.search_depth + 1
+            2
         } else {
             2
         }
