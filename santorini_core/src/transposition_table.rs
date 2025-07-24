@@ -3,7 +3,10 @@ use std::{
     u8,
 };
 
-use crate::gods::{GodName, generic::GenericMove};
+use crate::{
+    gods::{GodName, generic::GenericMove},
+    search::WINNING_SCORE_BUFFER,
+};
 
 use super::{board::BoardState, search::Hueristic};
 
@@ -43,6 +46,30 @@ pub struct TTEntry {
     pub hash_code: HashCodeType,
     pub value: TTValue,
     // pub board: BoardState,
+}
+
+fn to_tt(value: Hueristic, ply: usize) -> Hueristic {
+    let ply = ply as Hueristic;
+
+    if value >= WINNING_SCORE_BUFFER {
+        value + ply
+    } else if value <= -WINNING_SCORE_BUFFER {
+        value - ply
+    } else {
+        value
+    }
+}
+
+fn to_search(value: Hueristic, ply: usize) -> Hueristic {
+    let ply = ply as Hueristic;
+
+    if value >= WINNING_SCORE_BUFFER {
+        value - ply
+    } else if value <= -WINNING_SCORE_BUFFER {
+        value + ply
+    } else {
+        value
+    }
 }
 
 pub struct TranspositionTable {
@@ -122,6 +149,7 @@ impl TranspositionTable {
         score_type: SearchScoreType,
         search_score: Hueristic,
         current_eval: Hueristic,
+        ply: usize,
     ) {
         let hash_code = hash_obj(state);
         let destination = self.get_key(hash_code);
@@ -131,7 +159,7 @@ impl TranspositionTable {
                 best_action,
                 search_depth: depth,
                 score_type,
-                score: search_score,
+                score: to_tt(search_score, ply),
                 eval: current_eval,
             },
             hash_code,
@@ -152,6 +180,7 @@ impl TranspositionTable {
         score_type: SearchScoreType,
         search_score: Hueristic,
         current_eval: Hueristic,
+        ply: usize,
     ) {
         let hash_code = hash_obj(state);
         let destination = self.get_key(hash_code);
@@ -170,7 +199,7 @@ impl TranspositionTable {
                 best_action,
                 search_depth: depth,
                 score_type,
-                score: search_score,
+                score: to_tt(search_score, ply),
                 eval: current_eval,
             },
             hash_code,
@@ -183,7 +212,7 @@ impl TranspositionTable {
         }
     }
 
-    pub fn fetch(&mut self, state: &BoardState) -> Option<TTValue> {
+    pub fn fetch(&mut self, state: &BoardState, ply: usize) -> Option<TTValue> {
         let hash_code = hash_obj(state);
         let destination = self.get_key(hash_code);
 
@@ -193,7 +222,13 @@ impl TranspositionTable {
                 self.stats.hit += 1;
             }
 
-            return Some(entry.value.clone());
+            return Some(TTValue {
+                best_action: entry.value.best_action,
+                search_depth: entry.value.search_depth,
+                score_type: entry.value.score_type,
+                score: to_search(entry.value.score, ply),
+                eval: entry.value.eval,
+            });
         } else if TranspositionTable::IS_TRACKING_STATS {
             // eprintln!("TT COLLISION: {}", hash_code);
             // state.print_to_console();

@@ -223,7 +223,7 @@ where
     }
 
     let starting_depth = {
-        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board)
+        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board, 0)
             && tt_entry.best_action != GenericMove::NULL_MOVE
         {
             let mut best_child_state = root_board.clone();
@@ -380,9 +380,9 @@ where
         eval = nnue_acc.evaluate();
 
         // TODO: test this
-        // if q_depth > 12 {
-        //     return eval;
-        // }
+        if q_depth > 12 {
+            return eval;
+        }
 
         child_moves = active_god.get_improver_moves(state, state.current_player);
     }
@@ -493,7 +493,7 @@ where
 
     let mut track_used = false;
     let mut track_unused = false;
-    let tt_entry = search_context.tt.fetch(state);
+    let tt_entry = search_context.tt.fetch(state, ply);
     if let Some(tt_value) = &tt_entry {
         if tt_value.search_depth >= remaining_depth as u8 {
             if TranspositionTable::IS_TRACKING_STATS {
@@ -764,6 +764,7 @@ where
                     tt_score_type,
                     best_score,
                     eval,
+                    ply,
                 );
             }
         }
@@ -775,6 +776,7 @@ where
             tt_score_type,
             best_score,
             eval,
+            ply,
         );
     }
 
