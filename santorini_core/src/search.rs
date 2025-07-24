@@ -153,6 +153,7 @@ pub struct SearchState {
     pub nodes_visited: usize,
     pub killer_move_table: [Option<GenericMove>; MAX_PLY],
     pub search_stack: [SearchStackEntry; MAX_PLY],
+    // pub max_q_depth: u32,
 }
 
 impl Debug for SearchState {
@@ -178,6 +179,7 @@ impl Default for SearchState {
             nodes_visited: 0,
             killer_move_table: [None; MAX_PLY],
             search_stack: array::from_fn(|_| SearchStackEntry::default()),
+            // max_q_depth: 5,
         }
     }
 }
@@ -339,6 +341,11 @@ where
 {
     search_state.nodes_visited += 1;
 
+    // if q_depth > search_state.max_q_depth {
+    //     search_state.max_q_depth = q_depth;
+    //     eprintln!("New max q depth: {}", q_depth);
+    // }
+
     let (active_god, other_god) = match state.current_player {
         Player::One => (p1_god, p2_god),
         Player::Two => (p2_god, p1_god),
@@ -368,8 +375,15 @@ where
         }
         child_moves = active_god.get_blocker_moves(state, state.current_player, blocker_board);
     } else {
+        // If qs is going on for too long, just return the current eval
         nnue_acc.replace_from_board(state);
         eval = nnue_acc.evaluate();
+
+        // TODO: test this
+        // if q_depth > 12 {
+        //     return eval;
+        // }
+
         child_moves = active_god.get_improver_moves(state, state.current_player);
     }
 

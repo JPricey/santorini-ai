@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use santorini_core::{
     board::FullGameState,
+    gods::GodName,
     search::{SearchContext, SearchState, negamax_search},
     search_terminators::DynamicMaxDepthSearchTerminator,
     transposition_table::TranspositionTable,
@@ -11,7 +12,10 @@ use santorini_core::{
 
 fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
     let (state_str, depth) = SEARCH_TEST_SCENARIOS[scenario];
-    let game_state = FullGameState::try_from(state_str).unwrap();
+    let mut game_state = FullGameState::try_from(state_str).unwrap();
+    let god = GodName::Mortal;
+    game_state.gods[0] = god.to_power();
+    game_state.gods[1] = god.to_power();
     let mut search_state = SearchContext::new(tt, DynamicMaxDepthSearchTerminator::new(depth));
 
     negamax_search(&mut search_state, &game_state)
