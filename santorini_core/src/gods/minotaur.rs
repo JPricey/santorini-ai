@@ -178,26 +178,6 @@ impl std::fmt::Debug for MinotaurMove {
 
 type GodMove = MinotaurMove;
 
-const UD_BOUNDS: BitBoard = BitBoard(0b11111_00000_00000_00000_11111);
-const LR_BOUNDS: BitBoard = BitBoard(0b10001_10001_10001_10001_10001);
-
-fn _calculate_push_to_dest(
-    move_from: Square,
-    move_from_mask: BitBoard,
-    move_to: Square,
-    move_to_mask: BitBoard,
-) -> Option<Square> {
-    if move_from_mask & UD_BOUNDS == move_to_mask & UD_BOUNDS
-        && move_from_mask & LR_BOUNDS == move_to_mask & LR_BOUNDS
-    {
-        let delta = move_to as i8 - move_from as i8;
-        let dest = move_to as i8 + delta;
-        Some(Square::from(dest as u8))
-    } else {
-        None
-    }
-}
-
 pub fn minotaur_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
     let current_player = board.current_player;
