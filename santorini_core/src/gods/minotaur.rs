@@ -14,9 +14,42 @@ use crate::{
     },
     player::Player,
     square::Square,
+    transmute_enum,
 };
 
 use super::PartialAction;
+
+const MINOTAUR_PUSH_TO_MAPPING: [[Option<Square>; 25]; 25] = {
+    let mut result = [[None; 25]; 25];
+
+    let mut from: i32 = 0;
+    loop {
+        if from >= 25 {
+            break;
+        }
+
+        let mut to: i32 = 0;
+        loop {
+            if to >= 25 {
+                break;
+            }
+            let to_mask = BitBoard::as_mask(transmute_enum!(to as u8));
+            if (NEIGHBOR_MAP[from as usize].0 & to_mask.0) != 0 {
+                let delta = to - from;
+                let dest = to + delta;
+                if dest >= 0 && dest < 25 {
+                    if NEIGHBOR_MAP[to as usize].0 & 1 << dest != 0 {
+                        result[from as usize][to as usize] = Some(transmute_enum!(dest as u8));
+                    }
+                }
+            }
+            to += 1;
+        }
+        from += 1;
+    }
+
+    result
+};
 
 // from(5)|to(5)|build(5)|win(1)
 pub const MINOTAUR_MOVE_FROM_POSITION_OFFSET: usize = 0;
@@ -48,7 +81,23 @@ impl MinotaurMove {
         let data: MoveData = ((move_from_position as MoveData)
             << MINOTAUR_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << MINOTAUR_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << MINOTAUR_BUILD_POSITION_OFFSET);
+            | ((build_position as MoveData) << MINOTAUR_BUILD_POSITION_OFFSET)
+            | ((25 as MoveData) << MINOTAUR_PUSH_TO_POSITION_OFFSET);
+
+        Self(data)
+    }
+
+    pub fn new_minotaur_push_move(
+        move_from_position: Square,
+        move_to_position: Square,
+        build_position: Square,
+        push_to_position: Square,
+    ) -> Self {
+        let data: MoveData = ((move_from_position as MoveData)
+            << MINOTAUR_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MINOTAUR_MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << MINOTAUR_BUILD_POSITION_OFFSET)
+            | ((push_to_position as MoveData) << MINOTAUR_PUSH_TO_POSITION_OFFSET);
 
         Self(data)
     }
@@ -61,12 +110,36 @@ impl MinotaurMove {
         Self(data)
     }
 
+    pub fn new_minotaur_winning_push_move(
+        move_from_position: Square,
+        move_to_position: Square,
+        push_to_position: Square,
+    ) -> Self {
+        let data: MoveData = ((move_from_position as MoveData)
+            << MINOTAUR_MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MINOTAUR_MOVE_TO_POSITION_OFFSET)
+            | ((push_to_position as MoveData) << MINOTAUR_PUSH_TO_POSITION_OFFSET)
+            | MOVE_IS_WINNING_MASK;
+
+        Self(data)
+    }
+
     pub fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
     pub fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
+    }
+
+    pub fn push_to_position(&self) -> Option<Square> {
+        let value = (self.0 >> MINOTAUR_PUSH_TO_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+
+        if value == 25 {
+            None
+        } else {
+            Some(Square::from(value))
+        }
     }
 
     pub fn build_position(self) -> Square {
@@ -95,6 +168,8 @@ impl std::fmt::Debug for MinotaurMove {
 
         if is_win {
             write!(f, "{}>{}#", move_from, move_to)
+        } else if let Some(push_to) = self.push_to_position() {
+            write!(f, "{}>{}(>{})^{}", move_from, move_to, push_to, build)
         } else {
             write!(f, "{}>{}^{}", move_from, move_to, build)
         }
@@ -102,6 +177,26 @@ impl std::fmt::Debug for MinotaurMove {
 }
 
 type GodMove = MinotaurMove;
+
+const UD_BOUNDS: BitBoard = BitBoard(0b11111_00000_00000_00000_11111);
+const LR_BOUNDS: BitBoard = BitBoard(0b10001_10001_10001_10001_10001);
+
+fn _calculate_push_to_dest(
+    move_from: Square,
+    move_from_mask: BitBoard,
+    move_to: Square,
+    move_to_mask: BitBoard,
+) -> Option<Square> {
+    if move_from_mask & UD_BOUNDS == move_to_mask & UD_BOUNDS
+        && move_from_mask & LR_BOUNDS == move_to_mask & LR_BOUNDS
+    {
+        let delta = move_to as i8 - move_from as i8;
+        let dest = move_to as i8 + delta;
+        Some(Square::from(dest as u8))
+    } else {
+        None
+    }
+}
 
 pub fn minotaur_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
@@ -129,8 +224,9 @@ pub fn minotaur_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<
 
 pub fn minotaur_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
-    let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    let move_from = BitBoard::as_mask(action.move_from_position());
+    let move_to = BitBoard::as_mask(action.move_to_position());
+    board.workers[board.current_player as usize] ^= move_from | move_to;
 
     if action.get_is_winning() {
         board.set_winner(board.current_player);
@@ -142,12 +238,18 @@ pub fn minotaur_make_move(board: &mut BoardState, action: GenericMove) {
 
     let build_height = board.get_height_for_worker(build_mask);
     board.height_map[build_height] |= build_mask;
+
+    if let Some(push_to) = action.push_to_position() {
+        let push_mask = BitBoard::as_mask(push_to);
+        board.workers[1 - board.current_player as usize] ^= move_to | push_mask;
+    }
 }
 
 pub fn minotaur_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
-    let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    let move_from = BitBoard::as_mask(action.move_from_position());
+    let move_to = BitBoard::as_mask(action.move_to_position());
+    board.workers[board.current_player as usize] ^= move_from | move_to;
 
     if action.get_is_winning() {
         board.unset_winner();
@@ -159,6 +261,11 @@ pub fn minotaur_unmake_move(board: &mut BoardState, action: GenericMove) {
 
     let build_height = board.get_true_height(build_mask);
     board.height_map[build_height - 1] ^= build_mask;
+
+    if let Some(push_to) = action.push_to_position() {
+        let push_mask = BitBoard::as_mask(push_to);
+        board.workers[1 - board.current_player as usize] ^= move_to | push_mask;
+    }
 }
 
 fn minotaur_move_gen<const F: MoveGenFlags>(
@@ -167,24 +274,27 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
     let current_player_idx = player as usize;
-    let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    let base_current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    let mut current_workers = base_current_workers;
     if F & MATE_ONLY != 0 {
         current_workers &= board.exactly_level_2()
     }
     let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
+    let opponent_workers = board.workers[1 - current_player_idx];
 
     let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
 
     let all_workers_mask = board.workers[0] | board.workers[1];
+    let blocked_squares = all_workers_mask | board.at_least_level_4();
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
+        let base_other_own_workers = current_workers ^ moving_worker_start_mask;
 
         let mut neighbor_check_if_builds = BitBoard::EMPTY;
         if F & INCLUDE_SCORE != 0 {
-            let other_own_workers =
-                (current_workers ^ moving_worker_start_mask) & board.exactly_level_2();
+            let other_own_workers = base_other_own_workers & board.exactly_level_2();
             for other_pos in other_own_workers {
                 neighbor_check_if_builds |=
                     NEIGHBOR_MAP[other_pos as usize] & board.exactly_level_2();
@@ -193,23 +303,46 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
-                | all_workers_mask);
+                | base_current_workers);
 
         if F & MATE_ONLY != 0 || worker_starting_height == 2 {
             let moves_to_level_3 = worker_moves & board.height_map[2];
             worker_moves ^= moves_to_level_3;
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                let winning_move = ScoredMove::new_winning_move(
-                    GodMove::new_minotaur_winning_move(
-                        moving_worker_start_pos,
-                        moving_worker_end_pos,
-                    )
-                    .into(),
-                );
-                result.push(winning_move);
-                if F & STOP_ON_MATE != 0 {
-                    return result;
+                let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
+                if (moving_worker_end_mask & opponent_workers).is_not_empty() {
+                    if let Some(push_to) = MINOTAUR_PUSH_TO_MAPPING
+                        [moving_worker_start_pos as usize][moving_worker_end_pos as usize]
+                    {
+                        let push_to_mask = BitBoard::as_mask(push_to);
+                        if (push_to_mask & blocked_squares).is_empty() {
+                            let winning_move = ScoredMove::new_winning_move(
+                                GodMove::new_minotaur_winning_push_move(
+                                    moving_worker_start_pos,
+                                    moving_worker_end_pos,
+                                    push_to,
+                                )
+                                .into(),
+                            );
+                            result.push(winning_move);
+                            if F & STOP_ON_MATE != 0 {
+                                return result;
+                            }
+                        }
+                    }
+                } else {
+                    let winning_move = ScoredMove::new_winning_move(
+                        GodMove::new_minotaur_winning_move(
+                            moving_worker_start_pos,
+                            moving_worker_end_pos,
+                        )
+                        .into(),
+                    );
+                    result.push(winning_move);
+                    if F & STOP_ON_MATE != 0 {
+                        return result;
+                    }
                 }
             }
         }
@@ -223,33 +356,70 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-
             let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
 
             let mut worker_builds =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+            let mut push_to_spot: Option<Square> = None;
+            let mut push_to_mask = BitBoard::EMPTY;
+
+            if (moving_worker_end_mask & opponent_workers).is_not_empty() {
+                if let Some(push_to) = MINOTAUR_PUSH_TO_MAPPING[moving_worker_start_pos as usize]
+                    [moving_worker_end_pos as usize]
+                {
+                    let tmp_push_to_mask = BitBoard::as_mask(push_to);
+                    if (tmp_push_to_mask & blocked_squares).is_empty() {
+                        push_to_spot = Some(push_to);
+                        push_to_mask = tmp_push_to_mask;
+                        worker_builds ^= tmp_push_to_mask;
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
 
             if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
-                if (moving_worker_end_mask & key_squares).is_empty() {
+                if (moving_worker_end_mask & key_squares).is_empty() && push_to_spot.is_none() {
                     worker_builds = worker_builds & key_squares;
                 }
             }
 
             let mut check_if_builds = neighbor_check_if_builds;
+            check_if_builds &= !push_to_mask;
             let mut anti_check_builds = BitBoard::EMPTY;
             let mut is_already_check = false;
+            let mut is_already_check_by_push = false;
 
             if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & board.exactly_level_2();
                     anti_check_builds =
                         NEIGHBOR_MAP[moving_worker_end_pos as usize] & board.exactly_level_3();
+                    let anti_check_pushes = anti_check_builds & (push_to_mask | opponent_workers);
+                    anti_check_builds ^= anti_check_pushes;
+
+                    for anti_check_push_pos in anti_check_pushes {
+                        if let Some(push_to) = MINOTAUR_PUSH_TO_MAPPING
+                            [moving_worker_end_pos as usize]
+                            [anti_check_push_pos as usize]
+                        {
+                            let push_to_mask = BitBoard::as_mask(push_to);
+                            if (push_to_mask & blocked_squares).is_empty() {
+                                is_already_check_by_push = true;
+                            }
+                        }
+                    }
+
                     is_already_check = anti_check_builds != BitBoard::EMPTY;
                 }
             }
 
             if F & GENERATE_THREATS_ONLY != 0 {
-                if is_already_check {
+                if is_already_check_by_push {
+                    // noop
+                } else if is_already_check {
                     let must_avoid_build = anti_check_builds & worker_builds;
                     if must_avoid_build.count_ones() == 1 {
                         worker_builds ^= must_avoid_build;
@@ -260,15 +430,26 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = GodMove::new_minotaur_move(
-                    moving_worker_start_pos,
-                    moving_worker_end_pos,
-                    worker_build_pos,
-                );
+                let new_action = if let Some(push_to) = push_to_spot {
+                    GodMove::new_minotaur_push_move(
+                        moving_worker_start_pos,
+                        moving_worker_end_pos,
+                        worker_build_pos,
+                        push_to,
+                    )
+                } else {
+                    GodMove::new_minotaur_move(
+                        moving_worker_start_pos,
+                        moving_worker_end_pos,
+                        worker_build_pos,
+                    )
+                };
                 if F & INCLUDE_SCORE != 0 {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                     let score;
-                    if is_already_check && (anti_check_builds & !worker_build_mask).is_not_empty()
+                    if is_already_check_by_push
+                        || is_already_check
+                            && (anti_check_builds & !worker_build_mask).is_not_empty()
                         || (worker_build_mask & check_if_builds).is_not_empty()
                     {
                         score = CHECK_SENTINEL_SCORE;
@@ -383,7 +564,7 @@ pub const fn build_minotaur() -> GodPower {
 
 #[cfg(test)]
 mod tests {
-    use crate::random_utils::GameStateFuzzer;
+    use crate::{board::FullGameState, random_utils::GameStateFuzzer};
 
     use super::*;
 
@@ -418,7 +599,8 @@ mod tests {
                     );
                     println!("{:?}", state);
                     state.board.print_to_console();
-                    println!("{:?}", action.action);
+                    let acc: GodMove = action.action.into();
+                    println!("{:?} {:b}", acc, acc.0);
                     board.print_to_console();
                     assert_eq!(is_check_move, is_winning_next_turn);
                 }
@@ -448,10 +630,11 @@ mod tests {
                     let mut board = state.board.clone();
                     minotaur.make_move(&mut board, action.action);
 
-                    println!("Move promised to be improver only but wasn't: {:?}", action,);
+                    println!("Move promised to be improver only but wasn't: {:?}", action);
                     println!("{:?}", state);
                     state.board.print_to_console();
-                    println!("{:?}", action.action);
+                    let acc: GodMove = action.action.into();
+                    println!("{:?}", acc);
                     board.print_to_console();
                     assert_eq!(action.score, CHECK_SENTINEL_SCORE);
                 }
@@ -485,14 +668,11 @@ mod tests {
         }
     }
 
-    /*
     #[test]
-    fn test_check_detection_move_into() {
+    fn debug_minotaur_move() {
         let minotaur = GodName::Minotaur.to_power();
         let state =
-            FullGameState::try_from("11224 44444 00000 00000 00000/1/minotaur:A5,D5/minotaur:E1,E2")
-                .unwrap();
-        state.print_to_console();
+            FullGameState::try_from("21000 44444 000000000000000/1/mortal:A5/mortal:E1").unwrap();
 
         println!(
             "NON_IMPROVER_SENTINEL_SCORE: {}",
@@ -503,8 +683,30 @@ mod tests {
 
         let actions = minotaur.get_moves_for_search(&state.board, Player::One);
         for action in actions {
-            println!("{:?}", action);
+            let acc: GodMove = action.action.into();
+            println!("{:?} : {}", acc, action.score);
         }
     }
-    */
+
+    #[test]
+    fn test_minotaur_make_unmake() {
+        let minotaur = GodName::Minotaur.to_power();
+        let game_state_fuzzer = GameStateFuzzer::default();
+
+        for state in game_state_fuzzer {
+            let orig_board = state.board.clone();
+            let child_actions =
+                (minotaur._get_all_moves)(&orig_board, orig_board.current_player, BitBoard::EMPTY);
+
+            for action in child_actions {
+                let mut board = orig_board.clone();
+                let action = action.action;
+                minotaur.make_move(&mut board, action);
+                board.validate_heights();
+                minotaur.unmake_move(&mut board, action);
+                board.validate_heights();
+                assert_eq!(board, orig_board);
+            }
+        }
+    }
 }
