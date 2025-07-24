@@ -4,7 +4,10 @@ use rand::{
     thread_rng,
 };
 
-use crate::{board::FullGameState, gods::GodName};
+use crate::{
+    board::FullGameState,
+    gods::{ALL_GODS_BY_ID, GodName, StaticGod},
+};
 
 pub fn get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
     let mut result = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
@@ -17,6 +20,10 @@ pub fn get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
     result.board.workers[1].0 |= 1 << worker_spots[3];
 
     result
+}
+
+pub fn get_random_god(rng: &mut impl Rng) -> StaticGod {
+    ALL_GODS_BY_ID.choose(rng).unwrap()
 }
 
 pub fn get_random_move(state: &FullGameState, rng: &mut impl Rng) -> Option<FullGameState> {
