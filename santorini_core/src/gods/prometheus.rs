@@ -328,11 +328,10 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
                 let worker_end_height = board.get_height_for_worker(moving_worker_end_mask)
                     + ((moving_worker_end_pos == pre_build_pos) as usize);
 
-                let mut worker_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize]
-                    & all_buildable_squares
-                    & !(pre_build_mask & board_exactly_3);
-
+                let mut worker_builds =
+                    NEIGHBOR_MAP[moving_worker_end_pos as usize] & all_buildable_squares;
                 let both_buildable = worker_builds & pre_build_locations;
+                worker_builds &= !(pre_build_mask & board_exactly_3);
 
                 if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
                     if ((moving_worker_end_mask | pre_build_mask) & key_squares).is_empty() {
@@ -700,8 +699,10 @@ mod tests {
     #[test]
     fn debug_prometheus_move() {
         let prometheus = GodName::Prometheus.to_power();
+        // let state = FullGameState::try_from("00000 22444 000000000000000/1/prometheus:A5/prometheus:E1").unwrap();
         let state =
-            FullGameState::try_from("21000 44444 000000000000000/1/mortal:A5/mortal:E1").unwrap();
+            FullGameState::try_from("0000224310012100302000100/1/prometheus:A3/hephaestus:A5,D5")
+                .unwrap();
         state.print_to_console();
 
         println!(
