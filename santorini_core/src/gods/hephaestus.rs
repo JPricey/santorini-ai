@@ -282,8 +282,9 @@ fn heph_move_gen<const F: MoveGenFlags>(
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & exactly_level_2;
                     check_if_double_builds |= worker_builds & board.exactly_level_1();
-                    anti_check_builds =
-                        NEIGHBOR_MAP[moving_worker_end_pos as usize] & board.exactly_level_3();
+                    anti_check_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize]
+                        & board.exactly_level_3()
+                        & buildable_squares;
                     is_already_check = anti_check_builds != BitBoard::EMPTY;
                 }
             }

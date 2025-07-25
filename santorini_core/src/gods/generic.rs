@@ -83,6 +83,14 @@ pub struct ScoredMove {
     pub score: MoveScore,
 }
 
+impl PartialEq for ScoredMove {
+    fn eq(&self, other: &Self) -> bool {
+        self.action == other.action
+    }
+}
+
+impl Eq for ScoredMove {}
+
 impl ScoredMove {
     pub const fn new(action: GenericMove, score: MoveScore) -> Self {
         Self { action, score }

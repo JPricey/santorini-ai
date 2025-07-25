@@ -59,9 +59,13 @@ impl DemeterMove {
     pub fn new_demeter_two_build_move(
         move_from_position: Square,
         move_to_position: Square,
-        build_position: Square,
-        build_position_2: Square,
+        mut build_position: Square,
+        mut build_position_2: Square,
     ) -> Self {
+        if build_position_2 < build_position {
+            std::mem::swap(&mut build_position, &mut build_position_2);
+        }
+
         let data: MoveData = ((move_from_position as MoveData)
             << DEMETER_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << DEMETER_MOVE_TO_POSITION_OFFSET)

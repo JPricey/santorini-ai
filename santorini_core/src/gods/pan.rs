@@ -54,7 +54,15 @@ fn pan_move_gen<const F: MoveGenFlags>(
                 check_if_avoid_builds_and_moves |=
                     other_neighbors & board.exactly_level_0() & !other_workers;
             }
-            // TODO: when already at level 3
+
+            let other_own_level_3_workers =
+                (current_workers ^ moving_worker_start_mask) & board.exactly_level_3();
+
+            for other_pos in other_own_level_3_workers {
+                let other_neighbors = NEIGHBOR_MAP[other_pos as usize];
+                check_if_avoid_builds_and_moves |=
+                    other_neighbors & !board.at_least_level_2() & !other_workers;
+            }
         }
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
@@ -123,6 +131,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
             // println!("original is already check: {}", is_already_check);
 
             let mut check_if_builds = neighbor_check_if_builds;
+            let mut check_no_matter_what_build = false;
 
             if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                 if worker_end_height == 2 {
@@ -134,12 +143,16 @@ fn pan_move_gen<const F: MoveGenFlags>(
                     // println!("check if: {}", check_if_builds);
                     // println!("anti checks: {}", check_if_avoid_builds);
                 } else if worker_end_height == 3 {
-                    // TODO!
+                    check_if_avoid_builds |= worker_builds & board.exactly_level_1();
+                    check_no_matter_what_build =
+                        (worker_builds & board.exactly_level_0()).is_not_empty();
                 }
             }
 
             if F & GENERATE_THREATS_ONLY != 0 {
-                if check_if_avoid_builds.is_not_empty() {
+                if check_no_matter_what_build {
+                    // noop
+                } else if check_if_avoid_builds.is_not_empty() {
                     let must_avoid_build = check_if_avoid_builds & worker_builds;
                     if must_avoid_build.count_ones() == 1 {
                         worker_builds ^= must_avoid_build;
@@ -158,7 +171,8 @@ fn pan_move_gen<const F: MoveGenFlags>(
                 if F & INCLUDE_SCORE != 0 {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                     let score;
-                    if (check_if_avoid_builds & !worker_build_mask).is_not_empty()
+                    if check_no_matter_what_build
+                        || (check_if_avoid_builds & !worker_build_mask).is_not_empty()
                         || (worker_build_mask & check_if_builds).is_not_empty()
                     {
                         score = CHECK_SENTINEL_SCORE;

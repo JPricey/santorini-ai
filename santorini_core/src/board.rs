@@ -269,6 +269,12 @@ impl BoardState {
             BitBoard((bit as u32) << (HEIGHT_RESTRICTION_BASE_OFFSET + (player as usize)))
     }
 
+    pub fn unset_worker_can_climb(&mut self) {
+        self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX] ^= self.height_map
+            [HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX]
+            & HEIGHT_RESTRICTION_SECTION_MASK;
+    }
+
     pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {
         3.min(current_height + self.get_worker_can_climb(player) as usize)
     }
