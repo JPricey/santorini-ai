@@ -47,7 +47,7 @@ pub const ENEMY_WORKER_BUILD_SCORES: [[MoveScore; 5]; 4] = [
     [-8, -80, -10000, 12000, 0],
     [0, 0, 0, 0, 0],
 ];
-pub const CHECK_MOVE_BONUS: MoveScore = 6000;
+pub const CHECK_MOVE_BONUS: MoveScore = 8000;
 
 pub type MoveScore = i16;
 pub type MoveData = u32;

@@ -380,7 +380,7 @@ where
         eval = nnue_acc.evaluate();
 
         // TODO: test this
-        if q_depth > 12 {
+        if q_depth > 2 {
             return eval;
         }
 
@@ -644,6 +644,7 @@ where
 
         // check extension
         let mut next_depth = if child_is_check {
+            // eprintln!("check ext: ply {ply}");
             remaining_depth
         } else {
             remaining_depth - 1

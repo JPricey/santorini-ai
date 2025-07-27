@@ -11,6 +11,7 @@ use chrono::Utc;
 use clap::Parser;
 use santorini_core::board::FullGameState;
 use santorini_core::fen::game_state_to_fen;
+use santorini_core::gods::GodName;
 use santorini_core::player::Player;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
@@ -140,6 +141,10 @@ struct FaceoffArgs {
 
     #[arg(short = 's', long, default_value_t = DEFAULT_DURATION_SECS)]
     secs: f32,
+
+    #[arg(short = 'g', long)]
+    #[arg(short, long)]
+    god: Option<GodName>,
 }
 
 struct SidedPosition {
@@ -189,13 +194,15 @@ fn main() {
             continue;
         }
 
+        let mut state = position.state.clone();
+        if let Some(god_name) = args.god {
+            state.gods[0] = god_name.to_power();
+            state.gods[1] = god_name.to_power();
+        }
+
         {
-            let battle_result_1 = do_battle(
-                &position.state,
-                &mut c1,
-                &mut c2,
-                Duration::from_secs_f32(args.secs),
-            );
+            let battle_result_1 =
+                do_battle(&state, &mut c1, &mut c2, Duration::from_secs_f32(args.secs));
             if battle_result_1.winning_player == Player::One {
                 e1_wins.push(SidedPosition {
                     name: position.name.clone(),
@@ -215,12 +222,8 @@ fn main() {
         );
 
         {
-            let battle_result_2 = do_battle(
-                &position.state,
-                &mut c2,
-                &mut c1,
-                Duration::from_secs_f32(args.secs),
-            );
+            let battle_result_2 =
+                do_battle(&state, &mut c2, &mut c1, Duration::from_secs_f32(args.secs));
             if battle_result_2.winning_player == Player::One {
                 e2_wins.push(SidedPosition {
                     name: position.name.clone(),

@@ -1,8 +1,7 @@
 use crate::{
     board::BoardState,
     gods::{
-        StaticGod,
-        generic::{GenericMove, NON_IMPROVER_SENTINEL_SCORE, ScoredMove},
+        generic::{GenericMove, ScoredMove, CHECK_SENTINEL_SCORE, NON_IMPROVER_SENTINEL_SCORE}, StaticGod
     },
     player::Player,
 };
@@ -110,6 +109,12 @@ impl MovePicker {
 
         if self.stage == MovePickerStage::ScoreImprovers {
             self.stage = MovePickerStage::YieldImprovers;
+            for action in &mut self.move_list[self.index..] {
+                if action.score == CHECK_SENTINEL_SCORE {
+                    action.action.set_is_check();
+                }
+            }
+
             self.active_god
                 .score_improvers(board, &mut self.move_list[self.index..]);
         }

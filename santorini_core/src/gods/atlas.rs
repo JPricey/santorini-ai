@@ -386,6 +386,8 @@ fn atlas_move_gen<const F: MoveGenFlags>(
 
 fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: &mut [ScoredMove]) {
     let mut build_score_map: [MoveScore; 25] = [0; 25];
+    let mut dome_score_map: [MoveScore; 25] = [17; 25];
+
     for enemy_worker_pos in board.workers[1 - board.current_player as usize] {
         let enemy_worker_height = board.get_height_for_worker(BitBoard::as_mask(enemy_worker_pos));
         let ns = NEIGHBOR_MAP[enemy_worker_pos as usize];
@@ -393,6 +395,7 @@ fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: 
             let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
             build_score_map[n_pos as usize] +=
                 ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
+            dome_score_map[n_pos as usize] += 32;
         }
     }
 
@@ -403,6 +406,7 @@ fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: 
             let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
             build_score_map[n_pos as usize] -=
                 ENEMY_WORKER_BUILD_SCORES[worker_height as usize][n_height as usize] / 8;
+            dome_score_map[n_pos as usize] -= 10;
         }
     }
 
@@ -420,25 +424,29 @@ fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: 
         let to_height = board.get_height_for_worker(BitBoard::as_mask(to));
 
         let build_at = action.build_position();
-        let build_pre_height = if action.is_dome_build() {
-            3
-        } else {
-            board.get_height_for_worker(BitBoard::as_mask(build_at))
-        };
 
         score -= GRID_POSITION_SCORES[from as usize];
         score += GRID_POSITION_SCORES[to as usize];
         score -= WORKER_HEIGHT_SCORES[from_height as usize];
         score += WORKER_HEIGHT_SCORES[to_height as usize];
 
-        score += build_score_map[build_at as usize];
+        if action.is_dome_build() {
+            score += dome_score_map[build_at as usize];
+
+            // if IMPROVERS_ONLY {
+            //     score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][3];
+            // }
+        } else {
+            score += build_score_map[build_at as usize];
+
+            if IMPROVERS_ONLY {
+                let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
+                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+            }
+        }
 
         if scored_action.score == CHECK_SENTINEL_SCORE {
             score += CHECK_MOVE_BONUS;
-        }
-
-        if IMPROVERS_ONLY {
-            score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
         }
 
         scored_action.set_score(score);

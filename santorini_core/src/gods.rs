@@ -7,7 +7,7 @@ use crate::{
     square::Square,
 };
 use serde::{Deserialize, Serialize};
-use strum::{EnumString, IntoStaticStr};
+use strum::{Display, EnumString, IntoStaticStr};
 
 pub mod apollo;
 pub mod artemis;
@@ -25,7 +25,17 @@ pub mod prometheus;
 pub type StaticGod = &'static GodPower;
 
 #[derive(
-    Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, EnumString, IntoStaticStr,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    Display,
+    Serialize,
+    Deserialize,
+    EnumString,
+    IntoStaticStr,
 )]
 #[strum(serialize_all = "lowercase")]
 pub enum GodName {

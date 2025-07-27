@@ -1,9 +1,10 @@
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 use santorini_core::{
     board::FullGameState,
-    gods::generic::GenericMove,
+    gods::{GodName, generic::GenericMove},
     search::{Hueristic, SearchContext, SearchState, WINNING_SCORE_BUFFER, negamax_search},
     search_terminators::DynamicMaxDepthSearchTerminator,
     transposition_table::TranspositionTable,
@@ -76,14 +77,16 @@ fn tune_scenario_depths() {
     eprintln!("{:?}", scenarios);
 }
 
-fn run_all_scenarios() -> TestSummary {
+fn run_all_scenarios(god_name: GodName) -> TestSummary {
     let mut tt = TranspositionTable::new();
     let mut summary = TestSummary::default();
 
     for (i, (state_str, depth)) in SEARCH_TEST_SCENARIOS.iter().cloned().enumerate() {
-        let game_state = FullGameState::try_from(state_str).unwrap();
+        let mut game_state = FullGameState::try_from(state_str).unwrap();
+        game_state.gods[0] = god_name.to_power();
+        game_state.gods[1] = god_name.to_power();
 
-        let depth = (depth as i32 - 4).max(5) as usize;
+        let depth = (depth as i32 - 5).max(5) as usize;
 
         tt.reset();
         let (result, duration) = run_scenario(&mut tt, &game_state, depth);
@@ -94,7 +97,7 @@ fn run_all_scenarios() -> TestSummary {
             duration_seconds: duration.as_secs_f32(),
             nodes_visited: result.nodes_visited,
             best_move: best_move.action,
-            best_move_str: format!("{:?}", best_move.action),
+            best_move_str: best_move.action_str.clone(),
             best_move_state: best_move.child_state,
             score: best_move.score,
             depth: best_move.depth,
@@ -110,8 +113,17 @@ fn run_all_scenarios() -> TestSummary {
     summary
 }
 
+#[derive(Parser, Debug)]
+struct VisitTesterArgs {
+    #[arg(short = 'g', long)]
+    #[clap(default_value_t = GodName::Mortal)]
+    god: GodName,
+}
+
 pub fn main() {
-    let summary = run_all_scenarios();
+    let args = VisitTesterArgs::parse();
+    let summary = run_all_scenarios(args.god);
+
     eprintln!(
         "Nodes Visited: {} Duration sum: {:.2}",
         summary.nodes_visited_sum, summary.duration_sum
@@ -122,3 +134,4 @@ pub fn main() {
 }
 
 // cargo run -p santorini_core --bin visit_tester --release
+// cargo run -p santorini_core --bin visit_tester --release -- -g atlas
