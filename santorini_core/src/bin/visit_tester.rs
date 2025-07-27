@@ -134,4 +134,4 @@ pub fn main() {
 }
 
 // cargo run -p santorini_core --bin visit_tester --release
-// cargo run -p santorini_core --bin visit_tester --release -- -g atlas
+// cargo run -p santorini_core --bin visit_tester --release -- -g hermes

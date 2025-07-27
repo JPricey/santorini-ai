@@ -534,11 +534,16 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     result
 }
 
+const HERMES_CLOSE_SQUARE_BONUS: MoveScore = 45;
+// const HERMES_FAR_SQUARE_BONUS: MoveScore = 8;
+
 pub fn hermes_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
 ) {
     let mut build_score_map: [MoveScore; 25] = [0; 25];
+    let mut move_score_map: [MoveScore; 25] = [0; 25];
+
     for enemy_worker_pos in board.workers[1 - board.current_player as usize] {
         let enemy_worker_height = board.get_height_for_worker(BitBoard::as_mask(enemy_worker_pos));
         let ns = NEIGHBOR_MAP[enemy_worker_pos as usize];
@@ -546,6 +551,7 @@ pub fn hermes_score_moves<const IMPROVERS_ONLY: bool>(
             let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
             build_score_map[n_pos as usize] +=
                 ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
+            move_score_map[n_pos as usize] += HERMES_CLOSE_SQUARE_BONUS;
         }
     }
 
@@ -577,14 +583,25 @@ pub fn hermes_score_moves<const IMPROVERS_ONLY: bool>(
 
         score -= GRID_POSITION_SCORES[from as usize];
         score += GRID_POSITION_SCORES[to as usize];
+
         score -= WORKER_HEIGHT_SCORES[from_height as usize];
         score += WORKER_HEIGHT_SCORES[to_height as usize];
+
+        if !IMPROVERS_ONLY {
+            score -= move_score_map[from as usize];
+            score += move_score_map[to as usize];
+        }
 
         if let Some(f2) = action.move_from_position2() {
             let t2 = action.move_to_position2();
 
             score -= GRID_POSITION_SCORES[f2 as usize];
             score += GRID_POSITION_SCORES[t2 as usize];
+
+            if !IMPROVERS_ONLY {
+                score -= move_score_map[f2 as usize];
+                score += move_score_map[t2 as usize];
+            }
         }
 
         score += build_score_map[build_at as usize];

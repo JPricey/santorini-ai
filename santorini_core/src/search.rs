@@ -11,7 +11,7 @@ use crate::{
     bitboard::BitBoard,
     board::FullGameState,
     gods::{GodPower, generic::GenericMove},
-    move_picker::MovePicker,
+    move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     player::Player,
     search_terminators::SearchTerminator,
@@ -670,6 +670,17 @@ where
                 next_depth -= 1;
             }
 
+            // Stop considering non-improvers eventually
+            // if ply >= 2
+            //     && remaining_depth < 6
+            //     && move_idx > 300
+            //     && !improving
+            //     && move_picker.stage == MovePickerStage::YieldNonImprovers
+            // {
+            //     active_god.unmake_move(state, child_action);
+            //     break;
+            // }
+
             // Try a 0-window search
             score = -_inner_search::<T, OffPV>(
                 search_context,
@@ -709,6 +720,11 @@ where
             best_score = score;
             best_action = child_action;
             best_action_idx = move_idx - 1;
+
+            // if move_idx > 1000 {
+            //     eprintln!("{move_idx}: {}", active_god.stringify_move(child_action));
+            //     state.print_to_console();
+            // }
 
             if NT::ROOT && !should_stop {
                 let new_best_move = BestSearchResult::new(
