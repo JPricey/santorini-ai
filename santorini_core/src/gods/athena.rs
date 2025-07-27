@@ -358,6 +358,10 @@ pub fn athena_score_moves<const IMPROVERS_ONLY: bool>(
         score -= WORKER_HEIGHT_SCORES[from_height as usize];
         score += WORKER_HEIGHT_SCORES[to_height as usize];
 
+        let is_delta_1 = ((from_height as MoveScore) - (to_height as MoveScore)).abs() == 1;
+
+        score += (is_delta_1 as MoveScore) * 8;
+
         score += build_score_map[build_at as usize];
 
         if scored_action.score == CHECK_SENTINEL_SCORE {

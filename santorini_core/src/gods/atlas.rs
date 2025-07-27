@@ -432,10 +432,6 @@ fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: 
 
         if action.is_dome_build() {
             score += dome_score_map[build_at as usize];
-
-            // if IMPROVERS_ONLY {
-            //     score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][3];
-            // }
         } else {
             score += build_score_map[build_at as usize];
 
