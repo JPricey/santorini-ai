@@ -452,6 +452,13 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
     result
 }
 
+const MINOTAUR_PUSH_BONUS: [[MoveScore; 4]; 4] = [
+    [10, -5, -60, -20],
+    [20, 8, -40, -18],
+    [80, 15, 5, 21],
+    [70, 15, -99, 21],
+];
+
 pub fn minotaur_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
@@ -499,6 +506,11 @@ pub fn minotaur_score_moves<const IMPROVERS_ONLY: bool>(
         score += WORKER_HEIGHT_SCORES[to_height as usize];
 
         score += build_score_map[build_at as usize];
+
+        if let Some(push_to) = action.push_to_position() {
+            let push_to_height = board.get_height_for_worker(BitBoard::as_mask(push_to));
+            score += MINOTAUR_PUSH_BONUS[to_height][push_to_height] / 4;
+        }
 
         if scored_action.score == CHECK_SENTINEL_SCORE {
             score += CHECK_MOVE_BONUS;

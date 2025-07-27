@@ -323,6 +323,8 @@ fn apollo_move_gen<const F: MoveGenFlags>(
     result
 }
 
+const APOLLO_SWAP_MOVE_BONUS: [MoveScore; 2] = [0, 9];
+
 pub fn apollo_score_moves<const IMPROVERS_ONLY: bool>(
     board: &BoardState,
     move_list: &mut [ScoredMove],
@@ -355,6 +357,8 @@ pub fn apollo_score_moves<const IMPROVERS_ONLY: bool>(
 
         let action: GodMove = scored_action.action.into();
         let mut score: MoveScore = 0;
+
+        score += APOLLO_SWAP_MOVE_BONUS[action.did_swap() as usize];
 
         let from = action.move_from_position();
         let from_height = board.get_height_for_worker(BitBoard::as_mask(from));

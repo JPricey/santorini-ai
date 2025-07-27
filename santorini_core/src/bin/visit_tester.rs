@@ -86,7 +86,7 @@ fn run_all_scenarios(god_name: GodName) -> TestSummary {
         game_state.gods[0] = god_name.to_power();
         game_state.gods[1] = god_name.to_power();
 
-        let depth = (depth as i32 - 5).max(5) as usize;
+        let depth = (depth as i32 - 14).max(4) as usize;
 
         tt.reset();
         let (result, duration) = run_scenario(&mut tt, &game_state, depth);

@@ -532,20 +532,23 @@ pub fn prometheus_score_moves<const IMPROVERS_ONLY: bool>(
         score -= WORKER_HEIGHT_SCORES[from_height as usize];
         score += WORKER_HEIGHT_SCORES[to_height as usize];
 
-        {
-            let build_at = action.build_position();
-            let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
-            score += build_score_map[build_at as usize];
-            if IMPROVERS_ONLY {
-                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
-            }
+        let build_at = action.build_position();
+        let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
+        score += build_score_map[build_at as usize];
+        if IMPROVERS_ONLY {
+            score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
         }
 
-        if let Some(build_at) = action.pre_build_position() {
-            let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
-            score += build_score_map[build_at as usize];
+        if let Some(pre_build_at) = action.pre_build_position() {
+            let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(pre_build_at));
+            score += build_score_map[pre_build_at as usize];
             if IMPROVERS_ONLY {
-                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+                if pre_build_at == build_at {
+                    score -= IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+                    score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height + 1];
+                } else {
+                    score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+                }
             }
         }
 
