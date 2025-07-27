@@ -2,7 +2,7 @@ use clap::Parser;
 use rand::distributions::Alphanumeric;
 use rand::seq::IteratorRandom;
 use rand::{Rng, seq::SliceRandom, thread_rng};
-use santorini_core::gods::GodName;
+use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::player::Player;
 use santorini_core::search::{Hueristic, SearchContext, negamax_search};
 use santorini_core::search_terminators::{
@@ -128,6 +128,11 @@ fn _get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
     result
 }
 
+fn _randomize_gods(state: &mut FullGameState, rng: &mut impl Rng) {
+    state.gods[0] = ALL_GODS_BY_ID.choose(rng).unwrap();
+    state.gods[1] = ALL_GODS_BY_ID.choose(rng).unwrap();
+}
+
 fn generate_one(
     tt: &mut TranspositionTable,
     rng: &mut impl Rng,
@@ -135,6 +140,7 @@ fn generate_one(
     let mut game_history: Vec<SingleState> = Vec::new();
 
     let mut current_state = _get_board_with_random_placements(rng);
+    _randomize_gods(&mut current_state, rng);
     let mut move_count = 0;
 
     for _ in 0..MIN_NUM_RANDOM_MOVES {

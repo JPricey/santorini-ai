@@ -666,15 +666,19 @@ where
                 -alpha,
             )
         } else {
-            if next_depth > 1 && move_idx >= 200 {
+            if next_depth > 1 && ply >= 2 && move_idx >= 200 {
                 next_depth -= 1;
+
+                if next_depth > 1 && ply >= 4 && move_idx >= 600 {
+                    next_depth -= 1;
+                }
             }
 
             // Stop considering non-improvers eventually
             if ply >= 2
-                && remaining_depth < 6
-                && move_idx > 300
-                && !improving
+                && next_depth < 4
+                && move_idx > 128
+                // && !improving
                 && move_picker.stage == MovePickerStage::YieldNonImprovers
             {
                 active_god.unmake_move(state, child_action);
