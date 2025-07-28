@@ -63,7 +63,7 @@ type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/gen_3_1024-40/quantised.bin"
+        "../.././models/gen_3_1024-60/quantised.bin"
     ))
 };
 
@@ -207,7 +207,7 @@ pub fn build_feature_array(board: &BoardState, god1: GodName, god2: GodName) -> 
         for pos in worker_map {
             let worker_height = board.get_height_for_worker(BitBoard::as_mask(pos));
             let feature: FeatureType =
-                feature_offset + 5 * (pos as FeatureType) + worker_height as FeatureType;
+                feature_offset + 4 * (pos as FeatureType) + worker_height as FeatureType;
             features[index] = feature;
             index += 1
         }
