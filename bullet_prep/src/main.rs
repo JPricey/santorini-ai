@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use santorini_core::bitboard::BitBoard;
-use santorini_core::board::{BoardState, FullGameState};
+use santorini_core::board::FullGameState;
 use santorini_core::player::Player;
 
 // !!! BulletSantoriniBoard needs to match exactly with the definition in santorini-trainer rep
@@ -16,14 +16,19 @@ pub struct BulletSantoriniBoard {
     worker_maps: [BitBoard; 2],
     score: i16,
     result: u8,
-    extra1: u8, // TODO: add depth / parity to maybe add a horizon offset. Gen1 data records last
-    // completed depth, not the actually chosen depth, though
-    extra2: u32,
+    god1: u8,
+    god2: u8,
+    is_athena_block: bool,
+    extra: u8,
 }
 const _RIGHT_SIZE: () = assert!(std::mem::size_of::<BulletSantoriniBoard>() == 32);
 
-fn convert_row_to_board_and_meta(row: &str) -> (BoardState, i16, u8) {
+fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player, i16)> {
     let parts: Vec<_> = row.split(' ').collect();
+    if parts.len() < 6 {
+        eprintln!("skipping malformed row: {}", row);
+        return None;
+    }
     let fen_str = parts[0];
     let winner_str = parts[1];
     let score_str = parts[2];
@@ -31,23 +36,17 @@ fn convert_row_to_board_and_meta(row: &str) -> (BoardState, i16, u8) {
     let _depth_str = parts[4];
     let _nodes_str = parts[5];
 
-    let mut full_state = FullGameState::try_from(fen_str).expect("Could not parse fen");
+    let full_state = FullGameState::try_from(fen_str).expect("Could not parse fen");
     let score: i16 = score_str.parse().expect("Could not parse score");
     let winner_idx: i32 = winner_str.parse().expect("Could not parse winner");
-    assert!(
-        winner_idx == 1 || winner_idx == 2,
-        "Winner string must be either 1 or 2"
-    );
-    let result: u8 = if full_state.board.current_player == Player::Two {
-        full_state.board.workers.swap(0, 1);
-        full_state.board.current_player = Player::One;
 
-        if winner_idx == 2 { 1 } else { 0 }
-    } else {
-        if winner_idx == 1 { 1 } else { 0 }
+    let winner = match winner_idx {
+        1 => Player::One,
+        2 => Player::Two,
+        _ => panic!("Winner string must be either 1 or 2"),
     };
 
-    (full_state.board, score, result)
+    Some((full_state, winner, score))
 }
 
 fn write_data_file<T: Copy>(items: &[T], path: &PathBuf) -> std::io::Result<()> {
@@ -83,7 +82,7 @@ fn convert_files_to_permuted_bullet_lines(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = thread_rng();
 
-    const CHUNK_SIZE: usize = 20_000_000;
+    const CHUNK_SIZE: usize = 5_000_000;
     let all_data_files = all_filenames_in_dir(input_dir)?;
 
     let mut current_buffer = Vec::new();
@@ -101,15 +100,37 @@ fn convert_files_to_permuted_bullet_lines(
         let reader = BufReader::new(file_handle);
 
         for line in reader.lines() {
-            let (board, score, result) = convert_row_to_board_and_meta(&line?);
-            for perm in board.get_all_permutations::<true>() {
+            let Some((state, winner, score)) = convert_row_to_board_and_meta(&line?) else {
+                continue;
+            };
+            let (god1, god2) = match state.board.current_player {
+                Player::One => (state.gods[0], state.gods[1]),
+                Player::Two => (state.gods[1], state.gods[0]),
+            };
+            let god1 = god1.god_name as u8;
+            let god2 = god2.god_name as u8;
+            let is_athena_block = state.board.get_worker_can_climb(state.board.current_player);
+            let result = if winner == state.board.current_player {
+                1
+            } else {
+                0
+            };
+
+            for perm in state.board.get_all_permutations::<true>() {
+                let mut worker_maps = perm.workers;
+                if state.board.current_player == Player::Two {
+                    worker_maps.swap(0, 1);
+                }
+
                 let bullet_board = BulletSantoriniBoard {
                     height_maps: perm.height_map,
-                    worker_maps: perm.workers,
+                    worker_maps,
                     score,
                     result,
-                    extra1: 0,
-                    extra2: 0,
+                    god1,
+                    god2,
+                    is_athena_block,
+                    extra: 0,
                 };
 
                 current_buffer.push(bullet_board);

@@ -247,7 +247,11 @@ where
         }
     } as usize;
 
-    let mut nnue_acc = LabeledAccumulator::new_from_scratch(&root_board);
+    let mut nnue_acc = LabeledAccumulator::new_from_scratch(
+        &root_board,
+        root_state.gods[0].god_name,
+        root_state.gods[1].god_name,
+    );
 
     let is_in_check = root_state
         .get_other_god()
@@ -376,7 +380,7 @@ where
         child_moves = active_god.get_blocker_moves(state, state.current_player, blocker_board);
     } else {
         // If qs is going on for too long, just return the current eval
-        nnue_acc.replace_from_board(state);
+        nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
         eval = nnue_acc.evaluate();
 
         // TODO: test this
@@ -567,7 +571,7 @@ where
     let eval = if let Some(tt_value) = &tt_entry {
         tt_value.eval
     } else {
-        nnue_acc.replace_from_board(state);
+        nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
         nnue_acc.evaluate()
     };
 

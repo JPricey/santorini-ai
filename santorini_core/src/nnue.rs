@@ -5,7 +5,9 @@ use std::{
     simd::{Simd, cmp::SimdOrd, num::SimdInt},
 };
 
-use crate::{bitboard::BitBoard, board::BoardState, player::Player, search::Hueristic};
+use crate::{
+    bitboard::BitBoard, board::BoardState, gods::GodName, player::Player, search::Hueristic,
+};
 
 pub const QA: i32 = 255;
 pub const QB: i32 = 64;
@@ -38,14 +40,22 @@ pub struct Accumulator {
 
 #[repr(C)]
 pub struct Network {
-    pub feature_weights: [Accumulator; FEATURES],
+    pub feature_weights: [Accumulator; TOTAL_FEATURES],
     pub feature_bias: Accumulator,
     pub output_weights: [i16; HIDDEN_SIZE],
     pub output_bias: i16,
 }
 
-pub const FEATURES: usize = 375;
+const BOARD_FEATURES: usize = 125;
+const PER_GOD_SIDE_FEATURES: usize = 25 * 4;
+const PER_SIDE_FEATURES: usize = 11 * PER_GOD_SIDE_FEATURES;
+
+const ACTIVE_PLAYER_OFFSET: usize = BOARD_FEATURES;
+const OPPO_OFFSET: usize = ACTIVE_PLAYER_OFFSET + PER_GOD_SIDE_FEATURES + 1;
+
+pub const TOTAL_FEATURES: usize = BOARD_FEATURES + PER_SIDE_FEATURES * 2 + 1;
 pub const HIDDEN_SIZE: usize = 1024;
+// TODO: handle athena bit
 pub const FEATURE_COUNT: usize = 29;
 
 type FeatureType = u16;
@@ -53,7 +63,7 @@ type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/gen_2_1024-100/quantised.bin"
+        "../.././models/gen_3_1024-40/quantised.bin"
     ))
 };
 
@@ -115,8 +125,8 @@ impl Debug for LabeledAccumulator {
 }
 
 impl LabeledAccumulator {
-    pub fn new_from_scratch(board: &BoardState) -> Self {
-        let feature_array = build_feature_array(board);
+    pub fn new_from_scratch(board: &BoardState, god1: GodName, god2: GodName) -> Self {
+        let feature_array = build_feature_array(board, god1, god2);
         let mut accumulator = Accumulator::new();
 
         for feature in feature_array {
@@ -139,8 +149,8 @@ impl LabeledAccumulator {
         }
     }
 
-    pub fn replace_from_board(&mut self, board: &BoardState) {
-        self.replace_features(build_feature_array(board))
+    pub fn replace_from_board(&mut self, board: &BoardState, god1: GodName, god2: GodName) {
+        self.replace_features(build_feature_array(board, god1, god2))
     }
 
     pub fn evaluate(&self) -> Hueristic {
@@ -180,7 +190,7 @@ impl Network {
     }
 }
 
-pub fn build_feature_array(board: &BoardState) -> FeatureArray {
+pub fn build_feature_array(board: &BoardState, god1: GodName, god2: GodName) -> FeatureArray {
     let mut res = FeatureArray::default();
     for pos in 0..25 {
         res[pos] = (pos * 5) as FeatureType
@@ -207,19 +217,26 @@ pub fn build_feature_array(board: &BoardState) -> FeatureArray {
         Player::One => (0, 1),
         Player::Two => (1, 0),
     };
+    let (own_god_idx, other_god_idx) = match board.current_player {
+        Player::One => (god1 as usize, god2 as usize),
+        Player::Two => (god2 as usize, god1 as usize),
+    };
+
+    let own_offset = ACTIVE_PLAYER_OFFSET + own_god_idx * PER_GOD_SIDE_FEATURES;
+    let other_offset = OPPO_OFFSET + other_god_idx * PER_GOD_SIDE_FEATURES;
 
     _add_worker_features(
         board,
         board.workers[own_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
-        5 * 25,
+        own_offset as FeatureType,
         25,
     );
     _add_worker_features(
         board,
         board.workers[other_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
-        5 * 25 * 2,
+        other_offset as FeatureType,
         27,
     );
 
