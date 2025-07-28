@@ -4,7 +4,7 @@ use rand::seq::IteratorRandom;
 use rand::{Rng, seq::SliceRandom, thread_rng};
 use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::player::Player;
-use santorini_core::search::{Hueristic, SearchContext, negamax_search};
+use santorini_core::search::{Hueristic, SearchContext, WINNING_SCORE_BUFFER, negamax_search};
 use santorini_core::search_terminators::{
     AndSearchTerminator, OrSearchTerminator, StaticMaxDepthSearchTerminator,
     StaticNodesVisitedSearchTerminator,
@@ -18,13 +18,11 @@ use std::time::{Duration, Instant};
 
 use santorini_core::board::FullGameState;
 
-const MIN_NUM_RANDOM_MOVES: usize = 4;
-
 type DatagenStaticSearchTerminator = OrSearchTerminator<
-    StaticNodesVisitedSearchTerminator<700_000>,
+    StaticNodesVisitedSearchTerminator<200_000>,
     AndSearchTerminator<
         StaticMaxDepthSearchTerminator<8>,
-        StaticNodesVisitedSearchTerminator<350_000>,
+        StaticNodesVisitedSearchTerminator<50_000>,
     >,
 >;
 
@@ -57,7 +55,7 @@ fn _get_new_datafile_name(rng: &mut impl Rng) -> PathBuf {
     path
 }
 
-const GAMES_PER_FILE: usize = 1_000_000;
+const GAMES_PER_FILE: usize = 1_000;
 
 fn worker_thread() {
     let result = _inner_worker_thread();
@@ -133,33 +131,15 @@ fn _randomize_gods(state: &mut FullGameState, rng: &mut impl Rng) {
     state.gods[1] = ALL_GODS_BY_ID.choose(rng).unwrap();
 }
 
-fn generate_one(
-    tt: &mut TranspositionTable,
+fn playout_subgame(
     rng: &mut impl Rng,
+    mut current_state: FullGameState,
+    mut move_count: usize,
+    tt: &mut TranspositionTable,
+    subgame_chance: f64,
 ) -> Result<Vec<SingleState>, Box<dyn std::error::Error>> {
     let mut game_history: Vec<SingleState> = Vec::new();
-
-    let mut current_state = _get_board_with_random_placements(rng);
-    _randomize_gods(&mut current_state, rng);
-    let mut move_count = 0;
-
-    for _ in 0..MIN_NUM_RANDOM_MOVES {
-        let child_states = current_state.get_next_states();
-        current_state = child_states
-            .choose(rng)
-            .ok_or("Failed to find random child")?
-            .clone();
-        move_count += 1;
-    }
-
-    if rng.gen_bool(0.75) {
-        let child_states = current_state.get_next_states();
-        current_state = child_states
-            .choose(rng)
-            .ok_or("Failed to find random child")?
-            .clone();
-        move_count += 1;
-    }
+    let mut subgame_states: Vec<(FullGameState, usize)> = Vec::new();
 
     let winner = loop {
         let mut search_context = SearchContext::new(tt, DatagenStaticSearchTerminator::default());
@@ -196,6 +176,15 @@ fn generate_one(
                 nodes_visited: search_result.nodes_visited,
                 move_count,
             });
+
+            if best_child.score.abs() < WINNING_SCORE_BUFFER {
+                if rng.gen_bool(subgame_chance) {
+                    let random_next = current_state.get_next_states().choose(rng).unwrap().clone();
+                    if random_next != best_child.child_state {
+                        subgame_states.push((random_next, move_count));
+                    }
+                }
+            }
         }
 
         current_state = best_child.child_state.clone();
@@ -206,8 +195,46 @@ fn generate_one(
         item.winner = winner;
     }
 
-    // eprint!("{:?}", tt);
+    for (substate, sub_movecount) in subgame_states {
+        let mut child_states =
+            playout_subgame(rng, substate, sub_movecount, tt, subgame_chance / 2.0)?;
+        game_history.append(&mut child_states);
+    }
+
     Ok(game_history)
+}
+
+fn generate_one(
+    tt: &mut TranspositionTable,
+    rng: &mut impl Rng,
+) -> Result<Vec<SingleState>, Box<dyn std::error::Error>> {
+    let mut current_state = _get_board_with_random_placements(rng);
+    _randomize_gods(&mut current_state, rng);
+    let mut move_count = 0;
+
+    let rand = rng.gen_range(0.0..1.0);
+    let num_random_moves = if rand < 0.05 {
+        0
+    } else if rand < 0.15 {
+        1
+    } else if rand < 0.4 {
+        2
+    } else if rand < 0.7 {
+        3
+    } else {
+        4
+    };
+
+    for _ in 0..num_random_moves {
+        let child_states = current_state.get_next_states();
+        current_state = child_states
+            .choose(rng)
+            .ok_or("Failed to find random child")?
+            .clone();
+        move_count += 1;
+    }
+
+    playout_subgame(rng, current_state, move_count, tt, 0.3)
 }
 
 #[derive(Parser, Debug)]

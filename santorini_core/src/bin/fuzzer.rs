@@ -10,10 +10,10 @@ fn check_state(root_state: &FullGameState) {
     let board = &root_state.board;
     let current_player = board.current_player;
 
-    let other_god = root_state.get_other_god();
+    // let other_god = root_state.get_other_god();
     let active_god = root_state.get_active_god();
 
-    let other_wins = other_god.get_winning_moves(&board, !board.current_player);
+    // let other_wins = other_god.get_winning_moves(&board, !board.current_player);
 
     let winning_moves = active_god.get_winning_moves(&board, board.current_player);
     let all_moves = active_god.get_moves_for_search(&board, board.current_player);

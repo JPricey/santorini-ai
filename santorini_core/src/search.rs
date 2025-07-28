@@ -730,7 +730,7 @@ where
             //     state.print_to_console();
             // }
 
-            if NT::ROOT && !should_stop {
+            if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
                     FullGameState::new(state.clone(), p1_god, p2_god),
                     best_action,
