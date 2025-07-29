@@ -47,23 +47,27 @@ pub struct Network {
 }
 
 const BOARD_FEATURES: usize = 125;
-const PER_GOD_SIDE_FEATURES: usize = 25 * 4;
-const PER_SIDE_FEATURES: usize = 11 * PER_GOD_SIDE_FEATURES;
+const SIDE_WORKER_FEATURES: usize = 25 * 4;
+const GOD_COUNT: usize = 11;
+const PER_SIDE_FEATURES: usize = GOD_COUNT + SIDE_WORKER_FEATURES;
 
 const ACTIVE_PLAYER_OFFSET: usize = BOARD_FEATURES;
-const OPPO_OFFSET: usize = ACTIVE_PLAYER_OFFSET + PER_GOD_SIDE_FEATURES + 1;
+const ACTIVE_PLAYER_WORKER_OFFSET: usize = BOARD_FEATURES + GOD_COUNT;
 
-pub const TOTAL_FEATURES: usize = BOARD_FEATURES + PER_SIDE_FEATURES * 2 + 1;
+const OPPO_OFFSET: usize = ACTIVE_PLAYER_OFFSET + PER_SIDE_FEATURES;
+const OPPO_WORKER_OFFSET: usize = OPPO_OFFSET + GOD_COUNT;
+
+pub const TOTAL_FEATURES: usize = BOARD_FEATURES + PER_SIDE_FEATURES * 2;
 pub const HIDDEN_SIZE: usize = 1024;
 // TODO: handle athena bit
-pub const FEATURE_COUNT: usize = 29;
+pub const FEATURE_COUNT: usize = 25 + 3 * 2;
 
 type FeatureType = u16;
 type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/gen_3_1024-100/quantised.bin"
+        "../.././models/gods-labeled.bin"
     ))
 };
 
@@ -197,6 +201,11 @@ pub fn build_feature_array(board: &BoardState, god1: GodName, god2: GodName) -> 
             + board.get_true_height(BitBoard::as_mask_u8(pos as u8)) as FeatureType;
     }
 
+    let (own_god_idx, other_god_idx) = match board.current_player {
+        Player::One => (god1 as usize, god2 as usize),
+        Player::Two => (god2 as usize, god1 as usize),
+    };
+
     fn _add_worker_features(
         board: &BoardState,
         worker_map: BitBoard,
@@ -217,27 +226,23 @@ pub fn build_feature_array(board: &BoardState, god1: GodName, god2: GodName) -> 
         Player::One => (0, 1),
         Player::Two => (1, 0),
     };
-    let (own_god_idx, other_god_idx) = match board.current_player {
-        Player::One => (god1 as usize, god2 as usize),
-        Player::Two => (god2 as usize, god1 as usize),
-    };
 
-    let own_offset = ACTIVE_PLAYER_OFFSET + own_god_idx * PER_GOD_SIDE_FEATURES;
-    let other_offset = OPPO_OFFSET + other_god_idx * PER_GOD_SIDE_FEATURES;
-
+    res[25] = (ACTIVE_PLAYER_OFFSET + own_god_idx) as FeatureType;
     _add_worker_features(
         board,
         board.workers[own_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
-        own_offset as FeatureType,
-        25,
+        ACTIVE_PLAYER_WORKER_OFFSET as FeatureType,
+        26,
     );
+
+    res[28] = (OPPO_OFFSET + other_god_idx) as FeatureType;
     _add_worker_features(
         board,
         board.workers[other_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
-        other_offset as FeatureType,
-        27,
+        OPPO_WORKER_OFFSET as FeatureType,
+        29,
     );
 
     res

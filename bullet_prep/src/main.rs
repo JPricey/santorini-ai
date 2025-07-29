@@ -82,13 +82,18 @@ fn convert_files_to_permuted_bullet_lines(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = thread_rng();
 
-    const CHUNK_SIZE: usize = 15_000_000;
+    const CHUNK_SIZE: usize = 25_000_000;
     let all_data_files = all_filenames_in_dir(input_dir)?;
 
     let mut current_buffer = Vec::new();
     let mut total_examples = 0;
 
     for (i, filename) in all_data_files.iter().enumerate() {
+        if i > 350 {
+            println!("breaking");
+            break;
+        }
+
         println!(
             "{}/{} Processing {:?} ({})",
             i,
