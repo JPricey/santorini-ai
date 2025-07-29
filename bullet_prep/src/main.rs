@@ -82,7 +82,7 @@ fn convert_files_to_permuted_bullet_lines(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = thread_rng();
 
-    const CHUNK_SIZE: usize = 5_000_000;
+    const CHUNK_SIZE: usize = 15_000_000;
     let all_data_files = all_filenames_in_dir(input_dir)?;
 
     let mut current_buffer = Vec::new();

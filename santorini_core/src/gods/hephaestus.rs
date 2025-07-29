@@ -215,7 +215,7 @@ fn heph_move_gen<const F: MoveGenFlags>(
 
     let all_workers_mask = board.workers[0] | board.workers[1];
 
-    let can_double_build_mask = !board.at_least_level_3();
+    let can_double_build_mask = !board.at_least_level_2();
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);

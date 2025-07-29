@@ -63,7 +63,7 @@ type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/gen_3_1024-60/quantised.bin"
+        "../.././models/gen_3_1024-100/quantised.bin"
     ))
 };
 
