@@ -5,7 +5,7 @@ use colored::Colorize;
 use rand::Rng;
 use santorini_core::gods::GodName;
 use santorini_core::gods::generic::{IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK};
-use santorini_core::nnue::{self, Accumulator, FEATURE_LANES, FEATURES, HIDDEN_SIZE, MODEL, QB};
+use santorini_core::nnue::{self, Accumulator, FEATURE_LANES, TOTAL_FEATURES, HIDDEN_SIZE, MODEL, QB};
 use santorini_core::random_utils::GameStateFuzzer;
 use santorini_core::transposition_table::{TTEntry, TTValue};
 use santorini_core::utils::print_cpu_arch;
@@ -46,7 +46,7 @@ struct HiddenVis {
     hidden_idx: usize,
     output_weight: i16,
     feature_bias: i16,
-    feature_weights: [i16; FEATURES],
+    feature_weights: [i16; TOTAL_FEATURES],
 }
 
 impl PartialEq for HiddenVis {
@@ -79,8 +79,8 @@ fn vis_feature_grid() {
 fn get_hidden_vis() -> Vec<HiddenVis> {
     let mut res = Vec::new();
     for i in 0..HIDDEN_SIZE {
-        let mut feature_weights = [0_16; FEATURES];
-        for f in 0..FEATURES {
+        let mut feature_weights = [0_16; TOTAL_FEATURES];
+        for f in 0..TOTAL_FEATURES {
             feature_weights[f] = MODEL.feature_weights[f].vals[i];
         }
 
