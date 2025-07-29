@@ -368,6 +368,10 @@ class ActionSelector():
         self.next_possible_actions = list(
             sorted(result, key=pretty_string_for_action))
 
+    def clear_selected_actions(self):
+        self.current_action_choices.clear()
+        self.update_next_possible_actions()
+
 
 class PositionHistory:
     def __init__(self, initial_position_string):
@@ -408,6 +412,7 @@ class RootPanel:
 
         self.root.bind("<Control-w>", lambda event: self.on_closing())
         self.root.bind("<Up>", lambda event: self.on_up_key())
+        self.root.bind("<Down>", lambda event: self.on_down_key())
         self.root.bind("<Left>", lambda event: self.on_left_key())
         self.root.bind("<Right>", lambda event: self.on_right_key())
 
@@ -422,6 +427,11 @@ class RootPanel:
 
     def current_position_string(self):
         return self.position_history.current_position_string()
+
+    def on_down_key(self):
+        if self.action_selector:
+            self.action_selector.clear_selected_actions()
+            self.set_action_sequence_options()
 
     def on_up_key(self):
         if self.last_engine_move is None or self.last_engine_move['start_state'] != self.current_position_string():
