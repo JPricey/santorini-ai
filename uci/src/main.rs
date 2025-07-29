@@ -40,7 +40,6 @@ fn handle_command(
 ) -> Result<Option<String>, String> {
     let mut parts: Vec<String> = raw_cmd
         .trim()
-        .to_lowercase()
         .split_whitespace()
         .map(&str::to_owned)
         .collect();
@@ -100,6 +99,7 @@ fn handle_command(
                 };
 
                 let output = EngineOutput::BestMove(BestMoveOutput {
+                    original_str: Some(fen.clone()),
                     start_state: state_2.clone(),
                     next_state: new_best_move.child_state.clone(),
                     trigger: new_best_move.trigger,
@@ -135,7 +135,8 @@ fn handle_command(
             let child_states = state.get_next_states_interactive();
 
             let output = EngineOutput::NextMoves(NextMovesOutput {
-                start_state: state.clone(),
+                original_str: Some(fen),
+                start_state: state,
                 next_states: child_states
                     .into_iter()
                     .map(|full_choice| NextStateOutput {

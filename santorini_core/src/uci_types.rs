@@ -13,6 +13,7 @@ pub struct NextStateOutput {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NextMovesOutput {
+    pub original_str: Option<String>,
     pub start_state: FullGameState,
     pub next_states: Vec<NextStateOutput>,
 }
@@ -29,6 +30,7 @@ pub struct BestMoveMeta {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BestMoveOutput {
+    pub original_str: Option<String>,
     pub start_state: FullGameState,
     pub next_state: FullGameState,
     pub trigger: BestMoveTrigger,

@@ -434,7 +434,7 @@ class RootPanel:
             self.set_action_sequence_options()
 
     def on_up_key(self):
-        if self.last_engine_move is None or self.last_engine_move['start_state'] != self.current_position_string():
+        if self.last_engine_move is None or self.last_engine_move['original_str'] != self.current_position_string():
             print('tried to pick engine move but it was invalid')
             return
         self.update_position(self.last_engine_move['next_state'])
@@ -564,8 +564,9 @@ class RootPanel:
 
     def try_start_action_sequence(self):
         next_moves = self.position_to_action_cache.get(
-            self.current_position_string())
+            self.current_position_string().lower())
         if next_moves is None:
+            print('sending', self.current_position_string())
             self.engine.send_command(
                 f'next_moves {self.current_position_string()}')
             return
@@ -608,14 +609,16 @@ class RootPanel:
             self.set_action_sequence_options()
 
     def handle_next_moves_message(self, message):
-        start_state = message['start_state']
+        print(message)
+        start_state = message['original_str']
+        print(start_state)
         for next_state in message['next_states']:
             next_state['actions'].append(DONE_FULL_ACTION)
-        self.position_to_action_cache[start_state] = message
+        self.position_to_action_cache[start_state.lower()] = message
         self.try_start_action_sequence()
 
     def handle_best_move_message(self, message):
-        if message['start_state'] != self.current_position_string():
+        if message['original_str'] != self.current_position_string():
             print('Skipping best move for non-current position')
             return
 
