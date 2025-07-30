@@ -363,7 +363,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & exactly_level_2;
                     anti_check_builds =
-                        NEIGHBOR_MAP[moving_worker_end_pos as usize] & exactly_level_3;
+                        NEIGHBOR_MAP[moving_worker_end_pos as usize] & exactly_level_3 & buildable_squares;
                     is_already_check = anti_check_builds != BitBoard::EMPTY;
                 }
             }

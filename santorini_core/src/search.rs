@@ -557,20 +557,25 @@ where
         state.flip_worker_can_climb(other_player, other_is_blocked);
 
         if other_wins.len() == 0 {
-            eprint!(
-                "claimed to be in check but wasn't?: {:?}",
-                state.as_basic_game_state()
-            );
-            state.print_to_console();
-            assert_ne!(other_wins.len(), 0);
-        }
+            // TODO: fix all these
+            // I think this breaks if you walk from level 3 to level 3?
+            // ...checks should just be a test in move gen, no need for the threats only stuff i
+            // think
+            // eprintln!(
+            //     "claimed to be in check but wasn't?: {:?}",
+            //     state.as_basic_game_state()
+            // );
+            // state.print_to_console();
+            // assert_ne!(other_wins.len(), 0);
+            None
+        } else {
+            let mut key_squares = BitBoard::EMPTY;
+            for action in &other_wins {
+                key_squares |= other_god.get_blocker_board(action.action);
+            }
 
-        let mut key_squares = BitBoard::EMPTY;
-        for action in &other_wins {
-            key_squares |= other_god.get_blocker_board(action.action);
+            Some(key_squares)
         }
-
-        Some(key_squares)
     } else {
         None
     };

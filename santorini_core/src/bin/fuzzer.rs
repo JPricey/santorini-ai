@@ -50,7 +50,7 @@ fn check_state(root_state: &FullGameState) {
                 }
             }
 
-            if !did_block_any && false { 
+            if !did_block_any && false {
                 eprintln!("Block action didn't remove any wins: {}", stringed_action);
 
                 root_state.print_to_console();
@@ -292,6 +292,9 @@ fn main() {
 
         root_state.gods[0] = get_random_god(&mut rng);
         root_state.gods[1] = get_random_god(&mut rng);
+
+        // root_state.gods[0] = GodName::Minotaur.to_power();
+        // root_state.gods[1] = GodName::Athena.to_power();
 
         if root_state.gods[0].god_name == GodName::Minotaur
             || root_state.gods[1].god_name == GodName::Minotaur

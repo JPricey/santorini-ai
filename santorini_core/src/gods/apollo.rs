@@ -1,9 +1,20 @@
 use crate::{
-    bitboard::BitBoard, board::{BoardState, NEIGHBOR_MAP}, build_god_power, gods::{
+    bitboard::BitBoard,
+    board::{BoardState, NEIGHBOR_MAP},
+    build_god_power,
+    gods::{
+        FullAction, GodName, GodPower,
         generic::{
-            GenericMove, MoveData, MoveGenFlags, MoveScore, ScoredMove, CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES, GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, WORKER_HEIGHT_SCORES
-        }, FullAction, GodName, GodPower
-    }, player::Player, square::Square
+            CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
+            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
+            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
+            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
+            NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
+            WORKER_HEIGHT_SCORES,
+        },
+    },
+    player::Player,
+    square::Square,
 };
 
 use super::PartialAction;
@@ -193,12 +204,11 @@ fn apollo_move_gen<const F: MoveGenFlags>(
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
-
+        let other_own_workers = current_workers ^ moving_worker_start_mask;
         let mut neighbor_check_if_builds = BitBoard::EMPTY;
         if F & INCLUDE_SCORE != 0 {
-            let other_own_workers =
-                (current_workers ^ moving_worker_start_mask) & board.exactly_level_2();
-            for other_pos in other_own_workers {
+            let other_lvl_2 = other_own_workers & board.exactly_level_2();
+            for other_pos in other_lvl_2 {
                 neighbor_check_if_builds |=
                     NEIGHBOR_MAP[other_pos as usize] & board.exactly_level_2();
             }
@@ -263,8 +273,9 @@ fn apollo_move_gen<const F: MoveGenFlags>(
             if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & board.exactly_level_2();
-                    anti_check_builds =
-                        NEIGHBOR_MAP[moving_worker_end_pos as usize] & board.exactly_level_3();
+                    anti_check_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize]
+                        & board.exactly_level_3()
+                        & !other_own_workers;
                     is_already_check = anti_check_builds != BitBoard::EMPTY;
                 }
             }
