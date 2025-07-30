@@ -318,10 +318,13 @@ where
         }
 
         if score.abs() > WINNING_SCORE_BUFFER && !search_context.should_stop(&search_state) {
-            let mut best_move = search_state.best_move.clone().unwrap();
-            best_move.trigger = BestMoveTrigger::EndOfLine;
-            (search_context.new_best_move_callback)(best_move);
-            break;
+            let win_depth = WINNING_SCORE - score.abs();
+            if depth as i32 > win_depth {
+                let mut best_move = search_state.best_move.clone().unwrap();
+                best_move.trigger = BestMoveTrigger::EndOfLine;
+                (search_context.new_best_move_callback)(best_move);
+                break;
+            }
         }
     }
 
