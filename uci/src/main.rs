@@ -12,6 +12,7 @@ use santorini_core::{
     uci_types::{
         BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,
     },
+    utils::timestamp_string,
 };
 
 fn find_action_path(
@@ -54,20 +55,24 @@ fn handle_command(
             std::process::exit(0);
         }
         "ping" => Ok(Some("pong".to_owned())),
-        "stop" => match engine.stop() {
-            Ok(best_move) => Err(format!(
-                "Stopping with best move: {:?}",
-                best_move.child_state
-            )),
-            Err(e) => Err(e),
-        },
+        "stop" => {
+            eprintln!("{}, stop", timestamp_string());
+
+            match engine.stop() {
+                Ok(best_move) => Err(format!(
+                    "Stopping with best move: {:?}",
+                    best_move.child_state
+                )),
+                Err(e) => Err(e),
+            }
+        }
         "set_position" => {
             if parts.len() != 1 {
                 return Err("set_position should be followed by a single FEN string".to_owned());
             }
 
             let fen = parts.remove(0);
-            eprintln!("set_position: {:?}", fen);
+            eprintln!("{}, set_position: {:?}", timestamp_string(), fen);
 
             let state =
                 FullGameState::try_from(&fen).map_err(|e| format!("Error parsing FEN: {}", e))?;
@@ -94,7 +99,8 @@ fn handle_command(
                     panic!(
                         "Found new best move but couldn't resolve path: {}: {:?} -> {:?}",
                         active_god.stringify_move(action),
-                        state_2, new_best_move.child_state
+                        state_2,
+                        new_best_move.child_state
                     );
                 };
 

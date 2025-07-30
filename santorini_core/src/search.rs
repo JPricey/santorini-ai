@@ -2,6 +2,7 @@ use std::{
     array,
     fmt::Debug,
     sync::{Arc, atomic::AtomicBool},
+    time::Instant,
 };
 
 use arrayvec::ArrayVec;
@@ -16,6 +17,7 @@ use crate::{
     player::Player,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
+    utils::timestamp_string,
 };
 
 use super::{board::BoardState, transposition_table::TranspositionTable};
@@ -215,6 +217,7 @@ where
         .tt
         .age(root_state.gods[0].god_name, root_state.gods[1].god_name);
 
+    let start_time = Instant::now();
     let mut root_board = root_state.board.clone();
     let mut search_state = SearchState::default();
 
@@ -293,10 +296,16 @@ where
             let moves = active_god.get_moves_for_search(&root_board, root_board.current_player);
 
             if moves.len() > 0 {
+                let elapsed = start_time.elapsed().as_secs_f32();
                 root_board.print_to_console();
                 panic!(
-                    "Moves were available, but didn't make any: {:?}, {:?}. {:?}",
-                    root_board, moves, search_state
+                    "{} Moves were available, but didn't make any: depth: {}, secs: {:.2} {:?}, {:?}. {:?}",
+                    timestamp_string(),
+                    depth,
+                    elapsed,
+                    root_board,
+                    moves,
+                    search_state
                 );
             }
 
@@ -501,36 +510,39 @@ where
     let mut track_used = false;
     let mut track_unused = false;
     let tt_entry = search_context.tt.fetch(state, ply);
-    if let Some(tt_value) = &tt_entry {
-        if tt_value.search_depth >= remaining_depth as u8 {
-            if TranspositionTable::IS_TRACKING_STATS {
-                track_used = true;
-            }
 
-            match tt_value.score_type {
-                SearchScoreType::Exact => {
-                    return tt_value.score;
+    if !NT::ROOT {
+        if let Some(tt_value) = &tt_entry {
+            if tt_value.search_depth >= remaining_depth as u8 {
+                if TranspositionTable::IS_TRACKING_STATS {
+                    track_used = true;
                 }
-                SearchScoreType::LowerBound => {
-                    if tt_value.score >= beta {
+
+                match tt_value.score_type {
+                    SearchScoreType::Exact => {
                         return tt_value.score;
                     }
-                }
-                SearchScoreType::UpperBound => {
-                    if tt_value.score <= alpha {
-                        return tt_value.score;
+                    SearchScoreType::LowerBound => {
+                        if tt_value.score >= beta {
+                            return tt_value.score;
+                        }
+                    }
+                    SearchScoreType::UpperBound => {
+                        if tt_value.score <= alpha {
+                            return tt_value.score;
+                        }
                     }
                 }
+            } else if TranspositionTable::IS_TRACKING_STATS {
+                track_unused = true;
             }
-        } else if TranspositionTable::IS_TRACKING_STATS {
-            track_unused = true;
         }
     }
 
     let alpha_orig = alpha;
 
     // internal iterative reduction
-    // reduce repth on a tt miss
+    // reduce depth on a tt miss
     // my variant: exclude PV lines from this rule
     if !NT::ROOT && !NT::PV && remaining_depth >= 4 && tt_entry.is_none() {
         remaining_depth -= 1;

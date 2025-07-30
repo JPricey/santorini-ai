@@ -67,7 +67,7 @@ type FeatureArray = [u16; FEATURE_COUNT];
 
 pub static MODEL: Network = unsafe {
     mem::transmute(*include_bytes!(
-        "../.././models/gods-labeled-2.bin"
+        "../.././models/gods-labeled-3.bin"
     ))
 };
 

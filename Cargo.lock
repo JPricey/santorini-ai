@@ -444,6 +444,7 @@ name = "santorini_core"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
+ "chrono",
  "clap",
  "colored",
  "colorous",

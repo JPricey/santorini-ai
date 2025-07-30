@@ -2,6 +2,7 @@
 #![feature(avx512_target_feature)]
 #![allow(unused)]
 use crate::{bitboard::BitBoard, board::BOARD_WIDTH};
+use chrono::Local;
 
 pub const EXCEPT_LEFT_COL: BitBoard =
     BitBoard(0b11110 | 0b11110 << 5 | 0b11110 << 10 | 0b11110 << 15 | 0b11110 << 20);
@@ -38,6 +39,10 @@ pub const fn grid_position_builder<T: Copy>(
         outer_edge, inner_corner, inner_mid, inner_corner, outer_edge,
         outer_corner, outer_edge, outer_mid, outer_edge, outer_corner,
     ]
+}
+
+pub fn timestamp_string() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
 }
 
 #[cfg(test)]

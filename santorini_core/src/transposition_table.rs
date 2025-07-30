@@ -105,7 +105,7 @@ pub struct TTStats {
 }
 
 impl TranspositionTable {
-    pub const IS_TRACKING_STATS: bool = true;
+    pub const IS_TRACKING_STATS: bool = false;
 
     pub fn new() -> Self {
         Self {

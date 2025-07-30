@@ -15,6 +15,7 @@ use santorini_core::gods::GodName;
 use santorini_core::player::Player;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
+use santorini_core::utils::timestamp_string;
 
 const DEFAULT_DURATION_SECS: f32 = 2.0;
 
@@ -45,6 +46,7 @@ fn do_battle<'a>(
         };
 
         let state_string = game_state_to_fen(&current_state);
+        eprintln!("{}: setting position {}", timestamp_string(), engine.engine_name);
         writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
 
         let started_at = Instant::now();
@@ -94,6 +96,7 @@ fn do_battle<'a>(
             }
         }
 
+        eprintln!("{}: stopping {}", timestamp_string(), engine.engine_name);
         writeln!(engine.stdin, "stop").expect("Failed to write to stdin");
 
         depth += 1;

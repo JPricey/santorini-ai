@@ -31,6 +31,41 @@ fn check_state(root_state: &FullGameState) {
 
         let blocks = active_god.get_blocker_moves(&board, current_player, key_moves);
 
+        for action in &blocks {
+            let stringed_action = active_god.stringify_move(action.action);
+            let mut new_board = board.clone();
+            active_god.make_move(&mut new_board, action.action);
+
+            if new_board.get_winner() == Some(current_player) {
+                continue;
+            }
+
+            let new_oppo_wins = other_god.get_winning_moves(&new_board, !current_player);
+            let mut did_block_any = false;
+
+            for win_action in &other_wins {
+                if !new_oppo_wins.contains(win_action) {
+                    did_block_any = true;
+                    break;
+                }
+            }
+
+            if !did_block_any && false { 
+                eprintln!("Block action didn't remove any wins: {}", stringed_action);
+
+                root_state.print_to_console();
+                new_board.print_to_console();
+
+                eprintln!("key board: {}", key_moves);
+
+                for win in &other_wins {
+                    eprintln!("old win: {}", other_god.stringify_move(win.action));
+                }
+
+                // panic!("bleh");
+            }
+        }
+
         for action in &all_moves {
             if blocks.contains(action) {
                 continue;
@@ -43,7 +78,6 @@ fn check_state(root_state: &FullGameState) {
             let new_oppo_wins = other_god.get_winning_moves(&new_board, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
                 eprintln!("Missed blocking move: {}", stringed_action);
-
 
                 root_state.print_to_console();
                 new_board.print_to_console();
