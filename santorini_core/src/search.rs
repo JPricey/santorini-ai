@@ -549,8 +549,21 @@ where
     }
 
     let key_squares = if is_in_check {
-        let other_wins = other_god.get_winning_moves(state, !state.current_player);
-        assert_ne!(other_wins.len(), 0);
+        let other_player = !state.current_player;
+        let other_is_blocked = !state.get_worker_can_climb(other_player);
+
+        state.flip_worker_can_climb(other_player, other_is_blocked);
+        let other_wins = other_god.get_winning_moves(state, other_player);
+        state.flip_worker_can_climb(other_player, other_is_blocked);
+
+        if other_wins.len() == 0 {
+            eprint!(
+                "claimed to be in check but wasn't?: {:?}",
+                state.as_basic_game_state()
+            );
+            state.print_to_console();
+            assert_ne!(other_wins.len(), 0);
+        }
 
         let mut key_squares = BitBoard::EMPTY;
         for action in &other_wins {
