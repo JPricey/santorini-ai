@@ -63,60 +63,65 @@ fn check_state(root_state: &FullGameState) {
         }
     }
 
-    {
-        // test that wins actually win
-        for action in &winning_moves {
-            let stringed_action = active_god.stringify_move(action.action);
-            let mut new_board = board.clone();
+    // test that wins actually win
+    for action in &winning_moves {
+        let stringed_action = active_god.stringify_move(action.action);
+        let mut new_board = board.clone();
 
-            active_god.make_move(&mut new_board, action.action);
-            if new_board.get_winner() != Some(board.current_player) {
-                board.print_to_console();
-                panic!("Winning move didn't actually win: {}", stringed_action);
-            }
+        active_god.make_move(&mut new_board, action.action);
+        if new_board.get_winner() != Some(board.current_player) {
+            board.print_to_console();
+            panic!("Winning move didn't actually win: {}", stringed_action);
+        }
 
-            let old_workers = board.workers[current_player as usize];
-            let new_workers = new_board.workers[current_player as usize];
-            let old_only = old_workers & !new_workers;
-            let new_only = new_workers & !old_workers;
+        let old_workers = board.workers[current_player as usize];
+        let new_workers = new_board.workers[current_player as usize];
+        let old_only = old_workers & !new_workers;
+        let new_only = new_workers & !old_workers;
 
-            assert_eq!(old_only.count_ones(), 1);
-            assert_eq!(new_only.count_ones(), 1);
+        assert_eq!(old_only.count_ones(), 1);
+        assert_eq!(new_only.count_ones(), 1);
 
-            let old_pos = old_only.lsb();
-            let new_pos = new_only.lsb();
+        let old_pos = old_only.lsb();
+        let new_pos = new_only.lsb();
 
-            let old_height = board.get_height_for_worker(old_only);
-            let new_height = board.get_height_for_worker(new_only);
+        let old_height = board.get_height_for_worker(old_only);
+        let new_height = board.get_height_for_worker(new_only);
 
-            let mut is_valid_win = false;
-            if old_height == 2 && new_height == 3 {
+        let is_pan_falling_win = active_god.god_name == GodName::Pan
+            && (old_height == 2 && new_height == 0 || old_height == 3 && new_height <= 1);
+
+        if !board.get_worker_can_climb(current_player) && !is_pan_falling_win {
+            root_state.print_to_console();
+            new_board.print_to_console();
+            panic!("Win when blocked by athena: {}", stringed_action);
+        }
+
+        let mut is_valid_win = false;
+        if old_height == 2 && new_height == 3 {
+            is_valid_win = true;
+        } else if is_pan_falling_win {
+            is_valid_win = true;
+        } else if active_god.god_name == GodName::Artemis {
+            let old_n = NEIGHBOR_MAP[old_pos as usize];
+            let new_n = NEIGHBOR_MAP[new_pos as usize];
+            let path = old_n & new_n;
+            let path = path & board.exactly_level_2();
+            let path = path & !(board.workers[0] | board.workers[1]);
+
+            if (old_height == 1 || old_height == 3) && new_height == 3 && path.is_not_empty() {
                 is_valid_win = true;
-            } else if active_god.god_name == GodName::Pan
-                && (old_height == 2 && new_height == 0 || old_height == 3 && new_height <= 1)
-            {
-                is_valid_win = true;
-            } else if active_god.god_name == GodName::Artemis {
-                let old_n = NEIGHBOR_MAP[old_pos as usize];
-                let new_n = NEIGHBOR_MAP[new_pos as usize];
-                let path = old_n & new_n;
-                let path = path & board.exactly_level_2();
-                let path = path & !(board.workers[0] | board.workers[1]);
-
-                if (old_height == 1 || old_height == 3) && new_height == 3 && path.is_not_empty() {
-                    is_valid_win = true;
-                }
             }
+        }
 
-            if !is_valid_win {
-                root_state.print_to_console();
-                new_board.print_to_console();
-                eprintln!(
-                    "action: {}. o:{old_pos}:{old_height} n:{new_pos}:{new_height}",
-                    stringed_action
-                );
-                panic!("unexpected winning move");
-            }
+        if !is_valid_win {
+            root_state.print_to_console();
+            new_board.print_to_console();
+            eprintln!(
+                "action: {}. o:{old_pos}:{old_height} n:{new_pos}:{new_height}",
+                stringed_action
+            );
+            panic!("unexpected winning move");
         }
     }
 
@@ -211,7 +216,9 @@ fn main() {
         root_state.gods[0] = get_random_god(&mut rng);
         root_state.gods[1] = get_random_god(&mut rng);
 
-        if root_state.gods[0].god_name == GodName::Minotaur || root_state.gods[1].god_name == GodName::Minotaur {
+        if root_state.gods[0].god_name == GodName::Minotaur
+            || root_state.gods[1].god_name == GodName::Minotaur
+        {
             continue;
         }
 

@@ -335,7 +335,7 @@ fn _q_extend<T>(
     nnue_acc: &mut LabeledAccumulator,
     p1_god: &'static GodPower,
     p2_god: &'static GodPower,
-    depth: usize,
+    ply: usize,
     q_depth: u32,
     mut alpha: Hueristic,
     beta: Hueristic,
@@ -361,7 +361,7 @@ where
         .len()
         > 0
     {
-        let score = win_at_depth(depth) - 1;
+        let score = win_at_depth(ply) - 1;
         return score;
     }
 
@@ -409,7 +409,7 @@ where
             nnue_acc,
             p1_god,
             p2_god,
-            depth + 1,
+            ply + 1,
             q_depth + 1,
             -beta,
             -alpha,

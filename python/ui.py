@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import json
 from frozendict import frozendict
 
-BASIC_START_STRING = "0000000000000000000000000/1/hermes:B3,D3/hermes:C2,C4"
+BASIC_START_STRING = "0000000000000000000000000/1/mortal:B3,D3/mortal:C2,C4"
 # BASIC_START_STRING = "0000000000000000000000000/1/mortal:11,13/mortal:7,17"
 
 COL_LABEL_MAPPING = 'ABCDE'
@@ -566,7 +566,6 @@ class RootPanel:
         next_moves = self.position_to_action_cache.get(
             self.current_position_string().lower())
         if next_moves is None:
-            print('sending', self.current_position_string())
             self.engine.send_command(
                 f'next_moves {self.current_position_string()}')
             return
@@ -609,9 +608,7 @@ class RootPanel:
             self.set_action_sequence_options()
 
     def handle_next_moves_message(self, message):
-        print(message)
         start_state = message['original_str']
-        print(start_state)
         for next_state in message['next_states']:
             next_state['actions'].append(DONE_FULL_ACTION)
         self.position_to_action_cache[start_state.lower()] = message

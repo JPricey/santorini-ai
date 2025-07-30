@@ -77,21 +77,26 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             }
         }
 
-        let at_height_2_1d = worker_1d_moves & starting_exactly_level_2;
-        let moves_to_level_3 = move_all_workers_one_include_original_workers(at_height_2_1d)
-            & starting_exactly_level_3
-            & valid_destinations;
+        if can_worker_climb {
+            let at_height_2_1d = worker_1d_moves & starting_exactly_level_2;
+            let winning_moves_to_level_3 = move_all_workers_one_include_original_workers(at_height_2_1d)
+                & starting_exactly_level_3
+                & valid_destinations;
 
-        valid_destinations ^= moves_to_level_3;
+            valid_destinations ^= winning_moves_to_level_3;
 
-        for moving_worker_end_pos in moves_to_level_3.into_iter() {
-            let winning_move = ScoredMove::new_winning_move(
-                GodMove::new_mortal_winning_move(moving_worker_start_pos, moving_worker_end_pos)
+            for moving_worker_end_pos in winning_moves_to_level_3.into_iter() {
+                let winning_move = ScoredMove::new_winning_move(
+                    GodMove::new_mortal_winning_move(
+                        moving_worker_start_pos,
+                        moving_worker_end_pos,
+                    )
                     .into(),
-            );
-            result.push(winning_move);
-            if F & STOP_ON_MATE != 0 {
-                return result;
+                );
+                result.push(winning_move);
+                if F & STOP_ON_MATE != 0 {
+                    return result;
+                }
             }
         }
 
