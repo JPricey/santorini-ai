@@ -298,6 +298,39 @@ pub const ALL_GODS_BY_ID: [GodPower; 11] = [
     prometheus::build_prometheus(),
 ];
 
+#[macro_export]
+macro_rules! build_god_power {
+    (
+        $fn_name:ident,
+        god_name: $god_name:expr,
+        move_gen: $move_gen:ident,
+        actions: $actions_fn:ident,
+        score_moves: $score_moves:ident,
+        blocker_board: $blocker_board_fn:ident,
+        make_move: $make_move_fn:ident,
+        unmake_move: $unmake_move_fn:ident,
+        stringify: $stringify_fn:ident,
+    ) => {
+        pub const fn $fn_name() -> GodPower {
+            GodPower {
+                god_name: $god_name,
+                _get_all_moves: $move_gen::<0>,
+                _get_moves_for_search: $move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+                _get_wins: $move_gen::<{ MATE_ONLY }>,
+                _get_win_blockers: $move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE }>,
+                _get_improver_moves_only: $move_gen::<{ STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE }>,
+                get_actions_for_move: $actions_fn,
+                _score_improvers: $score_moves::<true>,
+                _score_remaining: $score_moves::<false>,
+                _get_blocker_board: $blocker_board_fn,
+                _make_move: $make_move_fn,
+                _unmake_move: $unmake_move_fn,
+                _stringify_move: $stringify_fn,
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

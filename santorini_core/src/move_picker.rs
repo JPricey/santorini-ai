@@ -1,7 +1,9 @@
 use crate::{
+    bitboard::BitBoard,
     board::BoardState,
     gods::{
-        generic::{GenericMove, ScoredMove, CHECK_SENTINEL_SCORE, NON_IMPROVER_SENTINEL_SCORE}, StaticGod
+        StaticGod,
+        generic::{CHECK_SENTINEL_SCORE, GenericMove, NON_IMPROVER_SENTINEL_SCORE, ScoredMove},
     },
     player::Player,
 };
@@ -27,6 +29,7 @@ pub struct MovePicker {
     killer_move: Option<GenericMove>,
     pub stage: MovePickerStage,
     index: usize,
+    key_squares: Option<BitBoard>,
 }
 
 impl MovePicker {
@@ -35,6 +38,7 @@ impl MovePicker {
         active_god: StaticGod,
         tt_move: Option<GenericMove>,
         killer_move: Option<GenericMove>,
+        key_squares: Option<BitBoard>,
     ) -> Self {
         Self {
             player,
@@ -44,11 +48,18 @@ impl MovePicker {
             killer_move,
             stage: MovePickerStage::YieldTT,
             index: 0,
+            key_squares,
         }
     }
 
     fn _generate_moves(&mut self, board: &BoardState) {
-        self.move_list = self.active_god.get_moves_for_search(board, self.player);
+        if let Some(key_squares) = self.key_squares {
+            self.move_list = self
+                .active_god
+                .get_blocker_moves(board, self.player, key_squares);
+        } else {
+            self.move_list = self.active_god.get_moves_for_search(board, self.player);
+        }
     }
 
     pub fn has_any_moves(&mut self, board: &BoardState) -> bool {

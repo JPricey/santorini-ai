@@ -1,19 +1,11 @@
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
-    gods::{
-        GodName, GodPower,
+    bitboard::BitBoard, board::{BoardState, NEIGHBOR_MAP}, build_god_power, gods::{
         generic::{
-            CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE,
-            INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, NON_IMPROVER_SENTINEL_SCORE,
-            STOP_ON_MATE, ScoredMove,
-        },
-        mortal::{
-            MortalMove, mortal_blocker_board, mortal_make_move, mortal_move_to_actions,
-            mortal_score_moves, mortal_stringify, mortal_unmake_move,
-        },
-    },
-    player::Player,
+            MoveGenFlags, ScoredMove, CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, NON_IMPROVER_SENTINEL_SCORE, STOP_ON_MATE
+        }, mortal::{
+            mortal_blocker_board, mortal_make_move, mortal_move_to_actions, mortal_score_moves, mortal_stringify, mortal_unmake_move, MortalMove
+        }, GodName, GodPower
+    }, player::Player
 };
 
 type GodMove = MortalMove;
@@ -195,25 +187,17 @@ fn pan_move_gen<const F: MoveGenFlags>(
     result
 }
 
-pub const fn build_pan() -> GodPower {
-    GodPower {
-        god_name: GodName::Pan,
-        _get_all_moves: pan_move_gen::<0>,
-        _get_moves_for_search: pan_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: pan_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: pan_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: pan_move_gen::<
-            { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
-        >,
-        get_actions_for_move: mortal_move_to_actions,
-        _score_improvers: mortal_score_moves::<true>,
-        _score_remaining: mortal_score_moves::<false>,
-        _get_blocker_board: mortal_blocker_board,
-        _make_move: mortal_make_move,
-        _unmake_move: mortal_unmake_move,
-        _stringify_move: mortal_stringify,
-    }
-}
+build_god_power!(
+    build_pan,
+    god_name: GodName::Pan,
+    move_gen: pan_move_gen,
+    actions: mortal_move_to_actions,
+    score_moves: mortal_score_moves,
+    blocker_board: mortal_blocker_board,
+    make_move: mortal_make_move,
+    unmake_move: mortal_unmake_move,
+    stringify: mortal_stringify,
+);
 
 #[cfg(test)]
 mod tests {

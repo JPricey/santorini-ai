@@ -466,9 +466,9 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    let active_god = match state.current_player {
-        Player::One => p1_god,
-        Player::Two => p2_god,
+    let (active_god, other_god) = match state.current_player {
+        Player::One => (p1_god, p2_god),
+        Player::Two => (p2_god, p1_god),
     };
 
     if !NT::ROOT
@@ -548,17 +548,63 @@ where
         remaining_depth -= 1;
     }
 
+    let key_squares = if is_in_check {
+        let other_wins = other_god.get_winning_moves(state, !state.current_player);
+        assert_ne!(other_wins.len(), 0);
+
+        let mut key_squares = BitBoard::EMPTY;
+        for action in &other_wins {
+            key_squares |= other_god.get_blocker_board(action.action);
+        }
+
+        Some(key_squares)
+    } else {
+        None
+    };
+
     let mut move_picker = MovePicker::new(
         state.current_player,
         active_god,
         tt_entry.as_ref().map(|e| e.best_action),
         search_state.killer_move_table[ply as usize],
+        key_squares,
     );
 
     if !move_picker.has_any_moves(&state) {
-        // TODO: need to do something smarter about losing on smothering
-        let score = win_at_depth(ply) - 1;
-        return -score;
+        // If this is root, we need to pick a move
+        if NT::ROOT {
+            let moves = active_god.get_moves_for_search(state, state.current_player);
+            if moves.len() == 0 {
+                // There's actually no moves so we don't have to pick one
+                return -win_at_depth(ply);
+            } else {
+                let score = -win_at_depth(ply + 1);
+                let best_action = moves[0].action;
+                active_god.make_move(state, best_action);
+
+                let new_best_move = BestSearchResult::new(
+                    FullGameState::new(state.clone(), p1_god, p2_god),
+                    best_action,
+                    score,
+                    remaining_depth,
+                    search_state.nodes_visited,
+                    BestMoveTrigger::EndOfLine,
+                );
+
+                search_state.best_move = Some(new_best_move.clone());
+                (search_context.new_best_move_callback)(new_best_move);
+
+                active_god.unmake_move(state, best_action);
+                return score;
+            }
+        }
+
+        // If we're in check, assume that we're not smothered and are losing on the next turn
+        if is_in_check {
+            return -win_at_depth(ply + 1);
+        } else {
+            return -win_at_depth(ply);
+        }
     }
 
     if let Some(winning_action) = move_picker.get_winning_move(&state) {

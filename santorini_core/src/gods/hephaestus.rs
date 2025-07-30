@@ -1,19 +1,9 @@
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
-    gods::{
-        FullAction, GodName, GodPower,
+    bitboard::BitBoard, board::{BoardState, NEIGHBOR_MAP}, build_god_power, gods::{
         generic::{
-            CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
-            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
-            NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
-            WORKER_HEIGHT_SCORES,
-        },
-    },
-    player::Player,
-    square::Square,
+            GenericMove, MoveData, MoveGenFlags, MoveScore, ScoredMove, CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES, GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, WORKER_HEIGHT_SCORES
+        }, FullAction, GodName, GodPower
+    }, player::Player, square::Square
 };
 
 use super::PartialAction;
@@ -442,25 +432,17 @@ fn heph_stringify(action: GenericMove) -> String {
     format!("{:?}", action)
 }
 
-pub const fn build_hephaestus() -> GodPower {
-    GodPower {
-        god_name: GodName::Hephaestus,
-        _get_all_moves: heph_move_gen::<0>,
-        _get_moves_for_search: heph_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: heph_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: heph_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: heph_move_gen::<
-            { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
-        >,
-        get_actions_for_move: heph_move_to_actions,
-        _score_improvers: heph_score_moves::<true>,
-        _score_remaining: heph_score_moves::<false>,
-        _get_blocker_board: heph_blocker_board,
-        _make_move: heph_make_move,
-        _unmake_move: heph_unmake_move,
-        _stringify_move: heph_stringify,
-    }
-}
+build_god_power!(
+    build_hephaestus,
+    god_name: GodName::Hephaestus,
+    move_gen: heph_move_gen,
+    actions: heph_move_to_actions,
+    score_moves: heph_score_moves,
+    blocker_board: heph_blocker_board,
+    make_move: heph_make_move,
+    unmake_move: heph_unmake_move,
+    stringify: heph_stringify,
+);
 
 #[cfg(test)]
 mod tests {

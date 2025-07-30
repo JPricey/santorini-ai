@@ -1,20 +1,11 @@
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
-    gods::{
-        GodName, GodPower,
+    bitboard::BitBoard, board::{BoardState, NEIGHBOR_MAP}, build_god_power, gods::{
         generic::{
-            CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, GenericMove, IMPROVER_SENTINEL_SCORE,
-            INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags,
-            NON_IMPROVER_SENTINEL_SCORE, STOP_ON_MATE, ScoredMove,
-        },
-        mortal::{
-            MortalMove, mortal_make_move, mortal_move_to_actions, mortal_score_moves,
-            mortal_stringify, mortal_unmake_move,
-        },
-    },
-    player::Player,
-    utils::move_all_workers_one_include_original_workers,
+            GenericMove, MoveGenFlags, ScoredMove, CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, NON_IMPROVER_SENTINEL_SCORE, STOP_ON_MATE
+        }, mortal::{
+            mortal_make_move, mortal_move_to_actions, mortal_score_moves, mortal_stringify, mortal_unmake_move, MortalMove
+        }, GodName, GodPower
+    }, player::Player, utils::move_all_workers_one_include_original_workers
 };
 
 type GodMove = MortalMove;
@@ -245,25 +236,17 @@ pub fn artemis_blocker_board(action: GenericMove) -> BitBoard {
         | BitBoard::as_mask(action.move_to_position())
 }
 
-pub const fn build_artemis() -> GodPower {
-    GodPower {
-        god_name: GodName::Artemis,
-        _get_all_moves: artemis_move_gen::<0>,
-        _get_moves_for_search: artemis_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: artemis_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: artemis_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: artemis_move_gen::<
-            { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
-        >,
-        get_actions_for_move: mortal_move_to_actions,
-        _score_improvers: mortal_score_moves::<true>,
-        _score_remaining: mortal_score_moves::<false>,
-        _get_blocker_board: artemis_blocker_board,
-        _make_move: mortal_make_move,
-        _unmake_move: mortal_unmake_move,
-        _stringify_move: mortal_stringify,
-    }
-}
+build_god_power!(
+    build_artemis,
+    god_name: GodName::Artemis,
+    move_gen: artemis_move_gen,
+    actions: mortal_move_to_actions,
+    score_moves: mortal_score_moves,
+    blocker_board: artemis_blocker_board,
+    make_move: mortal_make_move,
+    unmake_move: mortal_unmake_move,
+    stringify: mortal_stringify,
+);
 
 #[cfg(test)]
 mod tests {

@@ -1,20 +1,9 @@
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
-    gods::{
-        FullAction, GodName, GodPower,
+    bitboard::BitBoard, board::{BoardState, NEIGHBOR_MAP}, build_god_power, gods::{
         generic::{
-            CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
-            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
-            NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
-            WORKER_HEIGHT_SCORES,
-        },
-    },
-    player::Player,
-    square::Square,
-    transmute_enum,
+            GenericMove, MoveData, MoveGenFlags, MoveScore, ScoredMove, CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES, GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, WORKER_HEIGHT_SCORES
+        }, FullAction, GodName, GodPower
+    }, player::Player, square::Square, transmute_enum
 };
 
 use super::PartialAction;
@@ -534,25 +523,17 @@ pub fn minotaur_stringify(action: GenericMove) -> String {
     format!("{:?}", action)
 }
 
-pub const fn build_minotaur() -> GodPower {
-    GodPower {
-        god_name: GodName::Minotaur,
-        _get_all_moves: minotaur_move_gen::<0>,
-        _get_moves_for_search: minotaur_move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-        _get_wins: minotaur_move_gen::<{ MATE_ONLY }>,
-        _get_win_blockers: minotaur_move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES }>,
-        _get_improver_moves_only: minotaur_move_gen::<
-            { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
-        >,
-        get_actions_for_move: minotaur_move_to_actions,
-        _score_improvers: minotaur_score_moves::<true>,
-        _score_remaining: minotaur_score_moves::<false>,
-        _get_blocker_board: minotaur_blocker_board,
-        _make_move: minotaur_make_move,
-        _unmake_move: minotaur_unmake_move,
-        _stringify_move: minotaur_stringify,
-    }
-}
+build_god_power!(
+    build_minotaur,
+    god_name: GodName::Minotaur,
+    move_gen: minotaur_move_gen,
+    actions: minotaur_move_to_actions,
+    score_moves: minotaur_score_moves,
+    blocker_board: minotaur_blocker_board,
+    make_move: minotaur_make_move,
+    unmake_move: minotaur_unmake_move,
+    stringify: minotaur_stringify,
+);
 
 #[cfg(test)]
 mod tests {
