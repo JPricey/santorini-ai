@@ -1,9 +1,9 @@
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, remove_file};
 use std::io::{BufReader, prelude::*};
 use std::path::PathBuf;
 
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::{Rng, thread_rng};
 use santorini_core::bitboard::BitBoard;
 use santorini_core::board::FullGameState;
 use santorini_core::player::Player;
@@ -22,6 +22,8 @@ pub struct BulletSantoriniBoard {
     extra: u8,
 }
 const _RIGHT_SIZE: () = assert!(std::mem::size_of::<BulletSantoriniBoard>() == 32);
+
+const TMP_OUTPUT_FILE_COUNT: usize = 1024;
 
 fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player, i16)> {
     let parts: Vec<_> = row.split(' ').collect();
@@ -50,12 +52,38 @@ fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player, i1
 }
 
 fn write_data_file<T: Copy>(items: &[T], path: &PathBuf) -> std::io::Result<()> {
-    let bytes_len = items.len() * size_of::<T>();
+    let bytes_len = items.len() * std::mem::size_of::<T>();
     let bytes = unsafe { std::slice::from_raw_parts(items.as_ptr() as *const u8, bytes_len) };
 
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
     file.write_all(bytes)?;
     Ok(())
+}
+
+fn write_single_record(item: &BulletSantoriniBoard, file: &mut File) -> std::io::Result<()> {
+    let bytes = unsafe {
+        std::slice::from_raw_parts(
+            item as *const BulletSantoriniBoard as *const u8,
+            std::mem::size_of::<BulletSantoriniBoard>(),
+        )
+    };
+    file.write_all(bytes)
+}
+
+fn read_data_file(path: &PathBuf) -> std::io::Result<Vec<BulletSantoriniBoard>> {
+    let file = File::open(path)?;
+    let file_size = file.metadata()?.len() as usize;
+    let item_count = file_size / std::mem::size_of::<BulletSantoriniBoard>();
+
+    let mut reader = BufReader::new(file);
+    let mut buffer = vec![0u8; file_size];
+    reader.read_exact(&mut buffer)?;
+
+    let items = unsafe {
+        std::slice::from_raw_parts(buffer.as_ptr() as *const BulletSantoriniBoard, item_count)
+    };
+
+    Ok(items.to_vec())
 }
 
 fn all_filenames_in_dir(path: PathBuf) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
@@ -76,31 +104,40 @@ fn all_filenames_in_dir(path: PathBuf) -> Result<Vec<PathBuf>, Box<dyn std::erro
     Ok(filenames)
 }
 
-fn convert_files_to_permuted_bullet_lines(
+// Step 1: Convert raw data files to temporary bullet format files, distributing across multiple outputs
+fn process_raw_data_files(
     input_dir: PathBuf,
-    output_path: PathBuf,
+    temp_dir: PathBuf,
+    delete_source: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = thread_rng();
-
-    const CHUNK_SIZE: usize = 25_000_000;
     let all_data_files = all_filenames_in_dir(input_dir)?;
+
+    std::fs::create_dir_all(&temp_dir)?;
+
+    let mut temp_files: Vec<File> = Vec::with_capacity(TMP_OUTPUT_FILE_COUNT);
+    for i in 0..TMP_OUTPUT_FILE_COUNT {
+        let temp_file_path = temp_dir.join(format!("temp_{:04}.dat", i));
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(temp_file_path)?;
+        temp_files.push(file);
+    }
 
     let mut current_buffer = Vec::new();
     let mut total_examples = 0;
 
     for (i, filename) in all_data_files.iter().enumerate() {
-        if i > 350 {
-            println!("breaking");
-            break;
-        }
-
         println!(
             "{}/{} Processing {:?} ({})",
-            i,
+            i + 1,
             all_data_files.len(),
             filename,
             total_examples
         );
+
         let file_handle = File::open(filename).expect("Failed to open file");
         let reader = BufReader::new(file_handle);
 
@@ -108,6 +145,7 @@ fn convert_files_to_permuted_bullet_lines(
             let Some((state, winner, score)) = convert_row_to_board_and_meta(&line?) else {
                 continue;
             };
+
             let (god1, god2) = match state.board.current_player {
                 Player::One => (state.gods[0], state.gods[1]),
                 Player::Two => (state.gods[1], state.gods[0]),
@@ -141,32 +179,117 @@ fn convert_files_to_permuted_bullet_lines(
                 current_buffer.push(bullet_board);
                 total_examples += 1;
             }
+        }
 
-            if current_buffer.len() >= CHUNK_SIZE {
-                println!("shuffling");
-                current_buffer.shuffle(&mut rng);
+        println!(
+            "Shuffling and distributing {} examples",
+            current_buffer.len()
+        );
+        current_buffer.shuffle(&mut rng);
 
-                println!("writing {}", current_buffer.len());
-                write_data_file(&current_buffer, &output_path).unwrap();
+        for state in &current_buffer {
+            let file_idx = rng.gen_range(0..TMP_OUTPUT_FILE_COUNT);
+            write_single_record(state, &mut temp_files[file_idx])?;
+        }
 
-                current_buffer.truncate(0);
+        current_buffer.clear();
+
+        if delete_source {
+            if let Err(e) = std::fs::remove_file(filename) {
+                eprintln!(
+                    "Warning: Failed to delete source file {:?}: {}",
+                    filename, e
+                );
+            } else {
+                println!("Deleted source file: {:?}", filename);
             }
         }
     }
 
-    if current_buffer.len() > 0 {
-        println!("shuffling");
-        current_buffer.shuffle(&mut rng);
+    println!(
+        "Processed {} total examples into {} temporary files",
+        total_examples, TMP_OUTPUT_FILE_COUNT
+    );
+    Ok(())
+}
 
-        println!("writing {}", current_buffer.len());
-        write_data_file(&current_buffer, &output_path).unwrap();
+// Step 2: Read each temporary file, shuffle it, and write to final output
+fn consolidate_temp_files(
+    temp_dir: PathBuf,
+    output_path: PathBuf,
+    delete_temp: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut rng = thread_rng();
+    let mut total_examples = 0;
+
+    // Clear output file if it exists
+    if output_path.exists() {
+        std::fs::remove_file(&output_path)?;
     }
 
+    for i in 0..TMP_OUTPUT_FILE_COUNT {
+        let temp_file_path = temp_dir.join(format!("temp_{:04}.dat", i));
+
+        if !temp_file_path.exists() {
+            continue;
+        }
+
+        println!(
+            "Processing temporary file {}/{}: {:?}",
+            i + 1,
+            TMP_OUTPUT_FILE_COUNT,
+            temp_file_path
+        );
+
+        // Read the entire temporary file
+        let mut data = read_data_file(&temp_file_path)?;
+
+        if data.is_empty() {
+            println!("Skipping empty file: {:?}", temp_file_path);
+            continue;
+        }
+
+        println!("Read {} examples, shuffling...", data.len());
+        data.shuffle(&mut rng);
+
+        println!("Writing {} examples to output", data.len());
+        write_data_file(&data, &output_path)?;
+
+        total_examples += data.len();
+
+        // Optionally delete temporary file
+        if delete_temp {
+            if let Err(e) = remove_file(&temp_file_path) {
+                eprintln!(
+                    "Warning: Failed to delete temp file {:?}: {}",
+                    temp_file_path, e
+                );
+            } else {
+                println!("Deleted temp file: {:?}", temp_file_path);
+            }
+        }
+    }
+
+    println!(
+        "Consolidated {} total examples into final output: {:?}",
+        total_examples, output_path
+    );
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let input_path = PathBuf::new().join("raw_data");
-    let output_path = PathBuf::new().join("unshuffled_data");
-    convert_files_to_permuted_bullet_lines(input_path, output_path)
+    let is_delete = false;
+
+    let input_path = PathBuf::from("game_data");
+    let temp_path = PathBuf::from("temp_data");
+    let output_path = PathBuf::from("final_data");
+
+    println!("Step 1: Processing raw data files...");
+    process_raw_data_files(input_path, temp_path.clone(), is_delete)?;
+
+    println!("\nStep 2: Consolidating temporary files...");
+    consolidate_temp_files(temp_path, output_path, is_delete)?;
+
+    println!("\nData preparation complete!");
+    Ok(())
 }
