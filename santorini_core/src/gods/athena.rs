@@ -250,7 +250,7 @@ fn athena_move_gen<const F: MoveGenFlags>(
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
 
             if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
-                if !is_improving || (moving_worker_end_mask & key_squares).is_empty() {
+                if !is_improving && (moving_worker_end_mask & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
                 }
             }

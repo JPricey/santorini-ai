@@ -70,6 +70,12 @@ fn write_single_record(item: &BulletSantoriniBoard, file: &mut File) -> std::io:
     file.write_all(bytes)
 }
 
+fn write_data_file_with_handle<T: Copy>(items: &[T], file: &mut File) -> std::io::Result<()> {
+    let bytes_len = items.len() * std::mem::size_of::<T>();
+    let bytes = unsafe { std::slice::from_raw_parts(items.as_ptr() as *const u8, bytes_len) };
+    file.write_all(bytes)
+}
+
 fn read_data_file(path: &PathBuf) -> std::io::Result<Vec<BulletSantoriniBoard>> {
     let file = File::open(path)?;
     let file_size = file.metadata()?.len() as usize;
@@ -126,8 +132,11 @@ fn process_raw_data_files(
         temp_files.push(file);
     }
 
-    let mut current_buffer = Vec::new();
     let mut total_examples = 0;
+
+    let mut current_buffer = Vec::new();
+    let mut temp_file_buffers: Vec<Vec<BulletSantoriniBoard>> =
+        vec![Vec::new(); TMP_OUTPUT_FILE_COUNT];
 
     for (i, filename) in all_data_files.iter().enumerate() {
         println!(
@@ -189,10 +198,14 @@ fn process_raw_data_files(
 
         for state in &current_buffer {
             let file_idx = rng.gen_range(0..TMP_OUTPUT_FILE_COUNT);
-            write_single_record(state, &mut temp_files[file_idx])?;
+            temp_file_buffers[file_idx].push(*state);
         }
-
         current_buffer.clear();
+
+        for (file_idx, buffer) in temp_file_buffers.iter_mut().enumerate() {
+            write_data_file_with_handle(buffer, &mut temp_files[file_idx])?;
+            buffer.clear();
+        }
 
         if delete_source {
             if let Err(e) = std::fs::remove_file(filename) {
@@ -257,7 +270,6 @@ fn consolidate_temp_files(
 
         total_examples += data.len();
 
-        // Optionally delete temporary file
         if delete_temp {
             if let Err(e) = remove_file(&temp_file_path) {
                 eprintln!(
@@ -278,9 +290,9 @@ fn consolidate_temp_files(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let is_delete = false;
+    let is_delete = true;
 
-    let input_path = PathBuf::from("game_data");
+    let input_path = PathBuf::from("raw_data");
     let temp_path = PathBuf::from("temp_data");
     let output_path = PathBuf::from("final_data");
 
@@ -293,3 +305,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nData preparation complete!");
     Ok(())
 }
+
+// fn break_up_final_data(
+//     final_data_path: PathBuf,
+//     temp_dir: PathBuf,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     let mut rng = thread_rng();
+// 
+//     // Read all data from final file
+//     println!("Reading final data from: {:?}", final_data_path);
+//     let mut all_data = read_data_file(&final_data_path)?;
+//     println!("Read {} total examples", all_data.len());
+// 
+//     // Create temp directory
+//     std::fs::create_dir_all(&temp_dir)?;
+// 
+//     // Create temp files
+//     let mut temp_files: Vec<File> = Vec::with_capacity(TMP_OUTPUT_FILE_COUNT);
+//     for i in 0..TMP_OUTPUT_FILE_COUNT {
+//         let temp_file_path = temp_dir.join(format!("temp_{:04}.dat", i));
+//         let file = OpenOptions::new()
+//             .create(true)
+//             .truncate(true)
+//             .write(true)
+//             .open(temp_file_path)?;
+//         temp_files.push(file);
+//     }
+// 
+//     // Distribute data across temp files
+//     let chunk_size = (all_data.len() + TMP_OUTPUT_FILE_COUNT - 1) / TMP_OUTPUT_FILE_COUNT;
+// 
+//     for (file_idx, chunk) in all_data.chunks(chunk_size).enumerate() {
+//         if file_idx >= TMP_OUTPUT_FILE_COUNT {
+//             break;
+//         }
+// 
+//         println!("Writing {} examples to temp file {}", chunk.len(), file_idx);
+//         write_data_file_with_handle(chunk, &mut temp_files[file_idx])?;
+//     }
+// 
+//     println!(
+//         "Successfully broke up data into {} temporary files",
+//         TMP_OUTPUT_FILE_COUNT
+//     );
+//     Ok(())
+// }
+// 
+// fn main() -> Result<(), Box<dyn std::error::Error>> {
+//     let final_data_path = PathBuf::from("final_data");
+//     let temp_dir = PathBuf::from("temp_data");
+// 
+//     if !final_data_path.exists() {
+//         eprintln!("Error: final_data file does not exist");
+//         return Ok(());
+//     }
+// 
+//     break_up_final_data(final_data_path, temp_dir)?;
+// 
+//     println!("Data break-up complete!");
+//     Ok(())
+// }
+
+// rm -rf temp_data
+// rm final_data
+// ulimit -n 2048
+// cargo run -p bullet_prep --release

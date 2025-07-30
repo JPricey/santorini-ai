@@ -486,7 +486,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                 & !(blocked_squares | both_mask);
 
             if F & INTERACT_WITH_KEY_SQUARES != 0 {
-                if ((m1 | m2) & key_squares).is_empty() {
+                if (both_mask & key_squares).is_empty() {
                     possible_builds &= key_squares;
                 }
             }

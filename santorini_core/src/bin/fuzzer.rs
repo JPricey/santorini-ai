@@ -1,6 +1,9 @@
+use core::panic;
+
 use rand::{Rng, thread_rng};
 
 use santorini_core::{
+    bitboard::BitBoard,
     board::{FullGameState, NEIGHBOR_MAP},
     gods::GodName,
     random_utils::{get_board_with_random_placements, get_random_god, get_random_move},
@@ -10,14 +13,54 @@ fn check_state(root_state: &FullGameState) {
     let board = &root_state.board;
     let current_player = board.current_player;
 
-    // let other_god = root_state.get_other_god();
     let active_god = root_state.get_active_god();
+    let other_god = root_state.get_other_god();
 
-    // let other_wins = other_god.get_winning_moves(&board, !board.current_player);
+    let other_wins = other_god.get_winning_moves(&board, !current_player);
 
-    let winning_moves = active_god.get_winning_moves(&board, board.current_player);
-    let all_moves = active_god.get_moves_for_search(&board, board.current_player);
-    let checks = active_god.get_improver_moves(&board, board.current_player);
+    let winning_moves = active_god.get_winning_moves(&board, current_player);
+    let all_moves = active_god.get_moves_for_search(&board, current_player);
+    let checks = active_god.get_improver_moves(&board, current_player);
+
+    if other_wins.len() > 0 {
+        // Check blockers
+        let mut key_moves = BitBoard::EMPTY;
+        for other_win_action in &other_wins {
+            key_moves |= other_god.get_blocker_board(other_win_action.action);
+        }
+
+        let blocks = active_god.get_blocker_moves(&board, current_player, key_moves);
+
+        for action in &all_moves {
+            if blocks.contains(action) {
+                continue;
+            }
+
+            let stringed_action = active_god.stringify_move(action.action);
+            let mut new_board = board.clone();
+            active_god.make_move(&mut new_board, action.action);
+
+            let new_oppo_wins = other_god.get_winning_moves(&new_board, !current_player);
+            if new_oppo_wins.len() < other_wins.len() {
+                eprintln!("Missed blocking move: {}", stringed_action);
+
+
+                root_state.print_to_console();
+                new_board.print_to_console();
+
+                eprintln!("key board: {}", key_moves);
+
+                for old in other_wins {
+                    eprintln!("old win: {}", other_god.stringify_move(old.action));
+                }
+                for new in new_oppo_wins {
+                    eprintln!("new win: {}", other_god.stringify_move(new.action));
+                }
+
+                panic!("bleh")
+            }
+        }
+    }
 
     // Test that checks actually result in wins
     for action in &checks {
