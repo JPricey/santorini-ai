@@ -94,7 +94,6 @@ impl EngineThreadWrapper {
                 let mut worker_state = engine_thread_ctx.worker_state.lock().unwrap();
                 *worker_state = EngineThreadState::Pending;
             }
-            // println!("Engine thread is pending");
 
             let Ok(msg) = engine_thread_ctx.receiver.recv() else {
                 eprintln!("EngineThread receiver received error");
@@ -147,10 +146,15 @@ impl EngineThreadWrapper {
         }
     }
 
-    fn spin_for_pending_state(&self) {
-        while self.worker_state.lock().unwrap().clone() == EngineThreadState::Pending {
-            eprintln!("spinning");
-            thread::sleep(Duration::from_millis(1));
+    pub fn spin_for_pending_state(&self) {
+        loop {
+            {
+                let worker_state = self.worker_state.lock().unwrap().clone();
+                if worker_state == EngineThreadState::Pending {
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(2));
         }
     }
 

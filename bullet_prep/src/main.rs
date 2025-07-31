@@ -60,6 +60,7 @@ fn write_data_file<T: Copy>(items: &[T], path: &PathBuf) -> std::io::Result<()> 
     Ok(())
 }
 
+#[allow(dead_code)]
 fn write_single_record(item: &BulletSantoriniBoard, file: &mut File) -> std::io::Result<()> {
     let bytes = unsafe {
         std::slice::from_raw_parts(

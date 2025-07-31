@@ -284,6 +284,12 @@ impl PartialEq for GodPower {
 
 impl Eq for GodPower {}
 
+impl std::fmt::Display for GodPower {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.god_name)
+    }
+}
+
 pub const ALL_GODS_BY_ID: [GodPower; 11] = [
     mortal::build_mortal(),
     pan::build_pan(),

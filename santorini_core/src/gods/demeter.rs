@@ -434,40 +434,42 @@ pub fn demeter_score_moves<const IMPROVERS_ONLY: bool>(
         }
 
         let action: GodMove = scored_action.action.into();
-        let mut score: MoveScore = 0;
+        let mut score: i32 = 0;
 
         let from = action.move_from_position();
         let from_height = board.get_height_for_worker(BitBoard::as_mask(from));
         let to = action.move_to_position();
         let to_height = board.get_height_for_worker(BitBoard::as_mask(to));
 
-        score -= GRID_POSITION_SCORES[from as usize];
-        score += GRID_POSITION_SCORES[to as usize];
-        score -= WORKER_HEIGHT_SCORES[from_height as usize];
-        score += WORKER_HEIGHT_SCORES[to_height as usize];
+        score -= GRID_POSITION_SCORES[from as usize] as i32;
+        score += GRID_POSITION_SCORES[to as usize] as i32;
+        score -= WORKER_HEIGHT_SCORES[from_height as usize] as i32;
+        score += WORKER_HEIGHT_SCORES[to_height as usize] as i32;
 
         {
             let build_at = action.build_position();
             let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
-            score += build_score_map[build_at as usize];
+            score += build_score_map[build_at as usize] as i32;
             if IMPROVERS_ONLY {
-                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height] as i32;
             }
         }
 
         if let Some(build_at) = action.second_build_position() {
             let build_pre_height = board.get_height_for_worker(BitBoard::as_mask(build_at));
-            score += build_score_map[build_at as usize];
+            score += build_score_map[build_at as usize] as i32;
             if IMPROVERS_ONLY {
-                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
+                score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height] as i32;
             }
         }
 
         if scored_action.score == CHECK_SENTINEL_SCORE {
-            score += CHECK_MOVE_BONUS;
+            score += CHECK_MOVE_BONUS as i32;
         }
 
-        scored_action.set_score(score);
+        score = score.clamp((CHECK_SENTINEL_SCORE + 1) as i32, MoveScore::MAX as i32);
+
+        scored_action.set_score(score as MoveScore);
     }
 }
 
