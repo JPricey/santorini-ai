@@ -1,6 +1,4 @@
-use std::{
-    collections::HashMap,
-};
+use std::collections::HashMap;
 
 use santorini_core::{
     board::FullGameState,
@@ -20,7 +18,10 @@ fn play_match(engine: &mut EngineThreadWrapper, god1: GodName, god2: GodName) ->
             panic!("could not find a next move");
         };
 
-        eprintln!("{}: score: {} depth: {}", engine_result.action_str, engine_result.score, engine_result.depth);
+        eprintln!(
+            "{}: score: {} depth: {}",
+            engine_result.action_str, engine_result.score, engine_result.depth
+        );
         game_state = engine_result.child_state;
         game_state.print_to_console();
 
@@ -94,21 +95,23 @@ fn print_results(results: &Vec<MatchupResult>) {
 }
 
 pub fn main() {
+    let banned_gods = vec![
+        GodName::Mortal,
+    ];
+
     let mut engine = EngineThreadWrapper::new();
 
     let mut all_results = Vec::new();
 
     for god1 in ALL_GODS_BY_ID {
         let god1 = god1.god_name;
-
-        if god1 == GodName::Mortal {
+        if banned_gods.contains(&god1) {
             continue;
         }
 
         for god2 in ALL_GODS_BY_ID {
             let god2 = god2.god_name;
-
-            if god2 == GodName::Mortal || god1 == god2 {
+            if banned_gods.contains(&god2) || god1 == god2 {
                 continue;
             }
 

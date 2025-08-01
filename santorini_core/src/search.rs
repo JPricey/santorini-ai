@@ -26,6 +26,7 @@ pub const MAX_PLY: usize = 127;
 
 pub type Hueristic = i32;
 pub const WINNING_SCORE: Hueristic = 10_000;
+pub const INFINITY: Hueristic = WINNING_SCORE * 2;
 pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
 pub static mut NUM_SEARCHES: usize = 0;
 
@@ -396,7 +397,7 @@ where
         eval = nnue_acc.evaluate();
 
         // TODO: test this
-        if q_depth > 2 {
+        if q_depth >= 0 {
             return eval;
         }
 
@@ -647,10 +648,10 @@ where
         return score;
     }
 
+    nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
     let eval = if let Some(tt_value) = &tt_entry {
         tt_value.eval
     } else {
-        nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
         nnue_acc.evaluate()
     };
 
@@ -723,7 +724,6 @@ where
     while let Some(child_action) = move_picker.next(&state) {
         let child_is_check = child_action.get_is_check();
         move_idx += 1;
-        active_god.make_move(state, child_action);
 
         // check extension
         let mut next_depth = if child_is_check {
@@ -735,6 +735,7 @@ where
 
         let mut score;
         if move_idx == 1 {
+            active_god.make_move(state, child_action);
             score = -_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
@@ -749,24 +750,26 @@ where
                 -alpha,
             )
         } else {
-            if next_depth > 1 && ply >= 2 && move_idx >= 200 {
+            if next_depth >= 1 && ply >= 2 && move_idx >= 200 {
                 next_depth -= 1;
 
-                if next_depth > 1 && ply >= 4 && move_idx >= 600 {
+                if next_depth >= 1 && ply >= 4 && move_idx >= 600 {
                     next_depth -= 1;
                 }
             }
 
             // Stop considering non-improvers eventually
             if ply >= 2
-                && next_depth < 4
+                && next_depth <= 4
                 && move_idx > 128
-                // && !improving
                 && move_picker.stage == MovePickerStage::YieldNonImprovers
+            // || (ply >= 4 && next_depth < 2 && move_idx >= 8)
+            // && !improving
             {
-                active_god.unmake_move(state, child_action);
                 break;
             }
+
+            active_god.make_move(state, child_action);
 
             // Try a 0-window search
             score = -_inner_search::<T, OffPV>(

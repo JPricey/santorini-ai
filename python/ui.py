@@ -33,6 +33,9 @@ DONE_FULL_ACTION = dict(
     type=DONE_ACTION_TYPE,
 )
 
+def sigmoid(x):
+    return 1 / (1 + 2.71828 ** -x)
+
 
 class EngineProcess:
     def __init__(self, output_callback):
@@ -626,7 +629,9 @@ class RootPanel:
         # action_string = pretty_string_for_action_sequence(meta['actions'])
         action_string = meta['action_str']
 
-        thinking_string = f"{action_string} (eval: {meta['score']}) ({meta['elapsed_seconds']:.2f}s | depth {meta['calculated_depth']}) | {trigger}\n"
+        score = meta['score']
+        pct = 100.0 * sigmoid(score/400.0)
+        thinking_string = f"{action_string} ({score} | {pct:.2f}%) ({meta['elapsed_seconds']:.2f}s | d {meta['calculated_depth']}) | {trigger}\n"
 
         self.engine_output.insert('1.0', thinking_string)
         self.engine_output.see('1.0')
