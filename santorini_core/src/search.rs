@@ -30,8 +30,8 @@ pub const INFINITY: Hueristic = WINNING_SCORE * 2;
 pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
 pub static mut NUM_SEARCHES: usize = 0;
 
-pub const fn win_at_depth(depth: usize) -> Hueristic {
-    WINNING_SCORE - depth as Hueristic
+pub const fn win_at_ply(ply: usize) -> Hueristic {
+    WINNING_SCORE - ply as Hueristic
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -374,7 +374,7 @@ where
         .len()
         > 0
     {
-        let score = win_at_depth(ply) - 1;
+        let score = win_at_ply(ply);
         return score;
     }
 
@@ -477,9 +477,9 @@ where
     {
         search_state.nodes_visited += 1;
         return if winner == state.current_player {
-            win_at_depth(ply)
+            win_at_ply(ply)
         } else {
-            -win_at_depth(ply)
+            -win_at_ply(ply)
         };
     } else if remaining_depth == 0 {
         return _q_extend(
@@ -499,8 +499,8 @@ where
 
         // Worst possible outcome is losing right now (due to a smother)
         // Best possible outcome is winning right now
-        alpha = alpha.max(-win_at_depth(ply));
-        beta = beta.min(win_at_depth(ply));
+        alpha = alpha.max(-win_at_ply(ply));
+        beta = beta.min(win_at_ply(ply));
         if alpha >= beta {
             return alpha;
         }
@@ -595,9 +595,9 @@ where
             let moves = active_god.get_moves_for_search(state, state.current_player);
             if moves.len() == 0 {
                 // There's actually no moves so we don't have to pick one
-                return -win_at_depth(ply);
+                return -win_at_ply(ply);
             } else {
-                let score = -win_at_depth(ply + 1);
+                let score = -win_at_ply(ply + 1);
                 let best_action = moves[0].action;
                 active_god.make_move(state, best_action);
 
@@ -620,14 +620,14 @@ where
 
         // If we're in check, assume that we're not smothered and are losing on the next turn
         if is_in_check {
-            return -win_at_depth(ply + 1);
+            return -win_at_ply(ply + 1);
         } else {
-            return -win_at_depth(ply);
+            return -win_at_ply(ply);
         }
     }
 
     if let Some(winning_action) = move_picker.get_winning_move(&state) {
-        let score = win_at_depth(ply) - 1;
+        let score = win_at_ply(ply);
         if NT::ROOT {
             let mut winning_board = state.clone();
             active_god.make_move(&mut winning_board, winning_action);
