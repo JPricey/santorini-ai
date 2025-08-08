@@ -41,7 +41,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
         let other_own_workers =
             (current_workers ^ moving_worker_start_mask) & board.at_least_level_1();
 
-        let mut valid_destinations = !all_workers_mask & !board.at_least_level_4();
+        let mut valid_destinations = !(all_workers_mask | board.at_least_level_4());
 
         let mut worker_1d_moves = (NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
@@ -70,10 +70,11 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
         if can_worker_climb {
             let at_height_2_1d = worker_1d_moves & starting_exactly_level_2;
-            let winning_moves_to_level_3 = move_all_workers_one_include_original_workers(at_height_2_1d)
-                & starting_exactly_level_3
-                & valid_destinations;
-
+            let mut winning_moves_to_level_3 = BitBoard::EMPTY;
+            for pos in at_height_2_1d {
+                winning_moves_to_level_3 |= NEIGHBOR_MAP[pos as usize];
+            }
+            winning_moves_to_level_3 &= starting_exactly_level_3 & valid_destinations;
             valid_destinations ^= winning_moves_to_level_3;
 
             for moving_worker_end_pos in winning_moves_to_level_3.into_iter() {
@@ -95,34 +96,18 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             continue;
         }
 
-        let worker_moves;
-        if can_worker_climb {
-            let level_0_moves = move_all_workers_one_include_original_workers(
-                worker_1d_moves & board.exactly_level_0(),
-            ) & !board.at_least_level_2();
-            let level_1_moves = move_all_workers_one_include_original_workers(
-                worker_1d_moves & board.exactly_level_1(),
-            ) & !board.at_least_level_3();
-            let level_23_moves = move_all_workers_one_include_original_workers(
-                worker_1d_moves & board.at_least_level_2(),
-            );
-            worker_moves = valid_destinations & (level_0_moves | level_1_moves | level_23_moves);
-        } else {
-            let level_0_moves = move_all_workers_one_include_original_workers(
-                worker_1d_moves & board.exactly_level_0(),
-            ) & !board.at_least_level_1();
-            let level_1_moves = move_all_workers_one_include_original_workers(
-                worker_1d_moves & board.exactly_level_1(),
-            ) & !board.at_least_level_2();
-            let level_2_moves = move_all_workers_one_include_original_workers(
-                worker_1d_moves & starting_exactly_level_2,
-            ) & !board.at_least_level_3();
-            let level_3_moves = move_all_workers_one_include_original_workers(
-                worker_1d_moves & starting_exactly_level_3,
-            );
-            worker_moves = valid_destinations
-                & (level_0_moves | level_1_moves | level_2_moves | level_3_moves);
+        let mut worker_moves = worker_1d_moves;
+        let h_delta = can_worker_climb as usize;
+        for h in [0, 1, 3] {
+            let current_level_workers = worker_1d_moves & !board.height_map[h];
+            worker_1d_moves ^= current_level_workers;
+            let current_level_destinations = !board.height_map[3.min(h + h_delta)];
+
+            for end_pos in current_level_workers {
+                worker_moves |= current_level_destinations & NEIGHBOR_MAP[end_pos as usize];
+            }
         }
+        worker_moves &= valid_destinations;
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
         let buildable_squares = !(non_selected_workers | board.height_map[3]);

@@ -86,7 +86,7 @@ fn run_all_scenarios(god_name: GodName) -> TestSummary {
         game_state.gods[0] = god_name.to_power();
         game_state.gods[1] = god_name.to_power();
 
-        // let depth = (depth as i32 - 0).max(5) as usize;
+        let depth = (depth as i32 - 8).max(6) as usize;
 
         tt.reset();
         let (result, duration) = run_scenario(&mut tt, &game_state, depth);
@@ -134,4 +134,4 @@ pub fn main() {
 }
 
 // cargo run -p santorini_core --bin visit_tester --release
-// cargo run -p santorini_core --bin visit_tester --release -- -g hermes
+// cargo run -p santorini_core --bin visit_tester --release -- -g artemis
