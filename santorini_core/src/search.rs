@@ -24,7 +24,7 @@ use super::{board::BoardState, transposition_table::TranspositionTable};
 
 pub const MAX_PLY: usize = 127;
 
-pub type Hueristic = i32;
+pub type Hueristic = i16;
 pub const WINNING_SCORE: Hueristic = 10_000;
 pub const INFINITY: Hueristic = WINNING_SCORE * 2;
 pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
@@ -329,7 +329,7 @@ where
 
         if score.abs() > WINNING_SCORE_BUFFER && !search_context.should_stop(&search_state) {
             let win_depth = WINNING_SCORE - score.abs();
-            if depth as i32 > win_depth {
+            if depth as Hueristic > win_depth {
                 let mut best_move = search_state.best_move.clone().unwrap();
                 best_move.trigger = BestMoveTrigger::EndOfLine;
                 (search_context.new_best_move_callback)(best_move);
@@ -397,7 +397,7 @@ where
         eval = nnue_acc.evaluate();
 
         // TODO: test this
-        if q_depth >= 0 {
+        if q_depth >= 2 {
             return eval;
         }
 

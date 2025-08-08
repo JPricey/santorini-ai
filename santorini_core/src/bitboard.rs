@@ -146,3 +146,21 @@ impl Iterator for BitBoard {
         }
     }
 }
+
+pub trait BitboardOps {
+    fn and(self, other: BitBoard) -> BitBoard;
+}
+
+impl BitboardOps for BitBoard {
+    fn and(self, other: BitBoard) -> BitBoard {
+        self & other
+    }
+}
+
+pub struct PanicBitboard {}
+
+impl BitboardOps for PanicBitboard {
+    fn and(self, other: BitBoard) -> BitBoard {
+        unreachable!()
+    }
+}

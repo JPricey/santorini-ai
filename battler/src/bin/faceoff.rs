@@ -40,14 +40,19 @@ fn do_battle<'a>(
     println!();
 
     loop {
-        let engine = match current_state.board.current_player {
-            Player::One => &mut *c1,
-            Player::Two => &mut *c2,
+        let (engine, other) = match current_state.board.current_player {
+            Player::One => (&mut *c1, &mut *c2),
+            Player::Two => (&mut *c2, &mut *c1),
         };
 
         let state_string = game_state_to_fen(&current_state);
-        eprintln!("{}: setting position {}", timestamp_string(), engine.engine_name);
+        eprintln!(
+            "{}: setting position {}",
+            timestamp_string(),
+            engine.engine_name
+        );
         writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
+        writeln!(other.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
 
         let started_at = Instant::now();
         let end_at = started_at + per_turn_duration;
@@ -96,8 +101,8 @@ fn do_battle<'a>(
             }
         }
 
-        eprintln!("{}: stopping {}", timestamp_string(), engine.engine_name);
-        writeln!(engine.stdin, "stop").expect("Failed to write to stdin");
+        // eprintln!("{}: stopping {}", timestamp_string(), engine.engine_name);
+        // writeln!(engine.stdin, "stop").expect("Failed to write to stdin");
 
         depth += 1;
 
