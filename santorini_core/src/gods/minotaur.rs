@@ -207,7 +207,7 @@ pub fn minotaur_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let move_from = BitBoard::as_mask(action.move_from_position());
     let move_to = BitBoard::as_mask(action.move_to_position());
-    board.workers[board.current_player as usize] ^= move_from | move_to;
+    board.worker_xor(board.current_player, move_to | move_from);
 
     if action.get_is_winning() {
         board.set_winner(board.current_player);
@@ -215,14 +215,11 @@ pub fn minotaur_make_move(board: &mut BoardState, action: GenericMove) {
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_height_for_worker(build_mask);
-    board.height_map[build_height] |= build_mask;
+    board.build_up(build_position);
 
     if let Some(push_to) = action.push_to_position() {
         let push_mask = BitBoard::as_mask(push_to);
-        board.workers[1 - board.current_player as usize] ^= move_to | push_mask;
+        board.worker_xor(!board.current_player, move_to | push_mask);
     }
 }
 
@@ -230,22 +227,19 @@ pub fn minotaur_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let move_from = BitBoard::as_mask(action.move_from_position());
     let move_to = BitBoard::as_mask(action.move_to_position());
-    board.workers[board.current_player as usize] ^= move_from | move_to;
+    board.worker_xor(board.current_player, move_to | move_from);
 
     if action.get_is_winning() {
-        board.unset_winner();
+        board.unset_winner(board.current_player);
         return;
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_true_height(build_mask);
-    board.height_map[build_height - 1] ^= build_mask;
+    board.unbuild(build_position);
 
     if let Some(push_to) = action.push_to_position() {
         let push_mask = BitBoard::as_mask(push_to);
-        board.workers[1 - board.current_player as usize] ^= move_to | push_mask;
+        board.worker_xor(!board.current_player, move_to | push_mask);
     }
 }
 

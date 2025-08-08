@@ -170,7 +170,7 @@ fn atlas_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAct
 fn atlas_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.get_is_winning() {
         board.set_winner(board.current_player);
@@ -178,38 +178,28 @@ fn atlas_make_move(board: &mut BoardState, action: GenericMove) {
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let old_build_height = action.old_build_height() as usize;
     if action.is_dome_build() {
-        for i in old_build_height..4 {
-            board.height_map[i] ^= build_mask;
-        }
+        board.dome_up(build_position);
     } else {
-        board.height_map[old_build_height] ^= build_mask;
+        board.build_up(build_position);
     }
 }
 
 fn atlas_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.get_is_winning() {
-        board.unset_winner();
+        board.unset_winner(board.current_player);
         return;
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let old_build_height = action.old_build_height() as usize;
     if action.is_dome_build() {
-        for i in old_build_height..4 {
-            board.height_map[i] ^= build_mask;
-        }
+        board.undome(build_position, action.old_build_height() as usize);
     } else {
-        board.height_map[old_build_height] ^= build_mask;
+        board.unbuild(build_position);
     }
 }
 

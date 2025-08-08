@@ -147,7 +147,7 @@ pub fn athena_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
 pub fn athena_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.get_is_winning() {
         board.set_winner(board.current_player);
@@ -155,28 +155,22 @@ pub fn athena_make_move(board: &mut BoardState, action: GenericMove) {
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_height_for_worker(build_mask);
-    board.height_map[build_height] |= build_mask;
+    board.build_up(build_position);
     board.flip_worker_can_climb(!board.current_player, action.get_did_climb_change())
 }
 
 pub fn athena_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.get_is_winning() {
-        board.unset_winner();
+        board.unset_winner(board.current_player);
         return;
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_true_height(build_mask);
-    board.height_map[build_height - 1] ^= build_mask;
+    board.unbuild(build_position);
     board.flip_worker_can_climb(!board.current_player, action.get_did_climb_change())
 }
 

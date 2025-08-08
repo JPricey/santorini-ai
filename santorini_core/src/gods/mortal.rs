@@ -1,9 +1,20 @@
 use crate::{
-    bitboard::BitBoard, board::{BoardState, NEIGHBOR_MAP}, build_god_power, gods::{
+    bitboard::BitBoard,
+    board::{BoardState, NEIGHBOR_MAP},
+    build_god_power,
+    gods::{
+        FullAction, GodName, GodPower,
         generic::{
-            GenericMove, MoveData, MoveGenFlags, MoveScore, ScoredMove, CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES, GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, IMPROVER_BUILD_HEIGHT_SCORES, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, WORKER_HEIGHT_SCORES
-        }, FullAction, GodName, GodPower
-    }, player::Player, square::Square
+            CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
+            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
+            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
+            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
+            NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
+            WORKER_HEIGHT_SCORES,
+        },
+    },
+    player::Player,
+    square::Square,
 };
 
 use super::PartialAction;
@@ -111,35 +122,27 @@ pub fn mortal_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<F
 pub fn mortal_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.get_is_winning() {
         board.set_winner(board.current_player);
         return;
     }
 
-    let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_height_for_worker(build_mask);
-    board.height_map[build_height] |= build_mask;
+    board.build_up(action.build_position());
 }
 
 pub fn mortal_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.get_is_winning() {
-        board.unset_winner();
+        board.unset_winner(board.current_player);
         return;
     }
 
-    let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_true_height(build_mask);
-    board.height_map[build_height - 1] ^= build_mask;
+    board.unbuild(action.build_position());
 }
 
 fn mortal_move_gen<const F: MoveGenFlags>(

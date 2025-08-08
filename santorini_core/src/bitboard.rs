@@ -160,7 +160,7 @@ impl BitboardOps for BitBoard {
 pub struct PanicBitboard {}
 
 impl BitboardOps for PanicBitboard {
-    fn and(self, other: BitBoard) -> BitBoard {
+    fn and(self, _other: BitBoard) -> BitBoard {
         unreachable!()
     }
 }

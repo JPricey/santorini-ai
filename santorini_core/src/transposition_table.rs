@@ -5,12 +5,11 @@ use std::{
 
 use crate::{
     gods::{GodName, generic::GenericMove},
+    hashing::{HashType, compute_hash_from_scratch},
     search::WINNING_SCORE_BUFFER,
 };
 
 use super::{board::BoardState, search::Hueristic};
-
-pub type HashCodeType = u64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SearchScoreType {
@@ -43,7 +42,7 @@ impl Default for TTValue {
 
 #[derive(Clone, Default, Debug)]
 pub struct TTEntry {
-    pub hash_code: HashCodeType,
+    pub hash_code: HashType,
     pub value: TTValue,
     // pub board: BoardState,
 }
@@ -79,19 +78,26 @@ pub struct TranspositionTable {
     pub god2: GodName,
 }
 
-const TABLE_SIZE: HashCodeType = 999_983;
+const TABLE_SIZE: HashType = 999_983;
 // const TABLE_SIZE: HashCodeType = 5_000_011;
 // const TABLE_SIZE: HashCodeType = 10_000_019;
 // const TABLE_SIZE: HashCodeType = 22_633_363; // 1 GB
 // const TABLE_SIZE: HashCodeType = 100_000_007; // too big
 
-fn hash_obj<T>(obj: T) -> u64
+fn _hash_obj<T>(obj: T) -> u64
 where
     T: Hash,
 {
     let mut hasher = DefaultHasher::new();
     obj.hash(&mut hasher);
     hasher.finish()
+}
+
+fn hash_board(board: &BoardState) -> HashType {
+    debug_assert_eq!(board.hash, compute_hash_from_scratch(board));
+    board.hash
+    // _hash_obj(board)
+    // compute_hash_from_scratch(board)
 }
 
 #[derive(Clone, Debug, Default)]
@@ -151,7 +157,7 @@ impl TranspositionTable {
         current_eval: Hueristic,
         ply: usize,
     ) {
-        let hash_code = hash_obj(state);
+        let hash_code = hash_board(state);
         let destination = self.get_key(hash_code);
 
         let new_entry = TTEntry {
@@ -182,7 +188,7 @@ impl TranspositionTable {
         current_eval: Hueristic,
         ply: usize,
     ) {
-        let hash_code = hash_obj(state);
+        let hash_code = hash_board(state);
         let destination = self.get_key(hash_code);
 
         let old_entry = &mut self.entries[destination];
@@ -213,7 +219,7 @@ impl TranspositionTable {
     }
 
     pub fn fetch(&mut self, state: &BoardState, ply: usize) -> Option<TTValue> {
-        let hash_code = hash_obj(state);
+        let hash_code = hash_board(state);
         let destination = self.get_key(hash_code);
 
         let entry = &self.entries[destination];

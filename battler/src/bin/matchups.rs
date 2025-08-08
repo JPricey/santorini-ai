@@ -7,7 +7,7 @@ use santorini_core::{
     player::Player,
 };
 
-const SECS_PER_MOVE: f32 = 30.0;
+const SECS_PER_MOVE: f32 = 0.2;
 
 fn play_match(engine: &mut EngineThreadWrapper, god1: GodName, god2: GodName) -> Player {
     let mut game_state = FullGameState::new_basic_state(god1, god2);
@@ -96,7 +96,7 @@ fn print_results(results: &Vec<MatchupResult>) {
 
 pub fn main() {
     let banned_gods = vec![
-        GodName::Mortal,
+        // GodName::Mortal,
     ];
 
     let mut engine = EngineThreadWrapper::new();

@@ -220,6 +220,7 @@ where
 
     let start_time = Instant::now();
     let mut root_board = root_state.board.clone();
+    root_board.reset_hash();
     let mut search_state = SearchState::default();
 
     if root_board.get_winner().is_some() {
@@ -227,7 +228,7 @@ where
     }
 
     let starting_depth = {
-        if let Some(tt_entry) = search_context.tt.fetch(&root_state.board, 0)
+        if let Some(tt_entry) = search_context.tt.fetch(&root_board, 0)
             && tt_entry.best_action != GenericMove::NULL_MOVE
         {
             let mut best_child_state = root_board.clone();
@@ -245,9 +246,9 @@ where
             search_state.best_move = Some(new_best_move.clone());
             (search_context.new_best_move_callback)(new_best_move);
             // tt_entry.search_depth + 1
-            2
+            1
         } else {
-            2
+            1
         }
     } as usize;
 
@@ -467,6 +468,12 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
+    // eprintln!(
+    //     "{}: Starting search at ply {ply}, depth {remaining_depth}, alpha {alpha}, beta {beta}",
+    //     timestamp_string()
+    // );
+    // state.validate();
+
     let (active_god, other_god) = match state.current_player {
         Player::One => (p1_god, p2_god),
         Player::Two => (p2_god, p1_god),
@@ -863,7 +870,8 @@ where
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
         if state.height_map[0].count_ones() <= 1 {
-            for base in state.get_all_permutations::<false>() {
+            for mut base in state.get_all_permutations::<false>() {
+                base.reset_hash();
                 search_context.tt.conditionally_insert(
                     &base,
                     GenericMove::NULL_MOVE,

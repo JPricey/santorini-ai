@@ -143,10 +143,10 @@ pub fn apollo_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<Fu
 pub fn apollo_make_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = action.into();
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.did_swap() {
-        board.workers[1 - (board.current_player as usize)] ^= worker_move_mask;
+        board.worker_xor(!board.current_player, worker_move_mask);
     }
 
     if action.get_is_winning() {
@@ -155,31 +155,25 @@ pub fn apollo_make_move(board: &mut BoardState, action: GenericMove) {
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_height_for_worker(build_mask);
-    board.height_map[build_height] |= build_mask;
+    board.build_up(build_position);
 }
 
 pub fn apollo_unmake_move(board: &mut BoardState, action: GenericMove) {
     let action: GodMove = unsafe { std::mem::transmute(action) };
     let worker_move_mask = action.move_mask();
-    board.workers[board.current_player as usize] ^= worker_move_mask;
+    board.worker_xor(board.current_player, worker_move_mask);
 
     if action.did_swap() {
-        board.workers[1 - (board.current_player as usize)] ^= worker_move_mask;
+        board.worker_xor(!board.current_player, worker_move_mask);
     }
 
     if action.get_is_winning() {
-        board.unset_winner();
+        board.unset_winner(board.current_player);
         return;
     }
 
     let build_position = action.build_position();
-    let build_mask = BitBoard::as_mask(build_position);
-
-    let build_height = board.get_true_height(build_mask);
-    board.height_map[build_height - 1] ^= build_mask;
+    board.unbuild(build_position);
 }
 
 fn apollo_move_gen<const F: MoveGenFlags>(

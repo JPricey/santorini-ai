@@ -6,6 +6,10 @@ use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
     gods::{GameStateWithAction, GodName, GodPower},
+    hashing::{
+        HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
+        compute_hash_from_scratch,
+    },
     player::Player,
     square::Square,
 };
@@ -204,13 +208,25 @@ pub const HEIGHT_RESTRICTION_SECTION_MASK: BitBoard = BitBoard(0b11 << 30);
  * bit 31 represents the amount that player 2 can move up on their next turn
  * move of the time these will be "11", they only change to 0 when playing against athena
  */
-#[derive(Clone, PartialEq, Eq, Hash, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct BoardState {
     pub current_player: Player,
     // height_map[L - 1][s] represents if square s is GTE L
     pub height_map: [BitBoard; 4],
     pub workers: [BitBoard; 2],
+
+    pub hash: HashType,
 }
+
+impl PartialEq for BoardState {
+    fn eq(&self, other: &Self) -> bool {
+        self.current_player == other.current_player
+            && self.height_map == other.height_map
+            && self.workers == other.workers
+    }
+}
+
+impl Eq for BoardState {}
 
 impl BoardState {
     pub fn new_basic_state() -> Self {
@@ -219,11 +235,17 @@ impl BoardState {
         result.workers[1].0 |= 1 << 17;
         result.workers[0].0 |= 1 << 11;
         result.workers[0].0 |= 1 << 13;
+        result.reset_hash();
         result
+    }
+
+    pub fn reset_hash(&mut self) {
+        self.hash = compute_hash_from_scratch(self);
     }
 
     pub fn flip_current_player(&mut self) {
         self.current_player = !self.current_player;
+        self.hash ^= ZORBRIST_PLAYER_TWO;
     }
 
     pub fn get_height_for_worker(&self, worker_mask: BitBoard) -> usize {
@@ -251,11 +273,19 @@ impl BoardState {
 
     pub fn set_winner(&mut self, player: Player) {
         debug_assert_eq!(self.height_map[0].0 as usize >> WINNER_MASK_OFFSET, 0);
-        self.height_map[0] |= PLAYER_TO_WINNER_LOOKUP[player as usize];
+        self.height_map[0] ^= PLAYER_TO_WINNER_LOOKUP[player as usize];
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[0][WINNER_MASK_OFFSET + player as usize];
     }
 
-    pub fn unset_winner(&mut self) {
-        self.height_map[0] &= ANTI_WINNER_MASK;
+    pub fn unset_winner(&mut self, player: Player) {
+        let player_bit = WINNER_MASK_OFFSET + player as usize;
+        debug_assert_eq!(
+            self.height_map[0].0 as usize & 1 << player_bit,
+            1 << player_bit
+        );
+
+        self.height_map[0] ^= PLAYER_TO_WINNER_LOOKUP[player as usize];
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[0][player_bit];
     }
 
     pub fn get_worker_can_climb(&self, player: Player) -> bool {
@@ -265,14 +295,16 @@ impl BoardState {
     }
 
     pub fn flip_worker_can_climb(&mut self, player: Player, bit: bool) {
-        self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX] ^=
-            BitBoard((bit as u32) << (HEIGHT_RESTRICTION_BASE_OFFSET + (player as usize)))
+        if bit {
+            let idx = HEIGHT_RESTRICTION_BASE_OFFSET + (player as usize);
+            self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX] ^= BitBoard(1 << idx);
+            self.hash ^= ZORBRIST_HEIGHT_RANDOMS[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX][idx];
+        }
     }
 
     pub fn unset_worker_can_climb(&mut self) {
-        self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX] ^= self.height_map
-            [HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX]
-            & HEIGHT_RESTRICTION_SECTION_MASK;
+        self.flip_worker_can_climb(Player::One, self.get_worker_can_climb(Player::One));
+        self.flip_worker_can_climb(Player::Two, self.get_worker_can_climb(Player::Two));
     }
 
     pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {
@@ -319,6 +351,66 @@ impl BoardState {
         self.height_map[3]
     }
 
+    pub fn worker_xor(&mut self, player: Player, xor: BitBoard) {
+        self.workers[player as usize] ^= xor;
+        for pos in xor {
+            self.hash ^= ZORBRIST_WORKER_RANDOMS[player as usize][pos as usize];
+        }
+    }
+
+    pub fn build_up(&mut self, build_position: Square) {
+        let build_mask = BitBoard::as_mask(build_position);
+        let current_height = self.get_height_for_worker(build_mask);
+        self.height_map[current_height] ^= build_mask;
+
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+    }
+
+    pub fn double_build_up(&mut self, build_position: Square) {
+        let build_mask = BitBoard::as_mask(build_position);
+        let current_height = self.get_height_for_worker(build_mask);
+        self.height_map[current_height] ^= build_mask;
+        self.height_map[current_height + 1] ^= build_mask;
+
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height + 1][build_position as usize];
+    }
+
+    pub fn dome_up(&mut self, build_position: Square) {
+        let build_mask = BitBoard::as_mask(build_position);
+        let current_height = self.get_height_for_worker(build_mask);
+        for h in current_height..4 {
+            self.height_map[h] ^= build_mask;
+            self.hash ^= ZORBRIST_HEIGHT_RANDOMS[h][build_position as usize];
+        }
+    }
+
+    pub fn unbuild(&mut self, build_position: Square) {
+        let build_mask = BitBoard::as_mask(build_position);
+        let current_height = self.get_true_height(build_mask) - 1;
+        self.height_map[current_height] ^= build_mask;
+
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+    }
+
+    pub fn double_unbuild(&mut self, build_position: Square) {
+        let build_mask = BitBoard::as_mask(build_position);
+        let current_height = self.get_true_height(build_mask) - 1;
+        self.height_map[current_height] ^= build_mask;
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+
+        self.height_map[current_height - 1] ^= build_mask;
+        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height - 1][build_position as usize];
+    }
+
+    pub fn undome(&mut self, build_position: Square, final_height: usize) {
+        let build_mask = BitBoard::as_mask(build_position);
+        for h in final_height..4 {
+            self.height_map[h] ^= build_mask;
+            self.hash ^= ZORBRIST_HEIGHT_RANDOMS[h][build_position as usize];
+        }
+    }
+
     pub fn print_for_debugging(&self) {
         for h in 0..4 {
             eprintln!("{h}: {}", self.height_map[h]);
@@ -326,32 +418,35 @@ impl BoardState {
         }
     }
 
-    pub fn confirm_valid(&self) -> Option<usize> {
-        for h in 1..4 {
-            let height = self.height_map[h];
-            let lower = self.height_map[h - 1];
-
-            if (height & !lower).is_not_empty() {
-                return Some(h);
-            }
-        }
-
-        return None;
+    pub fn validate(&self) {
+        self.validation_err().unwrap()
     }
 
-    pub fn validate_heights(&self) {
+    pub fn validation_err(&self) -> Result<(), String> {
         for h in 1..4 {
-            let height = self.height_map[h];
-            let lower = self.height_map[h - 1];
+            let height = self.height_map[h] & BitBoard::MAIN_SECTION_MASK;
+            let lower = self.height_map[h - 1] & BitBoard::MAIN_SECTION_MASK;
 
             if (height & !lower).is_not_empty() {
                 for h in 0..4 {
                     eprintln!("{h}: {}", self.height_map[h]);
                 }
 
-                panic!("Board has corrupted state on height {h}");
+                return Err(format!("Board has corrupted state on height {h}"));
             }
         }
+
+        if self.hash != compute_hash_from_scratch(self) {
+            let diff = self.hash ^ compute_hash_from_scratch(self);
+            return Err(format!(
+                "Hash mismatch: expected {:064b}, got {:064b} (diff: {:064b})",
+                compute_hash_from_scratch(self),
+                self.hash,
+                diff
+            ));
+        }
+
+        Ok(())
     }
 
     pub fn print_to_console(&self) {
