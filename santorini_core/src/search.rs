@@ -380,6 +380,11 @@ where
     }
     let alpha_orig = alpha;
 
+    if q_depth > 6 {
+        nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
+        return nnue_acc.evaluate();
+    }
+
     // if q_depth > search_state.max_q_depth {
     //     search_state.max_q_depth = q_depth;
     //     eprintln!("New max q depth: {}", q_depth);
@@ -430,6 +435,7 @@ where
     if eval >= beta {
         return beta;
     }
+
     alpha = alpha.max(eval);
 
     let mut best_score = eval;
@@ -483,15 +489,9 @@ where
             SearchScoreType::Exact
         };
 
-        search_context.tt.insert(
-            state,
-            best_action,
-            0,
-            tt_score_type,
-            best_score,
-            eval,
-            ply,
-        );
+        search_context
+            .tt
+            .insert(state, best_action, 0, tt_score_type, best_score, eval, ply);
     }
 
     best_score
@@ -518,7 +518,7 @@ where
     //     "{}: Starting search at ply {ply}, depth {remaining_depth}, alpha {alpha}, beta {beta}",
     //     timestamp_string()
     // );
-    state.validate();
+    // state.validate();
 
     let (active_god, other_god) = match state.current_player {
         Player::One => (p1_god, p2_god),

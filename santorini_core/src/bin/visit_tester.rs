@@ -83,10 +83,10 @@ fn run_all_scenarios(god_name: GodName) -> TestSummary {
 
     for (i, (state_str, depth)) in SEARCH_TEST_SCENARIOS.iter().cloned().enumerate() {
         let mut game_state = FullGameState::try_from(state_str).unwrap();
-        game_state.gods[0] = god_name.to_power();
-        game_state.gods[1] = god_name.to_power();
+        game_state.gods[0] = GodName::Apollo.to_power();
+        game_state.gods[1] = GodName::Hephaestus.to_power();
 
-        let depth = (depth as i32 - 2).max(6) as usize;
+        let depth = (depth as i32 - 6).max(6) as usize;
 
         tt.reset();
         let (result, duration) = run_scenario(&mut tt, &game_state, depth);
@@ -135,3 +135,4 @@ pub fn main() {
 
 // cargo run -p santorini_core --bin visit_tester --release
 // cargo run -p santorini_core --bin visit_tester --release -- -g artemis
+// cargo run -p santorini_core --bin visit_tester --release -- -g apollo
