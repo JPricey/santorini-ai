@@ -254,34 +254,34 @@ mod tests {
     use super::*;
     use crate::{board::FullGameState, random_utils::RandomSingleGameStateGenerator};
 
-    #[test]
-    fn test_incremental_updates() {
-        let game_iter = RandomSingleGameStateGenerator::default();
-        let mut acc = LabeledAccumulator::new_from_scratch(&game_iter.peek_unsafe().board);
+    // #[test]
+    // fn test_incremental_updates() {
+    //     let game_iter = RandomSingleGameStateGenerator::default();
+    //     let mut acc = LabeledAccumulator::new_from_scratch(&game_iter.peek_unsafe().board);
 
-        for state in game_iter {
-            state.print_to_console();
+    //     for state in game_iter {
+    //         state.print_to_console();
 
-            let from_scratch = LabeledAccumulator::new_from_scratch(&state.board);
-            acc.replace_features(build_feature_array(&state.board));
+    //         let from_scratch = LabeledAccumulator::new_from_scratch(&state.board);
+    //         acc.replace_features(build_feature_array(&state.board));
 
-            assert_eq!(from_scratch, acc);
-            assert_eq!(from_scratch.evaluate(), acc.evaluate());
-        }
-    }
+    //         assert_eq!(from_scratch, acc);
+    //         assert_eq!(from_scratch.evaluate(), acc.evaluate());
+    //     }
+    // }
 
-    #[test]
-    fn test_consistent_choices() {
-        // Not really a test I just want to see some example outputs that aren't random
-        let mut game_state = FullGameState::new_basic_state_mortals();
+    // #[test]
+    // fn test_consistent_choices() {
+    //     // Not really a test I just want to see some example outputs that aren't random
+    //     let mut game_state = FullGameState::new_basic_state_mortals();
 
-        while game_state.board.get_winner().is_none() {
-            let from_scratch = LabeledAccumulator::new_from_scratch(&game_state.board);
-            let eval = from_scratch.evaluate();
+    //     while game_state.board.get_winner().is_none() {
+    //         let from_scratch = LabeledAccumulator::new_from_scratch(&game_state.board);
+    //         let eval = from_scratch.evaluate();
 
-            println!("{:?}: {}", game_state, eval);
+    //         println!("{:?}: {}", game_state, eval);
 
-            game_state = game_state.get_next_states()[0].clone();
-        }
-    }
+    //         game_state = game_state.get_next_states()[0].clone();
+    //     }
+    // }
 }

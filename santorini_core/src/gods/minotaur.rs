@@ -682,9 +682,9 @@ mod tests {
                 let mut board = orig_board.clone();
                 let action = action.action;
                 minotaur.make_move(&mut board, action);
-                board.validate_heights();
+                board.validate();
                 minotaur.unmake_move(&mut board, action);
-                board.validate_heights();
+                board.validate();
                 assert_eq!(board, orig_board);
             }
         }

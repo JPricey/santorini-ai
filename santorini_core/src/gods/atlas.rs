@@ -608,9 +608,9 @@ mod tests {
                 let mut board = orig_board.clone();
                 let action = action.action;
                 atlas.make_move(&mut board, action);
-                board.validate_heights();
+                board.validate();
                 atlas.unmake_move(&mut board, action);
-                board.validate_heights();
+                board.validate();
                 assert_eq!(board, orig_board);
             }
         }

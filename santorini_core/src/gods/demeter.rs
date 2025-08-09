@@ -631,9 +631,9 @@ mod tests {
                 let mut board = orig_board.clone();
                 let action = action.action;
                 demeter.make_move(&mut board, action);
-                board.validate_heights();
+                board.validate();
                 demeter.unmake_move(&mut board, action);
-                board.validate_heights();
+                board.validate();
                 assert_eq!(board, orig_board);
             }
         }

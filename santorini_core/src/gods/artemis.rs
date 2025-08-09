@@ -28,6 +28,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
     let current_player_idx = player as usize;
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     let enemy_workers = board.workers[1 - current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    let non_enemy_workers = !enemy_workers;
     if F & MATE_ONLY != 0 {
         current_workers &= board.at_least_level_1()
     }
@@ -35,10 +36,9 @@ fn artemis_move_gen<const F: MoveGenFlags>(
     let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
     let all_workers_mask = board.workers[0] | board.workers[1];
 
+    let starting_exactly_level_1 = board.exactly_level_1();
     let starting_exactly_level_2 = board.exactly_level_2();
     let starting_exactly_level_3 = board.exactly_level_3();
-
-    let mut height_map_clone = board.height_map.clone();
 
     let can_worker_climb = board.get_worker_can_climb(player);
 
@@ -48,8 +48,13 @@ fn artemis_move_gen<const F: MoveGenFlags>(
         // }
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
-        let other_own_workers =
+        let other_checkable_workers =
             (current_workers ^ moving_worker_start_mask) & board.at_least_level_1();
+        let mut other_checkable_touching = BitBoard::EMPTY;
+        for o in other_checkable_workers {
+            other_checkable_touching |= NEIGHBOR_MAP[o as usize];
+            other_checkable_touching |= BitBoard::as_mask(o);
+        }
 
         let mut valid_destinations = !(all_workers_mask | board.at_least_level_4());
 
@@ -120,7 +125,12 @@ fn artemis_move_gen<const F: MoveGenFlags>(
         worker_moves &= valid_destinations;
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let buildable_squares = !(non_selected_workers | board.height_map[3]);
+        let mut buildable_squares = !(non_selected_workers | board.height_map[3]);
+        // if F & GENERATE_THREATS_ONLY != 0 {
+        //     if starting_exactly_level_3.is_empty() {
+        //         buildable_squares &= starting_exactly_level_2;
+        //     }
+        // }
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
@@ -137,49 +147,42 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
             for worker_build_pos in worker_builds {
                 let mut is_check = false;
+                let build_mask = BitBoard::as_mask(worker_build_pos);
 
                 if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
-                    let build_mask = BitBoard::as_mask(worker_build_pos);
-                    let build_height = board.get_height(worker_build_pos);
-                    height_map_clone[build_height] ^= build_mask;
+                    let final_l3 = (starting_exactly_level_3 & !build_mask)
+                        | (starting_exactly_level_2 & build_mask);
+                    let final_l2 = (starting_exactly_level_2 & !build_mask)
+                        | (starting_exactly_level_1 & build_mask);
 
-                    let mut invalid_destinations = moving_worker_end_mask;
-
-                    let mut moves_1d = NEIGHBOR_MAP[moving_worker_end_pos as usize]
-                        & !height_map_clone[std::cmp::min(3, worker_end_height + 1)]
-                        | moving_worker_end_mask;
-                    // println!("moves1d {moves_1d}");
-
-                    // println!("other_workers {other_own_workers}");
-                    for other_worker_pos in other_own_workers {
-                        let other_worker_mask = BitBoard::as_mask(other_worker_pos);
-                        let other_worker_height = board.get_height(other_worker_pos);
-                        // println!("other worker: {other_worker_height}");
-                        let other_worker_contribution = NEIGHBOR_MAP[other_worker_pos as usize]
-                            & !height_map_clone[std::cmp::min(3, other_worker_height + 1)]
-                            | other_worker_mask;
-                        moves_1d |= other_worker_contribution;
-
-                        // println!("other other_worker_contribution: {other_worker_contribution}");
-
-                        invalid_destinations |= other_worker_mask;
+                    let mut final_touching_checks = BitBoard::EMPTY;
+                    for s in final_l3 {
+                        final_touching_checks |= NEIGHBOR_MAP[s as usize];
                     }
-                    moves_1d &= !enemy_workers;
 
-                    // println!("moves1d {moves_1d}");
+                    let mut final_touching = other_checkable_touching;
+                    if worker_end_height >= 1 {
+                        final_touching |= NEIGHBOR_MAP[moving_worker_end_pos as usize];
+                        final_touching |= moving_worker_end_mask;
+                    }
 
-                    let moves_1d_level_2 = moves_1d & (height_map_clone[1] & !height_map_clone[2]);
-                    // println!("moves_1d_level_2 {moves_1d_level_2}");
-
-                    let winning_moves =
-                        move_all_workers_one_include_original_workers(moves_1d_level_2)
-                            & height_map_clone[2]
-                            & !(height_map_clone[3] | invalid_destinations);
-
-                    // println!("winning moves: {winning_moves}");
-
-                    is_check = winning_moves.is_not_empty();
-                    height_map_clone[build_height] ^= build_mask;
+                    if (final_touching & final_touching_checks & non_enemy_workers & final_l2)
+                        .is_not_empty()
+                    {
+                        // eprintln!("~~~~");
+                        // eprintln!("start l2: {}", starting_exactly_level_2);
+                        // eprintln!("final l2: {}", final_l2);
+                        // eprintln!("start l3: {}", starting_exactly_level_3);
+                        // eprintln!("final l3: {}", final_l3);
+                        // eprintln!("final touching: {}", final_touching);
+                        // eprintln!("final touching checks: {}", final_touching_checks);
+                        // eprintln!("non non_enemy_workers: {}", non_enemy_workers);
+                        // eprintln!(
+                        //     "all: {}",
+                        //     final_touching & final_touching_checks & non_enemy_workers & final_l2
+                        // );
+                        is_check = true;
+                    }
                 }
 
                 if F & GENERATE_THREATS_ONLY != 0 && !is_check {
