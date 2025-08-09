@@ -78,11 +78,11 @@ pub struct TranspositionTable {
     pub god2: GodName,
 }
 
-const TABLE_SIZE: HashType = 999_983;
-// const TABLE_SIZE: HashCodeType = 5_000_011;
-// const TABLE_SIZE: HashCodeType = 10_000_019;
-// const TABLE_SIZE: HashCodeType = 22_633_363; // 1 GB
-// const TABLE_SIZE: HashCodeType = 100_000_007; // too big
+// const TABLE_SIZE: HashType = 999_983;
+const TABLE_SIZE: HashType = 5_000_011;
+// const TABLE_SIZE: HashType = 10_000_019;
+// const TABLE_SIZE: HashType = 22_633_363; // 1 GB
+// const TABLE_SIZE: HashType = 100_000_007; // too big
 
 fn _hash_obj<T>(obj: T) -> u64
 where
