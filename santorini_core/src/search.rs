@@ -419,16 +419,16 @@ where
         }
         child_moves = active_god.get_blocker_moves(state, state.current_player, blocker_board);
     } else {
-        // If qs is going on for too long, just return the current eval
         nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
         eval = nnue_acc.evaluate();
 
+        return eval.min(beta);
         // TODO: test this
-        if q_depth >= 2 {
-            return eval;
-        }
+        // if q_depth >= 2 {
+        //     return eval;
+        // }
 
-        child_moves = active_god.get_improver_moves(state, state.current_player);
+        // child_moves = active_god.get_improver_moves(state, state.current_player);
     }
 
     // check standing pat
@@ -813,8 +813,9 @@ where
 
             // Stop considering non-improvers eventually
             if ply >= 2
-                && next_depth <= 4
-                && move_idx > 128
+                && next_depth <= 0
+                && key_squares.is_none()
+                && move_idx > 12
                 && move_picker.stage == MovePickerStage::YieldNonImprovers
             // || (ply >= 4 && next_depth < 2 && move_idx >= 8)
             // && !improving
