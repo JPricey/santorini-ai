@@ -518,7 +518,7 @@ where
     //     "{}: Starting search at ply {ply}, depth {remaining_depth}, alpha {alpha}, beta {beta}",
     //     timestamp_string()
     // );
-    // state.validate();
+    state.validate();
 
     let (active_god, other_god) = match state.current_player {
         Player::One => (p1_god, p2_god),

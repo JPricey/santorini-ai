@@ -39,7 +39,8 @@ pub struct RandomSingleGameStateGenerator {
 }
 
 impl RandomSingleGameStateGenerator {
-    pub fn new(initial_state: FullGameState) -> Self {
+    pub fn new(mut initial_state: FullGameState) -> Self {
+        initial_state.board.reset_hash();
         RandomSingleGameStateGenerator {
             current_state: Some(initial_state),
         }
