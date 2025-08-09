@@ -1,11 +1,21 @@
 use crate::{
-    bitboard::BitBoard, board::{BoardState, NEIGHBOR_MAP}, build_god_power, gods::{
+    bitboard::BitBoard,
+    board::{BoardState, NEIGHBOR_MAP},
+    build_god_power,
+    gods::{
+        GodName, GodPower,
         generic::{
-            GenericMove, MoveGenFlags, ScoredMove, CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, NON_IMPROVER_SENTINEL_SCORE, STOP_ON_MATE
-        }, mortal::{
-            mortal_make_move, mortal_move_to_actions, mortal_score_moves, mortal_stringify, mortal_unmake_move, MortalMove
-        }, GodName, GodPower
-    }, player::Player, utils::move_all_workers_one_include_original_workers
+            CHECK_SENTINEL_SCORE, GENERATE_THREATS_ONLY, GenericMove, IMPROVER_SENTINEL_SCORE,
+            INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags,
+            NON_IMPROVER_SENTINEL_SCORE, STOP_ON_MATE, ScoredMove,
+        },
+        mortal::{
+            MortalMove, mortal_make_move, mortal_move_to_actions, mortal_score_moves,
+            mortal_stringify, mortal_unmake_move,
+        },
+    },
+    player::Player,
+    utils::move_all_workers_one_include_original_workers,
 };
 
 type GodMove = MortalMove;
@@ -113,9 +123,6 @@ fn artemis_move_gen<const F: MoveGenFlags>(
         let buildable_squares = !(non_selected_workers | board.height_map[3]);
 
         for moving_worker_end_pos in worker_moves.into_iter() {
-            // if moving_worker_end_pos != Square::C5 {
-            //     continue;
-            // }
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height(moving_worker_end_pos);
 
@@ -129,11 +136,8 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                // if worker_build_pos != Square::D4 {
-                //     continue;
-                // }
-
                 let mut is_check = false;
+
                 if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                     let build_mask = BitBoard::as_mask(worker_build_pos);
                     let build_height = board.get_height(worker_build_pos);

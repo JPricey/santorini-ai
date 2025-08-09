@@ -22,6 +22,7 @@ type EachMoveCallback = Arc<dyn Fn(BestSearchResult) + Send + Sync>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EngineThreadState {
+    Starting,
     Pending,
     Running,
 }
@@ -68,7 +69,7 @@ type EngineStaticSearchTerminator = NoopSearchTerminator;
 impl EngineThreadWrapper {
     pub fn new() -> Self {
         let (sender, receiver) = channel::<EngineThreadMessage>();
-        let worker_state = Arc::new(Mutex::new(EngineThreadState::Pending));
+        let worker_state = Arc::new(Mutex::new(EngineThreadState::Starting));
 
         let engine_thread_ctx = EngineThreadCtx {
             worker_state: worker_state.clone(),

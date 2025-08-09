@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use santorini_core::{
     board::FullGameState,
@@ -100,6 +100,7 @@ pub fn main() {
     ];
 
     let mut engine = EngineThreadWrapper::new();
+    engine.spin_for_pending_state();
 
     let mut all_results = Vec::new();
 
