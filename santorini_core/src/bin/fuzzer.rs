@@ -162,8 +162,8 @@ fn check_state(root_state: &FullGameState) {
         let old_pos = old_only.lsb();
         let new_pos = new_only.lsb();
 
-        let old_height = board.get_height_for_worker(old_only);
-        let new_height = board.get_height_for_worker(new_only);
+        let old_height = board.get_height(old_pos);
+        let new_height = board.get_height(new_pos);
 
         let is_pan_falling_win = active_god.god_name == GodName::Pan
             && (old_height == 2 && new_height == 0 || old_height == 3 && new_height <= 1);

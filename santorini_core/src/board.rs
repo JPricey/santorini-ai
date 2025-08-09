@@ -1,6 +1,7 @@
 use core::panic;
 
 use colored::Colorize;
+use strum::IntoEnumIterator;
 
 use crate::{
     bitboard::BitBoard,
@@ -216,6 +217,7 @@ pub struct BoardState {
     pub workers: [BitBoard; 2],
 
     pub hash: HashType,
+    height_lookup: [u8; 25],
 }
 
 impl PartialEq for BoardState {
@@ -241,6 +243,9 @@ impl BoardState {
 
     pub fn reset_hash(&mut self) {
         self.hash = compute_hash_from_scratch(self);
+        for square in Square::iter() {
+            self.height_lookup[square as usize] = self._calculate_height(BitBoard::as_mask(square)) as u8;
+        }
     }
 
     pub fn flip_current_player(&mut self) {
@@ -248,18 +253,11 @@ impl BoardState {
         self.hash ^= ZORBRIST_PLAYER_TWO;
     }
 
-    pub fn get_height_for_worker(&self, worker_mask: BitBoard) -> usize {
-        (
-            (self.height_map[0] & worker_mask).0 << 0
-                | (self.height_map[1] & worker_mask).0 << 1
-                | (self.height_map[2] & worker_mask).0 << 2
-            // Worker can't be on dome height, so don't bother checking it
-            // | (self.height_map[3] & worker_mask) << 3
-        )
-        .count_ones() as usize
+    pub fn get_height(&self, position: Square) -> usize {
+        self.height_lookup[position as usize] as usize
     }
 
-    pub fn get_true_height(&self, position_mask: BitBoard) -> usize {
+    fn _calculate_height(&self, position_mask: BitBoard) -> usize {
         ((self.height_map[0] & position_mask).0 << 0
             | (self.height_map[1] & position_mask).0 << 1
             | (self.height_map[2] & position_mask).0 << 2
@@ -360,17 +358,18 @@ impl BoardState {
 
     pub fn build_up(&mut self, build_position: Square) {
         let build_mask = BitBoard::as_mask(build_position);
-        let current_height = self.get_height_for_worker(build_mask);
+        let current_height = self.get_height(build_position);
         self.height_map[current_height] ^= build_mask;
-
         self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+        self.height_lookup[build_position as usize] += 1;
     }
 
     pub fn double_build_up(&mut self, build_position: Square) {
         let build_mask = BitBoard::as_mask(build_position);
-        let current_height = self.get_height_for_worker(build_mask);
+        let current_height = self.get_height(build_position);
         self.height_map[current_height] ^= build_mask;
         self.height_map[current_height + 1] ^= build_mask;
+        self.height_lookup[build_position as usize] += 2;
 
         self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
         self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height + 1][build_position as usize];
@@ -378,29 +377,32 @@ impl BoardState {
 
     pub fn dome_up(&mut self, build_position: Square) {
         let build_mask = BitBoard::as_mask(build_position);
-        let current_height = self.get_height_for_worker(build_mask);
+        let current_height = self.get_height(build_position);
         for h in current_height..4 {
             self.height_map[h] ^= build_mask;
             self.hash ^= ZORBRIST_HEIGHT_RANDOMS[h][build_position as usize];
         }
+        self.height_lookup[build_position as usize] = 4;
     }
 
     pub fn unbuild(&mut self, build_position: Square) {
         let build_mask = BitBoard::as_mask(build_position);
-        let current_height = self.get_true_height(build_mask) - 1;
+        let current_height = self.get_height(build_position) - 1;
         self.height_map[current_height] ^= build_mask;
-
         self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+        self.height_lookup[build_position as usize] -= 1;
     }
 
     pub fn double_unbuild(&mut self, build_position: Square) {
         let build_mask = BitBoard::as_mask(build_position);
-        let current_height = self.get_true_height(build_mask) - 1;
+        let current_height = self.get_height(build_position) - 1;
         self.height_map[current_height] ^= build_mask;
         self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
 
         self.height_map[current_height - 1] ^= build_mask;
         self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height - 1][build_position as usize];
+
+        self.height_lookup[build_position as usize] -= 2;
     }
 
     pub fn undome(&mut self, build_position: Square, final_height: usize) {
@@ -409,6 +411,7 @@ impl BoardState {
             self.height_map[h] ^= build_mask;
             self.hash ^= ZORBRIST_HEIGHT_RANDOMS[h][build_position as usize];
         }
+        self.height_lookup[build_position as usize] = final_height as u8;
     }
 
     pub fn print_for_debugging(&self) {
@@ -456,12 +459,12 @@ impl BoardState {
             eprintln!("Player {:?} to play", self.current_player);
         }
 
-        for row in 0..5 {
+        for row in 0_usize..5 {
             let mut row_str = format!("{}", 5 - row);
-            for col in 0..5 {
+            for col in 0_usize..5 {
                 let pos = col + row * 5;
                 let mask = 1 << pos;
-                let height = self.get_true_height(BitBoard(1 << pos));
+                let height = self.get_height(pos.into());
 
                 let is_1 = self.workers[0].0 & mask > 0;
                 let is_2 = self.workers[1].0 & mask > 0;

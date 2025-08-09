@@ -32,7 +32,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
-        let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
+        let worker_starting_height = board.get_height(moving_worker_start_pos);
 
         let mut neighbor_check_if_builds = BitBoard::EMPTY;
         let mut check_if_avoid_builds_and_moves = BitBoard::EMPTY;
@@ -109,7 +109,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
             let mut check_if_avoid_builds =
                 check_if_avoid_builds_and_moves & !moving_worker_end_mask;
 
-            let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
+            let worker_end_height = board.get_height(moving_worker_end_pos);
 
             let mut worker_builds =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;

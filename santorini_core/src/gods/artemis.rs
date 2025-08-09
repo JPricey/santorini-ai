@@ -37,7 +37,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
         //     continue;
         // }
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
-        let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
+        let worker_starting_height = board.get_height(moving_worker_start_pos);
         let other_own_workers =
             (current_workers ^ moving_worker_start_mask) & board.at_least_level_1();
 
@@ -117,8 +117,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             //     continue;
             // }
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-
-            let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
+            let worker_end_height = board.get_height(moving_worker_end_pos);
 
             let mut worker_builds =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
@@ -137,7 +136,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                 let mut is_check = false;
                 if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
                     let build_mask = BitBoard::as_mask(worker_build_pos);
-                    let build_height = board.get_height_for_worker(build_mask);
+                    let build_height = board.get_height(worker_build_pos);
                     height_map_clone[build_height] ^= build_mask;
 
                     let mut invalid_destinations = moving_worker_end_mask;
@@ -150,7 +149,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     // println!("other_workers {other_own_workers}");
                     for other_worker_pos in other_own_workers {
                         let other_worker_mask = BitBoard::as_mask(other_worker_pos);
-                        let other_worker_height = board.get_height_for_worker(other_worker_mask);
+                        let other_worker_height = board.get_height(other_worker_pos);
                         // println!("other worker: {other_worker_height}");
                         let other_worker_contribution = NEIGHBOR_MAP[other_worker_pos as usize]
                             & !height_map_clone[std::cmp::min(3, other_worker_height + 1)]

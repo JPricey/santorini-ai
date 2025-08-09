@@ -4,7 +4,7 @@ use crate::bitboard::BitBoard;
 use crate::transmute_enum;
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, EnumIter)]
 #[rustfmt::skip]
 pub enum Square {
     A5, B5, C5, D5, E5,
@@ -15,6 +15,7 @@ pub enum Square {
 }
 use Square::*;
 use serde::{Deserialize, Serialize};
+use strum::EnumIter;
 
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

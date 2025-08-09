@@ -49,7 +49,7 @@ pub fn game_state_to_fen(state: &FullGameState) -> String {
 
     let mut result = String::new();
     for p in 0..NUM_SQUARES {
-        result += &board.get_true_height(BitBoard(1 << p)).to_string();
+        result += &board.get_height(p.into()).to_string();
     }
 
     result += "/";

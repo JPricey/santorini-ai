@@ -214,7 +214,7 @@ fn heph_move_gen<const F: MoveGenFlags>(
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
-        let worker_starting_height = board.get_height_for_worker(moving_worker_start_mask);
+        let worker_starting_height = board.get_height(moving_worker_start_pos);
 
         let mut neighbor_check_if_builds = BitBoard::EMPTY;
         let mut neighbor_check_if_double_builds = BitBoard::EMPTY;
@@ -256,8 +256,7 @@ fn heph_move_gen<const F: MoveGenFlags>(
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-
-            let worker_end_height = board.get_height_for_worker(moving_worker_end_mask);
+            let worker_end_height = board.get_height(moving_worker_end_pos);
 
             let mut worker_builds =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
@@ -369,20 +368,20 @@ fn heph_move_gen<const F: MoveGenFlags>(
 fn heph_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: &mut [ScoredMove]) {
     let mut build_score_map: [MoveScore; 25] = [0; 25];
     for enemy_worker_pos in board.workers[1 - board.current_player as usize] {
-        let enemy_worker_height = board.get_height_for_worker(BitBoard::as_mask(enemy_worker_pos));
+        let enemy_worker_height = board.get_height(enemy_worker_pos);
         let ns = NEIGHBOR_MAP[enemy_worker_pos as usize];
         for n_pos in ns {
-            let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
+            let n_height = board.get_height(n_pos);
             build_score_map[n_pos as usize] +=
                 ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
         }
     }
 
     for worker_pos in board.workers[board.current_player as usize] {
-        let worker_height = board.get_height_for_worker(BitBoard::as_mask(worker_pos));
+        let worker_height = board.get_height(worker_pos);
         let ns = NEIGHBOR_MAP[worker_pos as usize];
         for n_pos in ns {
-            let n_height = board.get_height_for_worker(BitBoard::as_mask(n_pos));
+            let n_height = board.get_height(n_pos);
             build_score_map[n_pos as usize] -=
                 ENEMY_WORKER_BUILD_SCORES[worker_height as usize][n_height as usize] / 8;
         }
@@ -397,15 +396,15 @@ fn heph_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: &
         let mut score: MoveScore = 0;
 
         let from = action.move_from_position();
-        let from_height = board.get_height_for_worker(BitBoard::as_mask(from));
+        let from_height = board.get_height(from);
         let to = action.move_to_position();
-        let to_height = board.get_height_for_worker(BitBoard::as_mask(to));
+        let to_height = board.get_height(to);
 
         let build_at = action.build_position();
         let build_pre_height = if action.is_double_build() {
-            board.get_height_for_worker(BitBoard::as_mask(build_at)) + 1
+            board.get_height(build_at) + 1
         } else {
-            board.get_height_for_worker(BitBoard::as_mask(build_at))
+            board.get_height(build_at)
         };
 
         score -= GRID_POSITION_SCORES[from as usize];

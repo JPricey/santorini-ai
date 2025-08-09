@@ -198,7 +198,7 @@ pub fn build_feature_array(board: &BoardState, god1: GodName, god2: GodName) -> 
     let mut res = FeatureArray::default();
     for pos in 0..25 {
         res[pos] = (pos * 5) as FeatureType
-            + board.get_true_height(BitBoard::as_mask_u8(pos as u8)) as FeatureType;
+            + board.get_height(pos.into()) as FeatureType;
     }
 
     let (own_god_idx, other_god_idx) = match board.current_player {
@@ -214,7 +214,7 @@ pub fn build_feature_array(board: &BoardState, god1: GodName, god2: GodName) -> 
         mut index: usize,
     ) -> usize {
         for pos in worker_map {
-            let worker_height = board.get_height_for_worker(BitBoard::as_mask(pos));
+            let worker_height = board.get_height(pos);
             let feature: FeatureType =
                 feature_offset + 4 * (pos as FeatureType) + worker_height as FeatureType;
             features[index] = feature;
