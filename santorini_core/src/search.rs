@@ -380,10 +380,10 @@ where
     }
     let alpha_orig = alpha;
 
-    if q_depth > 6 {
-        nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
-        return nnue_acc.evaluate();
-    }
+    // if q_depth > 6 {
+    //     nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
+    //     return nnue_acc.evaluate();
+    // }
 
     // if q_depth > search_state.max_q_depth {
     //     search_state.max_q_depth = q_depth;

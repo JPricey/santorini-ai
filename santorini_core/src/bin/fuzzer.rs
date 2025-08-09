@@ -50,7 +50,13 @@ fn check_state(root_state: &FullGameState) {
                 }
             }
 
-            if !did_block_any && false {
+            if !did_block_any && true {
+                if root_state.gods.contains(&GodName::Artemis.to_power()) {
+                    continue;
+                }
+                if root_state.gods.contains(&GodName::Pan.to_power()) && root_state.gods.contains(&GodName::Athena.to_power())  {
+                    continue;
+                }
                 eprintln!("Block action didn't remove any wins: {}", stringed_action);
 
                 root_state.print_to_console();
