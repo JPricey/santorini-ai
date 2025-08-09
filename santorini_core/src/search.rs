@@ -220,7 +220,8 @@ where
 
     let start_time = Instant::now();
     let mut root_board = root_state.board.clone();
-    root_board.reset_hash();
+    // root_board.reset_hash();
+    root_board.validate();
     let mut search_state = SearchState::default();
 
     if root_board.get_winner().is_some() {
@@ -359,6 +360,26 @@ where
 {
     search_state.nodes_visited += 1;
 
+    let tt_entry = search_context.tt.fetch(state, ply);
+    if let Some(tt_value) = &tt_entry {
+        match tt_value.score_type {
+            SearchScoreType::Exact => {
+                return tt_value.score;
+            }
+            SearchScoreType::LowerBound => {
+                if tt_value.score >= beta {
+                    return tt_value.score;
+                }
+            }
+            SearchScoreType::UpperBound => {
+                if tt_value.score <= alpha {
+                    return tt_value.score;
+                }
+            }
+        }
+    }
+    let alpha_orig = alpha;
+
     // if q_depth > search_state.max_q_depth {
     //     search_state.max_q_depth = q_depth;
     //     eprintln!("New max q depth: {}", q_depth);
@@ -412,7 +433,9 @@ where
     alpha = alpha.max(eval);
 
     let mut best_score = eval;
+    let mut best_action = GenericMove::NULL_MOVE;
 
+    let mut should_stop = false;
     for child_move in child_moves.iter().rev() {
         active_god.make_move(state, child_move.action);
 
@@ -430,6 +453,7 @@ where
         );
         if score > best_score {
             best_score = score;
+            best_action = child_move.action;
 
             if score > alpha {
                 alpha = score;
@@ -443,9 +467,31 @@ where
 
         active_god.unmake_move(state, child_move.action);
 
-        if search_context.should_stop(&search_state) {
+        should_stop = search_context.should_stop(&search_state);
+
+        if should_stop {
             break;
         }
+    }
+
+    if q_depth < 2 && !should_stop {
+        let tt_score_type = if best_score <= alpha_orig {
+            SearchScoreType::UpperBound
+        } else if best_score >= beta {
+            SearchScoreType::LowerBound
+        } else {
+            SearchScoreType::Exact
+        };
+
+        search_context.tt.insert(
+            state,
+            best_action,
+            0,
+            tt_score_type,
+            best_score,
+            eval,
+            ply,
+        );
     }
 
     best_score
