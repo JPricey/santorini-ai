@@ -110,7 +110,7 @@ fn check_state(root_state: &FullGameState) {
         let winning_moves = active_god.get_winning_moves(&new_board, current_player);
         if winning_moves.len() == 0 {
             root_state.print_to_console();
-            new_board.print_to_console();
+            new_board.as_basic_game_state().print_to_console();
             panic!("check move didn't result in a win: {}", stringed_action);
         }
     }

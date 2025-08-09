@@ -443,7 +443,7 @@ fn atlas_score_moves<const IMPROVERS_ONLY: bool>(board: &BoardState, move_list: 
 
 fn atlas_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
-    BitBoard::as_mask(action.move_to_position())
+    action.move_mask()
 }
 
 fn atlas_stringify(action: GenericMove) -> String {

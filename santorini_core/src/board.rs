@@ -301,8 +301,8 @@ impl BoardState {
     }
 
     pub fn unset_worker_can_climb(&mut self) {
-        self.flip_worker_can_climb(Player::One, self.get_worker_can_climb(Player::One));
-        self.flip_worker_can_climb(Player::Two, self.get_worker_can_climb(Player::Two));
+        self.flip_worker_can_climb(Player::One, !self.get_worker_can_climb(Player::One));
+        self.flip_worker_can_climb(Player::Two, !self.get_worker_can_climb(Player::Two));
     }
 
     pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {

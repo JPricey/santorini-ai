@@ -113,7 +113,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
         let mut worker_moves = worker_1d_moves;
         let h_delta = can_worker_climb as usize;
-        for h in [0, 1, 3] {
+        for h in [0, 1, 2, 3] {
             let current_level_workers = worker_1d_moves & !board.height_map[h];
             worker_1d_moves ^= current_level_workers;
             let current_level_destinations = !board.height_map[3.min(h + h_delta)];
@@ -126,11 +126,15 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
         let mut buildable_squares = !(non_selected_workers | board.height_map[3]);
-        // if F & GENERATE_THREATS_ONLY != 0 {
-        //     if starting_exactly_level_3.is_empty() {
-        //         buildable_squares &= starting_exactly_level_2;
-        //     }
-        // }
+        if F & GENERATE_THREATS_ONLY != 0 {
+            if starting_exactly_level_3.is_empty() {
+                buildable_squares &= starting_exactly_level_2;
+            }
+
+            if buildable_squares.is_empty() {
+                continue;
+            }
+        }
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
@@ -225,6 +229,7 @@ pub fn artemis_blocker_board(action: GenericMove) -> BitBoard {
 
     (NEIGHBOR_MAP[from as usize] & NEIGHBOR_MAP[to as usize])
         | BitBoard::as_mask(action.move_to_position())
+        | BitBoard::as_mask(action.move_from_position())
 }
 
 build_god_power!(

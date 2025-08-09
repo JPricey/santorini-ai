@@ -254,7 +254,7 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                 & worker_builds_by_is_swap[is_swap as usize];
 
             if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
-                if !is_swap && (moving_worker_end_mask & key_squares).is_empty() {
+                if (moving_worker_end_mask & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
                 }
             }
@@ -383,7 +383,7 @@ pub fn apollo_score_moves<const IMPROVERS_ONLY: bool>(
 
 pub fn apollo_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
-    BitBoard::as_mask(action.move_to_position())
+    action.move_mask()
 }
 
 pub fn apollo_stringify(action: GenericMove) -> String {

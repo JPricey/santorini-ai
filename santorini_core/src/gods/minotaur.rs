@@ -356,7 +356,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             }
 
             if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
-                if (moving_worker_end_mask & key_squares).is_empty() && push_to_spot.is_none() {
+                if (moving_worker_end_mask & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
                 }
             }
@@ -522,7 +522,7 @@ pub fn minotaur_score_moves<const IMPROVERS_ONLY: bool>(
 
 pub fn minotaur_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
-    BitBoard::as_mask(action.move_to_position())
+    action.move_mask()
 }
 
 pub fn minotaur_stringify(action: GenericMove) -> String {

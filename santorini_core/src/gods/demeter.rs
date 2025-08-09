@@ -466,7 +466,7 @@ pub fn demeter_score_moves<const IMPROVERS_ONLY: bool>(
 
 pub fn demeter_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
-    BitBoard::as_mask(action.move_to_position())
+    action.move_mask()
 }
 
 pub fn demeter_stringify(action: GenericMove) -> String {

@@ -374,7 +374,7 @@ pub fn athena_score_moves<const IMPROVERS_ONLY: bool>(
 
 pub fn athena_blocker_board(action: GenericMove) -> BitBoard {
     let action: GodMove = action.into();
-    BitBoard::as_mask(action.move_to_position())
+    action.move_mask()
 }
 
 pub fn athena_stringify(action: GenericMove) -> String {
