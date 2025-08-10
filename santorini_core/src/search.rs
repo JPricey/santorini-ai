@@ -137,7 +137,6 @@ pub trait NodeType {
 struct Root;
 struct OnPV;
 struct OffPV;
-// struct CheckForced;
 
 impl NodeType for Root {
     const PV: bool = true;
@@ -154,11 +153,6 @@ impl NodeType for OffPV {
     const ROOT: bool = false;
     type Next = Self;
 }
-// impl NodeType for CheckForced {
-//     const PV: bool = false;
-//     const ROOT: bool = true;
-//     type Next = OffPV;
-// }
 
 #[derive(Clone)]
 pub struct SearchState {

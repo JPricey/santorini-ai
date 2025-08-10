@@ -488,7 +488,7 @@ class RootPanel:
 
         # Control frame at the bottom
         control_frame = tk.Frame(self.root)
-        control_frame.grid(row=1, column=0, columnspan=2,
+        control_frame.grid(row=1, column=0, columnspan=3,
                            padx=10, pady=5, sticky="ew")
 
         self.input_field = tk.Entry(control_frame, width=60)
@@ -505,6 +505,10 @@ class RootPanel:
         set_pos_button = tk.Button(
             control_frame, text="Set Position", command=self.pressed_set_position)
         set_pos_button.grid(row=0, column=1, padx=5, pady=5)
+
+        swap_gods_button = tk.Button(
+            control_frame, text="Swap gods", command=self.pressed_swap_gods)
+        swap_gods_button.grid(row=0, column=2, padx=5, pady=5)
 
     def on_click_cell(self, idx):
         coord = INDEX_TO_COORD_MAPPING[idx]
@@ -532,6 +536,21 @@ class RootPanel:
     def pressed_set_position(self):
         input_field = self.input_field.get()
         self.update_position(input_field)
+
+    def pressed_swap_gods(self):
+        input_field = self.input_field.get()
+        input_field = input_field.split('/')
+        if len(input_field) != 4:
+            print("couldn't parse input field")
+            return
+        input_field[2], input_field[3] = input_field[3], input_field[2]
+        input_field = '/'.join(input_field)
+
+        self.input_field.delete(0, tk.END)
+        self.input_field.insert(0, input_field)
+        self.update_position(input_field)
+
+
 
     def update_position(self, position_string):
         position_string = position_string.strip()
