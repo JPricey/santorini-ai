@@ -1,5 +1,4 @@
 use std::{
-    arch::x86_64::_MM_MASK_INEXACT,
     array,
     fmt::Debug,
     sync::{Arc, atomic::AtomicBool},
@@ -18,7 +17,7 @@ use crate::{
     },
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
-    placement::{self, get_starting_placements_count, get_unique_placements},
+    placement::{get_starting_placements_count, get_unique_placements},
     player::Player,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
@@ -127,28 +126,6 @@ impl PVariation {
             .try_extend_from_slice(&rest.moves)
             .expect("attempted to construct a PV longer than MAX_PLY.");
     }
-}
-
-pub trait SearchPhase {
-    const PLACING: Option<Player>;
-    type Next: SearchPhase;
-}
-
-struct Playing;
-struct PlacementP2;
-struct PlacementP1;
-
-impl SearchPhase for Playing {
-    const PLACING: Option<Player> = None;
-    type Next = Playing;
-}
-impl SearchPhase for PlacementP2 {
-    const PLACING: Option<Player> = Some(Player::Two);
-    type Next = Playing;
-}
-impl SearchPhase for PlacementP1 {
-    const PLACING: Option<Player> = Some(Player::One);
-    type Next = PlacementP2;
 }
 
 pub trait NodeType {

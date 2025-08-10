@@ -1,8 +1,5 @@
 use crate::{
-    bitboard::BitBoard,
-    board::BoardState,
-    gods::generic::{GenericMove, WorkerPlacement},
-    square::Square,
+    bitboard::BitBoard, board::BoardState, gods::generic::WorkerPlacement, square::Square,
 };
 
 pub fn get_starting_placements_count(board: &BoardState) -> Result<usize, String> {

@@ -15,7 +15,6 @@ use crate::{
         },
     },
     player::Player,
-    utils::move_all_workers_one_include_original_workers,
 };
 
 type GodMove = MortalMove;

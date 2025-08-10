@@ -5,7 +5,6 @@ use strum::IntoEnumIterator;
 
 use crate::{
     bitboard::BitBoard,
-    board,
     fen::{game_state_to_fen, parse_fen},
     gods::{BoardStateWithAction, GameStateWithAction, GodName, GodPower},
     hashing::{
