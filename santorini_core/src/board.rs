@@ -237,14 +237,30 @@ impl BoardState {
         result.workers[1].0 |= 1 << 17;
         result.workers[0].0 |= 1 << 11;
         result.workers[0].0 |= 1 << 13;
-        result.reset_hash();
+        result.recalculate_internals();
         result
     }
 
-    pub fn reset_hash(&mut self) {
+    pub fn recalculate_internals(&mut self) {
         self.hash = compute_hash_from_scratch(self);
         for square in Square::iter() {
-            self.height_lookup[square as usize] = self._calculate_height(BitBoard::as_mask(square)) as u8;
+            self.height_lookup[square as usize] =
+                self._calculate_height(BitBoard::as_mask(square)) as u8;
+        }
+    }
+
+    pub fn get_starting_placements_count(&self) -> Result<usize, String> {
+        let p1_workers = self.workers[0].count_ones();
+        let p2_workers = self.workers[0].count_ones();
+
+        match (p1_workers, p2_workers) {
+            (0, 0) => Ok(2),
+            (_, 0) => Ok(1),
+            (0, _) => Err(
+                "Invalid starting position. Player 2 has placed workers but not player 1"
+                    .to_owned(),
+            ),
+            _ => Ok(0),
         }
     }
 
@@ -566,11 +582,17 @@ impl BoardState {
         let tv = trans._flip_vertical_clone();
         let tvh = th._flip_vertical_clone();
 
-        if INCLUDE_SELF {
+        let mut res = if INCLUDE_SELF {
             vec![self.clone(), horz, vert, hv, trans, th, tv, tvh]
         } else {
             vec![horz, vert, hv, trans, th, tv, tvh]
+        };
+
+        for board in &mut res {
+            board.recalculate_internals();
         }
+
+        res
     }
 
     // Returns a canonically permuted board state

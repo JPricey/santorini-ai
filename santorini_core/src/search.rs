@@ -117,6 +117,28 @@ impl PVariation {
     }
 }
 
+pub trait SearchPhase {
+    const PLACING: Option<Player>;
+    type Next: SearchPhase;
+}
+
+struct Playing;
+struct PlacementP2;
+struct PlacementP1;
+
+impl SearchPhase for Playing {
+    const PLACING: Option<Player> = None;
+    type Next = Playing;
+}
+impl SearchPhase for PlacementP2 {
+    const PLACING: Option<Player> = Some(Player::Two);
+    type Next = Playing;
+}
+impl SearchPhase for PlacementP1 {
+    const PLACING: Option<Player> = Some(Player::One);
+    type Next = PlacementP2;
+}
+
 pub trait NodeType {
     const PV: bool;
     const ROOT: bool;
@@ -228,30 +250,27 @@ where
         panic!("Should not search in an already terminal state");
     }
 
-    let starting_depth = {
-        if let Some(tt_entry) = search_context.tt.fetch(&root_board, 0)
-            && tt_entry.best_action != GenericMove::NULL_MOVE
-        {
-            let mut best_child_state = root_board.clone();
-            let active_god = root_state.get_active_god();
-            active_god.make_move(&mut best_child_state, tt_entry.best_action);
+    let starting_mode = root_board.get_starting_placements_count().unwrap();
 
-            let new_best_move = BestSearchResult::new(
-                FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
-                tt_entry.best_action,
-                tt_entry.score,
-                tt_entry.search_depth as usize,
-                0,
-                BestMoveTrigger::Saved,
-            );
-            search_state.best_move = Some(new_best_move.clone());
-            (search_context.new_best_move_callback)(new_best_move);
-            // tt_entry.search_depth + 1
-            1
-        } else {
-            1
-        }
-    } as usize;
+    if let Some(tt_entry) = search_context.tt.fetch(&root_board, 0)
+        && tt_entry.best_action != GenericMove::NULL_MOVE
+    {
+        let mut best_child_state = root_board.clone();
+        let active_god = root_state.get_active_god();
+        active_god.make_move(&mut best_child_state, tt_entry.best_action);
+
+        let new_best_move = BestSearchResult::new(
+            FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
+            tt_entry.best_action,
+            tt_entry.score,
+            tt_entry.search_depth as usize,
+            0,
+            BestMoveTrigger::Saved,
+        );
+        search_state.best_move = Some(new_best_move.clone());
+        (search_context.new_best_move_callback)(new_best_move);
+        // tt_entry.search_depth + 1
+    }
 
     let mut nnue_acc = LabeledAccumulator::new_from_scratch(
         &root_board,
@@ -265,7 +284,7 @@ where
         .len()
         > 0;
 
-    for depth in starting_depth.. {
+    for depth in 1.. {
         if search_context.should_stop(&search_state) {
             if let Some(best_move) = &mut search_state.best_move {
                 best_move.trigger = BestMoveTrigger::StopFlag;
@@ -917,8 +936,7 @@ where
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
         if state.height_map[0].count_ones() <= 1 {
-            for mut base in state.get_all_permutations::<false>() {
-                base.reset_hash();
+            for base in state.get_all_permutations::<false>() {
                 search_context.tt.conditionally_insert(
                     &base,
                     GenericMove::NULL_MOVE,

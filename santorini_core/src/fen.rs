@@ -178,7 +178,7 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     result.flip_worker_can_climb(Player::One, p1_section.is_movement_blocked);
     result.flip_worker_can_climb(Player::Two, p2_section.is_movement_blocked);
 
-    result.reset_hash();
+    result.recalculate_internals();
 
     Ok(FullGameState {
         board: result,
