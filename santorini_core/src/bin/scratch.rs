@@ -2,8 +2,9 @@
 #![feature(portable_simd)]
 
 use colored::Colorize;
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
+use santorini_core::board::BoardState;
 use santorini_core::gods::generic::{
     IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK,
 };
@@ -11,6 +12,7 @@ use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::nnue::{
     self, Accumulator, FEATURE_LANES, HIDDEN_SIZE, MODEL, QB, TOTAL_FEATURES,
 };
+use santorini_core::placement::{get_all_placements, get_unique_placements};
 use santorini_core::random_utils::GameStateFuzzer;
 use santorini_core::transposition_table::{TTEntry, TTValue};
 use santorini_core::utils::print_cpu_arch;
@@ -239,13 +241,34 @@ fn test_improvers() {
 }
 
 fn main() {
-    let god_names = ALL_GODS_BY_ID
-        .iter()
-        .map(|f| f.god_name)
-        .filter(|f| *f != GodName::Mortal)
-        .collect::<Vec<GodName>>();
-    let choose = god_names.choose_multiple(&mut rand::thread_rng(), 2).collect::<Vec<_>>();
-    println!("{:?}", choose);
+    let mut board = BoardState::default();
+
+    let uniq = get_unique_placements(&board);
+    let mut all_boards = Vec::new();
+
+    for p in &uniq {
+        p.make_move(&mut board);
+        board.print_to_console();
+        let uniq2 = get_unique_placements(&board);
+
+        for u2 in uniq2 {
+            u2.make_move(&mut board);
+            all_boards.push(board.clone());
+            board.print_to_console();
+            u2.unmake_move(&mut board);
+        }
+
+        p.unmake_move(&mut board);
+    }
+    eprintln!("count: {}", all_boards.len());
+
+    // let god_names = ALL_GODS_BY_ID
+    //     .iter()
+    //     .map(|f| f.god_name)
+    //     .filter(|f| *f != GodName::Mortal)
+    //     .collect::<Vec<GodName>>();
+    // let choose = god_names.choose_multiple(&mut rand::thread_rng(), 2).collect::<Vec<_>>();
+    // println!("{:?}", choose);
 
     // println!("{:b}", MOVE_IS_WINNING_MASK);
     // println!("{:b}", MOVE_IS_CHECK_MASK);

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::utils::grid_position_builder;
+use crate::{bitboard::BitBoard, board::BoardState, square::Square, utils::grid_position_builder};
 use std::fmt::Debug;
 
 pub type MoveGenFlags = u8;
@@ -143,5 +143,56 @@ impl GenericMove {
 impl From<MoveData> for GenericMove {
     fn from(value: MoveData) -> Self {
         Self::new(value)
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct WorkerPlacement(pub MoveData);
+
+impl Into<GenericMove> for WorkerPlacement {
+    fn into(self) -> GenericMove {
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl From<GenericMove> for WorkerPlacement {
+    fn from(value: GenericMove) -> Self {
+        unsafe { std::mem::transmute(value) }
+    }
+}
+
+impl WorkerPlacement {
+    pub fn new(a: Square, b: Square) -> Self {
+        let data: MoveData = ((a as MoveData) << 0) | ((b as MoveData) << POSITION_WIDTH);
+
+        Self(data)
+    }
+
+    pub fn placement_1(self) -> Square {
+        Square::from((self.0 as u8) & LOWER_POSITION_MASK)
+    }
+
+    pub fn placement_2(self) -> Square {
+        Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
+    }
+
+    pub fn move_mask(self) -> BitBoard {
+        BitBoard::as_mask(self.placement_1()) | BitBoard::as_mask(self.placement_2())
+    }
+
+    pub fn make_move(self, board: &mut BoardState) {
+        board.worker_xor(board.current_player, self.move_mask());
+        board.current_player = !board.current_player;
+    }
+
+    pub fn unmake_move(self, board: &mut BoardState) {
+        board.current_player = !board.current_player;
+        board.worker_xor(board.current_player, self.move_mask());
+    }
+}
+
+impl std::fmt::Debug for WorkerPlacement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "P{} P{}", self.placement_1(), self.placement_2())
     }
 }
