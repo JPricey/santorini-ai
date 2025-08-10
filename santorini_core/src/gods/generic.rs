@@ -182,11 +182,11 @@ impl WorkerPlacement {
 
     pub fn make_move(self, board: &mut BoardState) {
         board.worker_xor(board.current_player, self.move_mask());
-        board.current_player = !board.current_player;
+        board.flip_current_player();
     }
 
     pub fn unmake_move(self, board: &mut BoardState) {
-        board.current_player = !board.current_player;
+        board.flip_current_player();
         board.worker_xor(board.current_player, self.move_mask());
     }
 

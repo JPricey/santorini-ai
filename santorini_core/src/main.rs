@@ -94,11 +94,9 @@ fn handle_command(
                     eprintln!("to move:");
                     new_best_move.child_state.print_to_console();
 
-                    let active_god = state_2.get_active_god();
-                    let action = new_best_move.action;
                     panic!(
                         "Found new best move but couldn't resolve path: {}: {:?} -> {:?}",
-                        active_god.stringify_move(action),
+                        new_best_move.action_str,
                         state_2,
                         new_best_move.child_state
                     );

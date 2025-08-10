@@ -452,7 +452,23 @@ impl BoardState {
     }
 
     pub fn validation_err(&self) -> Result<(), String> {
-        get_starting_placements_count(self)?;
+        let starting_placements = get_starting_placements_count(self)?;
+        if starting_placements == 1 {
+            if self.current_player != Player::Two {
+                return Err("Should be player twos turn to place".to_owned());
+            }
+        } else if starting_placements == 2 {
+            if self.current_player != Player::One {
+                return Err("Should be player ones turn to place".to_owned());
+            }
+        }
+
+        if self.workers[0].count_ones() > 2 {
+            return Err("Player 1 has more than 2 workers".to_owned());
+        }
+        if self.workers[1].count_ones() > 2 {
+            return Err("Player 2 has more than 2 workers".to_owned());
+        }
 
         for h in 1..4 {
             let height = self.height_map[h] & BitBoard::MAIN_SECTION_MASK;

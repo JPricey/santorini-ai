@@ -82,11 +82,6 @@ fn handle_command(
                 return Err("Cannot search for position in terminal state".to_owned());
             }
 
-            let starting_placements = get_starting_placements_count(&state.board)?;
-            if starting_placements > 0 {
-                return Err("AI cant do placements yet".to_owned());
-            }
-
             let _ = engine.stop();
             let start_time = Instant::now();
             let state_2 = state.clone();
@@ -100,11 +95,9 @@ fn handle_command(
                     eprintln!("to move:");
                     new_best_move.child_state.print_to_console();
 
-                    let active_god = state_2.get_active_god();
-                    let action = new_best_move.action;
                     panic!(
                         "Found new best move but couldn't resolve path: {}: {:?} -> {:?}",
-                        active_god.stringify_move(action),
+                        new_best_move.action_str,
                         state_2,
                         new_best_move.child_state
                     );
