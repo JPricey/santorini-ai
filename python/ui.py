@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import json
 from frozendict import frozendict
 
-BASIC_START_STRING = "0000000000000000000000000/1/mortal:B3,D3/mortal:C2,C4"
+BASIC_START_STRING = "0000000000000000000000000/1/mortal/mortal"
 # BASIC_START_STRING = "0000000000000000000000000/1/mortal:11,13/mortal:7,17"
 
 COL_LABEL_MAPPING = 'ABCDE'
@@ -131,19 +131,21 @@ def parse_game_state(game_state_string):
         worker_string = worker_string.replace('-', '')
         # TODO: parse the god
         worker_string_parts = worker_string.split(':')
-        if len(worker_string_parts) != 2:
+        if len(worker_string_parts) > 2:
             print('worker string must have 2 parts')
 
         result = []
-        for part in worker_string_parts[1].split(','):
-            if part in COORD_TO_INDEX_MAPPING:
-                res = COORD_TO_INDEX_MAPPING[part]
-            else:
-                res = int(part)
-            if res >= 0 and res < 25:
-                result.append(res)
-            else:
-                return None
+        if len(worker_string_parts) > 1:
+            print(worker_string_parts[1])
+            for part in worker_string_parts[1].split(','):
+                if part == "":
+                    continue
+                elif part in COORD_TO_INDEX_MAPPING:
+                    res = COORD_TO_INDEX_MAPPING[part]
+                else:
+                    res = int(part)
+                if res >= 0 and res < 25:
+                    result.append(res)
         return result
 
     result.player_1_workers = parse_worker_string(parts[2])
@@ -312,6 +314,8 @@ def pretty_string_for_action(action):
         return f'>{action["value"]}'
     elif action_type == 'build':
         return f'@{action["value"]}'
+    elif action_type == 'place_worker':
+        return f'P{action["value"]}'
     elif action_type == DONE_ACTION_TYPE:
         return '<end>'
     elif action_type == 'no_moves':
@@ -327,6 +331,8 @@ def longer_string_for_action(action):
         return f"Select {action['value']}"
     elif action_type == 'move_worker':
         return f"Move to {action['value']}"
+    elif action_type == 'place_worker':
+        return f"Place {action['value']}"
     elif action_type == 'build':
         return f"Build at {action['value']}"
     elif action_type == DONE_ACTION_TYPE:
@@ -335,10 +341,6 @@ def longer_string_for_action(action):
         return "No Moves"
 
     print('ERROR: Unknown action type', action_type)
-
-
-def pretty_string_for_action_sequence(actions):
-    return ' '.join(pretty_string_for_action(a) for a in actions)
 
 
 @dataclass
@@ -626,7 +628,6 @@ class RootPanel:
 
         trigger = message['trigger']
         meta = message['meta']
-        # action_string = pretty_string_for_action_sequence(meta['actions'])
         action_string = meta['action_str']
 
         score = meta['score']

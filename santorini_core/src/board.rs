@@ -5,12 +5,14 @@ use strum::IntoEnumIterator;
 
 use crate::{
     bitboard::BitBoard,
+    board,
     fen::{game_state_to_fen, parse_fen},
-    gods::{GameStateWithAction, GodName, GodPower},
+    gods::{BoardStateWithAction, GameStateWithAction, GodName, GodPower},
     hashing::{
         HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
         compute_hash_from_scratch,
     },
+    placement::{get_all_placements, get_starting_placements_count},
     player::Player,
     square::Square,
 };
@@ -137,13 +139,36 @@ impl FullGameState {
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
-        let active_god = self.get_active_god();
-        let board_states_with_action_list = active_god.get_next_states_interactive(&self.board);
+        let placement_mode = get_starting_placements_count(&self.board).unwrap();
+        if placement_mode > 0 {
+            let placement_actions = get_all_placements(&self.board);
+            let mut res: Vec<GameStateWithAction> = Vec::new();
 
-        board_states_with_action_list
-            .into_iter()
-            .map(|e| GameStateWithAction::new(e, self.gods[0].god_name, self.gods[1].god_name))
-            .collect()
+            for p in placement_actions {
+                for series in p.move_to_actions() {
+                    let mut new_board = self.board.clone();
+                    p.make_move(&mut new_board);
+
+                    let board_state_w_action = BoardStateWithAction::new(new_board, series);
+
+                    res.push(GameStateWithAction::new(
+                        board_state_w_action,
+                        self.gods[0].god_name,
+                        self.gods[1].god_name,
+                    ));
+                }
+            }
+
+            res
+        } else {
+            let active_god = self.get_active_god();
+            let board_states_with_action_list = active_god.get_next_states_interactive(&self.board);
+
+            board_states_with_action_list
+                .into_iter()
+                .map(|e| GameStateWithAction::new(e, self.gods[0].god_name, self.gods[1].god_name))
+                .collect()
+        }
     }
 
     pub fn get_god_for_player(&self, player: Player) -> &'static GodPower {
@@ -246,21 +271,6 @@ impl BoardState {
         for square in Square::iter() {
             self.height_lookup[square as usize] =
                 self._calculate_height(BitBoard::as_mask(square)) as u8;
-        }
-    }
-
-    pub fn get_starting_placements_count(&self) -> Result<usize, String> {
-        let p1_workers = self.workers[0].count_ones();
-        let p2_workers = self.workers[0].count_ones();
-
-        match (p1_workers, p2_workers) {
-            (0, 0) => Ok(2),
-            (_, 0) => Ok(1),
-            (0, _) => Err(
-                "Invalid starting position. Player 2 has placed workers but not player 1"
-                    .to_owned(),
-            ),
-            _ => Ok(0),
         }
     }
 
@@ -442,6 +452,8 @@ impl BoardState {
     }
 
     pub fn validation_err(&self) -> Result<(), String> {
+        get_starting_placements_count(self)?;
+
         for h in 1..4 {
             let height = self.height_map[h] & BitBoard::MAIN_SECTION_MASK;
             let lower = self.height_map[h - 1] & BitBoard::MAIN_SECTION_MASK;

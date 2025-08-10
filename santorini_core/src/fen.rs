@@ -20,8 +20,6 @@ fn player_section_string(state: &FullGameState, player: Player) -> String {
 
     result += state.get_god_for_player(player).god_name.into();
 
-    result += ":";
-
     let mut position_strings = state
         .board
         .get_positions_for_player(player)
@@ -29,6 +27,10 @@ fn player_section_string(state: &FullGameState, player: Player) -> String {
         .map(Square::to_string)
         .collect::<Vec<String>>();
     position_strings.sort();
+
+    if position_strings.len() > 0 {
+        result += ":";
+    }
 
     /*
     let position_strings = state
@@ -93,8 +95,9 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
     }
 
     let (god, worker_split) = if colon_splits.len() == 1 {
-        eprintln!("[DEPRECATION WARNING] No god title found. Defaulting to mortal for now");
-        (GodName::Mortal, colon_splits[0])
+        let god_name = GodName::from_str(colon_splits[0])
+            .map_err(|e| format!("Failed to parse god name {}: {}", colon_splits[0], e))?;
+        (god_name, "")
     } else {
         let god_name = GodName::from_str(colon_splits[0])
             .map_err(|e| format!("Failed to parse god name {}: {}", colon_splits[0], e))?;
@@ -180,6 +183,8 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
 
     result.recalculate_internals();
 
+    result.validation_err()?;
+
     Ok(FullGameState {
         board: result,
         gods: [
@@ -194,6 +199,36 @@ mod tests {
     use crate::random_utils::GameStateFuzzer;
 
     use super::*;
+
+    #[test]
+    fn test_fen_basic() {
+        let res = parse_fen("0000000000000000000000000/1/mortal:B3,D3/mortal:C2,C4");
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_fen_no_workers() {
+        let res = parse_fen("0000000000000000000000000/1/mortal:/mortal:");
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_fen_no_workers_no_semi() {
+        let res = parse_fen("0000000000000000000000000/1/mortal/mortal");
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_fen_placement_player_2() {
+        let res = parse_fen("0000000000000000000000000/2/mortal:A1,B2/mortal");
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_fen_placement_out_of_order() {
+        let res = parse_fen("0000000000000000000000000/1/mortal/mortal:A1,B2");
+        assert!(res.is_err());
+    }
 
     #[test]
     fn test_fuzz_string_and_collect() {

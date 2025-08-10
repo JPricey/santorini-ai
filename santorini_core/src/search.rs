@@ -250,7 +250,7 @@ where
         panic!("Should not search in an already terminal state");
     }
 
-    let starting_mode = root_board.get_starting_placements_count().unwrap();
+    // let starting_mode = root_board.get_starting_placements_count().unwrap();
 
     if let Some(tt_entry) = search_context.tt.fetch(&root_board, 0)
         && tt_entry.best_action != GenericMove::NULL_MOVE

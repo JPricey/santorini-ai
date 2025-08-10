@@ -7,7 +7,7 @@ use crate::{
 
 pub fn get_starting_placements_count(board: &BoardState) -> Result<usize, String> {
     let p1_workers = board.workers[0].count_ones();
-    let p2_workers = board.workers[0].count_ones();
+    let p2_workers = board.workers[1].count_ones();
 
     match (p1_workers, p2_workers) {
         (0, 0) => Ok(2),

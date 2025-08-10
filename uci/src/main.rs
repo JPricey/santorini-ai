@@ -8,6 +8,7 @@ use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
     gods::PartialAction,
+    placement::get_starting_placements_count,
     search::BestSearchResult,
     uci_types::{
         BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,
@@ -81,6 +82,11 @@ fn handle_command(
                 return Err("Cannot search for position in terminal state".to_owned());
             }
 
+            let starting_placements = get_starting_placements_count(&state.board)?;
+            if starting_placements > 0 {
+                return Err("AI cant do placements yet".to_owned());
+            }
+
             let _ = engine.stop();
             let start_time = Instant::now();
             let state_2 = state.clone();
@@ -138,6 +144,7 @@ fn handle_command(
                 return Err("Cannot look for next moves from terminal state".to_owned());
             }
 
+            get_starting_placements_count(&state.board)?;
             let child_states = state.get_next_states_interactive();
 
             let output = EngineOutput::NextMoves(NextMovesOutput {

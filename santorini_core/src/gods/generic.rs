@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{bitboard::BitBoard, board::BoardState, square::Square, utils::grid_position_builder};
+use crate::{bitboard::BitBoard, board::BoardState, gods::{FullAction, PartialAction}, square::Square, utils::grid_position_builder};
 use std::fmt::Debug;
 
 pub type MoveGenFlags = u8;
@@ -188,6 +188,19 @@ impl WorkerPlacement {
     pub fn unmake_move(self, board: &mut BoardState) {
         board.current_player = !board.current_player;
         board.worker_xor(board.current_player, self.move_mask());
+    }
+
+    pub fn move_to_actions(self) -> Vec<FullAction> {
+        return vec![
+            vec![
+                PartialAction::PlaceWorker(self.placement_1()),
+                PartialAction::PlaceWorker(self.placement_2()),
+            ],
+            vec![
+                PartialAction::PlaceWorker(self.placement_2()),
+                PartialAction::PlaceWorker(self.placement_1()),
+            ],
+        ]
     }
 }
 
