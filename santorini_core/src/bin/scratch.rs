@@ -2,10 +2,15 @@
 #![feature(portable_simd)]
 
 use colored::Colorize;
+use rand::seq::SliceRandom;
 use rand::Rng;
-use santorini_core::gods::GodName;
-use santorini_core::gods::generic::{IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK};
-use santorini_core::nnue::{self, Accumulator, FEATURE_LANES, TOTAL_FEATURES, HIDDEN_SIZE, MODEL, QB};
+use santorini_core::gods::generic::{
+    IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK,
+};
+use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
+use santorini_core::nnue::{
+    self, Accumulator, FEATURE_LANES, HIDDEN_SIZE, MODEL, QB, TOTAL_FEATURES,
+};
 use santorini_core::random_utils::GameStateFuzzer;
 use santorini_core::transposition_table::{TTEntry, TTValue};
 use santorini_core::utils::print_cpu_arch;
@@ -234,8 +239,16 @@ fn test_improvers() {
 }
 
 fn main() {
-    println!("{:b}", MOVE_IS_WINNING_MASK);
-    println!("{:b}", MOVE_IS_CHECK_MASK);
+    let god_names = ALL_GODS_BY_ID
+        .iter()
+        .map(|f| f.god_name)
+        .filter(|f| *f != GodName::Mortal)
+        .collect::<Vec<GodName>>();
+    let choose = god_names.choose_multiple(&mut rand::thread_rng(), 2).collect::<Vec<_>>();
+    println!("{:?}", choose);
+
+    // println!("{:b}", MOVE_IS_WINNING_MASK);
+    // println!("{:b}", MOVE_IS_CHECK_MASK);
     // test_improvers();
     // println!("{}", size_of::<TTValue>());
     // println!("{}", size_of::<Option<TTValue>>());
