@@ -16,7 +16,7 @@ use crate::{
         generic::{GenericMove, WorkerPlacement},
     },
     move_picker::{MovePicker, MovePickerStage},
-    nnue::LabeledAccumulator,
+    nnue::{self, LabeledAccumulator},
     placement::{get_starting_placements_count, get_unique_placements},
     player::Player,
     search_terminators::SearchTerminator,
@@ -264,6 +264,12 @@ where
 
     let start_depth = if starting_mode == 0 { 1 } else { 0 };
 
+    let mut nnue_acc = LabeledAccumulator::new_from_scratch(
+        &root_board,
+        root_state.gods[0].god_name,
+        root_state.gods[1].god_name,
+    );
+
     for depth in start_depth.. {
         if search_context.should_stop(&search_state) {
             if let Some(best_move) = &mut search_state.best_move {
@@ -276,6 +282,7 @@ where
         let score = _root_search(
             search_context,
             &mut search_state,
+            &mut nnue_acc,
             &mut root_board,
             root_state.gods[0],
             root_state.gods[1],
@@ -341,6 +348,7 @@ where
 fn _root_search<T>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
+    nnue_acc: &mut LabeledAccumulator,
     board: &mut BoardState,
     p1_god: StaticGod,
     p2_god: StaticGod,
@@ -352,10 +360,13 @@ where
     // TODO: when acc can handle different worker counts, this should be initialized once
     let starting_mode = get_starting_placements_count(&board).unwrap();
 
+    // nnue_acc.replace_from_board_with_possible_reset(board, p1_god.god_name, p2_god.god_name);
+
     if starting_mode == 0 {
         _start_inner_search::<T, Root>(
             search_context,
             search_state,
+            nnue_acc,
             board,
             p1_god,
             p2_god,
@@ -368,6 +379,7 @@ where
         _placement_search::<T, Root>(
             search_context,
             search_state,
+            nnue_acc,
             board,
             p1_god,
             p2_god,
@@ -382,6 +394,7 @@ where
 fn _start_inner_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
+    nnue_acc: &mut LabeledAccumulator,
     board: &mut BoardState,
     p1_god: StaticGod,
     p2_god: StaticGod,
@@ -399,9 +412,6 @@ where
         Player::Two => (p2_god, p1_god),
     };
 
-    let mut nnue_acc =
-        LabeledAccumulator::new_from_scratch(&board, p1_god.god_name, p2_god.god_name);
-
     let is_in_check = other_god
         .get_winning_moves(&board, !board.current_player)
         .len()
@@ -410,7 +420,7 @@ where
     _inner_search::<T, NT>(
         search_context,
         search_state,
-        &mut nnue_acc,
+        nnue_acc,
         p1_god,
         p2_god,
         board,
@@ -425,6 +435,7 @@ where
 fn _placement_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
+    nnue_acc: &mut LabeledAccumulator,
     board: &mut BoardState,
     p1_god: StaticGod,
     p2_god: StaticGod,
@@ -467,6 +478,7 @@ where
             Player::One => _start_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
+                nnue_acc,
                 board,
                 p1_god,
                 p2_god,
@@ -478,6 +490,7 @@ where
             Player::Two => _placement_search::<T, NT::Next>(
                 search_context,
                 search_state,
+                nnue_acc,
                 board,
                 p1_god,
                 p2_god,

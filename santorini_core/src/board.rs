@@ -462,12 +462,12 @@ impl BoardState {
             }
         }
 
-        if self.workers[0].count_ones() > 2 {
-            return Err("Player 1 has more than 2 workers".to_owned());
-        }
-        if self.workers[1].count_ones() > 2 {
-            return Err("Player 2 has more than 2 workers".to_owned());
-        }
+        // if self.workers[0].count_ones() > 2 {
+        //     return Err("Player 1 has more than 2 workers".to_owned());
+        // }
+        // if self.workers[1].count_ones() > 2 {
+        //     return Err("Player 2 has more than 2 workers".to_owned());
+        // }
 
         for h in 1..4 {
             let height = self.height_map[h] & BitBoard::MAIN_SECTION_MASK;

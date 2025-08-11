@@ -117,7 +117,6 @@ impl Accumulator {
         }
     }
 
-
     pub fn sub_sub_feature(&mut self, idx1: usize, idx2: usize) {
         for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
             let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
@@ -224,18 +223,23 @@ impl Debug for LabeledAccumulator {
 impl LabeledAccumulator {
     pub fn new_from_scratch(board: &BoardState, god1: GodName, god2: GodName) -> Self {
         let feature_set = build_feature_set(board, god1, god2);
-        let mut accumulator = Accumulator::new();
 
-        for feature in &feature_set.ordered_features {
-            accumulator.add_feature(*feature as usize);
-        }
-        for feature in &feature_set.worker_features {
-            accumulator.add_feature(*feature as usize);
-        }
-
-        LabeledAccumulator {
+        let mut res = LabeledAccumulator {
             feature_set,
-            accumulator,
+            accumulator: Accumulator::new(),
+        };
+
+        res._apply_own_feature_set();
+
+        res
+    }
+
+    fn _apply_own_feature_set(&mut self) {
+        for feature in &self.feature_set.ordered_features {
+            self.accumulator.add_feature(*feature as usize);
+        }
+        for feature in &self.feature_set.worker_features {
+            self.accumulator.add_feature(*feature as usize);
         }
     }
 
@@ -260,18 +264,6 @@ impl LabeledAccumulator {
         let mut other_i = 0;
 
         loop {
-            if self.feature_set.worker_features[cur_i] == feature_set.worker_features[other_i] {
-                cur_i += 1;
-                other_i += 1;
-            } else if self.feature_set.worker_features[cur_i] > feature_set.worker_features[other_i]
-            {
-                adds.push(feature_set.worker_features[other_i]);
-                other_i += 1;
-            } else {
-                subs.push(self.feature_set.worker_features[cur_i]);
-                cur_i += 1;
-            }
-
             if cur_i >= self.feature_set.worker_features.len() {
                 while other_i < feature_set.worker_features.len() {
                     adds.push(feature_set.worker_features[other_i]);
@@ -284,6 +276,18 @@ impl LabeledAccumulator {
                     cur_i += 1;
                 }
                 break;
+            }
+
+            if self.feature_set.worker_features[cur_i] == feature_set.worker_features[other_i] {
+                cur_i += 1;
+                other_i += 1;
+            } else if self.feature_set.worker_features[cur_i] > feature_set.worker_features[other_i]
+            {
+                adds.push(feature_set.worker_features[other_i]);
+                other_i += 1;
+            } else {
+                subs.push(self.feature_set.worker_features[cur_i]);
+                cur_i += 1;
             }
         }
 
@@ -324,14 +328,15 @@ impl LabeledAccumulator {
                     break;
                 }
                 (None, None, Some(sub1), Some(sub2)) => {
-                    self.accumulator.sub_sub_feature(sub1 as usize, sub2 as usize);
+                    self.accumulator
+                        .sub_sub_feature(sub1 as usize, sub2 as usize);
                 }
                 (None, None, Some(sub1), None) => {
                     self.accumulator.remove_feature(sub1 as usize);
                     break;
                 }
                 (None, None, None, None) => break,
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
 
@@ -340,6 +345,35 @@ impl LabeledAccumulator {
 
     pub fn replace_from_board(&mut self, board: &BoardState, god1: GodName, god2: GodName) {
         self.replace_features(build_feature_set(board, god1, god2))
+    }
+
+    pub fn replace_from_board_with_possible_reset(
+        &mut self,
+        board: &BoardState,
+        god1: GodName,
+        god2: GodName,
+    ) {
+        let new_feature_set = build_feature_set(board, god1, god2);
+        let mut diffs = 0;
+
+        for (a, b) in self
+            .feature_set
+            .ordered_features
+            .iter()
+            .zip(new_feature_set.ordered_features.iter())
+        {
+            if a != b {
+                diffs += 1;
+            }
+        }
+
+        if diffs > 15 {
+            self.accumulator.vals.fill(0);
+            self.feature_set = new_feature_set;
+            self._apply_own_feature_set();
+        } else {
+            self.replace_features(new_feature_set);
+        }
     }
 
     pub fn evaluate(&self) -> Hueristic {
