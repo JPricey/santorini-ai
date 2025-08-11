@@ -939,7 +939,7 @@ where
         true
     };
 
-    let mut child_nnue_acc = nnue_acc.clone();
+    // let mut child_nnue_acc = nnue_acc.clone();
     if !NT::ROOT && !NT::PV && !is_in_check {
         // Reverse Futility Pruning
         if remaining_depth <= 8 {
@@ -962,7 +962,7 @@ where
             let null_value = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
-                &mut child_nnue_acc,
+                nnue_acc,
                 p1_god,
                 p2_god,
                 board,
@@ -1012,7 +1012,7 @@ where
             score = -_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
-                &mut child_nnue_acc,
+                nnue_acc,
                 p1_god,
                 p2_god,
                 board,
@@ -1049,7 +1049,7 @@ where
             score = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
-                &mut child_nnue_acc,
+                nnue_acc,
                 p1_god,
                 p2_god,
                 board,
@@ -1065,7 +1065,7 @@ where
                 score = -_inner_search::<T, NT::Next>(
                     search_context,
                     search_state,
-                    &mut child_nnue_acc,
+                    nnue_acc,
                     p1_god,
                     p2_god,
                     board,
