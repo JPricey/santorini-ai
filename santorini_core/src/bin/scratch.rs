@@ -240,35 +240,18 @@ fn test_improvers() {
     }
 }
 
+fn random_matchup() {
+    let god_names = ALL_GODS_BY_ID
+        .iter()
+        .map(|f| f.god_name)
+        .filter(|f| *f != GodName::Mortal)
+        .collect::<Vec<GodName>>();
+    let choose = god_names.choose_multiple(&mut rand::thread_rng(), 2).collect::<Vec<_>>();
+    println!("{:?}", choose);
+}
+
 fn main() {
-    let mut board = BoardState::default();
-
-    let uniq = get_unique_placements(&board);
-    let mut all_boards = Vec::new();
-
-    for p in &uniq {
-        p.make_move(&mut board);
-        board.print_to_console();
-        let uniq2 = get_unique_placements(&board);
-
-        for u2 in uniq2 {
-            u2.make_move(&mut board);
-            all_boards.push(board.clone());
-            board.print_to_console();
-            u2.unmake_move(&mut board);
-        }
-
-        p.unmake_move(&mut board);
-    }
-    eprintln!("count: {}", all_boards.len());
-
-    // let god_names = ALL_GODS_BY_ID
-    //     .iter()
-    //     .map(|f| f.god_name)
-    //     .filter(|f| *f != GodName::Mortal)
-    //     .collect::<Vec<GodName>>();
-    // let choose = god_names.choose_multiple(&mut rand::thread_rng(), 2).collect::<Vec<_>>();
-    // println!("{:?}", choose);
+    random_matchup();
 
     // println!("{:b}", MOVE_IS_WINNING_MASK);
     // println!("{:b}", MOVE_IS_CHECK_MASK);
