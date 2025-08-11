@@ -323,8 +323,12 @@ macro_rules! build_god_power {
                 _get_all_moves: $move_gen::<0>,
                 _get_moves_for_search: $move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
                 _get_wins: $move_gen::<{ MATE_ONLY }>,
-                _get_win_blockers: $move_gen::<{ STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE }>,
-                _get_improver_moves_only: $move_gen::<{ STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE }>,
+                _get_win_blockers: $move_gen::<
+                    { STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE },
+                >,
+                _get_improver_moves_only: $move_gen::<
+                    { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
+                >,
                 get_actions_for_move: $actions_fn,
                 _score_improvers: $score_moves::<true>,
                 _score_remaining: $score_moves::<false>,
