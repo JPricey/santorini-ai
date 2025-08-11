@@ -4,10 +4,13 @@ use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
     gods::{ALL_GODS_BY_ID, GodName},
+    nnue::SCALE,
     player::Player,
+    search::Hueristic,
+    utils::sigmoid,
 };
 
-const SECS_PER_MOVE: f32 = 0.2;
+const SECS_PER_MOVE: f32 = 10.0;
 
 fn play_match(engine: &mut EngineThreadWrapper, god1: GodName, god2: GodName) -> Player {
     let mut game_state = FullGameState::new_empty_state(god1, god2);
@@ -94,16 +97,10 @@ fn print_results(results: &Vec<MatchupResult>) {
     }
 }
 
-pub fn main() {
-    let banned_gods = vec![
-        GodName::Mortal,
-    ];
+pub fn all_matchups() -> Vec<(GodName, GodName)> {
+    let banned_gods = vec![GodName::Mortal];
 
-    let mut engine = EngineThreadWrapper::new();
-    engine.spin_for_pending_state();
-
-    let mut all_results = Vec::new();
-
+    let mut res = Vec::new();
     for god1 in ALL_GODS_BY_ID {
         let god1 = god1.god_name;
         if banned_gods.contains(&god1) {
@@ -116,14 +113,97 @@ pub fn main() {
                 continue;
             }
 
-            eprintln!("starting matching {} {}", god1, god2);
-            let result = play_match(&mut engine, god1, god2);
-            eprintln!("done matching {} {}. Winner: {:?}", god1, god2, result);
-
-            all_results.push(MatchupResult::new(god1, god2, result));
-            print_results(&all_results);
+            res.push((god1, god2));
         }
     }
+
+    res
+}
+
+pub fn full_matchups() {
+    let mut engine = EngineThreadWrapper::new();
+    engine.spin_for_pending_state();
+
+    let mut all_results = Vec::new();
+
+    for (god1, god2) in all_matchups() {
+        eprintln!("starting matching {} {}", god1, god2);
+        let result = play_match(&mut engine, god1, god2);
+        eprintln!("done matching {} {}. Winner: {:?}", god1, god2, result);
+
+        all_results.push(MatchupResult::new(god1, god2, result));
+        print_results(&all_results);
+    }
+}
+
+#[derive(Debug)]
+struct BalanceMatchupResult {
+    god1: GodName,
+    god2: GodName,
+    scores: Vec<Hueristic>,
+    average_score: f32,
+}
+
+impl std::fmt::Display for BalanceMatchupResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}, {}, {:.2}, {:.2}, {:?}",
+            self.god1,
+            self.god2,
+            self.average_score,
+            100.0 * sigmoid(self.average_score / SCALE as f32),
+            self.scores
+        )
+    }
+}
+
+pub fn balance_matchups(moves_per_game: usize, secs_per_move: f32) {
+    let mut engine = EngineThreadWrapper::new();
+    engine.spin_for_pending_state();
+
+    let mut all_results = Vec::new();
+
+    for (god1, god2) in all_matchups() {
+        eprintln!("starting balance matching {} {}", god1, god2);
+        let mut scores = Vec::new();
+
+        let mut game_state = FullGameState::new_empty_state(god1, god2);
+        for _ in 0..moves_per_game {
+            let engine_result = engine
+                .search_for_duration(&game_state, secs_per_move)
+                .unwrap();
+            let sign = match game_state.board.current_player {
+                Player::One => 1,
+                Player::Two => -1,
+            };
+            scores.push(sign * engine_result.score);
+
+            eprintln!(
+                "{}: score: {} depth: {}",
+                engine_result.action_str, engine_result.score, engine_result.depth
+            );
+            game_state = engine_result.child_state;
+            game_state.print_to_console();
+        }
+
+        let average_score =
+            scores.iter().cloned().map(f32::from).sum::<f32>() / scores.len() as f32;
+        all_results.push(BalanceMatchupResult {
+            god1,
+            god2,
+            scores,
+            average_score,
+        });
+
+        for bit in &all_results {
+            eprintln!("{bit}");
+        }
+    }
+}
+
+pub fn main() {
+    balance_matchups(4, 5.0);
 }
 
 // cargo run -p battler --bin matchups --release

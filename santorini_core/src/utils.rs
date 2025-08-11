@@ -23,6 +23,10 @@ pub fn move_all_workers_one_include_original_workers(mask: BitBoard) -> BitBoard
     BitBoard((verticals | left | right) & BitBoard::MAIN_SECTION_MASK.0)
 }
 
+pub fn sigmoid(x: f32) -> f32 {
+    1.0 / (1.0 + (-x).exp())
+}
+
 #[rustfmt::skip]
 pub const fn grid_position_builder<T: Copy>(
     outer_corner: T,
