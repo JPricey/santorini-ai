@@ -5,6 +5,8 @@ use std::{
     simd::{Simd, cmp::SimdOrd, num::SimdInt},
 };
 
+use arrayvec::ArrayVec;
+
 use crate::{
     bitboard::BitBoard, board::BoardState, gods::GodName, player::Player, search::Hueristic,
 };
@@ -63,13 +65,16 @@ pub const HIDDEN_SIZE: usize = 1024;
 pub const FEATURE_COUNT: usize = 25 + 3 * 2;
 
 type FeatureType = u16;
-type FeatureArray = [u16; FEATURE_COUNT];
+const MAX_WORKER_FEATURE_COUNT: usize = 6;
 
-pub static MODEL: Network = unsafe {
-    mem::transmute(*include_bytes!(
-        "../.././models/gods-labeled-3.bin"
-    ))
-};
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct FeatureSet {
+    pub ordered_features: [u16; 27],
+    pub worker_features: ArrayVec<u16, 6>,
+}
+
+pub static MODEL: Network =
+    unsafe { mem::transmute(*include_bytes!("../.././models/gods-labeled-3.bin")) };
 
 impl Accumulator {
     pub fn new() -> Self {
@@ -87,6 +92,20 @@ impl Accumulator {
         }
     }
 
+    pub fn add_add_feature(&mut self, idx1: usize, idx2: usize) {
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let add1 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[idx1].vals[i..i + FEATURE_LANES],
+            );
+            let add2 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[idx2].vals[i..i + FEATURE_LANES],
+            );
+            let sum = acc + add1 + add2;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
+        }
+    }
+
     pub fn remove_feature(&mut self, feature_idx: usize) {
         for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
             let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
@@ -98,6 +117,20 @@ impl Accumulator {
         }
     }
 
+
+    pub fn sub_sub_feature(&mut self, idx1: usize, idx2: usize) {
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let sub1 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[idx1].vals[i..i + FEATURE_LANES],
+            );
+            let sub2 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[idx2].vals[i..i + FEATURE_LANES],
+            );
+            let sum = acc - sub1 - sub2;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
+        }
+    }
     pub fn add_remove_feature(&mut self, add_idx: usize, sub_idx: usize) {
         for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
             let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
@@ -111,50 +144,202 @@ impl Accumulator {
             sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
         }
     }
+
+    pub fn add_add_remove_feature(&mut self, add_idx: usize, add_idx_2: usize, sub_idx: usize) {
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let add = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[add_idx].vals[i..i + FEATURE_LANES],
+            );
+            let add2 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[add_idx_2].vals[i..i + FEATURE_LANES],
+            );
+            let sub = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[sub_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sum = add + add2 - sub + acc;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
+        }
+    }
+
+    pub fn add_rem_rem_feature(&mut self, add_idx: usize, sub_idx: usize, sub_idx_2: usize) {
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let add = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[add_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sub = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[sub_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sub2 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[sub_idx_2].vals[i..i + FEATURE_LANES],
+            );
+            let sum = add - sub - sub2 + acc;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
+        }
+    }
+
+    pub fn add_add_rem_rem_feature(
+        &mut self,
+        add_idx: usize,
+        add_idx_2: usize,
+        sub_idx: usize,
+        sub_idx_2: usize,
+    ) {
+        for i in (0..HIDDEN_SIZE).step_by(FEATURE_LANES) {
+            let acc = Simd::<i16, FEATURE_LANES>::from_slice(&self.vals.0[i..i + FEATURE_LANES]);
+            let add = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[add_idx].vals[i..i + FEATURE_LANES],
+            );
+            let add2 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[add_idx_2].vals[i..i + FEATURE_LANES],
+            );
+            let sub = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[sub_idx].vals[i..i + FEATURE_LANES],
+            );
+            let sub2 = Simd::<i16, FEATURE_LANES>::from_slice(
+                &MODEL.feature_weights[sub_idx_2].vals[i..i + FEATURE_LANES],
+            );
+            let sum = add + add2 - sub - sub2 + acc;
+            sum.copy_to_slice(&mut self.vals.0[i..i + FEATURE_LANES]);
+        }
+    }
 }
 
 // TODO: equality should be for features only
 #[derive(Clone, PartialEq, Eq)]
 pub struct LabeledAccumulator {
-    feature_array: FeatureArray,
+    feature_set: FeatureSet,
     accumulator: Accumulator,
 }
 
 impl Debug for LabeledAccumulator {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("LabeledAccumulator")
-            .field("feature_array", &self.feature_array)
+            .field("feature_array", &self.feature_set)
             .finish()
     }
 }
 
 impl LabeledAccumulator {
     pub fn new_from_scratch(board: &BoardState, god1: GodName, god2: GodName) -> Self {
-        let feature_array = build_feature_array(board, god1, god2);
+        let feature_set = build_feature_set(board, god1, god2);
         let mut accumulator = Accumulator::new();
 
-        for feature in feature_array {
-            accumulator.add_feature(feature as usize);
+        for feature in &feature_set.ordered_features {
+            accumulator.add_feature(*feature as usize);
+        }
+        for feature in &feature_set.worker_features {
+            accumulator.add_feature(*feature as usize);
         }
 
         LabeledAccumulator {
-            feature_array,
+            feature_set,
             accumulator,
         }
     }
 
-    pub fn replace_features(&mut self, feature_array: FeatureArray) {
-        for (current, &new) in self.feature_array.iter_mut().zip(feature_array.iter()) {
+    fn replace_features(&mut self, feature_set: FeatureSet) {
+        for (current, &new) in self
+            .feature_set
+            .ordered_features
+            .iter_mut()
+            .zip(feature_set.ordered_features.iter())
+        {
             if *current != new {
                 self.accumulator
                     .add_remove_feature(new as usize, *current as usize);
                 *current = new;
             }
         }
+
+        let mut adds: ArrayVec<FeatureType, MAX_WORKER_FEATURE_COUNT> = Default::default();
+        let mut subs: ArrayVec<FeatureType, MAX_WORKER_FEATURE_COUNT> = Default::default();
+
+        let mut cur_i = 0;
+        let mut other_i = 0;
+
+        loop {
+            if self.feature_set.worker_features[cur_i] == feature_set.worker_features[other_i] {
+                cur_i += 1;
+                other_i += 1;
+            } else if self.feature_set.worker_features[cur_i] > feature_set.worker_features[other_i]
+            {
+                adds.push(feature_set.worker_features[other_i]);
+                other_i += 1;
+            } else {
+                subs.push(self.feature_set.worker_features[cur_i]);
+                cur_i += 1;
+            }
+
+            if cur_i >= self.feature_set.worker_features.len() {
+                while other_i < feature_set.worker_features.len() {
+                    adds.push(feature_set.worker_features[other_i]);
+                    other_i += 1;
+                }
+                break;
+            } else if other_i >= feature_set.worker_features.len() {
+                while cur_i < self.feature_set.worker_features.len() {
+                    subs.push(self.feature_set.worker_features[cur_i]);
+                    cur_i += 1;
+                }
+                break;
+            }
+        }
+
+        loop {
+            match (adds.pop(), adds.pop(), subs.pop(), subs.pop()) {
+                (Some(add1), Some(add2), Some(sub1), Some(sub2)) => {
+                    self.accumulator.add_add_rem_rem_feature(
+                        add1 as usize,
+                        add2 as usize,
+                        sub1 as usize,
+                        sub2 as usize,
+                    );
+                }
+                (Some(add1), Some(add2), Some(sub1), None) => {
+                    self.accumulator.add_add_remove_feature(
+                        add1 as usize,
+                        add2 as usize,
+                        sub1 as usize,
+                    );
+                }
+                (Some(add1), None, Some(sub1), Some(sub2)) => {
+                    self.accumulator.add_rem_rem_feature(
+                        add1 as usize,
+                        sub1 as usize,
+                        sub2 as usize,
+                    );
+                }
+                (Some(add1), None, Some(sub1), None) => {
+                    self.accumulator
+                        .add_remove_feature(add1 as usize, sub1 as usize);
+                }
+                (Some(add1), Some(add2), None, None) => {
+                    self.accumulator
+                        .add_add_feature(add1 as usize, add2 as usize);
+                }
+                (Some(add1), None, None, None) => {
+                    self.accumulator.add_feature(add1 as usize);
+                    break;
+                }
+                (None, None, Some(sub1), Some(sub2)) => {
+                    self.accumulator.sub_sub_feature(sub1 as usize, sub2 as usize);
+                }
+                (None, None, Some(sub1), None) => {
+                    self.accumulator.remove_feature(sub1 as usize);
+                    break;
+                }
+                (None, None, None, None) => break,
+                _ => unreachable!()
+            }
+        }
+
+        self.feature_set.worker_features = feature_set.worker_features;
     }
 
     pub fn replace_from_board(&mut self, board: &BoardState, god1: GodName, god2: GodName) {
-        self.replace_features(build_feature_array(board, god1, god2))
+        self.replace_features(build_feature_set(board, god1, god2))
     }
 
     pub fn evaluate(&self) -> Hueristic {
@@ -194,55 +379,49 @@ impl Network {
     }
 }
 
-pub fn build_feature_array(board: &BoardState, god1: GodName, god2: GodName) -> FeatureArray {
-    let mut res = FeatureArray::default();
+fn build_feature_set(board: &BoardState, god1: GodName, god2: GodName) -> FeatureSet {
+    let mut res = FeatureSet::default();
     for pos in 0..25 {
-        res[pos] = (pos * 5) as FeatureType
-            + board.get_height(pos.into()) as FeatureType;
+        res.ordered_features[pos] =
+            (pos * 5) as FeatureType + board.get_height(pos.into()) as FeatureType;
     }
-
     let (own_god_idx, other_god_idx) = match board.current_player {
         Player::One => (god1 as usize, god2 as usize),
         Player::Two => (god2 as usize, god1 as usize),
     };
+    res.ordered_features[25] = (ACTIVE_PLAYER_OFFSET + own_god_idx) as FeatureType;
+    res.ordered_features[26] = (OPPO_OFFSET + other_god_idx) as FeatureType;
 
     fn _add_worker_features(
         board: &BoardState,
         worker_map: BitBoard,
-        features: &mut FeatureArray,
+        features: &mut FeatureSet,
         feature_offset: FeatureType,
-        mut index: usize,
-    ) -> usize {
+    ) {
         for pos in worker_map {
             let worker_height = board.get_height(pos);
             let feature: FeatureType =
                 feature_offset + 4 * (pos as FeatureType) + worker_height as FeatureType;
-            features[index] = feature;
-            index += 1
+            features.worker_features.push(feature);
         }
-        index
     }
     let (own_workers, other_workers) = match board.current_player {
         Player::One => (0, 1),
         Player::Two => (1, 0),
     };
 
-    res[25] = (ACTIVE_PLAYER_OFFSET + own_god_idx) as FeatureType;
     _add_worker_features(
         board,
         board.workers[own_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
         ACTIVE_PLAYER_WORKER_OFFSET as FeatureType,
-        26,
     );
 
-    res[28] = (OPPO_OFFSET + other_god_idx) as FeatureType;
     _add_worker_features(
         board,
         board.workers[other_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
         OPPO_WORKER_OFFSET as FeatureType,
-        29,
     );
 
     res
