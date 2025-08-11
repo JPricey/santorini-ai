@@ -89,7 +89,6 @@ impl BestSearchResult {
 
 pub struct SearchContext<'a, T: SearchTerminator> {
     pub tt: &'a mut TranspositionTable,
-    pub stop_flag: Arc<AtomicBool>,
     pub new_best_move_callback: Box<dyn FnMut(BestSearchResult)>,
     pub terminator: T,
 }
@@ -193,9 +192,8 @@ impl Default for SearchState {
 }
 
 impl<'a, T: SearchTerminator> SearchContext<'a, T> {
-    pub fn should_stop(&self, state: &SearchState) -> bool {
-        self.stop_flag.load(std::sync::atomic::Ordering::Relaxed)
-            || self.terminator.should_stop(state)
+    pub fn should_stop(&mut self, state: &SearchState) -> bool {
+        self.terminator.should_stop(state)
     }
 
     pub fn new(tt: &'a mut TranspositionTable, terminator: T) -> Self {
@@ -206,7 +204,6 @@ impl<'a, T: SearchTerminator> SearchContext<'a, T> {
         SearchContext {
             tt,
             new_best_move_callback,
-            stop_flag: Arc::new(AtomicBool::new(false)),
             terminator,
         }
     }
@@ -219,15 +216,15 @@ pub fn negamax_search<T>(
 where
     T: SearchTerminator,
 {
+    let mut search_state = SearchState::default();
+
     search_context
         .tt
         .age(root_state.gods[0].god_name, root_state.gods[1].god_name);
 
-    let start_time = Instant::now();
     let mut root_board = root_state.board.clone();
     // root_board.reset_hash();
     root_board.validate();
-    let mut search_state = SearchState::default();
 
     if root_board.get_winner().is_some() {
         panic!("Should not search in an already terminal state");
@@ -300,13 +297,11 @@ where
             let moves = active_god.get_moves_for_search(&root_board, root_board.current_player);
 
             if moves.len() > 0 {
-                let elapsed = start_time.elapsed().as_secs_f32();
                 root_board.print_to_console();
                 panic!(
-                    "{} Moves were available, but didn't make any: depth: {}, secs: {:.2} {:?}, {:?}. {:?}",
+                    "{} Moves were available, but didn't make any: depth: {}, {:?}, {:?}. {:?}",
                     timestamp_string(),
                     depth,
-                    elapsed,
                     root_board,
                     moves,
                     search_state
@@ -1191,7 +1186,6 @@ mod tests {
         let mut tt = TranspositionTable::new();
         let mut search_context = SearchContext {
             tt: &mut tt,
-            stop_flag: Arc::new(AtomicBool::new(false)),
             new_best_move_callback: Box::new(move |new_best_move| {
                 if new_best_move.score < -WINNING_SCORE_BUFFER {
                     // increment loss counter

@@ -156,7 +156,7 @@ fn atlas_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAct
             PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
             PartialAction::MoveWorker(Square::from(result_worker_mask.trailing_zeros() as usize)),
             PartialAction::Build(Square::from(build_position as usize)),
-            PartialAction::Build(Square::from(build_position as usize)),
+            PartialAction::Dome(Square::from(build_position as usize)),
         ]];
     } else {
         return vec![vec![

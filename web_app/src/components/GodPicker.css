@@ -1,0 +1,26 @@
+.GodPickerList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.GodPickerButton {
+    padding: 0.5em 1em;
+    background: #eee;
+    color: #222;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: normal;
+    transition: background 0.2s, color 0.2s, border 0.2s;
+    min-width: 160px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.GodPickerButton.Selected {
+    background: #1976d2;
+    color: #fff;
+    border: 2px solid #1976d2;
+    font-weight: bold;
+}

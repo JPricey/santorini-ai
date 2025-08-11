@@ -6,7 +6,7 @@ use crate::{
     player::Player,
     square::Square,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use strum::{Display, EnumString, IntoStaticStr};
 
 pub mod apollo;
@@ -66,6 +66,14 @@ pub trait ResultsMapper<T>: Clone {
 
 pub type StateWithScore = (BoardState, Hueristic);
 
+/*
+pub enum MoveWorkerMeta {
+    None,
+    IsSwap,
+    Push(Square),
+}
+*/
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 #[serde(rename_all = "snake_case")]
@@ -73,9 +81,24 @@ pub enum PartialAction {
     PlaceWorker(Square),
     SelectWorker(Square),
     MoveWorker(Square),
+    MoveWorkerWithSwap(Square),
+    MoveWorkerWithPush(Square, Square),
     Build(Square),
+    Dome(Square),
     NoMoves,
 }
+fn serialize_move_with_push<S>(value: &Square, push: &Square, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    use serde::ser::SerializeMap;
+    let mut map = s.serialize_map(Some(3))?;
+    map.serialize_entry("type", "move_worker_with_push")?;
+    map.serialize_entry("value", value)?;
+    map.serialize_entry("push", push)?;
+    map.end()
+}
+
 type FullAction = Vec<PartialAction>;
 
 #[derive(Clone)]

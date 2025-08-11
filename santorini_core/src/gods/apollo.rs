@@ -116,28 +116,22 @@ impl std::fmt::Debug for ApolloMove {
 
 type GodMove = ApolloMove;
 
-pub fn apollo_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+pub fn apollo_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
-    let current_player = board.current_player;
-    let worker_move_mask = action.move_mask();
-    let current_workers = board.workers[current_player as usize];
 
-    let moving_worker_mask = current_workers & worker_move_mask;
-    let result_worker_mask = worker_move_mask ^ moving_worker_mask;
+    let mut res = vec![PartialAction::SelectWorker(action.move_from_position())];
 
-    if action.get_is_winning() {
-        return vec![vec![
-            PartialAction::SelectWorker(moving_worker_mask.lsb()),
-            PartialAction::MoveWorker(result_worker_mask.lsb()),
-        ]];
+    if action.did_swap() {
+        res.push(PartialAction::MoveWorkerWithSwap(action.move_to_position()));
+    } else {
+        res.push(PartialAction::MoveWorker(action.move_to_position()));
     }
 
-    let build_position = action.build_position();
-    vec![vec![
-        PartialAction::SelectWorker(moving_worker_mask.lsb()),
-        PartialAction::MoveWorker(result_worker_mask.lsb()),
-        PartialAction::Build(build_position),
-    ]]
+    if !action.get_is_winning() {
+        res.push(PartialAction::Build(action.build_position()));
+    }
+
+    return vec![res];
 }
 
 pub fn apollo_make_move(board: &mut BoardState, action: GenericMove) {

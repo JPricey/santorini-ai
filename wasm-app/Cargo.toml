@@ -1,0 +1,16 @@
+[package]
+name = "wasm-app"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+santorini_core = { path = "../santorini_core" }
+wasm-bindgen = { version = "0.2.1", features = ["serde-serialize"] }
+js-sys = "0.3.77"
+
+[profile.release]
+debug = true

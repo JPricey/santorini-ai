@@ -7,27 +7,12 @@ use std::{
 use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
-    gods::PartialAction,
-    placement::get_starting_placements_count,
     search::BestSearchResult,
     uci_types::{
         BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput, StartedOutput,
     },
-    utils::timestamp_string,
+    utils::{find_action_path, timestamp_string},
 };
-
-fn find_action_path(
-    start_state: &FullGameState,
-    destination_state: &FullGameState,
-) -> Option<Vec<PartialAction>> {
-    let all_child_states = start_state.get_next_states_interactive();
-    for full_child in all_child_states {
-        if &full_child.state == destination_state {
-            return Some(full_child.actions);
-        }
-    }
-    None
-}
 
 fn try_emit_message(message: &EngineOutput) {
     match serde_json::to_string(message) {
@@ -137,7 +122,6 @@ fn handle_command(
                 return Err("Cannot look for next moves from terminal state".to_owned());
             }
 
-            get_starting_placements_count(&state.board)?;
             let child_states = state.get_next_states_interactive();
 
             let output = EngineOutput::NextMoves(NextMovesOutput {

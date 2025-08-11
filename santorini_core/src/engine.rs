@@ -14,6 +14,7 @@ use crate::{
     search_terminators::{
         AndSearchTerminator, NoopSearchTerminator, OrSearchTerminator,
         StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator,
+        StopFlagSearchTerminator,
     },
     transposition_table::TranspositionTable,
 };
@@ -64,7 +65,6 @@ type DatagenStaticSearchTerminator = OrSearchTerminator<
 >;
 
 // type EngineStaticSearchTerminator = DatagenStaticSearchTerminator;
-type EngineStaticSearchTerminator = NoopSearchTerminator;
 
 impl EngineThreadWrapper {
     pub fn new() -> Self {
@@ -111,9 +111,8 @@ impl EngineThreadWrapper {
                         *worker_state = EngineThreadState::Running;
                     }
 
-                    let mut search_state = SearchContext::<NoopSearchTerminator> {
+                    let mut search_state = SearchContext {
                         tt: &mut transposition_table,
-                        stop_flag: request.stop_flag.clone(),
                         new_best_move_callback: Box::new(move |new_best_move: BestSearchResult| {
                             let mut best_move_handle = best_move_mutex.lock().unwrap();
                             *best_move_handle = Some(new_best_move.clone());
@@ -124,13 +123,10 @@ impl EngineThreadWrapper {
 
                             let _ = best_move_sender.send(new_best_move.clone());
                         }),
-                        terminator: NoopSearchTerminator::default(),
+                        terminator: StopFlagSearchTerminator::new(request.stop_flag.clone()),
                     };
 
-                    negamax_search::<EngineStaticSearchTerminator>(
-                        &mut search_state,
-                        &request.state,
-                    );
+                    negamax_search(&mut search_state, &request.state);
 
                     request.stop_flag.store(true, Ordering::Relaxed);
                 }

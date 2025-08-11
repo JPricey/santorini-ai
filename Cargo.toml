@@ -6,11 +6,12 @@ members = [
     "battler",
     "datagen",
     "bullet_prep",
+    "wasm-app",
 ]
 
 [workspace.dependencies]
 colored = "2.0.4"
-rand = "0.8.5"
+rand = { version = "0.8.5" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 strum = { version = "0.27.1", features = ["derive"] }

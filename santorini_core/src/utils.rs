@@ -1,7 +1,7 @@
 #![feature(stdarch_x86_avx512)]
 #![feature(avx512_target_feature)]
 #![allow(unused)]
-use crate::{bitboard::BitBoard, board::BOARD_WIDTH};
+use crate::{bitboard::BitBoard, board::{FullGameState, BOARD_WIDTH}, gods::PartialAction};
 use chrono::Local;
 
 pub const EXCEPT_LEFT_COL: BitBoard =
@@ -21,6 +21,19 @@ pub fn move_all_workers_one_include_original_workers(mask: BitBoard) -> BitBoard
     let right = (verticals << 1) & EXCEPT_LEFT_COL.0;
 
     BitBoard((verticals | left | right) & BitBoard::MAIN_SECTION_MASK.0)
+}
+
+pub fn find_action_path(
+    start_state: &FullGameState,
+    destination_state: &FullGameState,
+) -> Option<Vec<PartialAction>> {
+    let all_child_states = start_state.get_next_states_interactive();
+    for full_child in all_child_states {
+        if &full_child.state == destination_state {
+            return Some(full_child.actions);
+        }
+    }
+    None
 }
 
 pub fn sigmoid(x: f32) -> f32 {

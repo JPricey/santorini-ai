@@ -1,8 +1,4 @@
-use rand::{
-    Rng,
-    seq::{IteratorRandom, SliceRandom},
-    thread_rng,
-};
+use rand::{Rng, seq::IteratorRandom, thread_rng};
 
 use crate::{
     board::FullGameState,
@@ -23,7 +19,7 @@ pub fn get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
 }
 
 pub fn get_random_god(rng: &mut impl Rng) -> StaticGod {
-    ALL_GODS_BY_ID.choose(rng).unwrap()
+    ALL_GODS_BY_ID.iter().choose(rng).unwrap()
 }
 
 pub fn get_random_move(state: &FullGameState, rng: &mut impl Rng) -> Option<FullGameState> {
@@ -31,7 +27,7 @@ pub fn get_random_move(state: &FullGameState, rng: &mut impl Rng) -> Option<Full
         return None;
     }
     let child_states = state.get_next_states();
-    child_states.choose(rng).cloned()
+    child_states.iter().choose(rng).cloned()
 }
 
 pub struct RandomSingleGameStateGenerator {

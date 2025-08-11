@@ -3,7 +3,7 @@
 
 use colored::Colorize;
 use rand::Rng;
-use rand::seq::SliceRandom;
+use rand::seq::{IteratorRandom, SliceRandom};
 use santorini_core::board::BoardState;
 use santorini_core::gods::generic::{
     IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK,
@@ -246,7 +246,7 @@ fn random_matchup() {
         .map(|f| f.god_name)
         .filter(|f| *f != GodName::Mortal)
         .collect::<Vec<GodName>>();
-    let choose = god_names.choose_multiple(&mut rand::thread_rng(), 2).collect::<Vec<_>>();
+    let choose = god_names.into_iter().choose_multiple(&mut rand::thread_rng(), 2).into_iter().collect::<Vec<_>>();
     println!("{:?}", choose);
 }
 

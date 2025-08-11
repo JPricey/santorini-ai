@@ -1,3 +1,5 @@
+use colorous::PURPLES;
+
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},
@@ -179,28 +181,25 @@ impl std::fmt::Debug for MinotaurMove {
 
 type GodMove = MinotaurMove;
 
-pub fn minotaur_move_to_actions(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+pub fn minotaur_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<FullAction> {
     let action: GodMove = action.into();
-    let current_player = board.current_player;
-    let worker_move_mask = action.move_mask();
-    let current_workers = board.workers[current_player as usize];
 
-    let moving_worker_mask = current_workers & worker_move_mask;
-    let result_worker_mask = worker_move_mask ^ moving_worker_mask;
+    let mut result = vec![PartialAction::SelectWorker(action.move_from_position())];
 
-    if action.get_is_winning() {
-        return vec![vec![
-            PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
-            PartialAction::MoveWorker(Square::from(result_worker_mask.trailing_zeros() as usize)),
-        ]];
+    if let Some(push_to) = action.push_to_position() {
+        result.push(PartialAction::MoveWorkerWithPush(
+            action.move_to_position(),
+            push_to,
+        ));
+    } else {
+        result.push(PartialAction::MoveWorker(action.move_to_position()));
     }
 
-    let build_position = action.build_position();
-    return vec![vec![
-        PartialAction::SelectWorker(Square::from(moving_worker_mask.trailing_zeros() as usize)),
-        PartialAction::MoveWorker(Square::from(result_worker_mask.trailing_zeros() as usize)),
-        PartialAction::Build(Square::from(build_position as usize)),
-    ]];
+    if !action.get_is_winning() {
+        result.push(PartialAction::Build(action.build_position()));
+    }
+
+    return vec![result];
 }
 
 pub fn minotaur_make_move(board: &mut BoardState, action: GenericMove) {
