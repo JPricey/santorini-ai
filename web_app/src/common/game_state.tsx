@@ -51,12 +51,23 @@ export const Player = {
 } as const;
 export type PlayerType = typeof Player[keyof typeof Player];
 
-export function playerToString(player: PlayerType): string {
+export function playerToPrettyColorString(player: PlayerType): string {
     switch (player) {
         case Player.One:
             return 'White';
         case Player.Two:
             return 'Black';
+        default:
+            return assertUnreachable(player);
+    }
+}
+
+export function playertoString(player: PlayerType): string {
+    switch (player) {
+        case Player.One:
+            return 'One';
+        case Player.Two:
+            return 'Two';
         default:
             return assertUnreachable(player);
     }

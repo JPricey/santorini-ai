@@ -1,6 +1,6 @@
 import './FullGamePlayer.css';
 import { parseFen } from "../common/fen";
-import { getWinner, isGameOver, Player, playerToString, type GameState, type PlayerType, type SquareType } from '../common/game_state';
+import { getWinner, isGameOver, Player, playerToPrettyColorString, type GameState, type PlayerType, type SquareType } from '../common/game_state';
 import { describeAction, gameStateWithActions, type PlayerAction } from '../common/api';
 import { ActionSelector } from '../common/action_selector';
 import { useEffect, useRef, useState } from 'react';
@@ -215,12 +215,12 @@ function GameSidebar(props: GameSidebarProps) {
     const winner = getWinner(gameState);
     if (winner === null) {
         if (isAiThinking) {
-            toPlayText = `${playerToString(state.gameState.currentPlayer)} is thinking...`;
+            toPlayText = `${playerToPrettyColorString(state.gameState.currentPlayer)} is thinking...`;
         } else {
-            toPlayText = `${playerToString(state.gameState.currentPlayer)} to play`;
+            toPlayText = `${playerToPrettyColorString(state.gameState.currentPlayer)} to play`;
         }
     } else {
-        toPlayText = `${playerToString(winner)} wins!`;
+        toPlayText = `${playerToPrettyColorString(winner)} wins!`;
     };
 
     const versusText = `${capitalizeFirstLetter(gameState.players[0].god)} vs ${capitalizeFirstLetter(gameState.players[1].god)}`;

@@ -1,4 +1,4 @@
-import { God, type GodType } from "../common/game_state";
+import { God, type GodType, type PlayerType } from "../common/game_state";
 import { capitalizeFirstLetter } from "../common/utils";
 import './GodPicker.css'
 
@@ -22,8 +22,8 @@ export function GodPicker({ value, onChange, isHuman, onToggleHuman }: GodPicker
                 </button>
             ))}
 
-            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center' }}>
-                <span style={{ marginRight: 12, fontWeight: isHuman ? 'bold' : 'normal' }}>Human</span>
+            <div className="god-picker-ai-mode-container">
+                <span style={{ fontWeight: isHuman ? 'bold' : 'normal' }}>Human</span>
                 <label style={{ position: 'relative', display: 'inline-block', width: 48, height: 24, margin: '0 8px' }}>
                     <input
                         type="checkbox"
@@ -62,7 +62,7 @@ export function GodPicker({ value, onChange, isHuman, onToggleHuman }: GodPicker
                         }}
                     />
                 </label>
-                <span style={{ marginLeft: 12, fontWeight: !isHuman ? 'bold' : 'normal' }}>AI</span>
+                <span style={{ fontWeight: !isHuman ? 'bold' : 'normal' }}>AI</span>
             </div>
         </div>
     );

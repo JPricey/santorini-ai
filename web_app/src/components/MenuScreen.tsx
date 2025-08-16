@@ -82,10 +82,6 @@ export function MenuScreen(props: MenuScreenProps) {
         setGameIsRunning(true);
     };
 
-    // useEffect(() => {
-    //     startGame(true);
-    // }, []);
-
     if (isGameRunning) {
         return (
             <FullGamePlayer fen={fen} aiConfig={aiConfig ?? undefined} gameIsDoneCallback={() => setGameIsRunning(false)} />
@@ -109,8 +105,7 @@ export function MenuScreen(props: MenuScreenProps) {
 
                     <button
                         style={{
-                            marginTop: 32,
-                            padding: "12px 32px",
+                            padding: "0.8rem 2rem",
                             fontSize: "1.2rem",
                             background: "#2196F3",
                             color: "#fff",
