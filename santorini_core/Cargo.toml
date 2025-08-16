@@ -13,4 +13,4 @@ serde_yaml = {workspace=true}
 colorous = "1.0.16"
 arrayvec = "0.7.6"
 chrono = "0.4.41"
-rand = { version = "0.9" }
+rand = { workspace=true}

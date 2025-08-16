@@ -2,9 +2,7 @@ use js_sys;
 use santorini_core::{
     board::FullGameState,
     search::{SearchContext, negamax_search},
-    search_terminators::{
-        DynamicNodesVisitedSearchTerminator, SearchTerminator, StaticNodesVisitedSearchTerminator,
-    },
+    search_terminators::SearchTerminator,
     transposition_table::TranspositionTable,
     uci_types::{BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput},
     utils::find_action_path,
@@ -58,7 +56,7 @@ pub struct WasmApp {
     tt: TranspositionTable,
 }
 
-fn _parseJsNumber(number: &JsValue) -> Result<f64, String> {
+fn _parse_js_number(number: &JsValue) -> Result<f64, String> {
     let Some(number) = number.as_f64() else {
         return Err("Could not parse number".to_owned());
     };
@@ -66,7 +64,7 @@ fn _parseJsNumber(number: &JsValue) -> Result<f64, String> {
     Ok(number)
 }
 
-fn _parseFenJsValue(fen: &JsValue) -> Result<FullGameState, String> {
+fn _parse_fen_js_value(fen: &JsValue) -> Result<FullGameState, String> {
     let Some(fen) = fen.as_string() else {
         return Err("fen must be a string".to_owned());
     };
@@ -81,10 +79,6 @@ fn _parseFenJsValue(fen: &JsValue) -> Result<FullGameState, String> {
     return Ok(state);
 }
 
-// struct SearchResult {
-//     next_state: String,
-// }
-
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 impl WasmApp {
@@ -95,15 +89,13 @@ impl WasmApp {
         }
     }
 
-    pub fn computeNextMove(&mut self, fen: JsValue, duration: JsValue) -> JsValue {
-        let timeLimit = match _parseJsNumber(&duration) {
-            Ok(state) => state,
-            Err(err) => return JsValue::from(err),
-        };
-        let state = match _parseFenJsValue(&fen) {
-            Ok(state) => state,
-            Err(err) => return JsValue::from(err),
-        };
+    fn _computeNextMoveResult(
+        &mut self,
+        fen: JsValue,
+        duration: JsValue,
+    ) -> Result<JsValue, String> {
+        let timeLimit = _parse_js_number(&duration)?;
+        let state = _parse_fen_js_value(&fen)?;
 
         let mut search_state = SearchContext {
             tt: &mut self.tt,
@@ -133,23 +125,26 @@ impl WasmApp {
                 meta: meta,
             };
 
-            return JsValue::from_serde(&output).unwrap();
+            return serde_wasm_bindgen::to_value(&output).map_err(|e| e.to_string());
         } else {
-            return JsValue::from(format!(
+            return Err(format!(
                 "no move {} {}",
                 search_result.last_fully_completed_depth, search_result.nodes_visited
             ));
         }
     }
-}
-#[wasm_bindgen]
-pub fn getNextMovesInteractive(fen: JsValue) -> JsValue {
-    let state = match _parseFenJsValue(&fen) {
-        Ok(state) => state,
-        Err(err) => return JsValue::from(err),
-    };
 
-    let fen_string = JsValue::as_string(&fen).unwrap();
+    pub fn computeNextMove(&mut self, fen: JsValue, duration: JsValue) -> JsValue {
+        match self._computeNextMoveResult(fen, duration) {
+            Ok(result) => result,
+            Err(err) => JsValue::from(err),
+        }
+    }
+}
+
+pub fn _get_next_moves_interactive_result(fen: JsValue) -> Result<JsValue, String> {
+    let state = _parse_fen_js_value(&fen)?;
+    let fen_string = JsValue::as_string(&fen).ok_or("fen must be a string")?;
 
     let child_states = state.get_next_states_interactive();
     let output = EngineOutput::NextMoves(NextMovesOutput {
@@ -164,9 +159,14 @@ pub fn getNextMovesInteractive(fen: JsValue) -> JsValue {
             .collect(),
     });
 
-    if let Ok(output) = JsValue::from_serde(&output) {
-        output
-    } else {
-        return JsValue::from("Could not serialize output");
+    serde_wasm_bindgen::to_value(&output)
+        .map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn get_next_moves_interactive(fen: JsValue) -> JsValue {
+    match _get_next_moves_interactive_result(fen) {
+        Ok(result) => result,
+        Err(err) => JsValue::from(err),
     }
 }

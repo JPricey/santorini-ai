@@ -3,7 +3,7 @@ use std::io::{BufReader, prelude::*};
 use std::path::PathBuf;
 
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::rng;
 use santorini_core::bitboard::BitBoard;
 use santorini_core::board::FullGameState;
 use santorini_core::player::Player;
@@ -94,7 +94,7 @@ fn convert_files_to_permuted_bullet_lines(
     input_dir: PathBuf,
     output_path: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     const CHUNK_SIZE: usize = 25_000_000;
     let all_data_files = all_filenames_in_dir(input_dir)?;

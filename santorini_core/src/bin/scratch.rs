@@ -195,11 +195,11 @@ fn nnue_analysis() {
 fn tt_randomness_check() {
     const TT_SIZE: usize = 10_000_019;
     let mut tt = vec![false; TT_SIZE];
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let counts = 2_700_000;
     for _ in 0..counts {
-        let slot = rng.gen_range(0..TT_SIZE);
+        let slot = rng.random_range(0..TT_SIZE);
         tt[slot] = true;
     }
 
@@ -246,7 +246,11 @@ fn random_matchup() {
         .map(|f| f.god_name)
         .filter(|f| *f != GodName::Mortal)
         .collect::<Vec<GodName>>();
-    let choose = god_names.into_iter().choose_multiple(&mut rand::thread_rng(), 2).into_iter().collect::<Vec<_>>();
+    let choose = god_names
+        .into_iter()
+        .choose_multiple(&mut rand::rng(), 2)
+        .into_iter()
+        .collect::<Vec<_>>();
     println!("{:?}", choose);
 }
 

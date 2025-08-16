@@ -3,7 +3,7 @@ use std::io::{BufReader, prelude::*};
 use std::path::PathBuf;
 
 use rand::seq::SliceRandom;
-use rand::{Rng, thread_rng};
+use rand::{Rng, rng};
 use santorini_core::bitboard::BitBoard;
 use santorini_core::board::FullGameState;
 use santorini_core::player::Player;
@@ -117,7 +117,7 @@ fn process_raw_data_files(
     temp_dir: PathBuf,
     delete_source: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let all_data_files = all_filenames_in_dir(input_dir)?;
 
     std::fs::create_dir_all(&temp_dir)?;
@@ -198,7 +198,7 @@ fn process_raw_data_files(
         current_buffer.shuffle(&mut rng);
 
         for state in &current_buffer {
-            let file_idx = rng.gen_range(0..TMP_OUTPUT_FILE_COUNT);
+            let file_idx = rng.random_range(0..TMP_OUTPUT_FILE_COUNT);
             temp_file_buffers[file_idx].push(*state);
         }
         current_buffer.clear();
@@ -233,7 +233,7 @@ fn consolidate_temp_files(
     output_path: PathBuf,
     delete_temp: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let mut total_examples = 0;
 
     // Clear output file if it exists
@@ -311,7 +311,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 //     final_data_path: PathBuf,
 //     temp_dir: PathBuf,
 // ) -> Result<(), Box<dyn std::error::Error>> {
-//     let mut rng = thread_rng();
+//     let mut rng = rng();
 // 
 //     // Read all data from final file
 //     println!("Reading final data from: {:?}", final_data_path);

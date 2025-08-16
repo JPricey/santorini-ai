@@ -1,6 +1,6 @@
 use core::panic;
 
-use rand::{Rng, thread_rng};
+use rand::{Rng, rng};
 
 use santorini_core::{
     bitboard::BitBoard,
@@ -289,7 +289,7 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
 }
 
 fn main() {
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     loop {
         let mut root_state = get_board_with_random_placements(&mut rng);

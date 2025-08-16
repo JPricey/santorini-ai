@@ -1,7 +1,7 @@
 use clap::Parser;
-use rand::distributions::Alphanumeric;
-use rand::seq::IteratorRandom;
-use rand::{Rng, seq::SliceRandom, thread_rng};
+use rand::distr::Alphanumeric;
+use rand::seq::{IndexedRandom, IteratorRandom};
+use rand::{Rng, rng};
 use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::player::Player;
 use santorini_core::search::{Hueristic, SearchContext, WINNING_SCORE_BUFFER, negamax_search};
@@ -67,7 +67,7 @@ fn worker_thread() {
 
 fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
     let mut tt = TranspositionTable::new();
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     let file_path = _get_new_datafile_name(&mut rng);
     let mut data_file = std::fs::File::create(file_path).expect("Failed to create error log file");
@@ -178,7 +178,7 @@ fn playout_subgame(
             });
 
             if best_child.score.abs() < WINNING_SCORE_BUFFER {
-                if rng.gen_bool(subgame_chance) {
+                if rng.random_bool(subgame_chance) {
                     let random_next = current_state.get_next_states().choose(rng).unwrap().clone();
                     if random_next != best_child.child_state {
                         subgame_states.push((random_next, move_count));
@@ -212,7 +212,7 @@ fn generate_one(
     _randomize_gods(&mut current_state, rng);
     let mut move_count = 0;
 
-    let rand = rng.gen_range(0.0..1.0);
+    let rand = rng.random_range(0.0..1.0);
     let num_random_moves = if rand < 0.05 {
         0
     } else if rand < 0.15 {

@@ -1,8 +1,8 @@
 use std::{
     sync::{
-        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, Sender, channel},
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -10,9 +10,9 @@ use std::{
 
 use crate::{
     board::FullGameState,
-    search::{BestSearchResult, SearchContext, negamax_search},
+    search::{negamax_search, BestSearchResult, SearchContext},
     search_terminators::{
-        AndSearchTerminator, NoopSearchTerminator, OrSearchTerminator,
+        AndSearchTerminator, OrSearchTerminator,
         StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator,
         StopFlagSearchTerminator,
     },

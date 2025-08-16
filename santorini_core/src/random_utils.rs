@@ -1,4 +1,4 @@
-use rand::{Rng, seq::IteratorRandom, thread_rng};
+use rand::{rng, seq::IteratorRandom, Rng};
 
 use crate::{
     board::FullGameState,
@@ -49,7 +49,7 @@ impl RandomSingleGameStateGenerator {
 
 impl Default for RandomSingleGameStateGenerator {
     fn default() -> Self {
-        Self::new(get_board_with_random_placements(&mut thread_rng()))
+        Self::new(get_board_with_random_placements(&mut rng()))
     }
 }
 
@@ -60,7 +60,7 @@ impl Iterator for RandomSingleGameStateGenerator {
         match self.current_state.take() {
             None => None,
             Some(result) => {
-                self.current_state = get_random_move(&result, &mut thread_rng());
+                self.current_state = get_random_move(&result, &mut rng());
                 Some(result)
             }
         }

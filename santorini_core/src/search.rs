@@ -1,9 +1,4 @@
-use std::{
-    array,
-    fmt::Debug,
-    sync::{Arc, atomic::AtomicBool},
-    time::Instant,
-};
+use std::{array, fmt::Debug};
 
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
@@ -16,7 +11,7 @@ use crate::{
         generic::{GenericMove, WorkerPlacement},
     },
     move_picker::{MovePicker, MovePickerStage},
-    nnue::{self, LabeledAccumulator},
+    nnue::LabeledAccumulator,
     placement::{get_starting_placements_count, get_unique_placements},
     player::Player,
     search_terminators::SearchTerminator,

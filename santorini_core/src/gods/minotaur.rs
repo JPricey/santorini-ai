@@ -1,5 +1,3 @@
-use colorous::PURPLES;
-
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},

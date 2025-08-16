@@ -1,4 +1,4 @@
-import { getNextMovesInteractive } from "../../pkg/wasm_app";
+import { get_next_moves_interactive } from "../../pkg/wasm_app";
 import { squareStrToSquare, type GameState, type SquareType } from "./game_state";
 import { assertUnreachable } from "./utils";
 
@@ -37,7 +37,7 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.EndTurn };
 
 export function getNextMoves(fen: string): NextMoves {
-    return getNextMovesInteractive(fen);
+    return get_next_moves_interactive(fen);
 }
 
 export function describeActionType(actionType: PlayerActionType): string {
