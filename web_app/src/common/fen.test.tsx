@@ -1,5 +1,6 @@
+import { expect, test } from 'vitest'
 import { parseFen } from "./fen";
-import { GameState, Square, squareStrToSquare } from "./game_state";
+import { Square, squareStrToSquare, type GameState } from "./game_state";
 
 test('squareStrToSquare', () => {
     expect(squareStrToSquare('A5').val).toBe(Square.A5);

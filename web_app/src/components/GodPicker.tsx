@@ -11,12 +11,12 @@ type GodPickerProps = {
 
 export function GodPicker({ value, onChange, isHuman, onToggleHuman }: GodPickerProps) {
     return (
-        <div className="GodPickerList">
+        <div className="god-picker-list">
             {Object.values(God).map(god => (
                 <button
                     key={god}
                     onClick={() => onChange(god)}
-                    className={`GodPickerButton${god === value ? " Selected" : ""}`}
+                    className={`god-picker-button${god === value ? " selected" : ""}`}
                 >
                     {capitalizeFirstLetter(god)}
                 </button>

@@ -1,5 +1,5 @@
 import { getNextMoves, PlayerActionTypes, type NextState, type PlayerAction, type PlayerActionType } from "./api";
-import { isGameOver, squareToSquareStr, type GameState, type Player, type Square, type SquareType } from "./game_state";
+import { isGameOver, squareToSquareStr, type GameState, type SquareType } from "./game_state";
 import { assertUnreachable, isListDeepContain, isListSubset } from "./utils";
 
 export type ActionSelectorNextStep = {

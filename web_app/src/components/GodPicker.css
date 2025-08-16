@@ -1,10 +1,10 @@
-.GodPickerList {
+.god-picker-list {
     display: flex;
     flex-direction: column;
     gap: 0.5em;
 }
 
-.GodPickerButton {
+.god-picker-button {
     padding: 0.5em 1em;
     background: #eee;
     color: #222;
@@ -18,7 +18,7 @@
     box-sizing: border-box;
 }
 
-.GodPickerButton.Selected {
+.god-picker-button.selected {
     background: #1976d2;
     color: #fff;
     border: 2px solid #1976d2;

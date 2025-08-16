@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AiWorker, SearchResult } from '../ai/ai_worker';
 import { GameGridCanvas } from './GameGridCanvas';
 import { assertUnreachable, capitalizeFirstLetter, setTimeoutAsync, sigmoid } from '../common/utils';
-import { getAiSpeedDuration, type AiSpeed, type AiSpeedType } from './MenuScreen';
+import { getAiSpeedDuration, type AiSpeedType } from './MenuScreen';
 
 export type AiConfig = {
     aiWorker: AiWorker,
@@ -73,7 +73,6 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
     const fenRef = useRef(state.fen);
 
     const {
-        fen,
         gameState,
         selector,
         completedActions,
@@ -173,6 +172,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
         endTurn: endTurn,
         lastAiResponse: lastAiResponse,
         returnToMenu: props.gameIsDoneCallback,
+        isAiThinking: isAiThinking,
     };
 
     const sidebar = <GameSidebar {...sidebarProps} />;
@@ -205,15 +205,20 @@ type GameSidebarProps = {
     endTurn: () => void,
     returnToMenu: () => void,
     lastAiResponse: SearchResult | null,
+    isAiThinking: boolean,
 }
 function GameSidebar(props: GameSidebarProps) {
-    const { state, lastAiResponse, returnToMenu } = props;
+    const { state, lastAiResponse, returnToMenu, isAiThinking } = props;
     const { gameState } = state;
 
     let toPlayText;
     const winner = getWinner(gameState);
     if (winner === null) {
-        toPlayText = `${playerToString(state.gameState.currentPlayer)} to play`;
+        if (isAiThinking) {
+            toPlayText = `${playerToString(state.gameState.currentPlayer)} is thinking...`;
+        } else {
+            toPlayText = `${playerToString(state.gameState.currentPlayer)} to play`;
+        }
     } else {
         toPlayText = `${playerToString(winner)} wins!`;
     };

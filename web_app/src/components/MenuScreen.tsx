@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { GodPicker } from "./GodPicker";
-import { God, Player, type GodType } from "../common/game_state";
-import './MenuScreen.css';
+import { God, type GodType } from "../common/game_state";
 import { FullGamePlayer, type AiConfig } from "./FullGamePlayer";
 import type { AiWorker } from "../ai/ai_worker";
 import { assertUnreachable } from "../common/utils";
+import './MenuScreen.css';
 
 export type MenuScreenProps = {
     aiWorker?: AiWorker,

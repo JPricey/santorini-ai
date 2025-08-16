@@ -7,7 +7,8 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "remeda": "^2.30.0",
-    "ts-results": "^3.3.0"
+    "ts-results": "^3.3.0",
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
@@ -28,6 +29,7 @@
   "scripts": {
     "build:wasm": "RUSTFLAGS='-C target-feature=+bulk-memory --cfg getrandom_backend=\"wasm_js\"' rustup run nightly-2025-07-26-x86_64-unknown-linux-gnu wasm-pack build --target web --out-dir ../web_app/pkg ../wasm-app -- -Z build-std=panic_abort,std",
     "dev": "vite",
+    "tsc": "tsc --noEmit",
     "build": "vite build --base=https://jpricey.github.io/god-game/",
     "preview": "vite preview",
     "lint": "eslint .",
