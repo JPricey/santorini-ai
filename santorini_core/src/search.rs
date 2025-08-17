@@ -271,8 +271,8 @@ where
         let score = _root_search(
             search_context,
             &mut search_state,
-            &mut nnue_acc,
             &mut root_state,
+            &mut nnue_acc,
             depth,
         );
 
@@ -336,17 +336,14 @@ where
 fn _root_search<T>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
-    nnue_acc: &mut LabeledAccumulator,
     state: &mut FullGameState,
+    nnue_acc: &mut LabeledAccumulator,
     remaining_depth: usize,
 ) -> Hueristic
 where
     T: SearchTerminator,
 {
-    // TODO: when acc can handle different worker counts, this should be initialized once
     let starting_mode = get_starting_placements_count(&state.board).unwrap();
-
-    // nnue_acc.replace_from_board_with_possible_reset(board, p1_god.god_name, p2_god.god_name);
 
     if starting_mode == 0 {
         _start_inner_search::<T, Root>(
@@ -365,10 +362,8 @@ where
         _placement_search::<T, Root>(
             search_context,
             search_state,
+            state,
             nnue_acc,
-            &mut state.board,
-            state.gods[0],
-            state.gods[1],
             0,
             remaining_depth,
             -INFINITY,
@@ -421,10 +416,8 @@ where
 fn _placement_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
+    state: &mut FullGameState,
     nnue_acc: &mut LabeledAccumulator,
-    board: &mut BoardState,
-    p1_god: StaticGod,
-    p2_god: StaticGod,
     ply: usize,
     remaining_depth: usize,
     mut alpha: Hueristic,
@@ -435,7 +428,7 @@ where
     NT: NodeType,
 {
     search_state.search_stack[ply].eval = -INFINITY;
-    board.validate();
+    state.validate();
 
     search_state.nodes_visited += 1;
     let mut best_score = -INFINITY;
@@ -443,10 +436,10 @@ where
     let alpha_orig = alpha;
     let mut should_stop = false;
 
-    let mut placements = get_unique_placements(board);
+    let mut placements = get_unique_placements(&state.board);
     let mut best_action = placements[0];
 
-    let tt_entry = search_context.tt.fetch(board, ply);
+    let tt_entry = search_context.tt.fetch(&state.board, ply);
     if let Some(tt_entry) = tt_entry {
         let tt_move: WorkerPlacement = tt_entry.best_action.into();
         for i in 1..placements.len() {
@@ -458,16 +451,16 @@ where
     }
 
     for action in placements {
-        action.make_move(board);
+        action.make_move(&mut state.board);
 
-        let score = -match board.current_player {
+        let score = -match state.board.current_player {
             Player::One => _start_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
                 nnue_acc,
-                board,
-                p1_god,
-                p2_god,
+                &mut state.board,
+                state.gods[0],
+                state.gods[1],
                 ply + 1,
                 remaining_depth,
                 -beta,
@@ -476,10 +469,8 @@ where
             Player::Two => _placement_search::<T, NT::Next>(
                 search_context,
                 search_state,
+                state,
                 nnue_acc,
-                board,
-                p1_god,
-                p2_god,
                 ply + 1,
                 remaining_depth,
                 -beta,
@@ -495,7 +486,7 @@ where
 
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
-                    FullGameState::new(board.clone(), p1_god, p2_god),
+                    state.clone(),
                     best_action.into(),
                     true,
                     score,
@@ -511,13 +502,13 @@ where
             if score > alpha {
                 alpha = score;
                 if alpha >= beta {
-                    action.unmake_move(board);
+                    action.unmake_move(&mut state.board);
                     break;
                 }
             }
         }
 
-        action.unmake_move(board);
+        action.unmake_move(&mut state.board);
 
         should_stop = search_context.should_stop(&search_state);
         if should_stop {
@@ -535,7 +526,7 @@ where
         };
 
         search_context.tt.insert(
-            board,
+            &mut state.board,
             best_action.into(),
             remaining_depth as u8,
             tt_score_type,
