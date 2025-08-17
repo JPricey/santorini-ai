@@ -312,6 +312,10 @@ def pretty_string_for_action(action):
         return action['value']
     elif action_type == 'move_worker':
         return f'>{action["value"]}'
+    elif action_type == 'move_worker_with_swap':
+        return f'<>{action["value"]}'
+    elif action_type == 'move_worker_with_push':
+        return f'=>{action["value"]}'
     elif action_type == 'build':
         return f'@{action["value"]}'
     elif action_type == 'place_worker':
@@ -331,6 +335,10 @@ def longer_string_for_action(action):
         return f"Select {action['value']}"
     elif action_type == 'move_worker':
         return f"Move to {action['value']}"
+    elif action_type == 'move_worker_with_swap':
+        return f"Swap to {action['value']}"
+    elif action_type == 'move_worker_with_push':
+        return f"Push to {action['value']}"
     elif action_type == 'place_worker':
         return f"Place {action['value']}"
     elif action_type == 'build':
