@@ -20,11 +20,11 @@ export type AiSpeedType = typeof AiSpeed[keyof typeof AiSpeed];
 export function getAiSpeedDuration(aiSpeed: AiSpeedType): number {
     switch (aiSpeed) {
         case AiSpeed.Short:
-            return 100;
+            return 50;
         case AiSpeed.Medium:
-            return 2 * 1000;
+            return 1 * 1000;
         case AiSpeed.Long:
-            return 10 * 1000;
+            return 5 * 1000;
         default:
             return assertUnreachable(aiSpeed);
     }
