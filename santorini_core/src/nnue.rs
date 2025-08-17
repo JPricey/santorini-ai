@@ -8,7 +8,7 @@ use std::{
 use arrayvec::ArrayVec;
 
 use crate::{
-    bitboard::BitBoard, board::BoardState, gods::GodName, player::Player, search::Hueristic,
+    bitboard::BitBoard, board::{BoardState, FullGameState}, gods::GodName, player::Player, search::Hueristic,
 };
 
 pub const QA: i32 = 255;
@@ -341,6 +341,10 @@ impl LabeledAccumulator {
         }
 
         self.feature_set.worker_features = feature_set.worker_features;
+    }
+
+    pub fn replace_from_state(&mut self, state: &FullGameState) {
+        self.replace_features(build_feature_set(&state.board, state.gods[0].god_name, state.gods[1].god_name))
     }
 
     pub fn replace_from_board(&mut self, board: &BoardState, god1: GodName, god2: GodName) {

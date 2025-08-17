@@ -166,6 +166,13 @@ impl FullGameState {
         }
     }
 
+    pub fn get_active_non_active_gods(&self) -> (StaticGod, StaticGod) {
+        match self.board.current_player {
+            Player::One => (self.gods[0], self.gods[1]),
+            Player::Two => (self.gods[1], self.gods[0]),
+        }
+    }
+
     pub fn get_god_for_player(&self, player: Player) -> StaticGod {
         self.gods[player as usize]
     }
@@ -181,6 +188,10 @@ impl FullGameState {
     pub fn print_to_console(&self) {
         eprintln!("{:?}", self);
         self.board.print_to_console();
+    }
+
+    pub fn validation_err(&self) -> Result<(), String> {
+        self.board.validation_err()
     }
 
     pub fn validate(&self) {

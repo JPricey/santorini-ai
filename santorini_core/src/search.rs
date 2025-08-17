@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bitboard::BitBoard,
     board::FullGameState,
-    gods::{
-        StaticGod,
-        generic::{GenericMove, WorkerPlacement},
-    },
+    gods::generic::{GenericMove, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     placement::{get_starting_placements_count, get_unique_placements},
@@ -19,7 +16,7 @@ use crate::{
     utils::timestamp_string,
 };
 
-use super::{board::BoardState, transposition_table::TranspositionTable};
+use super::transposition_table::TranspositionTable;
 
 pub const MAX_PLY: usize = 127;
 
@@ -349,10 +346,8 @@ where
         _start_inner_search::<T, Root>(
             search_context,
             search_state,
+            state,
             nnue_acc,
-            &mut state.board,
-            state.gods[0],
-            state.gods[1],
             0,
             remaining_depth,
             -INFINITY,
@@ -375,10 +370,8 @@ where
 fn _start_inner_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
+    state: &mut FullGameState,
     nnue_acc: &mut LabeledAccumulator,
-    board: &mut BoardState,
-    p1_god: StaticGod,
-    p2_god: StaticGod,
     ply: usize,
     remaining_depth: usize,
     alpha: Hueristic,
@@ -388,23 +381,18 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    let (_active_god, other_god) = match board.current_player {
-        Player::One => (p1_god, p2_god),
-        Player::Two => (p2_god, p1_god),
-    };
+    let (_active_god, other_god) = state.get_active_non_active_gods();
 
     let is_in_check = other_god
-        .get_winning_moves(&board, !board.current_player)
+        .get_winning_moves(&state.board, !state.board.current_player)
         .len()
         > 0;
 
     _inner_search::<T, NT>(
         search_context,
         search_state,
+        state,
         nnue_acc,
-        p1_god,
-        p2_god,
-        board,
         is_in_check,
         ply,
         remaining_depth,
@@ -457,10 +445,8 @@ where
             Player::One => _start_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
+                state,
                 nnue_acc,
-                &mut state.board,
-                state.gods[0],
-                state.gods[1],
                 ply + 1,
                 remaining_depth,
                 -beta,
@@ -541,11 +527,9 @@ where
 
 fn _q_extend<T>(
     search_context: &mut SearchContext<T>,
-    board: &mut BoardState,
     search_state: &mut SearchState,
+    state: &mut FullGameState,
     nnue_acc: &mut LabeledAccumulator,
-    p1_god: StaticGod,
-    p2_god: StaticGod,
     ply: usize,
     q_depth: u32,
     mut alpha: Hueristic,
@@ -556,7 +540,7 @@ where
 {
     search_state.nodes_visited += 1;
 
-    let tt_entry = search_context.tt.fetch(board, ply);
+    let tt_entry = search_context.tt.fetch(&state.board, ply);
     if let Some(tt_value) = &tt_entry {
         match tt_value.score_type {
             SearchScoreType::Exact => {
@@ -576,24 +560,11 @@ where
     }
     let alpha_orig = alpha;
 
-    // if q_depth > 6 {
-    //     nnue_acc.replace_from_board(state, p1_god.god_name, p2_god.god_name);
-    //     return nnue_acc.evaluate();
-    // }
-
-    // if q_depth > search_state.max_q_depth {
-    //     search_state.max_q_depth = q_depth;
-    //     eprintln!("New max q depth: {}", q_depth);
-    // }
-
-    let (active_god, other_god) = match board.current_player {
-        Player::One => (p1_god, p2_god),
-        Player::Two => (p2_god, p1_god),
-    };
+    let (active_god, other_god) = state.get_active_non_active_gods();
 
     // If we have a win right now, just take it
     if active_god
-        .get_winning_moves(board, board.current_player)
+        .get_winning_moves(&state.board, state.board.current_player)
         .len()
         > 0
     {
@@ -603,7 +574,7 @@ where
 
     let eval;
     let child_moves;
-    let opponent_wins = other_god.get_winning_moves(board, !board.current_player);
+    let opponent_wins = other_god.get_winning_moves(&state.board, !state.board.current_player);
 
     // If opponent is threatening a win, we must respond to it. Don't bother taking the current
     // eval, just know that we're losing
@@ -613,18 +584,13 @@ where
         for action in &opponent_wins {
             blocker_board |= other_god.get_blocker_board(action.action);
         }
-        child_moves = active_god.get_blocker_moves(board, board.current_player, blocker_board);
+        child_moves =
+            active_god.get_blocker_moves(&state.board, state.board.current_player, blocker_board);
     } else {
-        nnue_acc.replace_from_board(board, p1_god.god_name, p2_god.god_name);
+        nnue_acc.replace_from_state(&state);
         eval = nnue_acc.evaluate();
 
         return eval.min(beta);
-        // TODO: test this
-        // if q_depth >= 2 {
-        //     return eval;
-        // }
-
-        // child_moves = active_god.get_improver_moves(state, state.current_player);
     }
 
     // check standing pat
@@ -639,15 +605,13 @@ where
 
     let mut should_stop = false;
     for child_move in child_moves.iter().rev() {
-        active_god.make_move(board, child_move.action);
+        active_god.make_move(&mut state.board, child_move.action);
 
         let score = -_q_extend(
             search_context,
-            board,
             search_state,
+            state,
             nnue_acc,
-            p1_god,
-            p2_god,
             ply + 1,
             q_depth + 1,
             -beta,
@@ -661,13 +625,13 @@ where
                 alpha = score;
 
                 if alpha >= beta {
-                    active_god.unmake_move(board, child_move.action);
+                    active_god.unmake_move(&mut state.board, child_move.action);
                     break;
                 }
             }
         }
 
-        active_god.unmake_move(board, child_move.action);
+        active_god.unmake_move(&mut state.board, child_move.action);
 
         should_stop = search_context.should_stop(&search_state);
         if should_stop {
@@ -684,9 +648,15 @@ where
             SearchScoreType::Exact
         };
 
-        search_context
-            .tt
-            .insert(board, best_action, 0, tt_score_type, best_score, eval, ply);
+        search_context.tt.insert(
+            &state.board,
+            best_action,
+            0,
+            tt_score_type,
+            best_score,
+            eval,
+            ply,
+        );
     }
 
     best_score
@@ -695,10 +665,8 @@ where
 fn _inner_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
+    state: &mut FullGameState,
     nnue_acc: &mut LabeledAccumulator,
-    p1_god: StaticGod,
-    p2_god: StaticGod,
-    board: &mut BoardState,
     is_in_check: bool,
     ply: usize,
     mut remaining_depth: usize,
@@ -709,22 +677,15 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    // eprintln!(
-    //     "{}: Starting search at ply {ply}, depth {remaining_depth}, alpha {alpha}, beta {beta}",
-    //     timestamp_string()
-    // );
-    // state.validate();
+    debug_assert!(state.board.validation_err().is_ok());
 
-    let (active_god, other_god) = match board.current_player {
-        Player::One => (p1_god, p2_god),
-        Player::Two => (p2_god, p1_god),
-    };
+    let (active_god, other_god) = state.get_active_non_active_gods();
 
     if !NT::ROOT
-        && let Some(winner) = board.get_winner()
+        && let Some(winner) = state.get_winner()
     {
         search_state.nodes_visited += 1;
-        return if winner == board.current_player {
+        return if winner == state.board.current_player {
             win_at_ply(ply)
         } else {
             -win_at_ply(ply)
@@ -732,11 +693,9 @@ where
     } else if remaining_depth == 0 {
         return _q_extend(
             search_context,
-            board,
             search_state,
+            state,
             nnue_acc,
-            p1_god,
-            p2_god,
             ply,
             0,
             alpha,
@@ -758,7 +717,7 @@ where
 
     let mut track_used = false;
     let mut track_unused = false;
-    let tt_entry = search_context.tt.fetch(board, ply);
+    let tt_entry = search_context.tt.fetch(&state.board, ply);
 
     if !NT::ROOT {
         if let Some(tt_value) = &tt_entry {
@@ -798,15 +757,20 @@ where
     }
 
     let key_squares = if is_in_check {
-        let other_player = !board.current_player;
-        let other_is_blocked = !board.get_worker_can_climb(other_player);
+        let other_player = !state.board.current_player;
+        let other_is_blocked = !state.board.get_worker_can_climb(other_player);
 
-        board.flip_worker_can_climb(other_player, other_is_blocked);
-        let other_wins = other_god.get_winning_moves(board, other_player);
-        board.flip_worker_can_climb(other_player, other_is_blocked);
+        state
+            .board
+            .flip_worker_can_climb(other_player, other_is_blocked);
+        let other_wins = other_god.get_winning_moves(&state.board, other_player);
+        state
+            .board
+            .flip_worker_can_climb(other_player, other_is_blocked);
 
         if other_wins.len() == 0 {
-            // TODO: fix all these
+            // TODO: fix all these?
+            // Or maybe it's not worth being so precise, if these are rare cases
             // I think this breaks if you walk from level 3 to level 3?
             // ...checks should just be a test in move gen, no need for the threats only stuff i
             // think
@@ -830,27 +794,27 @@ where
     };
 
     let mut move_picker = MovePicker::new(
-        board.current_player,
+        state.board.current_player,
         active_god,
         tt_entry.as_ref().map(|e| e.best_action),
         search_state.killer_move_table[ply as usize],
         key_squares,
     );
 
-    if !move_picker.has_any_moves(&board) {
+    if !move_picker.has_any_moves(&state.board) {
         // If this is root, we need to pick a move
         if NT::ROOT {
-            let moves = active_god.get_moves_for_search(board, board.current_player);
+            let moves = active_god.get_moves_for_search(&state.board, state.board.current_player);
             if moves.len() == 0 {
                 // There's actually no moves so we don't have to pick one
                 return -win_at_ply(ply);
             } else {
                 let score = -win_at_ply(ply + 1);
                 let best_action = moves[0].action;
-                active_god.make_move(board, best_action);
+                active_god.make_move(&mut state.board, best_action);
 
                 let new_best_move = BestSearchResult::new(
-                    FullGameState::new(board.clone(), p1_god, p2_god),
+                    state.clone(),
                     best_action,
                     false,
                     score,
@@ -862,7 +826,7 @@ where
                 search_state.best_move = Some(new_best_move.clone());
                 (search_context.new_best_move_callback)(new_best_move);
 
-                active_god.unmake_move(board, best_action);
+                active_god.unmake_move(&mut state.board, best_action);
                 return score;
             }
         }
@@ -875,15 +839,15 @@ where
         }
     }
 
-    if let Some(winning_action) = move_picker.get_winning_move(&board) {
+    if let Some(winning_action) = move_picker.get_winning_move(&state.board) {
         let score = win_at_ply(ply);
         if NT::ROOT {
-            let mut winning_board = board.clone();
-            active_god.make_move(&mut winning_board, winning_action);
-            assert!(winning_board.get_winner() == Some(board.current_player));
+            let mut winning_state = state.clone();
+            active_god.make_move(&mut winning_state.board, winning_action);
+            debug_assert!(winning_state.get_winner() == Some(state.board.current_player));
 
             let new_best_move = BestSearchResult::new(
-                FullGameState::new(winning_board, p1_god, p2_god),
+                winning_state,
                 winning_action,
                 false,
                 score,
@@ -898,7 +862,7 @@ where
         return score;
     }
 
-    nnue_acc.replace_from_board(board, p1_god.god_name, p2_god.god_name);
+    nnue_acc.replace_from_state(&state);
     let eval = if let Some(tt_value) = &tt_entry {
         tt_value.eval
     } else {
@@ -935,21 +899,19 @@ where
             let reduction = (4 + remaining_depth / 4).min(remaining_depth);
 
             search_state.search_stack[ply].is_null_move = true;
-            board.flip_current_player();
+            state.board.flip_current_player();
             let null_value = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
+                state,
                 nnue_acc,
-                p1_god,
-                p2_god,
-                board,
                 false,
                 ply + 1,
                 remaining_depth - reduction,
                 -beta,
                 -beta + 1,
             );
-            board.flip_current_player();
+            state.board.flip_current_player();
             search_state.search_stack[ply].is_null_move = false;
 
             // cutoff above beta
@@ -971,7 +933,7 @@ where
     let mut should_stop = false;
     let mut move_idx = 0;
     let mut best_action_idx = 0;
-    while let Some(child_action) = move_picker.next(&board) {
+    while let Some(child_action) = move_picker.next(&state.board) {
         let child_is_check = child_action.get_is_check();
         move_idx += 1;
 
@@ -985,14 +947,12 @@ where
 
         let mut score;
         if move_idx == 1 {
-            active_god.make_move(board, child_action);
+            active_god.make_move(&mut state.board, child_action);
             score = -_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
+                state,
                 nnue_acc,
-                p1_god,
-                p2_god,
-                board,
                 child_is_check,
                 ply + 1,
                 next_depth,
@@ -1020,16 +980,14 @@ where
                 break;
             }
 
-            active_god.make_move(board, child_action);
+            active_god.make_move(&mut state.board, child_action);
 
             // Try a 0-window search
             score = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
+                state,
                 nnue_acc,
-                p1_god,
-                p2_god,
-                board,
                 child_is_check,
                 ply + 1,
                 next_depth,
@@ -1042,10 +1000,8 @@ where
                 score = -_inner_search::<T, NT::Next>(
                     search_context,
                     search_state,
+                    state,
                     nnue_acc,
-                    p1_god,
-                    p2_god,
-                    board,
                     child_is_check,
                     ply + 1,
                     next_depth,
@@ -1069,7 +1025,7 @@ where
 
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
-                    FullGameState::new(board.clone(), p1_god, p2_god),
+                    state.clone(),
                     best_action,
                     false,
                     score,
@@ -1086,13 +1042,13 @@ where
                 alpha = score;
 
                 if alpha >= beta {
-                    active_god.unmake_move(board, child_action);
+                    active_god.unmake_move(&mut state.board, child_action);
                     break;
                 }
             }
         }
 
-        active_god.unmake_move(board, child_action);
+        active_god.unmake_move(&mut state.board, child_action);
 
         if should_stop {
             break;
@@ -1114,8 +1070,8 @@ where
 
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
-        if board.height_map[0].count_ones() <= 1 {
-            for base in board.get_all_permutations::<false>() {
+        if state.board.height_map[0].count_ones() <= 1 {
+            for base in state.board.get_all_permutations::<false>() {
                 search_context.tt.conditionally_insert(
                     &base,
                     GenericMove::NULL_MOVE,
@@ -1129,7 +1085,7 @@ where
         }
 
         search_context.tt.insert(
-            board,
+            &state.board,
             best_action,
             remaining_depth as u8,
             tt_score_type,
