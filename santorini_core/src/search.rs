@@ -1125,6 +1125,8 @@ mod tests {
         let mut search_context = SearchContext {
             tt: &mut tt,
             new_best_move_callback: Box::new(move |new_best_move| {
+                // eprintln!("{:?}", new_best_move);
+
                 if new_best_move.score < -WINNING_SCORE_BUFFER {
                     // increment loss counter
                     *loss_counter.borrow_mut() += 1;
@@ -1137,10 +1139,10 @@ mod tests {
                     }
                 }
             }),
-            terminator: DynamicMaxDepthSearchTerminator::new(5),
+            terminator: DynamicMaxDepthSearchTerminator::new(2),
         };
 
-        let search_state = negamax_search(&mut search_context, &full_state);
+        let search_state = negamax_search(&mut search_context, full_state);
 
         let best_move = search_state.best_move.unwrap();
         // assert!(best_move.score > -WINNING_SCORE_BUFFER);
