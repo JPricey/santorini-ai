@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::BitBoard, board::BoardState, gods::generic::WorkerPlacement, square::Square,
+    bitboard::BitBoard, board::{BoardState, FullGameState}, gods::generic::WorkerPlacement, square::Square,
 };
 
 pub fn get_starting_placements_count(board: &BoardState) -> Result<usize, String> {
@@ -43,16 +43,16 @@ pub fn get_all_placements(board: &BoardState) -> Vec<WorkerPlacement> {
     res
 }
 
-pub fn get_unique_placements(board: &BoardState) -> Vec<WorkerPlacement> {
-    let mut b_clone = board.clone();
+pub fn get_unique_placements(state: &FullGameState) -> Vec<WorkerPlacement> {
+    let mut b_clone = state.board.clone();
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
-    let placements = get_all_placements(board);
+    let placements = get_all_placements(&b_clone);
     for p in placements {
         p.make_move(&mut b_clone);
         let mut is_new = true;
-        for permutation in b_clone.get_all_permutations::<true>() {
+        for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
             if unique_boards.contains(&permutation) {
                 is_new = false;
                 break;

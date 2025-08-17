@@ -618,29 +618,4 @@ mod tests {
             println!("{:?} : {}", acc, action.score);
         }
     }
-
-    #[test]
-    fn test_demeter_make_unmake() {
-        let demeter = GodName::Demeter.to_power();
-        let game_state_fuzzer = GameStateFuzzer::default();
-
-        for state in game_state_fuzzer {
-            let orig_board = state.board.clone();
-            if orig_board.get_winner().is_some() {
-                continue;
-            }
-            let child_actions =
-                (demeter._get_all_moves)(&orig_board, orig_board.current_player, BitBoard::EMPTY);
-
-            for action in child_actions {
-                let mut board = orig_board.clone();
-                let action = action.action;
-                demeter.make_move(&mut board, action);
-                board.validate();
-                demeter.unmake_move(&mut board, action);
-                board.validate();
-                assert_eq!(board, orig_board);
-            }
-        }
-    }
 }

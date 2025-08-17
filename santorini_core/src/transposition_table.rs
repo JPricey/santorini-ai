@@ -4,12 +4,13 @@ use std::{
 };
 
 use crate::{
-    gods::{GodName, generic::GenericMove},
+    board::FullGameState,
+    gods::generic::GenericMove,
     hashing::{HashType, compute_hash_from_scratch},
     search::WINNING_SCORE_BUFFER,
 };
 
-use super::{board::BoardState, search::Hueristic};
+use super::search::Hueristic;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SearchScoreType {
@@ -74,8 +75,6 @@ fn to_search(value: Hueristic, ply: usize) -> Hueristic {
 pub struct TranspositionTable {
     pub entries: Vec<TTEntry>,
     pub stats: TTStats,
-    pub god1: GodName,
-    pub god2: GodName,
 }
 
 // const TABLE_SIZE: HashType = 999_983;
@@ -93,11 +92,10 @@ where
     hasher.finish()
 }
 
-fn hash_board(board: &BoardState) -> HashType {
-    debug_assert_eq!(board.hash, compute_hash_from_scratch(board));
-    board.hash
+fn hash_board(state: &FullGameState) -> HashType {
+    debug_assert_eq!(state.board.hash, compute_hash_from_scratch(state));
+    state.board.hash
     // _hash_obj(board)
-    // compute_hash_from_scratch(board)
 }
 
 #[derive(Clone, Debug, Default)]
@@ -123,18 +121,7 @@ impl TranspositionTable {
                 TABLE_SIZE as usize
             ],
             stats: Default::default(),
-            god1: GodName::Mortal,
-            god2: GodName::Mortal,
         }
-    }
-
-    pub fn age(&mut self, god1: GodName, god2: GodName) {
-        if self.god1 != god1 || self.god2 != god2 {
-            self.reset();
-        }
-
-        self.god1 = god1;
-        self.god2 = god2;
     }
 
     /// Get a key that wraps around the table size, avoiding using Modulo.
@@ -149,7 +136,7 @@ impl TranspositionTable {
 
     pub fn insert(
         &mut self,
-        state: &BoardState,
+        state: &FullGameState,
         best_action: GenericMove,
         depth: u8,
         score_type: SearchScoreType,
@@ -180,7 +167,7 @@ impl TranspositionTable {
 
     pub fn conditionally_insert(
         &mut self,
-        state: &BoardState,
+        state: &FullGameState,
         mut best_action: GenericMove,
         depth: u8,
         score_type: SearchScoreType,
@@ -218,7 +205,7 @@ impl TranspositionTable {
         }
     }
 
-    pub fn fetch(&mut self, state: &BoardState, ply: usize) -> Option<TTValue> {
+    pub fn fetch(&mut self, state: &FullGameState, ply: usize) -> Option<TTValue> {
         let hash_code = hash_board(state);
         let destination = self.get_key(hash_code);
 

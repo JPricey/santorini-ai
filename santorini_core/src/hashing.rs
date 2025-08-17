@@ -1,4 +1,4 @@
-use crate::board::BoardState;
+use crate::board::{BoardState, FullGameState};
 
 pub type HashType = u64;
 
@@ -218,8 +218,12 @@ pub const ZORBRIST_ACTIVE_PLAYER: [HashType; 2] = [0, ZORBRIST_PLAYER_TWO];
 
 // pub const ZORBRIST_BASE: HashType = 5538181279516183068;
 
-pub fn compute_hash_from_scratch(board: &BoardState) -> HashType {
-    let mut result = 0;
+pub fn compute_hash_from_scratch(state: &FullGameState) -> HashType {
+    compute_hash_from_scratch_for_board(&state.board, state.base_hash())
+}
+
+pub fn compute_hash_from_scratch_for_board(board: &BoardState, base_hash: HashType) -> HashType {
+    let mut result = base_hash;
 
     for h in 0..4 {
         let mut hm = board.height_map[h].0;

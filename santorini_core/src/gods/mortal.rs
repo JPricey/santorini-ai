@@ -463,27 +463,4 @@ mod tests {
             }
         }
     }
-
-    /*
-    #[test]
-    fn test_check_detection_move_into() {
-        let mortal = GodName::Mortal.to_power();
-        let state =
-            FullGameState::try_from("11224 44444 00000 00000 00000/1/mortal:A5,D5/mortal:E1,E2")
-                .unwrap();
-        state.print_to_console();
-
-        println!(
-            "NON_IMPROVER_SENTINEL_SCORE: {}",
-            NON_IMPROVER_SENTINEL_SCORE
-        );
-        println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
-        println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
-
-        let actions = mortal.get_moves_for_search(&state.board, Player::One);
-        for action in actions {
-            println!("{:?}", action);
-        }
-    }
-    */
 }

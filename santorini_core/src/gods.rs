@@ -192,8 +192,8 @@ pub struct GodPower {
 
     _stringify_move: fn(action: GenericMove) -> String,
 
-    hash1: HashType,
-    hash2: HashType,
+    pub hash1: HashType,
+    pub hash2: HashType,
     // UI
     pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 }
@@ -386,7 +386,7 @@ mod tests {
         let mut rng = rng();
         let suggestion: HashType = rng.random_range(0..u64::MAX);
         let mut all_hashes: HashSet<HashType> = HashSet::new();
-        for (i, god_power) in ALL_GODS_BY_ID.iter().enumerate() {
+        for god_power in ALL_GODS_BY_ID.iter() {
             assert!(
                 !all_hashes.contains(&god_power.hash1),
                 "hash1 number {} for {:?} is not unique. Here's a new suggestion: {}",

@@ -181,17 +181,18 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     result.flip_worker_can_climb(Player::One, p1_section.is_movement_blocked);
     result.flip_worker_can_climb(Player::Two, p2_section.is_movement_blocked);
 
-    result.recalculate_internals();
-
-    result.validation_err()?;
-
-    Ok(FullGameState {
+    let mut full_result = FullGameState {
         board: result,
         gods: [
             &ALL_GODS_BY_ID[p1_section.god as usize],
             &ALL_GODS_BY_ID[p2_section.god as usize],
         ],
-    })
+    };
+
+    full_result.recalculate_internals();
+    full_result.validation_err()?;
+
+    Ok(full_result)
 }
 
 #[cfg(test)]

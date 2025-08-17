@@ -9,7 +9,7 @@ use crate::{
     gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
     hashing::{
         HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
-        compute_hash_from_scratch,
+        compute_hash_from_scratch_for_board,
     },
     placement::{get_all_placements, get_starting_placements_count},
     player::Player,
@@ -106,10 +106,12 @@ impl TryFrom<&String> for FullGameState {
 
 impl FullGameState {
     pub fn new(board_state: BoardState, p1_god: StaticGod, p2_god: StaticGod) -> Self {
-        FullGameState {
+        let mut res = FullGameState {
             gods: [p1_god, p2_god],
             board: board_state,
-        }
+        };
+        res.recalculate_internals();
+        res
     }
 
     pub fn new_empty_state(p1: GodName, p2: GodName) -> Self {
@@ -190,12 +192,20 @@ impl FullGameState {
         self.board.print_to_console();
     }
 
+    pub fn base_hash(&self) -> HashType {
+        self.gods[0].hash1 ^ self.gods[1].hash2
+    }
+
+    pub fn recalculate_internals(&mut self) {
+        self.board.recalculate_internals(self.base_hash());
+    }
+
     pub fn validation_err(&self) -> Result<(), String> {
-        self.board.validation_err()
+        self.board.validation_err(self.base_hash())
     }
 
     pub fn validate(&self) {
-        self.board.validate();
+        self.validation_err().unwrap();
     }
 
     pub fn get_winner(&self) -> Option<Player> {
@@ -276,12 +286,11 @@ impl BoardState {
         result.workers[1].0 |= 1 << 17;
         result.workers[0].0 |= 1 << 11;
         result.workers[0].0 |= 1 << 13;
-        result.recalculate_internals();
         result
     }
 
-    pub fn recalculate_internals(&mut self) {
-        self.hash = compute_hash_from_scratch(self);
+    pub fn recalculate_internals(&mut self, base_hash: HashType) {
+        self.hash = compute_hash_from_scratch_for_board(self, base_hash);
         for square in Square::iter() {
             self.height_lookup[square as usize] =
                 self._calculate_height(BitBoard::as_mask(square)) as u8;
@@ -461,11 +470,7 @@ impl BoardState {
         }
     }
 
-    pub fn validate(&self) {
-        self.validation_err().unwrap()
-    }
-
-    pub fn validation_err(&self) -> Result<(), String> {
+    pub fn validation_err(&self, base_hash: HashType) -> Result<(), String> {
         let starting_placements = get_starting_placements_count(self)?;
         if starting_placements == 1 {
             if self.current_player != Player::Two {
@@ -497,11 +502,11 @@ impl BoardState {
             }
         }
 
-        if self.hash != compute_hash_from_scratch(self) {
-            let diff = self.hash ^ compute_hash_from_scratch(self);
+        if self.hash != compute_hash_from_scratch_for_board(self, base_hash) {
+            let diff = self.hash ^ compute_hash_from_scratch_for_board(self, base_hash);
             return Err(format!(
                 "Hash mismatch: expected {:064b}, got {:064b} (diff: {:064b})",
-                compute_hash_from_scratch(self),
+                compute_hash_from_scratch_for_board(self, base_hash),
                 self.hash,
                 diff
             ));
@@ -615,7 +620,7 @@ impl BoardState {
         result
     }
 
-    pub fn get_all_permutations<const INCLUDE_SELF: bool>(&self) -> Vec<Self> {
+    pub fn get_all_permutations<const INCLUDE_SELF: bool>(&self, base_hash: HashType) -> Vec<Self> {
         let horz = self._flip_horz_clone();
         let vert = self._flip_vertical_clone();
         let hv = horz._flip_vertical_clone();
@@ -631,7 +636,7 @@ impl BoardState {
         };
 
         for board in &mut res {
-            board.recalculate_internals();
+            board.recalculate_internals(base_hash);
         }
 
         res

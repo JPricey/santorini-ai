@@ -210,18 +210,14 @@ where
 {
     let mut search_state = SearchState::default();
 
-    search_context
-        .tt
-        .age(root_state.gods[0].god_name, root_state.gods[1].god_name);
     root_state.validate();
-
     if root_state.get_winner().is_some() {
         panic!("Should not search in an already terminal state");
     }
 
     let starting_mode = get_starting_placements_count(&root_state.board).unwrap();
 
-    if let Some(tt_entry) = search_context.tt.fetch(&root_state.board, 0)
+    if let Some(tt_entry) = search_context.tt.fetch(&root_state, 0)
         && tt_entry.best_action != GenericMove::NULL_MOVE
     {
         let mut best_child_state = root_state.clone();
@@ -424,10 +420,10 @@ where
     let alpha_orig = alpha;
     let mut should_stop = false;
 
-    let mut placements = get_unique_placements(&state.board);
+    let mut placements = get_unique_placements(&state);
     let mut best_action = placements[0];
 
-    let tt_entry = search_context.tt.fetch(&state.board, ply);
+    let tt_entry = search_context.tt.fetch(&state, ply);
     if let Some(tt_entry) = tt_entry {
         let tt_move: WorkerPlacement = tt_entry.best_action.into();
         for i in 1..placements.len() {
@@ -512,7 +508,7 @@ where
         };
 
         search_context.tt.insert(
-            &mut state.board,
+            &state,
             best_action.into(),
             remaining_depth as u8,
             tt_score_type,
@@ -540,7 +536,7 @@ where
 {
     search_state.nodes_visited += 1;
 
-    let tt_entry = search_context.tt.fetch(&state.board, ply);
+    let tt_entry = search_context.tt.fetch(&state, ply);
     if let Some(tt_value) = &tt_entry {
         match tt_value.score_type {
             SearchScoreType::Exact => {
@@ -648,15 +644,9 @@ where
             SearchScoreType::Exact
         };
 
-        search_context.tt.insert(
-            &state.board,
-            best_action,
-            0,
-            tt_score_type,
-            best_score,
-            eval,
-            ply,
-        );
+        search_context
+            .tt
+            .insert(&state, best_action, 0, tt_score_type, best_score, eval, ply);
     }
 
     best_score
@@ -677,7 +667,7 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    debug_assert!(state.board.validation_err().is_ok());
+    debug_assert!(state.validation_err().is_ok());
 
     let (active_god, other_god) = state.get_active_non_active_gods();
 
@@ -717,7 +707,7 @@ where
 
     let mut track_used = false;
     let mut track_unused = false;
-    let tt_entry = search_context.tt.fetch(&state.board, ply);
+    let tt_entry = search_context.tt.fetch(&state, ply);
 
     if !NT::ROOT {
         if let Some(tt_value) = &tt_entry {
@@ -1071,9 +1061,9 @@ where
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches
         if state.board.height_map[0].count_ones() <= 1 {
-            for base in state.board.get_all_permutations::<false>() {
+            for base in state.board.get_all_permutations::<false>(state.base_hash()) {
                 search_context.tt.conditionally_insert(
-                    &base,
+                    &FullGameState::new(base, state.gods[0], state.gods[1]),
                     GenericMove::NULL_MOVE,
                     remaining_depth as u8,
                     tt_score_type,
@@ -1085,7 +1075,7 @@ where
         }
 
         search_context.tt.insert(
-            &state.board,
+            &state,
             best_action,
             remaining_depth as u8,
             tt_score_type,

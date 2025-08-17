@@ -169,7 +169,7 @@ fn process_raw_data_files(
                 0
             };
 
-            for perm in state.board.get_all_permutations::<true>() {
+            for perm in state.board.get_all_permutations::<true>(state.base_hash()) {
                 let mut worker_maps = perm.workers;
                 if state.board.current_player == Player::Two {
                     worker_maps.swap(0, 1);
