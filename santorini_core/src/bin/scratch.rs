@@ -2,7 +2,7 @@
 #![feature(portable_simd)]
 
 use colored::Colorize;
-use rand::Rng;
+use rand::{rng, Rng};
 use rand::seq::{IteratorRandom, SliceRandom};
 use santorini_core::board::BoardState;
 use santorini_core::gods::generic::{
@@ -254,8 +254,18 @@ fn random_matchup() {
     println!("{:?}", choose);
 }
 
+fn print_hashing_randoms(size: usize) {
+    let mut rng = rng();
+    let random_numbers = (0..size)
+        .map(|_| rng.random_range(0..u64::MAX))
+        .collect::<Vec<_>>();
+
+    eprintln!("{:?}", random_numbers);
+}
+
 fn main() {
-    random_matchup();
+    print_hashing_randoms(32);
+    // random_matchup();
 
     // println!("{:b}", MOVE_IS_WINNING_MASK);
     // println!("{:b}", MOVE_IS_CHECK_MASK);

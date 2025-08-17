@@ -619,6 +619,8 @@ build_god_power!(
     make_move: hermes_make_move,
     unmake_move: hermes_unmake_move,
     stringify: hermes_stringify,
+    hash1: 8064494721607657900,
+    hash2: 8099092864803375172,
 );
 
 #[cfg(test)]

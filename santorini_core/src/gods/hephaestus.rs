@@ -446,6 +446,8 @@ build_god_power!(
     make_move: heph_make_move,
     unmake_move: heph_unmake_move,
     stringify: heph_stringify,
+    hash1: 8778550832748251380,
+    hash2: 14400518822473574269,
 );
 
 #[cfg(test)]

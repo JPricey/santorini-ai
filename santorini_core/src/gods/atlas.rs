@@ -461,6 +461,8 @@ build_god_power!(
     make_move: atlas_make_move,
     unmake_move: atlas_unmake_move,
     stringify: atlas_stringify,
+    hash1: 6219360493030857052,
+    hash2: 4773917144301422909,
 );
 
 #[cfg(test)]

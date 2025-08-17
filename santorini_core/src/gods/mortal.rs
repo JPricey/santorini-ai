@@ -356,6 +356,8 @@ build_god_power!(
     make_move: mortal_make_move,
     unmake_move: mortal_unmake_move,
     stringify: mortal_stringify,
+    hash1: 13716661772054342839,
+    hash2: 15637952489637380097,
 );
 
 #[cfg(test)]

@@ -1,10 +1,6 @@
 use super::search::Hueristic;
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, FullGameState},
-    gods::generic::{GenericMove, ScoredMove},
-    player::Player,
-    square::Square,
+    bitboard::BitBoard, board::{BoardState, FullGameState}, gods::generic::{GenericMove, ScoredMove}, hashing::HashType, player::Player, square::Square
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
@@ -190,6 +186,9 @@ pub struct GodPower {
     _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 
     _stringify_move: fn(action: GenericMove) -> String,
+
+    hash1: HashType,
+    hash2: HashType,
     // UI
     pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 }
@@ -328,6 +327,8 @@ macro_rules! build_god_power {
         make_move: $make_move_fn:ident,
         unmake_move: $unmake_move_fn:ident,
         stringify: $stringify_fn:ident,
+        hash1: $hash1:expr,
+        hash2: $hash2:expr,
     ) => {
         pub const fn $fn_name() -> GodPower {
             GodPower {
@@ -348,6 +349,9 @@ macro_rules! build_god_power {
                 _make_move: $make_move_fn,
                 _unmake_move: $unmake_move_fn,
                 _stringify_move: $stringify_fn,
+
+                hash1: $hash1,
+                hash2: $hash2,
             }
         }
     };

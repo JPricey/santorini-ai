@@ -537,6 +537,8 @@ build_god_power!(
     make_move: minotaur_make_move,
     unmake_move: minotaur_unmake_move,
     stringify: minotaur_stringify,
+    hash1: 16532879311019593353,
+    hash2: 196173323035994051,
 );
 
 #[cfg(test)]

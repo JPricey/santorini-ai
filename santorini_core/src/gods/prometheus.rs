@@ -576,6 +576,8 @@ build_god_power!(
     make_move: prometheus_make_move,
     unmake_move: prometheus_unmake_move,
     stringify: prometheus_stringify,
+    hash1: 7255800742029900355,
+    hash2: 11420172211286930201,
 );
 
 #[cfg(test)]

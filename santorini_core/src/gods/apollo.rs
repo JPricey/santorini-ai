@@ -395,6 +395,8 @@ build_god_power!(
     make_move: apollo_make_move,
     unmake_move: apollo_unmake_move,
     stringify: apollo_stringify,
+    hash1: 3394957705078584374,
+    hash2: 7355591628209476781,
 );
 
 #[cfg(test)]

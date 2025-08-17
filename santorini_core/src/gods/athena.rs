@@ -392,6 +392,8 @@ build_god_power!(
     make_move: athena_make_move,
     unmake_move: athena_unmake_move,
     stringify: athena_stringify,
+    hash1: 1867170053174999423,
+    hash2: 15381411414297507361,
 );
 
 #[cfg(test)]

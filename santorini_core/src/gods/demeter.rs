@@ -484,6 +484,8 @@ build_god_power!(
     make_move: demeter_make_move,
     unmake_move: demeter_unmake_move,
     stringify: demeter_stringify,
+    hash1: 12982186464139786854,
+    hash2: 3782535430861395331,
 );
 
 #[cfg(test)]
