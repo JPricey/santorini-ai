@@ -3,7 +3,7 @@ use std::time::Instant;
 use santorini_core::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState},
-    gods::{GodName, GodPower},
+    gods::{GodName, StaticGod},
 };
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
     }
 }
 
-fn run_single_test_makemove(depth: usize, god: &'static GodPower) {
+fn run_single_test_makemove(depth: usize, god: StaticGod) {
     let state_str = "0000000000000000000000000/1/mortal:11,13/mortal:7,17";
     let mut state = FullGameState::try_from(state_str).unwrap();
 
@@ -30,7 +30,7 @@ fn run_single_test_makemove(depth: usize, god: &'static GodPower) {
     );
 }
 
-fn _test_depth_makemove(state: &mut BoardState, god: &'static GodPower, depth: usize) -> usize {
+fn _test_depth_makemove(state: &mut BoardState, god: StaticGod, depth: usize) -> usize {
     if depth == 0 {
         (state.height_map[0].0 > 0) as usize
     } else {

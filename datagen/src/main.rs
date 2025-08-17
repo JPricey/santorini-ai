@@ -144,8 +144,10 @@ fn playout_subgame(
     let winner = loop {
         let mut search_context = SearchContext::new(tt, DatagenStaticSearchTerminator::default());
 
-        let search_result =
-            negamax_search::<DatagenStaticSearchTerminator>(&mut search_context, &current_state);
+        let search_result = negamax_search::<DatagenStaticSearchTerminator>(
+            &mut search_context,
+            current_state.clone(),
+        );
 
         let Some(best_child) = search_result.best_move else {
             eprint!("Search returned no results for state {:?}", current_state);

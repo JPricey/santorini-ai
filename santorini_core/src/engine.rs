@@ -126,7 +126,7 @@ impl EngineThreadWrapper {
                         terminator: StopFlagSearchTerminator::new(request.stop_flag.clone()),
                     };
 
-                    negamax_search(&mut search_state, &request.state);
+                    negamax_search(&mut search_state, request.state.clone());
 
                     request.stop_flag.store(true, Ordering::Relaxed);
                 }

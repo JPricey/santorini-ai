@@ -18,7 +18,7 @@ fn test(tt: &mut TranspositionTable, scenario: usize) -> SearchState {
     game_state.gods[1] = god.to_power();
     let mut search_state = SearchContext::new(tt, DynamicMaxDepthSearchTerminator::new(depth));
 
-    negamax_search(&mut search_state, &game_state)
+    negamax_search(&mut search_state, game_state)
 }
 
 #[derive(Parser, Debug)]

@@ -6,7 +6,7 @@ use strum::IntoEnumIterator;
 use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
-    gods::{BoardStateWithAction, GameStateWithAction, GodName, GodPower},
+    gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
     hashing::{
         HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
         compute_hash_from_scratch,
@@ -52,8 +52,8 @@ pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = [
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullGameState {
-    pub gods: [&'static GodPower; 2],
     pub board: BoardState,
+    pub gods: [StaticGod; 2],
 }
 
 impl Serialize for FullGameState {
@@ -105,11 +105,7 @@ impl TryFrom<&String> for FullGameState {
 }
 
 impl FullGameState {
-    pub fn new(
-        board_state: BoardState,
-        p1_god: &'static GodPower,
-        p2_god: &'static GodPower,
-    ) -> Self {
+    pub fn new(board_state: BoardState, p1_god: StaticGod, p2_god: StaticGod) -> Self {
         FullGameState {
             gods: [p1_god, p2_god],
             board: board_state,
@@ -170,21 +166,29 @@ impl FullGameState {
         }
     }
 
-    pub fn get_god_for_player(&self, player: Player) -> &'static GodPower {
+    pub fn get_god_for_player(&self, player: Player) -> StaticGod {
         self.gods[player as usize]
     }
 
-    pub fn get_active_god(&self) -> &'static GodPower {
+    pub fn get_active_god(&self) -> StaticGod {
         self.get_god_for_player(self.board.current_player)
     }
 
-    pub fn get_other_god(&self) -> &'static GodPower {
+    pub fn get_other_god(&self) -> StaticGod {
         self.get_god_for_player(!self.board.current_player)
     }
 
     pub fn print_to_console(&self) {
         eprintln!("{:?}", self);
         self.board.print_to_console();
+    }
+
+    pub fn validate(&self) {
+        self.board.validate();
+    }
+
+    pub fn get_winner(&self) -> Option<Player> {
+        self.board.get_winner()
     }
 }
 

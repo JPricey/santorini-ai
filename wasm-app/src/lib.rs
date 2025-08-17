@@ -103,7 +103,7 @@ impl WasmApp {
             terminator: JsTimeSearchTerminator::new(timeLimit),
         };
 
-        let search_result = negamax_search(&mut search_state, &state);
+        let search_result = negamax_search(&mut search_state, state.clone());
 
         if let Some(action) = search_result.best_move {
             let actions = find_action_path(&state, &action.child_state).unwrap_or_default();

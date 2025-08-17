@@ -40,7 +40,7 @@ fn run_scenario(
     let mut search_state = SearchContext::new(tt, DynamicMaxDepthSearchTerminator::new(depth));
 
     let start_at = Instant::now();
-    let result = negamax_search(&mut search_state, &game_state);
+    let result = negamax_search(&mut search_state, game_state.clone());
     let duration = start_at.elapsed();
 
     (result, duration)

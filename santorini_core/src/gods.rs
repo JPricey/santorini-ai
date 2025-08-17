@@ -53,7 +53,7 @@ pub enum GodName {
 }
 
 impl GodName {
-    pub fn to_power(&self) -> &'static GodPower {
+    pub fn to_power(&self) -> StaticGod {
         &ALL_GODS_BY_ID[*self as usize]
     }
 }

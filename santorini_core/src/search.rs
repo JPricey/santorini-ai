@@ -7,7 +7,7 @@ use crate::{
     bitboard::BitBoard,
     board::FullGameState,
     gods::{
-        GodPower, StaticGod,
+        StaticGod,
         generic::{GenericMove, WorkerPlacement},
     },
     move_picker::{MovePicker, MovePickerStage},
@@ -206,7 +206,7 @@ impl<'a, T: SearchTerminator> SearchContext<'a, T> {
 
 pub fn negamax_search<T>(
     search_context: &mut SearchContext<T>,
-    root_state: &FullGameState,
+    mut root_state: FullGameState,
 ) -> SearchState
 where
     T: SearchTerminator,
@@ -216,32 +216,29 @@ where
     search_context
         .tt
         .age(root_state.gods[0].god_name, root_state.gods[1].god_name);
+    root_state.validate();
 
-    let mut root_board = root_state.board.clone();
-    // root_board.reset_hash();
-    root_board.validate();
-
-    if root_board.get_winner().is_some() {
+    if root_state.get_winner().is_some() {
         panic!("Should not search in an already terminal state");
     }
 
-    let starting_mode = get_starting_placements_count(&root_board).unwrap();
+    let starting_mode = get_starting_placements_count(&root_state.board).unwrap();
 
-    if let Some(tt_entry) = search_context.tt.fetch(&root_board, 0)
+    if let Some(tt_entry) = search_context.tt.fetch(&root_state.board, 0)
         && tt_entry.best_action != GenericMove::NULL_MOVE
     {
-        let mut best_child_state = root_board.clone();
+        let mut best_child_state = root_state.clone();
 
         if starting_mode == 0 {
             let active_god = root_state.get_active_god();
-            active_god.make_move(&mut best_child_state, tt_entry.best_action);
+            active_god.make_move(&mut best_child_state.board, tt_entry.best_action);
         } else {
             let placement: WorkerPlacement = tt_entry.best_action.into();
-            placement.make_move(&mut best_child_state);
+            placement.make_move(&mut best_child_state.board);
         }
 
         let new_best_move = BestSearchResult::new(
-            FullGameState::new(best_child_state, root_state.gods[0], root_state.gods[1]),
+            best_child_state,
             tt_entry.best_action,
             starting_mode != 0,
             tt_entry.score,
@@ -257,7 +254,7 @@ where
     let start_depth = if starting_mode == 0 { 1 } else { 0 };
 
     let mut nnue_acc = LabeledAccumulator::new_from_scratch(
-        &root_board,
+        &root_state.board,
         root_state.gods[0].god_name,
         root_state.gods[1].god_name,
     );
@@ -275,9 +272,7 @@ where
             search_context,
             &mut search_state,
             &mut nnue_acc,
-            &mut root_board,
-            root_state.gods[0],
-            root_state.gods[1],
+            &mut root_state,
             depth,
         );
 
@@ -289,15 +284,16 @@ where
             // 2. We got smothered.
             // This is rare enough to bother doing a full check for
             let active_god = root_state.get_active_god();
-            let moves = active_god.get_moves_for_search(&root_board, root_board.current_player);
+            let moves =
+                active_god.get_moves_for_search(&root_state.board, root_state.board.current_player);
 
             if moves.len() > 0 {
-                root_board.print_to_console();
+                root_state.print_to_console();
                 panic!(
                     "{} Moves were available, but didn't make any: depth: {}, {:?}, {:?}. {:?}",
                     timestamp_string(),
                     depth,
-                    root_board,
+                    root_state.board,
                     moves,
                     search_state
                 );
@@ -305,7 +301,9 @@ where
 
             // There's actually no moves to make. Report the loss
             let mut losing_board = root_state.clone();
-            losing_board.board.set_winner(!root_board.current_player);
+            losing_board
+                .board
+                .set_winner(!root_state.board.current_player);
 
             let empty_losing_move = BestSearchResult::new(
                 losing_board,
@@ -339,16 +337,14 @@ fn _root_search<T>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
     nnue_acc: &mut LabeledAccumulator,
-    board: &mut BoardState,
-    p1_god: StaticGod,
-    p2_god: StaticGod,
+    state: &mut FullGameState,
     remaining_depth: usize,
 ) -> Hueristic
 where
     T: SearchTerminator,
 {
     // TODO: when acc can handle different worker counts, this should be initialized once
-    let starting_mode = get_starting_placements_count(&board).unwrap();
+    let starting_mode = get_starting_placements_count(&state.board).unwrap();
 
     // nnue_acc.replace_from_board_with_possible_reset(board, p1_god.god_name, p2_god.god_name);
 
@@ -357,9 +353,9 @@ where
             search_context,
             search_state,
             nnue_acc,
-            board,
-            p1_god,
-            p2_god,
+            &mut state.board,
+            state.gods[0],
+            state.gods[1],
             0,
             remaining_depth,
             -INFINITY,
@@ -370,9 +366,9 @@ where
             search_context,
             search_state,
             nnue_acc,
-            board,
-            p1_god,
-            p2_god,
+            &mut state.board,
+            state.gods[0],
+            state.gods[1],
             0,
             remaining_depth,
             -INFINITY,
@@ -557,8 +553,8 @@ fn _q_extend<T>(
     board: &mut BoardState,
     search_state: &mut SearchState,
     nnue_acc: &mut LabeledAccumulator,
-    p1_god: &'static GodPower,
-    p2_god: &'static GodPower,
+    p1_god: StaticGod,
+    p2_god: StaticGod,
     ply: usize,
     q_depth: u32,
     mut alpha: Hueristic,
