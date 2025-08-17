@@ -1144,7 +1144,7 @@ mod tests {
 
         let search_state = negamax_search(&mut search_context, full_state);
 
-        let best_move = search_state.best_move.unwrap();
+        let _best_move = search_state.best_move.unwrap();
         // assert!(best_move.score > -WINNING_SCORE_BUFFER);
         // assert!(orig_loss_counter.borrow().clone() <= 1);
     }

@@ -1,6 +1,11 @@
 use super::search::Hueristic;
 use crate::{
-    bitboard::BitBoard, board::{BoardState, FullGameState}, gods::generic::{GenericMove, ScoredMove}, hashing::HashType, player::Player, square::Square
+    bitboard::BitBoard,
+    board::{BoardState, FullGameState},
+    gods::generic::{GenericMove, ScoredMove},
+    hashing::HashType,
+    player::Player,
+    square::Square,
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
@@ -359,6 +364,10 @@ macro_rules! build_god_power {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use rand::{Rng, rng};
+
     use super::*;
 
     #[test]
@@ -369,6 +378,32 @@ mod tests {
                 "God {:?} is in the wrong position",
                 god_power.god_name
             );
+        }
+    }
+
+    #[test]
+    fn test_all_hashes_are_unique() {
+        let mut rng = rng();
+        let suggestion: HashType = rng.random_range(0..u64::MAX);
+        let mut all_hashes: HashSet<HashType> = HashSet::new();
+        for (i, god_power) in ALL_GODS_BY_ID.iter().enumerate() {
+            assert!(
+                !all_hashes.contains(&god_power.hash1),
+                "hash1 number {} for {:?} is not unique. Here's a new suggestion: {}",
+                god_power.hash1,
+                god_power.god_name,
+                suggestion
+            );
+            all_hashes.insert(god_power.hash1);
+
+            assert!(
+                !all_hashes.contains(&god_power.hash2),
+                "hash2 number {} for {:?} is not unique. Here's a new suggestion: {}",
+                god_power.hash2,
+                god_power.god_name,
+                suggestion
+            );
+            all_hashes.insert(god_power.hash2);
         }
     }
 }
