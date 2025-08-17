@@ -63,6 +63,6 @@ export function createDeferredPromise<T>(): DeferredPromise<T> {
 }
 
 export function assertUnreachable(x: never): never {
-    throw new Error(`Didn't expect to get here: ${x}`);
+    throw new Error(`Didn't expect to get here: ${JSON.stringify(x)}`);
 }
 

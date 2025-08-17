@@ -23,6 +23,7 @@ export const PlayerActionTypes = {
     Build: 'build',
     Dome: 'dome',
     EndTurn: 'end_turn',
+    NoMoves: 'no_moves',
 } as const;
 export type PlayerActionType = typeof PlayerActionTypes[keyof typeof PlayerActionTypes];
 
@@ -34,7 +35,8 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.MoveWorkerWithSwap; value: string }
     | { type: typeof PlayerActionTypes.Build; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
-    | { type: typeof PlayerActionTypes.EndTurn };
+    | { type: typeof PlayerActionTypes.EndTurn }
+    | { type: typeof PlayerActionTypes.NoMoves };
 
 export function getNextMoves(fen: string): NextMoves {
     return get_next_moves_interactive(fen);
@@ -58,6 +60,8 @@ export function describeActionType(actionType: PlayerActionType): string {
             return `Dome`;
         case PlayerActionTypes.EndTurn:
             return `End Turn`;
+        case PlayerActionTypes.NoMoves:
+            return `No Moves`;
         default:
             return assertUnreachable(actionType);
     }
@@ -75,6 +79,7 @@ export function describeAction(action: PlayerAction): string {
         case PlayerActionTypes.MoveWorkerWithPush:
             return `${describeActionType(action.type)} (${action.value[0]}>${action.value[1]}})`;
         case PlayerActionTypes.EndTurn:
+        case PlayerActionTypes.NoMoves:
             return describeActionType(action.type);
         default:
             return assertUnreachable(action);
@@ -177,6 +182,7 @@ export function gameStateWithActions(gameState: GameState, partialActions: Array
                 break;
             }
             case PlayerActionTypes.EndTurn:
+            case PlayerActionTypes.NoMoves:
                 break;
             default:
                 assertUnreachable(action);

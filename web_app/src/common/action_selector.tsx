@@ -24,6 +24,7 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
         case PlayerActionTypes.MoveWorkerWithPush:
             return action.value[0] === squareStr ? action.type : null;
         case PlayerActionTypes.EndTurn:
+        case PlayerActionTypes.NoMoves:
             return null;
         default:
             assertUnreachable(action);

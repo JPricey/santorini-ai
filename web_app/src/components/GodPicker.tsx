@@ -1,4 +1,4 @@
-import { God, type GodType, type PlayerType } from "../common/game_state";
+import { God, type GodType } from "../common/game_state";
 import { capitalizeFirstLetter } from "../common/utils";
 import './GodPicker.css'
 

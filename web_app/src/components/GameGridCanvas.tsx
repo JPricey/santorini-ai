@@ -146,6 +146,8 @@ function actionToFill(actionType: PlayerActionType): string {
             return 'purple'
         case PlayerActionTypes.EndTurn:
             return 'white'
+        case PlayerActionTypes.NoMoves:
+            return 'black'
         default:
             return assertUnreachable(actionType);
     }
