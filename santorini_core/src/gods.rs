@@ -176,8 +176,6 @@ pub struct GodPower {
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
     _get_moves_for_search:
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_improver_moves_only:
-        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
 
     // Move Scorers
     _score_improvers: fn(board: &BoardState, move_list: &mut [ScoredMove]),
@@ -253,10 +251,6 @@ impl GodPower {
         key_moves: BitBoard,
     ) -> Vec<ScoredMove> {
         (self._get_win_blockers)(board, player, key_moves)
-    }
-
-    pub fn get_improver_moves(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
-        (self._get_improver_moves_only)(board, player, BitBoard::EMPTY)
     }
 
     pub fn get_blocker_board(&self, action: GenericMove) -> BitBoard {
@@ -343,9 +337,6 @@ macro_rules! build_god_power {
                 _get_wins: $move_gen::<{ MATE_ONLY }>,
                 _get_win_blockers: $move_gen::<
                     { STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE },
-                >,
-                _get_improver_moves_only: $move_gen::<
-                    { STOP_ON_MATE | GENERATE_THREATS_ONLY | INCLUDE_SCORE },
                 >,
                 get_actions_for_move: $actions_fn,
                 _score_improvers: $score_moves::<true>,

@@ -6,7 +6,7 @@ use crate::{
         FullAction, GodName, GodPower,
         generic::{
             CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
+            GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
             IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
             MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
             NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
@@ -151,6 +151,10 @@ fn mortal_move_gen<const F: MoveGenFlags>(
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
     let current_player_idx = player as usize;
+
+    let exactly_level_2 = board.exactly_level_2();
+    let exactly_level_3 = board.exactly_level_3();
+
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     if F & MATE_ONLY != 0 {
         current_workers &= board.exactly_level_2()
@@ -165,13 +169,11 @@ fn mortal_move_gen<const F: MoveGenFlags>(
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
 
-        let mut neighbor_check_if_builds = BitBoard::EMPTY;
+        let mut neighbor_neighbor = BitBoard::EMPTY;
         if F & INCLUDE_SCORE != 0 {
-            let other_own_workers =
-                (current_workers ^ moving_worker_start_mask) & board.exactly_level_2();
+            let other_own_workers = (current_workers ^ moving_worker_start_mask) & exactly_level_2;
             for other_pos in other_own_workers {
-                neighbor_check_if_builds |=
-                    NEIGHBOR_MAP[other_pos as usize] & board.exactly_level_2();
+                neighbor_neighbor |= NEIGHBOR_MAP[other_pos as usize];
             }
         }
 
@@ -207,7 +209,6 @@ fn mortal_move_gen<const F: MoveGenFlags>(
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-
             let worker_end_height = board.get_height(moving_worker_end_pos);
 
             let mut worker_builds =
@@ -219,31 +220,8 @@ fn mortal_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            let mut check_if_builds = neighbor_check_if_builds;
-            let mut anti_check_builds = BitBoard::EMPTY;
-            let mut is_already_check = false;
-
-            if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
-                if worker_end_height == 2 {
-                    check_if_builds |= worker_builds & board.exactly_level_2();
-                    anti_check_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize]
-                        & board.exactly_level_3()
-                        & buildable_squares;
-                    is_already_check = anti_check_builds != BitBoard::EMPTY;
-                }
-            }
-
-            if F & GENERATE_THREATS_ONLY != 0 {
-                if is_already_check {
-                    let must_avoid_build = anti_check_builds & worker_builds;
-                    if must_avoid_build.count_ones() == 1 {
-                        worker_builds ^= must_avoid_build;
-                    }
-                } else {
-                    worker_builds &= check_if_builds;
-                }
-            }
-
+            let reach_board = neighbor_neighbor
+                | (worker_builds & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]);
             for worker_build_pos in worker_builds {
                 let new_action = GodMove::new_mortal_move(
                     moving_worker_start_pos,
@@ -253,9 +231,12 @@ fn mortal_move_gen<const F: MoveGenFlags>(
                 if F & INCLUDE_SCORE != 0 {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                     let score;
-                    if is_already_check && (anti_check_builds & !worker_build_mask).is_not_empty()
-                        || (worker_build_mask & check_if_builds).is_not_empty()
-                    {
+                    let final_level_3 = (exactly_level_2 & worker_build_mask)
+                        | (exactly_level_3 & !worker_build_mask);
+                    let check_board = reach_board & final_level_3 & buildable_squares;
+                    let is_check = check_board.is_not_empty();
+
+                    if is_check {
                         score = CHECK_SENTINEL_SCORE;
                     } else {
                         let is_improving = worker_end_height > worker_starting_height;

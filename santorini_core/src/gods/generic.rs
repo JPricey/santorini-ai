@@ -14,6 +14,12 @@ pub const NON_IMPROVER_SENTINEL_SCORE: MoveScore = MoveScore::MIN + 1;
 pub const IMPROVER_SENTINEL_SCORE: MoveScore = NON_IMPROVER_SENTINEL_SCORE + 1;
 pub const CHECK_SENTINEL_SCORE: MoveScore = IMPROVER_SENTINEL_SCORE + 1;
 
+const SCORE_LOOKUP: [MoveScore; 4] = [NON_IMPROVER_SENTINEL_SCORE, IMPROVER_SENTINEL_SCORE, CHECK_SENTINEL_SCORE, CHECK_SENTINEL_SCORE];
+
+pub const fn score_lookup(is_check: bool, is_improver: bool) -> MoveScore {
+    SCORE_LOOKUP[2*(is_check as usize) + is_improver as usize]
+}
+
 pub const NULL_MOVE_DATA: MoveData = 0;
 
 const POSITION_SCORE_MULT: MoveScore = 1;

@@ -5,7 +5,7 @@ use rand::{Rng, rng};
 use santorini_core::{
     bitboard::BitBoard,
     board::{FullGameState, NEIGHBOR_MAP},
-    gods::GodName,
+    gods::{GodName, generic::CHECK_SENTINEL_SCORE},
     random_utils::{get_board_with_random_placements, get_random_god, get_random_move},
 };
 
@@ -20,7 +20,6 @@ fn check_state(root_state: &FullGameState) {
 
     let winning_moves = active_god.get_winning_moves(&board, current_player);
     let all_moves = active_god.get_moves_for_search(&board, current_player);
-    let checks = active_god.get_improver_moves(&board, current_player);
 
     if other_wins.len() > 0 {
         // Check blockers
@@ -54,7 +53,9 @@ fn check_state(root_state: &FullGameState) {
                 if root_state.gods.contains(&GodName::Artemis.to_power()) {
                     continue;
                 }
-                if root_state.gods.contains(&GodName::Pan.to_power()) && root_state.gods.contains(&GodName::Athena.to_power())  {
+                if root_state.gods.contains(&GodName::Pan.to_power())
+                    && root_state.gods.contains(&GodName::Athena.to_power())
+                {
                     continue;
                 }
                 eprintln!("Block action didn't remove any wins: {}", stringed_action);
@@ -103,7 +104,11 @@ fn check_state(root_state: &FullGameState) {
     }
 
     // Test that checks actually result in wins
-    for action in &checks {
+    for action in &all_moves {
+        if action.score != CHECK_SENTINEL_SCORE {
+            continue;
+        }
+
         let stringed_action = active_god.stringify_move(action.action);
         let mut new_board = board.clone();
         active_god.make_move(&mut new_board, action.action);
@@ -124,6 +129,10 @@ fn check_state(root_state: &FullGameState) {
     // Test that no checks are missed. only relevant if we don't win on the spot
     if winning_moves.len() == 0 && board.get_worker_can_climb(current_player) {
         for action in &all_moves {
+            if action.score == CHECK_SENTINEL_SCORE {
+                continue;
+            }
+
             let stringed_action = active_god.stringify_move(action.action);
             let mut new_board = board.clone();
             active_god.make_move(&mut new_board, action.action);
@@ -134,14 +143,12 @@ fn check_state(root_state: &FullGameState) {
                 .len()
                 > 0
             {
-                if !checks.contains(action) {
-                    root_state.print_to_console();
-                    new_board.print_to_console();
-                    panic!(
-                        "Move was a check/win but wasn't in checks: {}",
-                        stringed_action
-                    );
-                }
+                root_state.print_to_console();
+                new_board.print_to_console();
+                panic!(
+                    "Move was a check/win but wasn't in checks: {}",
+                    stringed_action
+                );
             }
         }
     }
