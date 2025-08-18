@@ -17,6 +17,12 @@ use Square::*;
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
+impl Square {
+    pub const fn from_col_row(col: usize, row: usize) -> Square {
+        transmute_enum!((col + 5 * row) as u8)
+    }
+}
+
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s: String = String::from(Self::STR[*self as usize]);

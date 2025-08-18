@@ -25,7 +25,7 @@ fn check_state(root_state: &FullGameState) {
         // Check blockers
         let mut key_moves = BitBoard::EMPTY;
         for other_win_action in &other_wins {
-            key_moves |= other_god.get_blocker_board(other_win_action.action);
+            key_moves |= other_god.get_blocker_board(board, other_win_action.action);
         }
 
         let blocks = active_god.get_blocker_moves(&board, current_player, key_moves);
@@ -49,7 +49,7 @@ fn check_state(root_state: &FullGameState) {
                 }
             }
 
-            if !did_block_any && true {
+            if !did_block_any {
                 if root_state.gods.contains(&GodName::Artemis.to_power()) {
                     continue;
                 }
@@ -84,7 +84,7 @@ fn check_state(root_state: &FullGameState) {
 
             let new_oppo_wins = other_god.get_winning_moves(&new_board, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
-                eprintln!("Missed blocking move: {}", stringed_action);
+                eprintln!("Missed blocking move: {} full: {:?} {:?}", stringed_action, action, action.action.get_is_check());
 
                 root_state.print_to_console();
                 new_board.print_to_console();
@@ -98,7 +98,11 @@ fn check_state(root_state: &FullGameState) {
                     eprintln!("new win: {}", other_god.stringify_move(new.action));
                 }
 
-                panic!("bleh")
+                for blocker in &blocks {
+                    eprintln!("Blocker: {} full: {:?} {:?}", active_god.stringify_move(blocker.action), blocker, blocker.action.get_is_check());
+                }
+
+                panic!("Missed blocking move failure");
             }
         }
     }
@@ -138,13 +142,20 @@ fn check_state(root_state: &FullGameState) {
             active_god.make_move(&mut new_board, action.action);
             new_board.unset_worker_can_climb();
 
-            if active_god
-                .get_winning_moves(&new_board, current_player)
-                .len()
-                > 0
-            {
+            let winning_moves = active_god
+                .get_winning_moves(&new_board, current_player);
+
+            for winning_move in &winning_moves {
                 root_state.print_to_console();
                 new_board.print_to_console();
+
+                let mut won_board = new_board.clone();
+                active_god.make_move(&mut won_board, winning_move.action);
+
+                won_board.print_to_console();
+
+                eprintln!("{} was a check/win but wasn't in checks: {}", stringed_action, active_god.stringify_move(winning_move.action));
+
                 panic!(
                     "Move was a check/win but wasn't in checks: {}",
                     stringed_action

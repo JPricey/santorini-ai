@@ -1,7 +1,11 @@
 #![feature(stdarch_x86_avx512)]
 #![feature(avx512_target_feature)]
 #![allow(unused)]
-use crate::{bitboard::BitBoard, board::{FullGameState, BOARD_WIDTH}, gods::PartialAction};
+use crate::{
+    bitboard::BitBoard,
+    board::{BOARD_WIDTH, FullGameState},
+    gods::PartialAction,
+};
 use chrono::Local;
 
 pub const EXCEPT_LEFT_COL: BitBoard =
@@ -62,47 +66,10 @@ pub fn timestamp_string() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        board::{FullGameState, NEIGHBOR_MAP},
-        square::Square,
-    };
-
-    use super::*;
-
-    #[test]
-    fn test_grid_position_builder() {
-        let result = grid_position_builder(1, 2, 3, 4, 5, 6);
-        let expected = [
-            1, 2, 3, 2, 1, 2, 4, 5, 4, 2, 3, 5, 6, 5, 3, 2, 4, 5, 4, 2, 1, 2, 3, 2, 1,
-        ];
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_move_all_workers_one_worker() {
-        for pos in 0..25 {
-            let worker_mask = BitBoard::as_mask_u8(pos);
-            let expected = NEIGHBOR_MAP[pos as usize] | worker_mask;
-            let computed = move_all_workers_one_include_original_workers(worker_mask);
-
-            assert_eq!(computed, expected);
-        }
-    }
-
-    #[test]
-    fn test_move_all_workers_two_workers() {
-        for p1 in 0..25 {
-            for p2 in 0..25 {
-                let mask = BitBoard(1 << p1 | 1 << p2);
-                let expected = (NEIGHBOR_MAP[p1] | NEIGHBOR_MAP[p2]) | mask;
-                let computed = move_all_workers_one_include_original_workers(mask);
-                assert_eq!(computed, expected);
-            }
-        }
-    }
+pub fn hash_u64(mut x: usize) -> usize {
+    x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
+    x ^ (x >> 31)
 }
 
 pub fn print_cpu_arch() {
@@ -186,3 +153,46 @@ pub const SEARCH_TEST_SCENARIOS: [(&'static str, usize); 56] = [
     ("0010000000100000000000000/1/mortal:B3,D3/mortal:B4,C2", 9),
     ("0000000000100000000000000/2/mortal:B3,D3/mortal:C2,C4", 9),
 ];
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        board::{FullGameState, NEIGHBOR_MAP},
+        square::Square,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_grid_position_builder() {
+        let result = grid_position_builder(1, 2, 3, 4, 5, 6);
+        let expected = [
+            1, 2, 3, 2, 1, 2, 4, 5, 4, 2, 3, 5, 6, 5, 3, 2, 4, 5, 4, 2, 1, 2, 3, 2, 1,
+        ];
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_move_all_workers_one_worker() {
+        for pos in 0..25 {
+            let worker_mask = BitBoard::as_mask_u8(pos);
+            let expected = NEIGHBOR_MAP[pos as usize] | worker_mask;
+            let computed = move_all_workers_one_include_original_workers(worker_mask);
+
+            assert_eq!(computed, expected);
+        }
+    }
+
+    #[test]
+    fn test_move_all_workers_two_workers() {
+        for p1 in 0..25 {
+            for p2 in 0..25 {
+                let mask = BitBoard(1 << p1 | 1 << p2);
+                let expected = (NEIGHBOR_MAP[p1] | NEIGHBOR_MAP[p2]) | mask;
+                let computed = move_all_workers_one_include_original_workers(mask);
+                assert_eq!(computed, expected);
+            }
+        }
+    }
+}

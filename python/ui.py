@@ -318,6 +318,8 @@ def pretty_string_for_action(action):
         return f'=>{action["value"]}'
     elif action_type == 'build':
         return f'@{action["value"]}'
+    elif action_type == 'dome':
+        return f'X{action["value"]}'
     elif action_type == 'place_worker':
         return f'P{action["value"]}'
     elif action_type == DONE_ACTION_TYPE:
@@ -343,6 +345,8 @@ def longer_string_for_action(action):
         return f"Place {action['value']}"
     elif action_type == 'build':
         return f"Build at {action['value']}"
+    elif action_type == 'dome':
+        return f"Dome at {action['value']}"
     elif action_type == DONE_ACTION_TYPE:
         return "End Turn"
     elif action_type == 'no_moves':
@@ -376,6 +380,8 @@ class ActionSelector():
             if len(future['actions']) > len(self.current_action_choices):
                 next_action = future['actions'][len(
                     self.current_action_choices)]
+                if isinstance(next_action.get('value'), list):
+                    next_action['value'] = tuple(next_action['value'])
                 result.add(frozendict(next_action))
 
         self.next_possible_actions = list(

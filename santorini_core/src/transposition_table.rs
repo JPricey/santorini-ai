@@ -7,7 +7,7 @@ use crate::{
     board::FullGameState,
     gods::generic::GenericMove,
     hashing::{HashType, compute_hash_from_scratch},
-    search::WINNING_SCORE_BUFFER,
+    search::{MAX_PLY, WINNING_SCORE_BUFFER},
 };
 
 use super::search::Hueristic;
@@ -73,6 +73,7 @@ fn to_search(value: Hueristic, ply: usize) -> Hueristic {
 }
 
 pub struct TranspositionTable {
+    pub lmr_table: LMRTable,
     pub entries: Vec<TTEntry>,
     pub stats: TTStats,
 }
@@ -113,6 +114,7 @@ impl TranspositionTable {
 
     pub fn new() -> Self {
         Self {
+            lmr_table: LMRTable::new(),
             entries: vec![
                 TTEntry {
                     hash_code: 0,
@@ -255,5 +257,38 @@ impl std::fmt::Debug for TranspositionTable {
             .field("stats", &self.stats)
             .field("fill_pct", &fill_pct)
             .finish()
+    }
+}
+
+const LMR_MAX_MOVES: usize = 1536;
+pub struct LMRTable {
+    pub table: Vec<[i32; LMR_MAX_MOVES + 1]>,
+}
+
+impl LMRTable {
+    pub fn new() -> Self {
+        let mut res = Self::default();
+
+        for depth in 1..MAX_PLY + 1 {
+            for played in 1..LMR_MAX_MOVES + 1 {
+                let ld = f64::ln(depth as f64);
+                let lp = f64::ln(played as f64);
+                res.table[depth][played] = ((1024.0 * (1.2 + ld * lp / 2.2)) as i32).max(0);
+            }
+        }
+
+        res
+    }
+
+    pub fn get(&self, depth: usize, played: usize) -> i32 {
+        self.table[depth.min(MAX_PLY)][played.min(LMR_MAX_MOVES)]
+    }
+}
+
+impl Default for LMRTable {
+    fn default() -> Self {
+        Self {
+            table: vec![[0; LMR_MAX_MOVES + 1]; MAX_PLY + 1],
+        }
     }
 }

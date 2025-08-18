@@ -4,7 +4,8 @@
 use colored::Colorize;
 use rand::{rng, Rng};
 use rand::seq::{IteratorRandom, SliceRandom};
-use santorini_core::board::BoardState;
+use santorini_core::bitboard::BitBoard;
+use santorini_core::board::{BoardState, NEIGHBOR_MAP, WRAPPING_NEIGHBOR_MAP};
 use santorini_core::gods::generic::{
     IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK,
 };
@@ -14,7 +15,8 @@ use santorini_core::nnue::{
 };
 use santorini_core::placement::{get_all_placements, get_unique_placements};
 use santorini_core::random_utils::GameStateFuzzer;
-use santorini_core::transposition_table::{TTEntry, TTValue};
+use santorini_core::square::Square;
+use santorini_core::transposition_table::{LMRTable, TTEntry, TTValue};
 use santorini_core::utils::print_cpu_arch;
 
 use std::simd;
@@ -254,6 +256,13 @@ fn random_matchup() {
     println!("{:?}", choose);
 }
 
+fn _print_lmr_table() {
+    let lmr = LMRTable::new();
+    for (i, row) in lmr.table.iter().enumerate() {
+        eprintln!("{i}: {:?}", row);
+    }
+}
+
 fn print_hashing_randoms(size: usize) {
     let mut rng = rng();
     let random_numbers = (0..size)
@@ -263,8 +272,21 @@ fn print_hashing_randoms(size: usize) {
     eprintln!("{:?}", random_numbers);
 }
 
+fn _print_neighbor_map() {
+    for i in 0..25 {
+        let source = BitBoard::as_mask(Square::from(i));
+        let ns = NEIGHBOR_MAP[i];
+
+        println!("{source}");
+        println!("{ns}");
+    }
+}
+
 fn main() {
-    print_hashing_randoms(32);
+    _print_neighbor_map();
+    // _print_lmr_table();
+
+    // print_hashing_randoms(32);
     // random_matchup();
 
     // println!("{:b}", MOVE_IS_WINNING_MASK);

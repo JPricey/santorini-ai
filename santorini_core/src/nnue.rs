@@ -50,14 +50,14 @@ pub struct Network {
 
 const BOARD_FEATURES: usize = 125;
 const SIDE_WORKER_FEATURES: usize = 25 * 4;
-const GOD_COUNT: usize = 11;
-const PER_SIDE_FEATURES: usize = GOD_COUNT + SIDE_WORKER_FEATURES;
+pub const NNUE_GOD_COUNT: usize = 11;
+const PER_SIDE_FEATURES: usize = NNUE_GOD_COUNT + SIDE_WORKER_FEATURES;
 
 const ACTIVE_PLAYER_OFFSET: usize = BOARD_FEATURES;
-const ACTIVE_PLAYER_WORKER_OFFSET: usize = BOARD_FEATURES + GOD_COUNT;
+const ACTIVE_PLAYER_WORKER_OFFSET: usize = BOARD_FEATURES + NNUE_GOD_COUNT;
 
 const OPPO_OFFSET: usize = ACTIVE_PLAYER_OFFSET + PER_SIDE_FEATURES;
-const OPPO_WORKER_OFFSET: usize = OPPO_OFFSET + GOD_COUNT;
+const OPPO_WORKER_OFFSET: usize = OPPO_OFFSET + NNUE_GOD_COUNT;
 
 pub const TOTAL_FEATURES: usize = BOARD_FEATURES + PER_SIDE_FEATURES * 2;
 pub const HIDDEN_SIZE: usize = 1024;
@@ -205,8 +205,7 @@ impl Accumulator {
     }
 }
 
-// TODO: equality should be for features only
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct LabeledAccumulator {
     feature_set: FeatureSet,
     accumulator: Accumulator,
@@ -344,7 +343,7 @@ impl LabeledAccumulator {
     }
 
     pub fn replace_from_state(&mut self, state: &FullGameState) {
-        self.replace_features(build_feature_set(&state.board, state.gods[0].god_name, state.gods[1].god_name))
+        self.replace_features(build_feature_set(&state.board, state.gods[0].model_god_name, state.gods[1].model_god_name))
     }
 
     pub fn replace_from_board(&mut self, board: &BoardState, god1: GodName, god2: GodName) {

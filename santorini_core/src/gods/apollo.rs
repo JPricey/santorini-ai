@@ -5,12 +5,9 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower,
         generic::{
-            CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
-            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
-            NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
-            WORKER_HEIGHT_SCORES,
+            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES,
+            LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags,
+            NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
         },
     },
     player::Player,
@@ -114,60 +111,81 @@ impl std::fmt::Debug for ApolloMove {
     }
 }
 
-type GodMove = ApolloMove;
+impl GodMove for ApolloMove {
+    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+        let mut res = vec![PartialAction::SelectWorker(self.move_from_position())];
 
-pub fn apollo_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<FullAction> {
-    let action: GodMove = action.into();
+        if self.did_swap() {
+            res.push(PartialAction::MoveWorkerWithSwap(self.move_to_position()));
+        } else {
+            res.push(PartialAction::MoveWorker(self.move_to_position()));
+        }
 
-    let mut res = vec![PartialAction::SelectWorker(action.move_from_position())];
+        if !self.get_is_winning() {
+            res.push(PartialAction::Build(self.build_position()));
+        }
 
-    if action.did_swap() {
-        res.push(PartialAction::MoveWorkerWithSwap(action.move_to_position()));
-    } else {
-        res.push(PartialAction::MoveWorker(action.move_to_position()));
+        return vec![res];
     }
 
-    if !action.get_is_winning() {
-        res.push(PartialAction::Build(action.build_position()));
+    fn make_move(self, board: &mut BoardState) {
+        let worker_move_mask = self.move_mask();
+        board.worker_xor(board.current_player, worker_move_mask);
+
+        if self.did_swap() {
+            board.worker_xor(!board.current_player, worker_move_mask);
+        }
+
+        if self.get_is_winning() {
+            board.set_winner(board.current_player);
+            return;
+        }
+
+        let build_position = self.build_position();
+        board.build_up(build_position);
     }
 
-    return vec![res];
-}
+    fn unmake_move(self, board: &mut BoardState) {
+        let worker_move_mask = self.move_mask();
+        board.worker_xor(board.current_player, worker_move_mask);
 
-pub fn apollo_make_move(board: &mut BoardState, action: GenericMove) {
-    let action: GodMove = action.into();
-    let worker_move_mask = action.move_mask();
-    board.worker_xor(board.current_player, worker_move_mask);
+        if self.did_swap() {
+            board.worker_xor(!board.current_player, worker_move_mask);
+        }
 
-    if action.did_swap() {
-        board.worker_xor(!board.current_player, worker_move_mask);
+        if self.get_is_winning() {
+            board.unset_winner(board.current_player);
+            return;
+        }
+
+        let build_position = self.build_position();
+        board.unbuild(build_position);
     }
 
-    if action.get_is_winning() {
-        board.set_winner(board.current_player);
-        return;
+    fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
+        self.move_mask()
     }
 
-    let build_position = action.build_position();
-    board.build_up(build_position);
-}
+    fn get_history_idx(self, board: &BoardState) -> usize {
+        let from = self.move_from_position();
+        let to = self.move_to_position();
+        let build = self.build_position();
 
-pub fn apollo_unmake_move(board: &mut BoardState, action: GenericMove) {
-    let action: GodMove = unsafe { std::mem::transmute(action) };
-    let worker_move_mask = action.move_mask();
-    board.worker_xor(board.current_player, worker_move_mask);
+        let from_height = board.get_height(from);
+        let to_height = board.get_height(to);
+        let build_height = board.get_height(build);
 
-    if action.did_swap() {
-        board.worker_xor(!board.current_player, worker_move_mask);
+        let fu = from as usize;
+        let tu = to as usize;
+        let bu = build as usize;
+
+        let mut res = 4 * fu + from_height;
+        res = res * 100 + 4 * tu + to_height;
+        res = res * 100 + 4 * bu + build_height;
+        res = res * 2 + self.did_swap() as usize;
+
+        res
     }
-
-    if action.get_is_winning() {
-        board.unset_winner(board.current_player);
-        return;
-    }
-
-    let build_position = action.build_position();
-    board.unbuild(build_position);
 }
 
 fn apollo_move_gen<const F: MoveGenFlags>(
@@ -214,7 +232,7 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                 let is_swap =
                     (BitBoard::as_mask(moving_worker_end_pos) & opponent_workers).is_not_empty();
                 let winning_move = ScoredMove::new_winning_move(
-                    GodMove::new_apollo_winning_move(
+                    ApolloMove::new_apollo_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                         is_swap,
@@ -257,7 +275,7 @@ fn apollo_move_gen<const F: MoveGenFlags>(
             let mut anti_check_builds = BitBoard::EMPTY;
             let mut is_already_check = false;
 
-            if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
+            if F & INCLUDE_SCORE != 0 {
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & board.exactly_level_2();
                     anti_check_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize]
@@ -267,19 +285,8 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            if F & GENERATE_THREATS_ONLY != 0 {
-                if is_already_check {
-                    let must_avoid_build = anti_check_builds & worker_builds;
-                    if must_avoid_build.count_ones() == 1 {
-                        worker_builds ^= must_avoid_build;
-                    }
-                } else {
-                    worker_builds &= check_if_builds;
-                }
-            }
-
             for worker_build_pos in worker_builds {
-                let new_action = GodMove::new_apollo_move(
+                let new_action = ApolloMove::new_apollo_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
@@ -287,22 +294,20 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                 );
                 if F & INCLUDE_SCORE != 0 {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let score;
                     if is_already_check && (anti_check_builds & !worker_build_mask).is_not_empty()
                         || (worker_build_mask & check_if_builds).is_not_empty()
                     {
-                        score = CHECK_SENTINEL_SCORE;
+                        result.push(ScoredMove::new_checking_move(new_action.into()));
                     } else {
                         let is_improving = worker_end_height > worker_starting_height;
-                        score = if is_improving {
-                            IMPROVER_SENTINEL_SCORE
+                        if is_improving {
+                            result.push(ScoredMove::new_improving_move(new_action.into()));
                         } else {
-                            NON_IMPROVER_SENTINEL_SCORE
+                            result.push(ScoredMove::new_non_improver(new_action.into()));
                         };
                     }
-                    result.push(ScoredMove::new(new_action.into(), score));
                 } else {
-                    result.push(ScoredMove::new(new_action.into(), 0));
+                    result.push(ScoredMove::new_unscored_move(new_action.into()));
                 }
             }
         }
@@ -311,218 +316,11 @@ fn apollo_move_gen<const F: MoveGenFlags>(
     result
 }
 
-const APOLLO_SWAP_MOVE_BONUS: [MoveScore; 2] = [0, 9];
-
-pub fn apollo_score_moves<const IMPROVERS_ONLY: bool>(
-    board: &BoardState,
-    move_list: &mut [ScoredMove],
-) {
-    let mut build_score_map: [MoveScore; 25] = [0; 25];
-    for enemy_worker_pos in board.workers[1 - board.current_player as usize] {
-        let enemy_worker_height = board.get_height(enemy_worker_pos);
-        let ns = NEIGHBOR_MAP[enemy_worker_pos as usize];
-        for n_pos in ns {
-            let n_height = board.get_height(n_pos);
-            build_score_map[n_pos as usize] +=
-                ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
-        }
-    }
-
-    for worker_pos in board.workers[board.current_player as usize] {
-        let worker_height = board.get_height(worker_pos);
-        let ns = NEIGHBOR_MAP[worker_pos as usize];
-        for n_pos in ns {
-            let n_height = board.get_height(n_pos);
-            build_score_map[n_pos as usize] -=
-                ENEMY_WORKER_BUILD_SCORES[worker_height as usize][n_height as usize] / 8;
-        }
-    }
-
-    for scored_action in move_list {
-        if IMPROVERS_ONLY && scored_action.score == NON_IMPROVER_SENTINEL_SCORE {
-            continue;
-        }
-
-        let action: GodMove = scored_action.action.into();
-        let mut score: MoveScore = 0;
-
-        score += APOLLO_SWAP_MOVE_BONUS[action.did_swap() as usize];
-
-        let from = action.move_from_position();
-        let from_height = board.get_height(from);
-        let to = action.move_to_position();
-        let to_height = board.get_height(to);
-
-        let build_at = action.build_position();
-        let build_pre_height = board.get_height(build_at);
-
-        score -= GRID_POSITION_SCORES[from as usize];
-        score += GRID_POSITION_SCORES[to as usize];
-        score -= WORKER_HEIGHT_SCORES[from_height as usize];
-        score += WORKER_HEIGHT_SCORES[to_height as usize];
-
-        score += build_score_map[build_at as usize];
-
-        if scored_action.score == CHECK_SENTINEL_SCORE {
-            score += CHECK_MOVE_BONUS;
-        }
-
-        if IMPROVERS_ONLY {
-            score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
-        }
-
-        scored_action.set_score(score);
-    }
-}
-
-pub fn apollo_blocker_board(action: GenericMove) -> BitBoard {
-    let action: GodMove = action.into();
-    action.move_mask()
-}
-
-pub fn apollo_stringify(action: GenericMove) -> String {
-    let action: GodMove = action.into();
-    format!("{:?}", action)
-}
-
 build_god_power!(
     build_apollo,
     god_name: GodName::Apollo,
+    move_type: ApolloMove,
     move_gen: apollo_move_gen,
-    actions: apollo_move_to_actions,
-    score_moves: apollo_score_moves,
-    blocker_board: apollo_blocker_board,
-    make_move: apollo_make_move,
-    unmake_move: apollo_unmake_move,
-    stringify: apollo_stringify,
     hash1: 3394957705078584374,
     hash2: 7355591628209476781,
 );
-
-#[cfg(test)]
-mod tests {
-    use crate::random_utils::GameStateFuzzer;
-
-    use super::*;
-
-    #[test]
-    fn test_apollo_check_detection() {
-        let apollo = GodName::Apollo.to_power();
-        let game_state_fuzzer = GameStateFuzzer::default();
-
-        for state in game_state_fuzzer {
-            if state.board.get_winner().is_some() {
-                continue;
-            }
-            let current_player = state.board.current_player;
-            let current_win = apollo.get_winning_moves(&state.board, current_player);
-            if current_win.len() != 0 {
-                continue;
-            }
-
-            let actions = apollo.get_moves_for_search(&state.board, current_player);
-            for action in actions {
-                let mut board = state.board.clone();
-                apollo.make_move(&mut board, action.action);
-
-                let is_check_move = action.score == CHECK_SENTINEL_SCORE;
-                let is_winning_next_turn =
-                    apollo.get_winning_moves(&board, current_player).len() > 0;
-
-                if is_check_move != is_winning_next_turn {
-                    println!(
-                        "Failed check detection. Check guess: {:?}. Actual: {:?}",
-                        is_check_move, is_winning_next_turn
-                    );
-                    println!("{:?}", state);
-                    state.board.print_to_console();
-                    println!("{:?}", action.action);
-                    board.print_to_console();
-                    assert_eq!(is_check_move, is_winning_next_turn);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_apollo_improver_checks_only() {
-        let apollo = GodName::Apollo.to_power();
-        let game_state_fuzzer = GameStateFuzzer::default();
-
-        for state in game_state_fuzzer {
-            let current_player = state.board.current_player;
-
-            if state.board.get_winner().is_some() {
-                continue;
-            }
-            let current_win = apollo.get_winning_moves(&state.board, current_player);
-            if current_win.len() != 0 {
-                continue;
-            }
-
-            let mut improver_moves = apollo.get_improver_moves(&state.board, current_player);
-            for action in &improver_moves {
-                if action.score != CHECK_SENTINEL_SCORE {
-                    let mut board = state.board.clone();
-                    apollo.make_move(&mut board, action.action);
-
-                    println!("Move promised to be improver only but wasn't: {:?}", action,);
-                    println!("{:?}", state);
-                    state.board.print_to_console();
-                    println!("{:?}", action.action);
-                    board.print_to_console();
-                    assert_eq!(action.score, CHECK_SENTINEL_SCORE);
-                }
-            }
-
-            let mut all_moves = apollo.get_moves_for_search(&state.board, current_player);
-            let check_count = all_moves
-                .iter()
-                .filter(|a| a.score == CHECK_SENTINEL_SCORE)
-                .count();
-
-            if improver_moves.len() != check_count {
-                println!("Move count mismatch");
-                state.board.print_to_console();
-                println!("{:?}", state);
-
-                improver_moves.sort_by_key(|a| -a.score);
-                all_moves.sort_by_key(|a| -a.score);
-
-                println!("IMPROVERS:");
-                for a in &improver_moves {
-                    println!("{:?}", a);
-                }
-                println!("ALL:");
-                for a in &all_moves {
-                    println!("{:?}", a);
-                }
-
-                assert_eq!(improver_moves.len(), check_count);
-            }
-        }
-    }
-
-    /*
-    #[test]
-    fn test_check_detection_move_into() {
-        let apollo = GodName::Apollo.to_power();
-        let state =
-            FullGameState::try_from("11224 44444 00000 00000 00000/1/apollo:A5,D5/apollo:E1,E2")
-                .unwrap();
-        state.print_to_console();
-
-        println!(
-            "NON_IMPROVER_SENTINEL_SCORE: {}",
-            NON_IMPROVER_SENTINEL_SCORE
-        );
-        println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
-        println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
-
-        let actions = apollo.get_moves_for_search(&state.board, Player::One);
-        for action in actions {
-            println!("{:?}", action);
-        }
-    }
-    */
-}

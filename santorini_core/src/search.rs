@@ -1,4 +1,4 @@
-use std::{array, fmt::Debug};
+use std::{array, collections::HashMap, fmt::Debug};
 
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bitboard::BitBoard,
     board::FullGameState,
-    gods::generic::{GenericMove, WorkerPlacement},
+    gods::generic::{GenericMove, MoveScore, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     placement::{get_starting_placements_count, get_unique_placements},
     player::Player,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
-    utils::timestamp_string,
+    utils::{hash_u64, timestamp_string},
 };
 
 use super::transposition_table::TranspositionTable;
@@ -89,6 +89,7 @@ pub struct SearchContext<'a, T: SearchTerminator> {
 pub struct SearchStackEntry {
     pub eval: Hueristic,
     pub is_null_move: bool,
+    pub move_hash: usize,
 }
 
 // Examples only store pv for reporting. I'm much less interested now
@@ -145,13 +146,169 @@ impl NodeType for OffPV {
     type Next = Self;
 }
 
-#[derive(Clone)]
+const GLOBAL_MOVE_HISTORY_MAX: HistoryDelta = 1024;
+const PER_PLY_HISTORY_MAX: HistoryDelta = 4096;
+const RESPONSE_HISTORY_MAX: HistoryDelta = 8192;
+const FOLLOW_HISTORY_MAX: HistoryDelta = 8192;
+
+pub const BASE_MOVE_HISTORY_TABLE_SIZE: usize = 999_983;
+pub const MOVE_HISTORY_BY_DEPTH_SIZE: usize = 100_001;
+pub const MAX_MOVE_HISTORY_DEPTH: usize = 32;
+pub const RESPONSE_HISTORY_SIZE: usize = 999_983;
+pub const FOLLOW_HISTORY_SIZE: usize = 999_983;
+
+type HistoryDelta = i32;
+
+pub fn update_history_value(val: &mut MoveScore, bonus: HistoryDelta, max: HistoryDelta) {
+    let current = HistoryDelta::from(*val);
+    *val += bonus as MoveScore - (current * bonus.abs() / max) as MoveScore;
+}
+
+pub fn set_min_history_value(val: &mut MoveScore, new_val: HistoryDelta) {
+    *val = (*val).max(new_val as MoveScore);
+}
+
+pub struct Histories {
+    pub global_move_history: Vec<MoveScore>,
+    pub move_history_by_ply: [Vec<MoveScore>; MAX_MOVE_HISTORY_DEPTH],
+    pub response_history: Vec<MoveScore>,
+    pub follow_history: Vec<MoveScore>,
+}
+
+impl Histories {
+    pub fn get_move_score(
+        &self,
+        move_idx: usize,
+        ply: usize,
+        prev_move_hash: Option<usize>,
+        follow_move_hash: Option<usize>,
+    ) -> MoveScore {
+        let mut res = 0;
+        res += self.global_move_history[move_idx % BASE_MOVE_HISTORY_TABLE_SIZE];
+        res += self.move_history_by_ply[Self::_move_history_ply(ply)]
+            [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE];
+
+        if let Some(prev_move_idx) = prev_move_hash {
+            res += self.response_history
+                [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE];
+        }
+
+        if let Some(follow_move_idx) = follow_move_hash {
+            res += self.follow_history
+                [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE];
+        }
+
+        // if res > MoveScore::MAX - 4000 {
+        //     eprintln!(
+        //         "Move score overflow for move_idx: {}, ply: {}, res: {}",
+        //         move_idx, ply, res
+        //     );
+        // }
+        res
+    }
+
+    // If ply > our history limit, use the last entry for that player instead
+    fn _move_history_ply(ply: usize) -> usize {
+        if ply < MAX_MOVE_HISTORY_DEPTH {
+            ply
+        } else {
+            MAX_MOVE_HISTORY_DEPTH - 2 + ((ply - MAX_MOVE_HISTORY_DEPTH) % 2)
+        }
+    }
+
+    pub fn update_move(
+        &mut self,
+        move_idx: usize,
+        ply: usize,
+        magnitude: HistoryDelta,
+        prev_move_idx: Option<usize>,
+        follow_move_idx: Option<usize>,
+    ) {
+        update_history_value(
+            &mut self.global_move_history[move_idx % BASE_MOVE_HISTORY_TABLE_SIZE],
+            magnitude,
+            GLOBAL_MOVE_HISTORY_MAX,
+        );
+        update_history_value(
+            &mut self.move_history_by_ply[Self::_move_history_ply(ply)]
+                [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE],
+            magnitude,
+            PER_PLY_HISTORY_MAX,
+        );
+
+        if let Some(prev_move_idx) = prev_move_idx {
+            update_history_value(
+                &mut self.response_history
+                    [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE],
+                magnitude,
+                RESPONSE_HISTORY_MAX,
+            );
+        }
+
+        if let Some(follow_move_idx) = follow_move_idx {
+            update_history_value(
+                &mut self.follow_history
+                    [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE],
+                magnitude,
+                FOLLOW_HISTORY_MAX,
+            );
+        }
+    }
+
+    pub fn set_move_min(
+        &mut self,
+        move_idx: usize,
+        ply: usize,
+        magnitude: HistoryDelta,
+        prev_move_idx: Option<usize>,
+        follow_move_idx: Option<usize>,
+    ) {
+        set_min_history_value(
+            &mut self.global_move_history[move_idx % BASE_MOVE_HISTORY_TABLE_SIZE],
+            magnitude,
+        );
+        set_min_history_value(
+            &mut self.move_history_by_ply[Self::_move_history_ply(ply)]
+                [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE],
+            magnitude,
+        );
+
+        if let Some(prev_move_idx) = prev_move_idx {
+            set_min_history_value(
+                &mut self.response_history
+                    [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE],
+                magnitude,
+            );
+        }
+
+        if let Some(follow_move_idx) = follow_move_idx {
+            set_min_history_value(
+                &mut self.follow_history
+                    [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE],
+                magnitude,
+            );
+        }
+    }
+}
+
+impl Default for Histories {
+    fn default() -> Self {
+        Self {
+            global_move_history: vec![0; BASE_MOVE_HISTORY_TABLE_SIZE],
+            move_history_by_ply: array::from_fn(|_| vec![0; MOVE_HISTORY_BY_DEPTH_SIZE]),
+            response_history: vec![0; RESPONSE_HISTORY_SIZE],
+            follow_history: vec![0; RESPONSE_HISTORY_SIZE],
+        }
+    }
+}
+
 pub struct SearchState {
     pub last_fully_completed_depth: usize,
     pub best_move: Option<BestSearchResult>,
     pub nodes_visited: usize,
     pub killer_move_table: [Option<GenericMove>; MAX_PLY],
     pub search_stack: [SearchStackEntry; MAX_PLY],
+    pub history: [Histories; 2],
     // pub max_q_depth: u32,
 }
 
@@ -177,8 +334,8 @@ impl Default for SearchState {
             best_move: None,
             nodes_visited: 0,
             killer_move_table: [None; MAX_PLY],
-            search_stack: array::from_fn(|_| SearchStackEntry::default()),
-            // max_q_depth: 5,
+            search_stack: array::from_fn(|_| Default::default()),
+            history: Default::default(),
         }
     }
 }
@@ -199,6 +356,48 @@ impl<'a, T: SearchTerminator> SearchContext<'a, T> {
             terminator,
         }
     }
+}
+
+fn _print_history(history: &Histories) {
+    eprintln!("Global Move History (MAX {}):", GLOBAL_MOVE_HISTORY_MAX);
+    _print_array_histogram(&history.global_move_history);
+    eprintln!("Response History (MAX {}):", RESPONSE_HISTORY_MAX);
+    _print_array_histogram(&history.response_history);
+    eprintln!("Follow History (MAX {}):", FOLLOW_HISTORY_MAX);
+    _print_array_histogram(&history.follow_history);
+
+    for i in 0..MAX_MOVE_HISTORY_DEPTH {
+        eprintln!("Ply {i}:");
+        if !_print_array_histogram(&history.move_history_by_ply[i]) {
+            break;
+        }
+    }
+}
+
+fn _print_array_histogram(values_arr: &[MoveScore]) -> bool {
+    let mut values_hash: HashMap<MoveScore, usize> = Default::default();
+    let mut did_print_any = false;
+
+    for value in values_arr {
+        values_hash
+            .entry(*value)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+    }
+
+    let mut values_vec: Vec<_> = values_hash.into_iter().collect();
+    values_vec.sort();
+
+    for (key, count) in values_vec {
+        if count > 1 {
+            eprintln!("{}: {}", key, count);
+            if key != 0 {
+                did_print_any = true;
+            }
+        }
+    }
+
+    did_print_any
 }
 
 pub fn negamax_search<T>(
@@ -241,7 +440,6 @@ where
         );
         search_state.best_move = Some(new_best_move.clone());
         (search_context.new_best_move_callback)(new_best_move);
-        // tt_entry.search_depth + 1
     }
 
     let start_depth = if starting_mode == 0 { 1 } else { 0 };
@@ -273,9 +471,9 @@ where
 
         if search_state.best_move.is_none() && !search_context.should_stop(&search_state) {
             // We didn't find _any_ move. Could be:
-            // 1. There's a bug
-            // 2. We got smothered.
-            // This is rare enough to bother doing a full check for
+            // 1. We got smothered.
+            // 2. There's a bug
+            // This is rare & cheap enough to do a full check for, instead of assuming the smother
             let active_god = root_state.get_active_god();
             let moves =
                 active_god.get_moves_for_search(&root_state.board, root_state.board.current_player);
@@ -313,8 +511,10 @@ where
         }
 
         if score.abs() > WINNING_SCORE_BUFFER && !search_context.should_stop(&search_state) {
+            // If we see a win/loss, maybe the refutation was pruned out. Keep searching a bit further
+            // to confirm, but there's no need to search forever
             let win_depth = WINNING_SCORE - score.abs();
-            if depth as Hueristic > win_depth {
+            if depth as Hueristic > win_depth + 1 {
                 let mut best_move = search_state.best_move.clone().unwrap();
                 best_move.trigger = BestMoveTrigger::EndOfLine;
                 (search_context.new_best_move_callback)(best_move);
@@ -322,6 +522,11 @@ where
             }
         }
     }
+
+    // eprintln!("Player One");
+    // _print_history(&search_state.history[0]);
+    // eprintln!("Player Two");
+    // _print_history(&search_state.history[1]);
 
     search_state
 }
@@ -391,9 +596,11 @@ where
         nnue_acc,
         is_in_check,
         ply,
-        remaining_depth,
+        0,
+        remaining_depth as i32,
         alpha,
         beta,
+        false,
     )
 }
 
@@ -434,7 +641,9 @@ where
         }
     }
 
+    search_state.search_stack[ply].eval = -WINNING_SCORE_BUFFER;
     for action in placements {
+        search_state.search_stack[ply].move_hash = hash_u64(action.0 as usize);
         action.make_move(&mut state.board);
 
         let score = -match state.board.current_player {
@@ -578,7 +787,7 @@ where
         eval = -(WINNING_SCORE - 1);
         let mut blocker_board = BitBoard::EMPTY;
         for action in &opponent_wins {
-            blocker_board |= other_god.get_blocker_board(action.action);
+            blocker_board |= other_god.get_blocker_board(&state.board, action.action);
         }
         child_moves =
             active_god.get_blocker_moves(&state.board, state.board.current_player, blocker_board);
@@ -659,15 +868,22 @@ fn _inner_search<T, NT>(
     nnue_acc: &mut LabeledAccumulator,
     is_in_check: bool,
     ply: usize,
-    mut remaining_depth: usize,
+    carry_reduction: i32,
+    mut remaining_depth: i32,
     mut alpha: Hueristic,
     mut beta: Hueristic,
+    is_cut_node: bool,
 ) -> Hueristic
 where
     T: SearchTerminator,
     NT: NodeType,
 {
     debug_assert!(state.validation_err().is_ok());
+
+    let current_player_idx = state.board.current_player as usize;
+    if is_in_check {
+        remaining_depth += 1;
+    }
 
     let (active_god, other_god) = state.get_active_non_active_gods();
 
@@ -680,7 +896,7 @@ where
         } else {
             -win_at_ply(ply)
         };
-    } else if remaining_depth == 0 {
+    } else if remaining_depth <= 0 {
         return _q_extend(
             search_context,
             search_state,
@@ -741,8 +957,7 @@ where
 
     // internal iterative reduction
     // reduce depth on a tt miss
-    // my variant: exclude PV lines from this rule
-    if !NT::ROOT && !NT::PV && remaining_depth >= 4 && tt_entry.is_none() {
+    if !NT::ROOT && remaining_depth >= 4 && tt_entry.is_none() {
         remaining_depth -= 1;
     }
 
@@ -774,7 +989,7 @@ where
         } else {
             let mut key_squares = BitBoard::EMPTY;
             for action in &other_wins {
-                key_squares |= other_god.get_blocker_board(action.action);
+                key_squares |= other_god.get_blocker_board(&state.board, action.action);
             }
 
             Some(key_squares)
@@ -808,7 +1023,7 @@ where
                     best_action,
                     false,
                     score,
-                    remaining_depth,
+                    remaining_depth.max(0) as usize,
                     search_state.nodes_visited,
                     BestMoveTrigger::EndOfLine,
                 );
@@ -841,7 +1056,7 @@ where
                 winning_action,
                 false,
                 score,
-                remaining_depth,
+                remaining_depth.max(0) as usize,
                 search_state.nodes_visited,
                 BestMoveTrigger::EndOfLine,
             );
@@ -862,12 +1077,14 @@ where
     let ss = &mut search_state.search_stack;
     ss[ply].eval = eval;
 
-    let improving = if ply >= 2 {
-        eval > ss[ply - 2].eval
+    let (improving, eval_delta) = if ply >= 2 {
+        let delta = eval - ss[ply - 2].eval;
+        (delta > 0, delta)
     } else if ply >= 4 {
-        eval > ss[ply - 4].eval
+        let delta = eval - ss[ply - 4].eval;
+        (delta > 0, delta)
     } else {
-        true
+        (true, 0)
     };
 
     // let mut child_nnue_acc = nnue_acc.clone();
@@ -886,9 +1103,12 @@ where
             && eval + 45 * (improving as Hueristic) >= beta
             && !ss[ply - 1].is_null_move
         {
-            let reduction = (4 + remaining_depth / 4).min(remaining_depth);
+            let nmp_reduction = (4 + remaining_depth / 4).min(remaining_depth);
 
             search_state.search_stack[ply].is_null_move = true;
+            // TODO: pick a better number
+            search_state.search_stack[ply].move_hash = hash_u64(75938565738);
+
             state.board.flip_current_player();
             let null_value = -_inner_search::<T, OffPV>(
                 search_context,
@@ -897,9 +1117,11 @@ where
                 nnue_acc,
                 false,
                 ply + 1,
-                remaining_depth - reduction,
+                carry_reduction,
+                remaining_depth - nmp_reduction,
                 -beta,
                 -beta + 1,
+                !is_cut_node,
             );
             state.board.flip_current_player();
             search_state.search_stack[ply].is_null_move = false;
@@ -923,17 +1145,50 @@ where
     let mut should_stop = false;
     let mut move_idx = 0;
     let mut best_action_idx = 0;
-    while let Some(child_action) = move_picker.next(&state.board) {
+    // let mut total_eval: i32 = 0;
+    let next_depth = remaining_depth - 1;
+
+    let lmp_d = remaining_depth.max(1) + improving as i32;
+    let _lmp_cutoff = if improving {
+        (10 + 3 * lmp_d * lmp_d).max(0) as usize
+    } else {
+        (6 + lmp_d * lmp_d).max(0) as usize
+    };
+
+    let low_score_cutoff = -750 * (remaining_depth.max(0) + 1) as MoveScore;
+
+    let _nd2 = ((next_depth + 1) * (next_depth + 1)) as HistoryDelta;
+    let nd1 = (next_depth + 1) as HistoryDelta;
+    let nd = nd1;
+    let prev_move_idx = if ply > 0 {
+        Some(search_state.search_stack[ply - 1].move_hash)
+    } else {
+        None
+    };
+
+    let follow_move_idx = if ply > 1 {
+        Some(search_state.search_stack[ply - 2].move_hash)
+    } else {
+        None
+    };
+
+    while let Some(child_scored_action) = move_picker.next(
+        &state.board,
+        &search_state.history[current_player_idx],
+        ply,
+        prev_move_idx,
+        follow_move_idx,
+    ) {
+        let move_score = child_scored_action.score;
+        let child_action = child_scored_action.action;
+
         let child_is_check = child_action.get_is_check();
         move_idx += 1;
 
-        // check extension
-        let mut next_depth = if child_is_check {
-            // eprintln!("check ext: ply {ply}");
-            remaining_depth
-        } else {
-            remaining_depth - 1
-        };
+        let history_move_hash = active_god.get_history_hash(&state.board, child_action);
+        search_state.search_stack[ply].move_hash = history_move_hash;
+
+        let mut move_score_adjustment = 0;
 
         let mut score;
         if move_idx == 1 {
@@ -945,20 +1200,55 @@ where
                 nnue_acc,
                 child_is_check,
                 ply + 1,
+                carry_reduction,
                 next_depth,
                 -beta,
                 -alpha,
+                false,
             )
         } else {
-            if next_depth >= 1 && ply >= 2 && move_idx >= 200 {
-                next_depth -= 1;
-
-                if next_depth >= 1 && ply >= 4 && move_idx >= 600 {
-                    next_depth -= 1;
+            let mut reduction = 0;
+            if remaining_depth > 2 {
+                reduction += search_context
+                    .tt
+                    .lmr_table
+                    .get(remaining_depth as usize, move_idx);
+                if !NT::PV {
+                    reduction += 1024;
                 }
+                reduction += (is_cut_node && remaining_depth >= 6) as i32 * 1024;
+                reduction -= (eval_delta as i32) / 2;
+                reduction -= key_squares.is_some() as i32 * 2048;
+                reduction -= child_action.get_is_check() as i32 * 1024;
+                reduction -= MovePickerStage::YieldKiller as i32 * 1024;
+                reduction = reduction.max(0);
             }
 
-            // Stop considering non-improvers eventually
+            let used_reduction = reduction / 1024;
+            let remaining_reduction = reduction % 1024;
+            let next_depth = remaining_depth - 1;
+            let reduced_depth = (next_depth - used_reduction).clamp(0, next_depth);
+            // let reduced_depth = next_depth;
+
+            // if used_reduction >= 2 {
+            //     eprintln!(
+            //         "reduction: {}, remaining_depth: {remaining_depth} reduced_depth: {reduced_depth} ply: {ply}, move_idx: {move_idx}  remaining_reduction: {reduction} carry_reduction: {carry_reduction}",
+            //         used_reduction
+            //     );
+            // }
+
+            // if !NT::PV
+            //     && !NT::ROOT
+            //     && key_squares.is_none()
+            //     && ply >= 2
+            //     && next_depth <= 8
+            //     && move_picker.stage == MovePickerStage::YieldNonImprovers
+            //     && move_idx >= lmp_cutoff
+            // {
+            //     break;
+            // }
+
+            // Soft qs on the last ply
             if ply >= 2
                 && next_depth <= 0
                 && key_squares.is_none()
@@ -966,6 +1256,13 @@ where
                 && move_picker.stage == MovePickerStage::YieldNonImprovers
             // || (ply >= 4 && next_depth < 2 && move_idx >= 8)
             // && !improving
+            {
+                break;
+            }
+
+            if move_score < low_score_cutoff
+                && move_picker.stage == MovePickerStage::YieldNonImprovers
+                && key_squares.is_none()
             {
                 break;
             }
@@ -980,10 +1277,29 @@ where
                 nnue_acc,
                 child_is_check,
                 ply + 1,
-                next_depth,
+                remaining_reduction,
+                reduced_depth,
                 -alpha - 1,
                 -alpha,
+                true,
             );
+
+            // If we improve alpha and there was a reduction, try again without that reduction
+            if score > alpha && used_reduction >= 1 && next_depth > reduced_depth {
+                score = -_inner_search::<T, OffPV>(
+                    search_context,
+                    search_state,
+                    state,
+                    nnue_acc,
+                    child_is_check,
+                    ply + 1,
+                    0,
+                    next_depth,
+                    -alpha - 1,
+                    -alpha,
+                    !is_cut_node,
+                );
+            }
 
             // The search failed, try again
             if score > alpha && score < beta {
@@ -994,19 +1310,52 @@ where
                     nnue_acc,
                     child_is_check,
                     ply + 1,
+                    0,
                     next_depth,
                     -beta,
                     -alpha,
+                    false,
                 )
             }
         };
 
         should_stop = search_context.should_stop(&search_state);
 
+        /*
+        total_eval += score as i32;
+        let avg_eval = (total_eval / move_idx as i32) as Hueristic;
+
+        if score >= avg_eval as Hueristic {
+            search_state.history.update_move(
+                history_move_idx,
+                ply,
+                1,
+            );
+        } else {
+            search_state.history.reduce_move(
+                history_move_idx,
+                remaining_depth.max(0) as usize,
+                ply,
+            );
+        }
+        */
+
         if score > best_score {
             best_score = score;
             best_action = child_action;
             best_action_idx = move_idx - 1;
+
+            // if move_score < best_move_score {
+            //     move_score_adjustment += nd;
+            // }
+
+            // search_state.history[current_player_idx].set_move_min(
+            //     history_move_idx,
+            //     ply,
+            //     nd,
+            //     prev_move_idx,
+            //     follow_move_idx,
+            // );
 
             // if move_idx > 1000 {
             //     eprintln!("{move_idx}: {}", active_god.stringify_move(child_action));
@@ -1019,7 +1368,7 @@ where
                     best_action,
                     false,
                     score,
-                    remaining_depth,
+                    remaining_depth.max(0) as usize,
                     search_state.nodes_visited,
                     BestMoveTrigger::Improvement,
                 );
@@ -1033,12 +1382,34 @@ where
 
                 if alpha >= beta {
                     active_god.unmake_move(&mut state.board, child_action);
+
+                    move_score_adjustment += 75 * nd;
+                    search_state.history[current_player_idx].update_move(
+                        history_move_hash,
+                        ply,
+                        move_score_adjustment,
+                        prev_move_idx,
+                        follow_move_idx,
+                    );
                     break;
                 }
             }
         }
 
         active_god.unmake_move(&mut state.board, child_action);
+
+        let mut delta_scaled = (score - best_score) as HistoryDelta;
+        delta_scaled /= 60;
+        let delta = delta_scaled.clamp(-4 * nd, 0 * nd);
+        move_score_adjustment += delta;
+
+        search_state.history[current_player_idx].update_move(
+            move_idx,
+            ply,
+            move_score_adjustment,
+            prev_move_idx,
+            follow_move_idx,
+        );
 
         if should_stop {
             break;
@@ -1057,6 +1428,15 @@ where
         if alpha != alpha_orig && best_action_idx > 1 {
             search_state.killer_move_table[ply as usize] = Some(best_action);
         }
+
+        let history_move_hash = active_god.get_history_hash(&state.board, best_action);
+        search_state.history[current_player_idx].update_move(
+            history_move_hash,
+            ply,
+            3 * nd,
+            prev_move_idx,
+            follow_move_idx,
+        );
 
         // Early on in the game, add all permutations of a board state to the TT, to help
         // deduplicate identical searches

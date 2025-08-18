@@ -2,10 +2,11 @@ use super::search::Hueristic;
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState},
-    gods::generic::{GenericMove, ScoredMove},
+    gods::generic::{GenericMove, GodMove, ScoredMove},
     hashing::HashType,
     player::Player,
     square::Square,
+    utils::hash_u64,
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
@@ -22,6 +23,7 @@ pub mod minotaur;
 pub mod mortal;
 pub mod pan;
 pub mod prometheus;
+pub mod urania;
 
 pub type StaticGod = &'static GodPower;
 
@@ -51,6 +53,7 @@ pub enum GodName {
     Apollo = 8,
     Hermes = 9,
     Prometheus = 10,
+    Urania = 11,
 }
 
 impl GodName {
@@ -89,7 +92,7 @@ pub enum PartialAction {
     NoMoves,
 }
 
-type FullAction = Vec<PartialAction>;
+pub type FullAction = Vec<PartialAction>;
 
 #[derive(Clone)]
 pub struct BoardStateWithAction {
@@ -165,10 +168,32 @@ impl ResultsMapper<BoardStateWithAction> for FullChoiceMapper {
     }
 }
 
+pub struct GodPowerMoveFns {
+    _get_all_moves:
+        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
+    _get_wins: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
+    _get_win_blockers:
+        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
+    _get_moves_for_search:
+        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
+}
+
+pub struct GodPowerActionFns {
+    _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
+    _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
+
+    _make_move: fn(board: &mut BoardState, action: GenericMove),
+    _unmake_move: fn(board: &mut BoardState, action: GenericMove),
+
+    _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
+    _stringify_move: fn(action: GenericMove) -> String,
+}
+
 pub struct GodPower {
     pub god_name: GodName,
+    pub model_god_name: GodName,
 
-    // Move Generators
+    // Move Fns
     pub _get_all_moves:
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
     _get_wins: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
@@ -177,23 +202,20 @@ pub struct GodPower {
     _get_moves_for_search:
         fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
 
-    // Move Scorers
-    _score_improvers: fn(board: &BoardState, move_list: &mut [ScoredMove]),
-    _score_remaining: fn(board: &BoardState, move_list: &mut [ScoredMove]),
+    // Action Fns
+    _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
+    _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 
-    // Check detection
-    _get_blocker_board: fn(action: GenericMove) -> BitBoard,
-
-    // Make/Unmake
     _make_move: fn(board: &mut BoardState, action: GenericMove),
     _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 
+    _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
     _stringify_move: fn(action: GenericMove) -> String,
 
+    // _modify_moves: fn(board: &BoardState, from: Square, to_mask: BitBoard, is_win: bool, is_future: bool),
     pub hash1: HashType,
     pub hash2: HashType,
     // UI
-    pub get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 }
 
 impl GodPower {
@@ -216,7 +238,7 @@ impl GodPower {
             .flat_map(|action| {
                 let mut result_state = board.clone();
                 self.make_move(&mut result_state, action.action);
-                let action_paths = (self.get_actions_for_move)(board, action.action);
+                let action_paths = (self._get_actions_for_move)(board, action.action);
 
                 action_paths.into_iter().map(move |full_actions| {
                     BoardStateWithAction::new(result_state.clone(), full_actions)
@@ -253,8 +275,8 @@ impl GodPower {
         (self._get_win_blockers)(board, player, key_moves)
     }
 
-    pub fn get_blocker_board(&self, action: GenericMove) -> BitBoard {
-        (self._get_blocker_board)(action)
+    pub fn get_blocker_board(&self, board: &BoardState, action: GenericMove) -> BitBoard {
+        (self._get_blocker_board)(board, action)
     }
 
     pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
@@ -267,16 +289,16 @@ impl GodPower {
         (self._unmake_move)(board, action);
     }
 
-    pub fn score_improvers(&self, board: &BoardState, move_list: &mut [ScoredMove]) {
-        (self._score_improvers)(board, move_list);
-    }
-
-    pub fn score_remaining(&self, board: &BoardState, move_list: &mut [ScoredMove]) {
-        (self._score_remaining)(board, move_list);
-    }
-
     pub fn stringify_move(&self, action: GenericMove) -> String {
         (self._stringify_move)(action)
+    }
+
+    pub fn get_actions_for_move(&self, board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+        (self._get_actions_for_move)(board, action)
+    }
+
+    pub fn get_history_hash(&self, board: &BoardState, action: GenericMove) -> usize {
+        (self._get_history_hash)(board, action)
     }
 }
 
@@ -300,7 +322,7 @@ impl std::fmt::Display for GodPower {
     }
 }
 
-pub const ALL_GODS_BY_ID: [GodPower; 11] = [
+pub const ALL_GODS_BY_ID: [GodPower; 12] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
@@ -312,45 +334,180 @@ pub const ALL_GODS_BY_ID: [GodPower; 11] = [
     apollo::build_apollo(),
     hermes::build_hermes(),
     prometheus::build_prometheus(),
+    urania::build_urania(),
 ];
 
 #[macro_export]
-macro_rules! build_god_power {
+macro_rules! build_god_power_movers {
     (
-        $fn_name:ident,
-        god_name: $god_name:expr,
-        move_gen: $move_gen:ident,
-        actions: $actions_fn:ident,
-        score_moves: $score_moves:ident,
-        blocker_board: $blocker_board_fn:ident,
-        make_move: $make_move_fn:ident,
-        unmake_move: $unmake_move_fn:ident,
-        stringify: $stringify_fn:ident,
-        hash1: $hash1:expr,
-        hash2: $hash2:expr,
-    ) => {
-        pub const fn $fn_name() -> GodPower {
-            GodPower {
-                god_name: $god_name,
+        $move_gen:ident
+    ) => {{
+        {
+            crate::gods::GodPowerMoveFns {
                 _get_all_moves: $move_gen::<0>,
                 _get_moves_for_search: $move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
                 _get_wins: $move_gen::<{ MATE_ONLY }>,
                 _get_win_blockers: $move_gen::<
                     { STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE },
                 >,
-                get_actions_for_move: $actions_fn,
-                _score_improvers: $score_moves::<true>,
-                _score_remaining: $score_moves::<false>,
-                _get_blocker_board: $blocker_board_fn,
-                _make_move: $make_move_fn,
-                _unmake_move: $unmake_move_fn,
-                _stringify_move: $stringify_fn,
+            }
+        }
+    }};
+}
+
+pub const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
+    fn _stringify_move<T: GodMove>(action: GenericMove) -> String {
+        let action: T = action.into();
+        format!("{:?}", action)
+    }
+
+    fn _get_actions_for_move<T: GodMove>(
+        board: &BoardState,
+        action: GenericMove,
+    ) -> Vec<FullAction> {
+        let action: T = action.into();
+        action.move_to_actions(board)
+    }
+
+    fn _make_move<T: GodMove>(board: &mut BoardState, action: GenericMove) {
+        let action: T = action.into();
+        action.make_move(board)
+    }
+
+    fn _unmake_move<T: GodMove>(board: &mut BoardState, action: GenericMove) {
+        let action: T = action.into();
+        action.unmake_move(board)
+    }
+
+    fn _get_blocker_board<T: GodMove>(board: &BoardState, action: GenericMove) -> BitBoard {
+        let action: T = action.into();
+        action.get_blocker_board(board)
+    }
+
+    fn _get_history_hash<T: GodMove>(board: &BoardState, action: GenericMove) -> usize {
+        let action: T = action.into();
+        hash_u64(action.get_history_idx(&board))
+    }
+
+    GodPowerActionFns {
+        _get_actions_for_move: _get_actions_for_move::<T>,
+        _get_blocker_board: _get_blocker_board::<T>,
+        _make_move: _make_move::<T>,
+        _unmake_move: _unmake_move::<T>,
+        _stringify_move: _stringify_move::<T>,
+        _get_history_hash: _get_history_hash::<T>,
+    }
+}
+
+const fn god_power(
+    name: GodName,
+    movers: GodPowerMoveFns,
+    actions: GodPowerActionFns,
+    hash1: u64,
+    hash2: u64,
+) -> GodPower {
+    GodPower {
+        god_name: name,
+        model_god_name: name,
+        _get_all_moves: movers._get_all_moves,
+        _get_moves_for_search: movers._get_moves_for_search,
+        _get_wins: movers._get_wins,
+        _get_win_blockers: movers._get_win_blockers,
+
+        _get_blocker_board: actions._get_blocker_board,
+        _get_actions_for_move: actions._get_actions_for_move,
+        _make_move: actions._make_move,
+        _unmake_move: actions._unmake_move,
+        _stringify_move: actions._stringify_move,
+        _get_history_hash: actions._get_history_hash,
+
+        hash1,
+        hash2,
+    }
+}
+
+#[macro_export]
+macro_rules! build_god_power {
+    (
+        $fn_name:ident,
+        god_name: $god_name:expr,
+        move_type: $move_type:ident,
+        move_gen: $move_gen:ident,
+        hash1: $hash1:expr,
+        hash2: $hash2:expr,
+    ) => {
+        pub const fn $fn_name() -> GodPower {
+            use crate::gods::FullAction;
+            use crate::gods::generic::GenericMove;
+            use crate::gods::generic::GodMove;
+            use crate::nnue::NNUE_GOD_COUNT;
+            use crate::utils::hash_u64;
+
+            fn _stringify_move(action: GenericMove) -> String {
+                let action: $move_type = action.into();
+                format!("{:?}", action)
+            }
+
+            fn _get_actions_for_move(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
+                let action: $move_type = action.into();
+                action.move_to_actions(board)
+            }
+
+            fn _make_move(board: &mut BoardState, action: GenericMove) {
+                let action: $move_type = action.into();
+                action.make_move(board)
+            }
+
+            fn _unmake_move(board: &mut BoardState, action: GenericMove) {
+                let action: $move_type = action.into();
+                action.unmake_move(board)
+            }
+
+            fn _get_blocker_board(board: &BoardState, action: GenericMove) -> BitBoard {
+                let action: $move_type = action.into();
+                action.get_blocker_board(board)
+            }
+
+            fn _get_history_hash(board: &BoardState, action: GenericMove) -> usize {
+                let action: $move_type = action.into();
+                hash_u64(action.get_history_idx(&board))
+            }
+
+            let model_god_name = if ($god_name) as usize >= NNUE_GOD_COUNT {
+                GodName::Mortal
+            } else {
+                $god_name
+            };
+
+            GodPower {
+                god_name: $god_name,
+                model_god_name: model_god_name,
+                _get_all_moves: $move_gen::<0>,
+                _get_moves_for_search: $move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
+                _get_wins: $move_gen::<{ MATE_ONLY }>,
+                _get_win_blockers: $move_gen::<
+                    { STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE },
+                >,
+
+                _get_actions_for_move,
+                _get_blocker_board,
+                _make_move,
+                _unmake_move,
+                _stringify_move,
+                _get_history_hash,
 
                 hash1: $hash1,
                 hash2: $hash2,
             }
         }
     };
+}
+
+impl GodPower {
+    pub const fn with_nnue_god_name(mut self, name: GodName) -> Self {
+        self.model_god_name = name;
+        self
+    }
 }
 
 #[cfg(test)]

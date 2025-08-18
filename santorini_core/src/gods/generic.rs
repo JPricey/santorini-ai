@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{bitboard::BitBoard, board::BoardState, gods::{FullAction, PartialAction}, square::Square, utils::grid_position_builder};
+use crate::{
+    bitboard::BitBoard,
+    board::BoardState,
+    gods::{FullAction, PartialAction},
+    square::Square,
+    utils::grid_position_builder,
+};
 use std::fmt::Debug;
 
 pub type MoveGenFlags = u8;
@@ -8,16 +14,20 @@ pub const STOP_ON_MATE: MoveGenFlags = 1 << 0;
 pub const MATE_ONLY: MoveGenFlags = 1 << 2;
 pub const INCLUDE_SCORE: MoveGenFlags = 1 << 3;
 pub const INTERACT_WITH_KEY_SQUARES: MoveGenFlags = 1 << 4;
-pub const GENERATE_THREATS_ONLY: MoveGenFlags = 1 << 5;
 
 pub const NON_IMPROVER_SENTINEL_SCORE: MoveScore = MoveScore::MIN + 1;
 pub const IMPROVER_SENTINEL_SCORE: MoveScore = NON_IMPROVER_SENTINEL_SCORE + 1;
 pub const CHECK_SENTINEL_SCORE: MoveScore = IMPROVER_SENTINEL_SCORE + 1;
 
-const SCORE_LOOKUP: [MoveScore; 4] = [NON_IMPROVER_SENTINEL_SCORE, IMPROVER_SENTINEL_SCORE, CHECK_SENTINEL_SCORE, CHECK_SENTINEL_SCORE];
+const SCORE_LOOKUP: [MoveScore; 4] = [
+    NON_IMPROVER_SENTINEL_SCORE,
+    IMPROVER_SENTINEL_SCORE,
+    CHECK_SENTINEL_SCORE,
+    CHECK_SENTINEL_SCORE,
+];
 
 pub const fn score_lookup(is_check: bool, is_improver: bool) -> MoveScore {
-    SCORE_LOOKUP[2*(is_check as usize) + is_improver as usize]
+    SCORE_LOOKUP[2 * (is_check as usize) + is_improver as usize]
 }
 
 pub const NULL_MOVE_DATA: MoveData = 0;
@@ -83,6 +93,18 @@ pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct GenericMove(pub MoveData);
 
+pub trait GodMove: From<GenericMove> + Into<GenericMove> + std::fmt::Debug {
+    fn move_to_actions(self, board: &BoardState) -> Vec<FullAction>;
+
+    fn make_move(self, board: &mut BoardState);
+
+    fn unmake_move(self, board: &mut BoardState);
+
+    fn get_blocker_board(self, board: &BoardState) -> BitBoard;
+
+    fn get_history_idx(self, board: &BoardState) -> usize;
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct ScoredMove {
     pub action: GenericMove,
@@ -103,10 +125,26 @@ impl ScoredMove {
     }
 
     pub const fn new_winning_move(action: GenericMove) -> Self {
-        Self {
-            action,
-            score: MOVE_WINNING_SCORE,
-        }
+        Self::new(action, MOVE_WINNING_SCORE)
+    }
+
+    pub const fn new_checking_move(action: GenericMove) -> Self {
+        Self::new(
+            GenericMove::new(action.0 | MOVE_IS_CHECK_MASK),
+            CHECK_SENTINEL_SCORE,
+        )
+    }
+
+    pub const fn new_improving_move(action: GenericMove) -> Self {
+        Self::new(action, IMPROVER_SENTINEL_SCORE)
+    }
+
+    pub const fn new_non_improver(action: GenericMove) -> Self {
+        Self::new(action, NON_IMPROVER_SENTINEL_SCORE)
+    }
+
+    pub const fn new_unscored_move(action: GenericMove) -> Self {
+        Self::new(action, 0)
     }
 
     pub fn get_is_winning(&self) -> bool {
@@ -206,7 +244,7 @@ impl WorkerPlacement {
                 PartialAction::PlaceWorker(self.placement_2()),
                 PartialAction::PlaceWorker(self.placement_1()),
             ],
-        ]
+        ];
     }
 }
 

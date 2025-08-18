@@ -3,9 +3,13 @@ use crate::{
     board::BoardState,
     gods::{
         StaticGod,
-        generic::{CHECK_SENTINEL_SCORE, GenericMove, NON_IMPROVER_SENTINEL_SCORE, ScoredMove},
+        generic::{
+            GenericMove, KILLER_MATCH_SCORE, NON_IMPROVER_SENTINEL_SCORE, ScoredMove,
+            TT_MATCH_SCORE,
+        },
     },
     player::Player,
+    search::Histories,
 };
 
 pub const MAX_MOVE_COUNT: usize = 336;
@@ -104,12 +108,19 @@ impl MovePicker {
         return None;
     }
 
-    pub fn next(&mut self, board: &BoardState) -> Option<GenericMove> {
+    pub fn next(
+        &mut self,
+        board: &BoardState,
+        history: &Histories,
+        ply: usize,
+        prev_move_idx: Option<usize>,
+        follow_move_idx: Option<usize>,
+    ) -> Option<ScoredMove> {
         if self.stage == MovePickerStage::YieldTT {
             self.stage = MovePickerStage::GenerateAllMoves;
             // TODO: protect against a hash collision by confirming move validity??
-            if self.tt_move.is_some() {
-                return self.tt_move;
+            if let Some(tt_move) = self.tt_move {
+                return Some(ScoredMove::new(tt_move, TT_MATCH_SCORE));
             }
         }
 
@@ -120,14 +131,17 @@ impl MovePicker {
 
         if self.stage == MovePickerStage::ScoreImprovers {
             self.stage = MovePickerStage::YieldImprovers;
+
             for action in &mut self.move_list[self.index..] {
-                if action.score == CHECK_SENTINEL_SCORE {
-                    action.action.set_is_check();
+                if action.score != NON_IMPROVER_SENTINEL_SCORE {
+                    let move_hash = self.active_god.get_history_hash(board, action.action);
+                    action.score =
+                        history.get_move_score(move_hash, ply, prev_move_idx, follow_move_idx);
                 }
             }
 
-            self.active_god
-                .score_improvers(board, &mut self.move_list[self.index..]);
+            // self.active_god
+            //     .score_improvers(board, &mut self.move_list[self.index..]);
         }
 
         if self.stage == MovePickerStage::YieldImprovers {
@@ -152,13 +166,13 @@ impl MovePicker {
                     self.move_list.swap(self.index, best_index);
                 }
 
-                let result_move = Some(self.move_list[self.index].action);
+                let result_move = self.move_list[self.index];
                 self.index += 1;
 
-                if result_move == self.tt_move {
-                    return self.next(board);
+                if Some(result_move.action) == self.tt_move {
+                    return self.next(board, history, ply, prev_move_idx, follow_move_idx);
                 } else {
-                    return result_move;
+                    return Some(result_move);
                 }
             }
         }
@@ -175,15 +189,21 @@ impl MovePicker {
                         self.move_list.swap(self.index, killer_index);
                     }
                     self.index += 1;
-                    return Some(killer_move);
+                    return Some(ScoredMove::new(killer_move, KILLER_MATCH_SCORE));
                 }
             }
         }
 
         if self.stage == MovePickerStage::ScoreNonImprovers {
             self.stage = MovePickerStage::YieldNonImprovers;
-            self.active_god
-                .score_remaining(board, &mut self.move_list[self.index..]);
+            for action in &mut self.move_list[self.index..] {
+                let move_hash = self.active_god.get_history_hash(board, action.action);
+                action.score =
+                    history.get_move_score(move_hash, ply, prev_move_idx, follow_move_idx);
+            }
+
+            // self.active_god
+            //     .score_remaining(board, &mut self.move_list[self.index..]);
         }
 
         if self.stage == MovePickerStage::YieldNonImprovers {
@@ -204,13 +224,13 @@ impl MovePicker {
                 self.move_list.swap(self.index, best_index);
             }
 
-            let result_move = Some(self.move_list[self.index].action);
+            let result_move = self.move_list[self.index];
             self.index += 1;
 
-            if result_move == self.tt_move {
-                return self.next(board);
+            if Some(result_move.action) == self.tt_move {
+                return self.next(board, history, ply, prev_move_idx, follow_move_idx);
             } else {
-                return result_move;
+                return Some(result_move);
             }
         }
 

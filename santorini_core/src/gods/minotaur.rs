@@ -5,12 +5,9 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower,
         generic::{
-            CHECK_MOVE_BONUS, CHECK_SENTINEL_SCORE, ENEMY_WORKER_BUILD_SCORES,
-            GENERATE_THREATS_ONLY, GRID_POSITION_SCORES, GenericMove, IMPROVER_BUILD_HEIGHT_SCORES,
-            IMPROVER_SENTINEL_SCORE, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, MoveScore,
-            NON_IMPROVER_SENTINEL_SCORE, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
-            WORKER_HEIGHT_SCORES,
+            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
+            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
+            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
         },
     },
     player::Player,
@@ -177,66 +174,87 @@ impl std::fmt::Debug for MinotaurMove {
     }
 }
 
-type GodMove = MinotaurMove;
+impl GodMove for MinotaurMove {
+    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+        let mut result = vec![PartialAction::SelectWorker(self.move_from_position())];
 
-pub fn minotaur_move_to_actions(_board: &BoardState, action: GenericMove) -> Vec<FullAction> {
-    let action: GodMove = action.into();
+        if let Some(push_to) = self.push_to_position() {
+            result.push(PartialAction::MoveWorkerWithPush(
+                self.move_to_position(),
+                push_to,
+            ));
+        } else {
+            result.push(PartialAction::MoveWorker(self.move_to_position()));
+        }
 
-    let mut result = vec![PartialAction::SelectWorker(action.move_from_position())];
+        if !self.get_is_winning() {
+            result.push(PartialAction::Build(self.build_position()));
+        }
 
-    if let Some(push_to) = action.push_to_position() {
-        result.push(PartialAction::MoveWorkerWithPush(
-            action.move_to_position(),
-            push_to,
-        ));
-    } else {
-        result.push(PartialAction::MoveWorker(action.move_to_position()));
+        return vec![result];
     }
 
-    if !action.get_is_winning() {
-        result.push(PartialAction::Build(action.build_position()));
+    fn make_move(self, board: &mut BoardState) {
+        let move_from = BitBoard::as_mask(self.move_from_position());
+        let move_to = BitBoard::as_mask(self.move_to_position());
+        board.worker_xor(board.current_player, move_to | move_from);
+
+        if self.get_is_winning() {
+            board.set_winner(board.current_player);
+            return;
+        }
+
+        let build_position = self.build_position();
+        board.build_up(build_position);
+
+        if let Some(push_to) = self.push_to_position() {
+            let push_mask = BitBoard::as_mask(push_to);
+            board.worker_xor(!board.current_player, move_to | push_mask);
+        }
     }
 
-    return vec![result];
-}
+    fn unmake_move(self, board: &mut BoardState) {
+        let move_from = BitBoard::as_mask(self.move_from_position());
+        let move_to = BitBoard::as_mask(self.move_to_position());
+        board.worker_xor(board.current_player, move_to | move_from);
 
-pub fn minotaur_make_move(board: &mut BoardState, action: GenericMove) {
-    let action: GodMove = action.into();
-    let move_from = BitBoard::as_mask(action.move_from_position());
-    let move_to = BitBoard::as_mask(action.move_to_position());
-    board.worker_xor(board.current_player, move_to | move_from);
+        if self.get_is_winning() {
+            board.unset_winner(board.current_player);
+            return;
+        }
 
-    if action.get_is_winning() {
-        board.set_winner(board.current_player);
-        return;
+        let build_position = self.build_position();
+        board.unbuild(build_position);
+
+        if let Some(push_to) = self.push_to_position() {
+            let push_mask = BitBoard::as_mask(push_to);
+            board.worker_xor(!board.current_player, move_to | push_mask);
+        }
     }
 
-    let build_position = action.build_position();
-    board.build_up(build_position);
-
-    if let Some(push_to) = action.push_to_position() {
-        let push_mask = BitBoard::as_mask(push_to);
-        board.worker_xor(!board.current_player, move_to | push_mask);
-    }
-}
-
-pub fn minotaur_unmake_move(board: &mut BoardState, action: GenericMove) {
-    let action: GodMove = unsafe { std::mem::transmute(action) };
-    let move_from = BitBoard::as_mask(action.move_from_position());
-    let move_to = BitBoard::as_mask(action.move_to_position());
-    board.worker_xor(board.current_player, move_to | move_from);
-
-    if action.get_is_winning() {
-        board.unset_winner(board.current_player);
-        return;
+    fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
+        self.move_mask()
     }
 
-    let build_position = action.build_position();
-    board.unbuild(build_position);
+    fn get_history_idx(self, board: &BoardState) -> usize {
+        let from = self.move_from_position();
+        let to = self.move_to_position();
+        let build = self.build_position();
 
-    if let Some(push_to) = action.push_to_position() {
-        let push_mask = BitBoard::as_mask(push_to);
-        board.worker_xor(!board.current_player, move_to | push_mask);
+        let from_height = board.get_height(from);
+        let to_height = board.get_height(to);
+        let build_height = board.get_height(build);
+
+        let fu = from as usize;
+        let tu = to as usize;
+        let bu = build as usize;
+
+        let mut res = 4 * fu + from_height;
+        res = res * 100 + 4 * tu + to_height;
+        res = res * 100 + 4 * bu + build_height;
+        res = res * 2 + self.push_to_position().is_some() as usize;
+
+        res
     }
 }
 
@@ -290,7 +308,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                         let push_to_mask = BitBoard::as_mask(push_to);
                         if (push_to_mask & blocked_squares).is_empty() {
                             let winning_move = ScoredMove::new_winning_move(
-                                GodMove::new_minotaur_winning_push_move(
+                                MinotaurMove::new_minotaur_winning_push_move(
                                     moving_worker_start_pos,
                                     moving_worker_end_pos,
                                     push_to,
@@ -305,7 +323,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                     }
                 } else {
                     let winning_move = ScoredMove::new_winning_move(
-                        GodMove::new_minotaur_winning_move(
+                        MinotaurMove::new_minotaur_winning_move(
                             moving_worker_start_pos,
                             moving_worker_end_pos,
                         )
@@ -364,7 +382,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             let mut is_already_check = false;
             let mut is_already_check_by_push = false;
 
-            if F & (INCLUDE_SCORE | GENERATE_THREATS_ONLY) != 0 {
+            if F & (INCLUDE_SCORE) != 0 {
                 if worker_end_height == 2 {
                     check_if_builds |= worker_builds & board.exactly_level_2();
                     anti_check_builds = NEIGHBOR_MAP[moving_worker_end_pos as usize]
@@ -389,29 +407,16 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            if F & GENERATE_THREATS_ONLY != 0 {
-                if is_already_check_by_push {
-                    // noop
-                } else if is_already_check {
-                    let must_avoid_build = anti_check_builds & worker_builds;
-                    if must_avoid_build.count_ones() == 1 {
-                        worker_builds ^= must_avoid_build;
-                    }
-                } else {
-                    worker_builds &= check_if_builds;
-                }
-            }
-
             for worker_build_pos in worker_builds {
                 let new_action = if let Some(push_to) = push_to_spot {
-                    GodMove::new_minotaur_push_move(
+                    MinotaurMove::new_minotaur_push_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                         worker_build_pos,
                         push_to,
                     )
                 } else {
-                    GodMove::new_minotaur_move(
+                    MinotaurMove::new_minotaur_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                         worker_build_pos,
@@ -419,24 +424,22 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                 };
                 if F & INCLUDE_SCORE != 0 {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let score;
                     if is_already_check_by_push
                         || is_already_check
                             && (anti_check_builds & !worker_build_mask).is_not_empty()
                         || (worker_build_mask & check_if_builds).is_not_empty()
                     {
-                        score = CHECK_SENTINEL_SCORE;
+                        result.push(ScoredMove::new_checking_move(new_action.into()));
                     } else {
                         let is_improving = worker_end_height > worker_starting_height;
-                        score = if is_improving {
-                            IMPROVER_SENTINEL_SCORE
+                        if is_improving {
+                            result.push(ScoredMove::new_improving_move(new_action.into()));
                         } else {
-                            NON_IMPROVER_SENTINEL_SCORE
+                            result.push(ScoredMove::new_non_improver(new_action.into()));
                         };
                     }
-                    result.push(ScoredMove::new(new_action.into(), score));
                 } else {
-                    result.push(ScoredMove::new(new_action.into(), 0));
+                    result.push(ScoredMove::new_unscored_move(new_action.into()));
                 }
             }
         }
@@ -445,225 +448,11 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
     result
 }
 
-const MINOTAUR_PUSH_BONUS: [[MoveScore; 4]; 4] = [
-    [10, -5, -60, -20],
-    [20, 8, -40, -18],
-    [80, 15, 5, 21],
-    [70, 15, -99, 21],
-];
-
-pub fn minotaur_score_moves<const IMPROVERS_ONLY: bool>(
-    board: &BoardState,
-    move_list: &mut [ScoredMove],
-) {
-    let mut build_score_map: [MoveScore; 25] = [0; 25];
-    for enemy_worker_pos in board.workers[1 - board.current_player as usize] {
-        let enemy_worker_height = board.get_height(enemy_worker_pos);
-        let ns = NEIGHBOR_MAP[enemy_worker_pos as usize];
-        for n_pos in ns {
-            let n_height = board.get_height(n_pos);
-            build_score_map[n_pos as usize] +=
-                ENEMY_WORKER_BUILD_SCORES[enemy_worker_height as usize][n_height as usize];
-        }
-    }
-
-    for worker_pos in board.workers[board.current_player as usize] {
-        let worker_height = board.get_height(worker_pos);
-        let ns = NEIGHBOR_MAP[worker_pos as usize];
-        for n_pos in ns {
-            let n_height = board.get_height(n_pos);
-            build_score_map[n_pos as usize] -=
-                ENEMY_WORKER_BUILD_SCORES[worker_height as usize][n_height as usize] / 8;
-        }
-    }
-
-    for scored_action in move_list {
-        if IMPROVERS_ONLY && scored_action.score == NON_IMPROVER_SENTINEL_SCORE {
-            continue;
-        }
-
-        let action: GodMove = scored_action.action.into();
-        let mut score: MoveScore = 0;
-
-        let from = action.move_from_position();
-        let from_height = board.get_height(from);
-        let to = action.move_to_position();
-        let to_height = board.get_height(to);
-
-        let build_at = action.build_position();
-        let build_pre_height = board.get_height(build_at);
-
-        score -= GRID_POSITION_SCORES[from as usize];
-        score += GRID_POSITION_SCORES[to as usize];
-        score -= WORKER_HEIGHT_SCORES[from_height as usize];
-        score += WORKER_HEIGHT_SCORES[to_height as usize];
-
-        score += build_score_map[build_at as usize];
-
-        if let Some(push_to) = action.push_to_position() {
-            let push_to_height = board.get_height(push_to);
-            score += MINOTAUR_PUSH_BONUS[to_height][push_to_height] / 4;
-        }
-
-        if scored_action.score == CHECK_SENTINEL_SCORE {
-            score += CHECK_MOVE_BONUS;
-        }
-
-        if IMPROVERS_ONLY {
-            score += IMPROVER_BUILD_HEIGHT_SCORES[to_height][build_pre_height];
-        }
-
-        scored_action.set_score(score);
-    }
-}
-
-pub fn minotaur_blocker_board(action: GenericMove) -> BitBoard {
-    let action: GodMove = action.into();
-    action.move_mask()
-}
-
-pub fn minotaur_stringify(action: GenericMove) -> String {
-    let action: GodMove = action.into();
-    format!("{:?}", action)
-}
-
 build_god_power!(
     build_minotaur,
     god_name: GodName::Minotaur,
+    move_type: MinotaurMove,
     move_gen: minotaur_move_gen,
-    actions: minotaur_move_to_actions,
-    score_moves: minotaur_score_moves,
-    blocker_board: minotaur_blocker_board,
-    make_move: minotaur_make_move,
-    unmake_move: minotaur_unmake_move,
-    stringify: minotaur_stringify,
     hash1: 16532879311019593353,
     hash2: 196173323035994051,
 );
-
-#[cfg(test)]
-mod tests {
-    use crate::{board::FullGameState, random_utils::GameStateFuzzer};
-
-    use super::*;
-
-    #[test]
-    fn test_minotaur_check_detection() {
-        let minotaur = GodName::Minotaur.to_power();
-        let game_state_fuzzer = GameStateFuzzer::default();
-
-        for state in game_state_fuzzer {
-            if state.board.get_winner().is_some() {
-                continue;
-            }
-            let current_player = state.board.current_player;
-            let current_win = minotaur.get_winning_moves(&state.board, current_player);
-            if current_win.len() != 0 {
-                continue;
-            }
-
-            let actions = minotaur.get_moves_for_search(&state.board, current_player);
-            for action in actions {
-                let mut board = state.board.clone();
-                minotaur.make_move(&mut board, action.action);
-
-                let is_check_move = action.score == CHECK_SENTINEL_SCORE;
-                let is_winning_next_turn =
-                    minotaur.get_winning_moves(&board, current_player).len() > 0;
-
-                if is_check_move != is_winning_next_turn {
-                    println!(
-                        "Failed check detection. Check guess: {:?}. Actual: {:?}",
-                        is_check_move, is_winning_next_turn
-                    );
-                    println!("{:?}", state);
-                    state.board.print_to_console();
-                    let acc: GodMove = action.action.into();
-                    println!("{:?} {:b}", acc, acc.0);
-                    board.print_to_console();
-                    assert_eq!(is_check_move, is_winning_next_turn);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_minotaur_improver_checks_only() {
-        let minotaur = GodName::Minotaur.to_power();
-        let game_state_fuzzer = GameStateFuzzer::default();
-
-        for state in game_state_fuzzer {
-            let current_player = state.board.current_player;
-
-            if state.board.get_winner().is_some() {
-                continue;
-            }
-            let current_win = minotaur.get_winning_moves(&state.board, current_player);
-            if current_win.len() != 0 {
-                continue;
-            }
-
-            let mut improver_moves = minotaur.get_improver_moves(&state.board, current_player);
-            for action in &improver_moves {
-                if action.score != CHECK_SENTINEL_SCORE {
-                    let mut board = state.board.clone();
-                    minotaur.make_move(&mut board, action.action);
-
-                    println!("Move promised to be improver only but wasn't: {:?}", action);
-                    println!("{:?}", state);
-                    state.board.print_to_console();
-                    let acc: GodMove = action.action.into();
-                    println!("{:?}", acc);
-                    board.print_to_console();
-                    assert_eq!(action.score, CHECK_SENTINEL_SCORE);
-                }
-            }
-
-            let mut all_moves = minotaur.get_moves_for_search(&state.board, current_player);
-            let check_count = all_moves
-                .iter()
-                .filter(|a| a.score == CHECK_SENTINEL_SCORE)
-                .count();
-
-            if improver_moves.len() != check_count {
-                println!("Move count mismatch");
-                state.board.print_to_console();
-                println!("{:?}", state);
-
-                improver_moves.sort_by_key(|a| -a.score);
-                all_moves.sort_by_key(|a| -a.score);
-
-                println!("IMPROVERS:");
-                for a in &improver_moves {
-                    println!("{:?}", a);
-                }
-                println!("ALL:");
-                for a in &all_moves {
-                    println!("{:?}", a);
-                }
-
-                assert_eq!(improver_moves.len(), check_count);
-            }
-        }
-    }
-
-    #[test]
-    fn debug_minotaur_move() {
-        let minotaur = GodName::Minotaur.to_power();
-        let state =
-            FullGameState::try_from("21000 44444 000000000000000/1/mortal:A5/mortal:E1").unwrap();
-
-        println!(
-            "NON_IMPROVER_SENTINEL_SCORE: {}",
-            NON_IMPROVER_SENTINEL_SCORE
-        );
-        println!("IMPROVER_SCORE: {}", IMPROVER_SENTINEL_SCORE);
-        println!("CHECK_SCORE: {}", CHECK_SENTINEL_SCORE);
-
-        let actions = minotaur.get_moves_for_search(&state.board, Player::One);
-        for action in actions {
-            let acc: GodMove = action.action.into();
-            println!("{:?} : {}", acc, action.score);
-        }
-    }
-}

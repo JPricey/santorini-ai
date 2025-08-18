@@ -1,6 +1,7 @@
 use core::panic;
 
 use colored::Colorize;
+use const_for::const_for;
 use strum::IntoEnumIterator;
 
 use crate::{
@@ -22,33 +23,61 @@ use serde::{Deserialize, Serialize};
 pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
 
-pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = [
-    BitBoard(98),
-    BitBoard(229),
-    BitBoard(458),
-    BitBoard(916),
-    BitBoard(776),
-    BitBoard(3139),
-    BitBoard(7335),
-    BitBoard(14670),
-    BitBoard(29340),
-    BitBoard(24856),
-    BitBoard(100448),
-    BitBoard(234720),
-    BitBoard(469440),
-    BitBoard(938880),
-    BitBoard(795392),
-    BitBoard(3214336),
-    BitBoard(7511040),
-    BitBoard(15022080),
-    BitBoard(30044160),
-    BitBoard(25452544),
-    BitBoard(2195456),
-    BitBoard(5472256),
-    BitBoard(10944512),
-    BitBoard(21889024),
-    BitBoard(9175040),
-];
+pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = {
+    let mut res = [BitBoard::EMPTY; NUM_SQUARES];
+
+    const_for!(r in 0..5 => {
+        const_for!(c in 0..5 => {
+            let square = Square::from_col_row(c, r);
+            let square_idx = square as usize;
+
+            const_for!(dr in -1_i32..2 => {
+                const_for!(dc in -1_i32..2 => {
+                    if dr == 0 && dc == 0 {
+                        continue;
+                    }
+
+                    let new_c = c as i32 + dc;
+                    let new_r = r as i32 + dr;
+
+                    if new_c < 0 || new_c >= 5 || new_r < 0 || new_r >= 5 {
+                        continue;
+                    }
+
+                    res[square_idx].0 |= BitBoard::as_mask(Square::from_col_row(new_c as usize, new_r as usize)).0;
+                })
+            })
+        })
+    });
+
+    res
+};
+
+pub const WRAPPING_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = {
+    let mut res = [BitBoard::EMPTY; NUM_SQUARES];
+
+    const_for!(r in 0..5 => {
+        const_for!(c in 0..5 => {
+            let square = Square::from_col_row(c, r);
+            let square_idx = square as usize;
+
+            const_for!(dr in 4..7 => {
+                const_for!(dc in 4..7 => {
+                    if dr == 5 && dc == 5 {
+                        continue;
+                    }
+
+                    let new_c = (c + dc) % 5;
+                    let new_r = (r + dr) % 5;
+
+                    res[square_idx].0 |= BitBoard::as_mask(Square::from_col_row(new_c as usize, new_r as usize)).0;
+                })
+            })
+        })
+    });
+
+    res
+};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullGameState {
