@@ -156,7 +156,7 @@ impl FullGameState {
 
     pub fn get_next_states(&self) -> Vec<FullGameState> {
         let active_god = self.get_active_god();
-        let board_states_with_action_list = active_god.get_all_next_states(&self.board);
+        let board_states_with_action_list = active_god.get_all_next_states(&self);
         board_states_with_action_list
             .into_iter()
             .map(|e| FullGameState::new(e, self.gods[0], self.gods[1]))
@@ -192,7 +192,7 @@ impl FullGameState {
             res
         } else {
             let active_god = self.get_active_god();
-            let board_states_with_action_list = active_god.get_next_states_interactive(&self.board);
+            let board_states_with_action_list = active_god.get_next_states_interactive(&self);
 
             board_states_with_action_list
                 .into_iter()
@@ -851,8 +851,8 @@ mod tests {
             assert_eq!(row, acol);
             assert_eq!(col, arow);
 
-            println!("{board}");
-            println!("{flipped}");
+            // println!("{board}");
+            // println!("{flipped}");
         }
     }
 }

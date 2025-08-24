@@ -218,30 +218,6 @@ fn tt_randomness_check() {
     );
 }
 
-fn test_improvers() {
-    let game_state_fuzzer = GameStateFuzzer::new(5);
-
-    for state in game_state_fuzzer {
-        let mortal = GodName::Mortal.to_power();
-        let mut actions = mortal.get_moves_for_search(&state.board, state.board.current_player);
-        actions.sort_by_key(|a| -a.score);
-
-        state.board.print_to_console();
-
-        for action in actions {
-            let mut board = state.board.clone();
-            let improving_string = if action.score == IMPROVER_SENTINEL_SCORE {
-                "IMPROVER"
-            } else {
-                "QUIET"
-            };
-            println!("{}: {:?}", improving_string, action.action);
-            mortal.make_move(&mut board, action.action);
-            board.print_to_console();
-        }
-    }
-}
-
 fn random_matchup() {
     let god_names = ALL_GODS_BY_ID
         .iter()

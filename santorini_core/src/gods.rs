@@ -11,20 +11,20 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
-pub mod apollo;
-pub mod artemis;
-pub mod athena;
-pub mod atlas;
-pub mod demeter;
-pub mod generic;
-pub mod graeae;
-pub mod hephaestus;
-pub mod hermes;
-pub mod minotaur;
-pub mod mortal;
-pub mod pan;
-pub mod prometheus;
 pub mod urania;
+pub mod prometheus;
+pub mod pan;
+pub mod mortal;
+pub mod minotaur;
+pub mod hermes;
+pub mod hephaestus;
+pub mod graeae;
+pub mod generic;
+pub mod demeter;
+pub mod atlas;
+pub mod athena;
+pub mod artemis;
+pub mod apollo;
 
 pub type StaticGod = &'static GodPower;
 
@@ -171,15 +171,17 @@ impl ResultsMapper<BoardStateWithAction> for FullChoiceMapper {
     }
 }
 
-pub struct GodPowerMoveFns {
-    _get_all_moves:
-        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_wins: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_win_blockers:
-        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_moves_for_search:
-        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-}
+pub type MoveModifierFn =
+    fn(board: &BoardState, me: Player, other: Player, from: Square, tos: BitBoard) -> BitBoard;
+
+pub type MoveGeneratorFn =
+    fn(board: &FullGameState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>;
+ pub struct GodPowerMoveFns {
+     _get_all_moves: MoveGeneratorFn,
+     _get_wins: MoveGeneratorFn,
+     _get_win_blockers: MoveGeneratorFn,
+     _get_moves_for_search: MoveGeneratorFn,
+ }
 
 pub struct GodPowerActionFns {
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
@@ -197,13 +199,10 @@ pub struct GodPower {
     pub model_god_name: GodName,
 
     // Move Fns
-    pub _get_all_moves:
-        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_wins: fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_win_blockers:
-        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
-    _get_moves_for_search:
-        fn(board: &BoardState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>,
+    pub _get_all_moves: MoveGeneratorFn,
+    _get_wins: MoveGeneratorFn,
+    _get_win_blockers: MoveGeneratorFn,
+    _get_moves_for_search: MoveGeneratorFn,
 
     // Action Fns
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
@@ -224,13 +223,13 @@ pub struct GodPower {
 }
 
 impl GodPower {
-    pub fn get_next_states_interactive(&self, board: &BoardState) -> Vec<BoardStateWithAction> {
-        let all_moves = (self._get_all_moves)(board, board.current_player, BitBoard::EMPTY);
+    pub fn get_next_states_interactive(&self, state: &FullGameState) -> Vec<BoardStateWithAction> {
+        let all_moves = (self._get_all_moves)(state, state.board.current_player, BitBoard::EMPTY);
 
         // Lose due to no moves
         if all_moves.len() == 0 {
-            let mut losing_board = board.clone();
-            losing_board.set_winner(!board.current_player);
+            let mut losing_board = state.board.clone();
+            losing_board.set_winner(!losing_board.current_player);
 
             return vec![BoardStateWithAction::new(
                 losing_board,
@@ -241,9 +240,9 @@ impl GodPower {
         all_moves
             .into_iter()
             .flat_map(|action| {
-                let mut result_state = board.clone();
+                let mut result_state = state.board.clone();
                 self.make_move(&mut result_state, action.action);
-                let action_paths = (self._get_actions_for_move)(board, action.action);
+                let action_paths = (self._get_actions_for_move)(&state.board, action.action);
 
                 action_paths.into_iter().map(move |full_actions| {
                     BoardStateWithAction::new(result_state.clone(), full_actions)
@@ -252,8 +251,9 @@ impl GodPower {
             .collect()
     }
 
-    pub fn get_all_next_states(&self, board: &BoardState) -> Vec<BoardState> {
-        (self._get_all_moves)(board, board.current_player, BitBoard::EMPTY)
+    pub fn get_all_next_states(&self, state: &FullGameState) -> Vec<BoardState> {
+        let board = &state.board;
+        (self._get_all_moves)(state, board.current_player, BitBoard::EMPTY)
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
@@ -263,21 +263,21 @@ impl GodPower {
             .collect()
     }
 
-    pub fn get_moves_for_search(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
-        (self._get_moves_for_search)(board, player, BitBoard::EMPTY)
+    pub fn get_moves_for_search(&self, state: &FullGameState, player: Player) -> Vec<ScoredMove> {
+        (self._get_moves_for_search)(state, player, BitBoard::EMPTY)
     }
 
-    pub fn get_winning_moves(&self, board: &BoardState, player: Player) -> Vec<ScoredMove> {
-        (self._get_wins)(board, player, BitBoard::EMPTY)
+    pub fn get_winning_moves(&self, state: &FullGameState, player: Player) -> Vec<ScoredMove> {
+        (self._get_wins)(state, player, BitBoard::EMPTY)
     }
 
     pub fn get_blocker_moves(
         &self,
-        board: &BoardState,
+        state: &FullGameState,
         player: Player,
         key_moves: BitBoard,
     ) -> Vec<ScoredMove> {
-        (self._get_win_blockers)(board, player, key_moves)
+        (self._get_win_blockers)(state, player, key_moves)
     }
 
     pub fn get_blocker_board(&self, board: &BoardState, action: GenericMove) -> BitBoard {

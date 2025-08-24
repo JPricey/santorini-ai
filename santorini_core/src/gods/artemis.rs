@@ -1,14 +1,11 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState, NEIGHBOR_MAP},
     build_god_power,
     gods::{
-        FullAction, GodName, GodPower, PartialAction,
         generic::{
-            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
-            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
-        },
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE
+        }, FullAction, GodName, GodPower, PartialAction
     },
     player::Player,
     square::Square,
@@ -171,10 +168,11 @@ impl std::fmt::Debug for ArtemisMove {
 }
 
 fn artemis_move_gen<const F: MoveGenFlags>(
-    board: &BoardState,
+    state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
+    let board = &state.board;
     let current_player_idx = player as usize;
     let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
     let enemy_workers = board.workers[1 - current_player_idx] & BitBoard::MAIN_SECTION_MASK;

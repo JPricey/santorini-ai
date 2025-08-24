@@ -9,17 +9,17 @@ use santorini_core::{
     random_utils::{get_board_with_random_placements, get_random_god, get_random_move},
 };
 
-fn check_state(root_state: &FullGameState) {
-    let board = &root_state.board;
+fn check_state(state: &FullGameState) {
+    let board = &state.board;
     let current_player = board.current_player;
 
-    let active_god = root_state.get_active_god();
-    let other_god = root_state.get_other_god();
+    let active_god = state.get_active_god();
+    let other_god = state.get_other_god();
 
-    let other_wins = other_god.get_winning_moves(&board, !current_player);
+    let other_wins = other_god.get_winning_moves(state, !current_player);
 
-    let winning_moves = active_god.get_winning_moves(&board, current_player);
-    let all_moves = active_god.get_moves_for_search(&board, current_player);
+    let winning_moves = active_god.get_winning_moves(state, current_player);
+    let all_moves = active_god.get_moves_for_search(state, current_player);
 
     if other_wins.len() > 0 {
         // Check blockers
@@ -28,18 +28,18 @@ fn check_state(root_state: &FullGameState) {
             key_moves |= other_god.get_blocker_board(board, other_win_action.action);
         }
 
-        let blocks = active_god.get_blocker_moves(&board, current_player, key_moves);
+        let blocks = active_god.get_blocker_moves(state, current_player, key_moves);
 
         for action in &blocks {
             let stringed_action = active_god.stringify_move(action.action);
-            let mut new_board = board.clone();
-            active_god.make_move(&mut new_board, action.action);
+            let mut new_state = state.clone();
+            active_god.make_move(&mut new_state.board, action.action);
 
-            if new_board.get_winner() == Some(current_player) {
+            if new_state.board.get_winner() == Some(current_player) {
                 continue;
             }
 
-            let new_oppo_wins = other_god.get_winning_moves(&new_board, !current_player);
+            let new_oppo_wins = other_god.get_winning_moves(&new_state, !current_player);
             let mut did_block_any = false;
 
             for win_action in &other_wins {
@@ -50,18 +50,18 @@ fn check_state(root_state: &FullGameState) {
             }
 
             if !did_block_any {
-                if root_state.gods.contains(&GodName::Artemis.to_power()) {
+                if state.gods.contains(&GodName::Artemis.to_power()) {
                     continue;
                 }
-                if root_state.gods.contains(&GodName::Pan.to_power())
-                    && root_state.gods.contains(&GodName::Athena.to_power())
+                if state.gods.contains(&GodName::Pan.to_power())
+                    && state.gods.contains(&GodName::Athena.to_power())
                 {
                     continue;
                 }
                 eprintln!("Block action didn't remove any wins: {}", stringed_action);
 
-                root_state.print_to_console();
-                new_board.print_to_console();
+                state.print_to_console();
+                new_state.print_to_console();
 
                 eprintln!("key board: {}", key_moves);
 
@@ -79,15 +79,15 @@ fn check_state(root_state: &FullGameState) {
             }
 
             let stringed_action = active_god.stringify_move(action.action);
-            let mut new_board = board.clone();
-            active_god.make_move(&mut new_board, action.action);
+            let mut new_state = state.clone();
+            active_god.make_move(&mut new_state.board, action.action);
 
-            let new_oppo_wins = other_god.get_winning_moves(&new_board, !current_player);
+            let new_oppo_wins = other_god.get_winning_moves(&new_state, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
                 eprintln!("Missed blocking move: {} full: {:?} {:?}", stringed_action, action, action.action.get_is_check());
 
-                root_state.print_to_console();
-                new_board.print_to_console();
+                state.print_to_console();
+                new_state.print_to_console();
 
                 eprintln!("key board: {}", key_moves);
 
@@ -114,18 +114,18 @@ fn check_state(root_state: &FullGameState) {
         }
 
         let stringed_action = active_god.stringify_move(action.action);
-        let mut new_board = board.clone();
-        active_god.make_move(&mut new_board, action.action);
-        new_board.unset_worker_can_climb();
+        let mut new_state = state.clone();
+        active_god.make_move(&mut new_state.board, action.action);
+        new_state.board.unset_worker_can_climb();
 
-        if new_board.get_winner().is_some() {
+        if new_state.get_winner().is_some() {
             continue;
         }
 
-        let winning_moves = active_god.get_winning_moves(&new_board, current_player);
+        let winning_moves = active_god.get_winning_moves(&new_state, current_player);
         if winning_moves.len() == 0 {
-            root_state.print_to_console();
-            new_board.as_basic_game_state().print_to_console();
+            state.print_to_console();
+            new_state.print_to_console();
             panic!("check move didn't result in a win: {}", stringed_action);
         }
     }
@@ -138,21 +138,21 @@ fn check_state(root_state: &FullGameState) {
             }
 
             let stringed_action = active_god.stringify_move(action.action);
-            let mut new_board = board.clone();
-            active_god.make_move(&mut new_board, action.action);
-            new_board.unset_worker_can_climb();
+            let mut new_state = state.clone();
+            active_god.make_move(&mut new_state.board, action.action);
+            new_state.board.unset_worker_can_climb();
 
             let winning_moves = active_god
-                .get_winning_moves(&new_board, current_player);
+                .get_winning_moves(&new_state, current_player);
 
             for winning_move in &winning_moves {
-                root_state.print_to_console();
-                new_board.print_to_console();
+                state.print_to_console();
+                new_state.print_to_console();
 
-                let mut won_board = new_board.clone();
-                active_god.make_move(&mut won_board, winning_move.action);
+                let mut won_state = new_state.clone();
+                active_god.make_move(&mut won_state.board, winning_move.action);
 
-                won_board.print_to_console();
+                won_state.print_to_console();
 
                 eprintln!("{} was a check/win but wasn't in checks: {}", stringed_action, active_god.stringify_move(winning_move.action));
 
@@ -193,7 +193,7 @@ fn check_state(root_state: &FullGameState) {
             && (old_height == 2 && new_height == 0 || old_height == 3 && new_height <= 1);
 
         if !board.get_worker_can_climb(current_player) && !is_pan_falling_win {
-            root_state.print_to_console();
+            state.print_to_console();
             new_board.print_to_console();
             panic!("Win when blocked by athena: {}", stringed_action);
         }
@@ -216,7 +216,7 @@ fn check_state(root_state: &FullGameState) {
         }
 
         if !is_valid_win {
-            root_state.print_to_console();
+            state.print_to_console();
             new_board.print_to_console();
             eprintln!(
                 "action: {}. o:{old_pos}:{old_height} n:{new_pos}:{new_height}",
@@ -249,7 +249,7 @@ fn check_state(root_state: &FullGameState) {
             // Test uniqueness
             if all_states.contains(&board_clone) {
                 eprintln!("Root state:");
-                root_state.print_to_console();
+                state.print_to_console();
 
                 eprintln!("Cloned state:");
                 board_clone.print_to_console();

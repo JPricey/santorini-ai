@@ -1,14 +1,11 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState, NEIGHBOR_MAP},
     build_god_power,
     gods::{
-        FullAction, GodName, GodPower,
         generic::{
-            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
-            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
-        },
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE
+        }, FullAction, GodName, GodPower
     },
     player::Player,
     square::Square,
@@ -238,10 +235,11 @@ impl GodMove for DemeterMove {
 }
 
 fn demeter_move_gen<const F: MoveGenFlags>(
-    board: &BoardState,
+    state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
+    let board = &state.board;
     let current_player_idx = player as usize;
     let exactly_level_2 = board.exactly_level_2();
     let exactly_level_3 = board.exactly_level_3();

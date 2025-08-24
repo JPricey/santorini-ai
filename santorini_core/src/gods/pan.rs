@@ -1,23 +1,21 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState, NEIGHBOR_MAP},
     build_god_power,
     gods::{
-        GodName, GodPower,
         generic::{
-            INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, STOP_ON_MATE,
-            ScoredMove,
-        },
-        mortal::MortalMove,
+            MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, STOP_ON_MATE
+        }, mortal::MortalMove, GodName, GodPower
     },
     player::Player,
 };
 
 fn pan_move_gen<const F: MoveGenFlags>(
-    board: &BoardState,
+    state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
+    let board = &state.board;
     let current_player_idx = player as usize;
     let exactly_level_0 = board.exactly_level_0();
     let exactly_level_1 = board.exactly_level_1();

@@ -1,24 +1,25 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
-    build_god_power_movers,
+    board::{BoardState, FullGameState, NEIGHBOR_MAP},
+    build_god_power,
     gods::{
-        GodName, GodPower, build_god_power_actions,
+        FullAction, GodName, GodPower,
         generic::{
-            INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, STOP_ON_MATE,
-            ScoredMove,
+            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
+            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
+            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
         },
-        god_power,
-        mortal::MortalMove,
     },
     player::Player,
+    square::Square,
 };
 
 fn graeae_move_gen<const F: MoveGenFlags>(
-    board: &BoardState,
+    state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
+    let board = &state.board;
     let current_player_idx = player as usize;
     let exactly_level_2 = board.exactly_level_2();
     let exactly_level_3 = board.exactly_level_3();

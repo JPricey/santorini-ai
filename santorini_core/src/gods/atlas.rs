@@ -1,6 +1,6 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState, NEIGHBOR_MAP},
     build_god_power,
     gods::{
         FullAction, GodName, GodPower,
@@ -211,10 +211,11 @@ impl GodMove for AtlasMove {
 }
 
 fn atlas_move_gen<const F: MoveGenFlags>(
-    board: &BoardState,
+    state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
+    let board = &state.board;
     let current_player_idx = player as usize;
     let exactly_level_2 = board.exactly_level_2();
     let exactly_level_3 = board.exactly_level_3();

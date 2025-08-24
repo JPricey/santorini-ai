@@ -1,6 +1,6 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, WRAPPING_NEIGHBOR_MAP},
+    board::{FullGameState, WRAPPING_NEIGHBOR_MAP},
     build_god_power_movers,
     gods::{
         GodName, GodPower, build_god_power_actions,
@@ -15,10 +15,11 @@ use crate::{
 };
 
 fn urania_move_gen<const F: MoveGenFlags>(
-    board: &BoardState,
+    state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
+    let board = &state.board;
     let current_player_idx = player as usize;
     let exactly_level_2 = board.exactly_level_2();
     let exactly_level_3 = board.exactly_level_3();

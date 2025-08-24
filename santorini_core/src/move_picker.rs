@@ -1,6 +1,6 @@
 use crate::{
     bitboard::BitBoard,
-    board::BoardState,
+    board::FullGameState,
     gods::{
         StaticGod,
         generic::{
@@ -56,17 +56,17 @@ impl MovePicker {
         }
     }
 
-    fn _generate_moves(&mut self, board: &BoardState) {
+    fn _generate_moves(&mut self, state: &FullGameState) {
         if let Some(key_squares) = self.key_squares {
             self.move_list = self
                 .active_god
-                .get_blocker_moves(board, self.player, key_squares);
+                .get_blocker_moves(state, self.player, key_squares);
         } else {
-            self.move_list = self.active_god.get_moves_for_search(board, self.player);
+            self.move_list = self.active_god.get_moves_for_search(state, self.player);
         }
     }
 
-    pub fn has_any_moves(&mut self, board: &BoardState) -> bool {
+    pub fn has_any_moves(&mut self, state: &FullGameState) -> bool {
         if self.stage == MovePickerStage::YieldTT {
             if self.tt_move.is_some() {
                 return true;
@@ -77,13 +77,13 @@ impl MovePicker {
 
         if self.stage == MovePickerStage::GenerateAllMoves {
             self.stage = MovePickerStage::ScoreImprovers;
-            self._generate_moves(board);
+            self._generate_moves(state);
         }
 
         self.move_list.len() > 0
     }
 
-    pub fn get_winning_move(&mut self, board: &BoardState) -> Option<GenericMove> {
+    pub fn get_winning_move(&mut self, state: &FullGameState) -> Option<GenericMove> {
         if self.stage == MovePickerStage::YieldTT {
             // We don't save tt entries for winning moves, so no need to even check it
             if self.tt_move.is_some() {
@@ -95,7 +95,7 @@ impl MovePicker {
 
         if self.stage == MovePickerStage::GenerateAllMoves {
             self.stage = MovePickerStage::ScoreImprovers;
-            self._generate_moves(board);
+            self._generate_moves(state);
         }
 
         // get_moves_for_search stops running once it sees a win, so if there is a win it'll be last
@@ -110,7 +110,7 @@ impl MovePicker {
 
     pub fn next(
         &mut self,
-        board: &BoardState,
+        state: &FullGameState,
         history: &Histories,
         ply: usize,
         prev_move_idx: Option<usize>,
@@ -126,7 +126,7 @@ impl MovePicker {
 
         if self.stage == MovePickerStage::GenerateAllMoves {
             self.stage = MovePickerStage::ScoreImprovers;
-            self._generate_moves(board);
+            self._generate_moves(state);
         }
 
         if self.stage == MovePickerStage::ScoreImprovers {
@@ -134,14 +134,13 @@ impl MovePicker {
 
             for action in &mut self.move_list[self.index..] {
                 if action.score != NON_IMPROVER_SENTINEL_SCORE {
-                    let move_hash = self.active_god.get_history_hash(board, action.action);
+                    let move_hash = self
+                        .active_god
+                        .get_history_hash(&state.board, action.action);
                     action.score =
                         history.get_move_score(move_hash, ply, prev_move_idx, follow_move_idx);
                 }
             }
-
-            // self.active_god
-            //     .score_improvers(board, &mut self.move_list[self.index..]);
         }
 
         if self.stage == MovePickerStage::YieldImprovers {
@@ -170,7 +169,7 @@ impl MovePicker {
                 self.index += 1;
 
                 if Some(result_move.action) == self.tt_move {
-                    return self.next(board, history, ply, prev_move_idx, follow_move_idx);
+                    return self.next(state, history, ply, prev_move_idx, follow_move_idx);
                 } else {
                     return Some(result_move);
                 }
@@ -197,13 +196,12 @@ impl MovePicker {
         if self.stage == MovePickerStage::ScoreNonImprovers {
             self.stage = MovePickerStage::YieldNonImprovers;
             for action in &mut self.move_list[self.index..] {
-                let move_hash = self.active_god.get_history_hash(board, action.action);
+                let move_hash = self
+                    .active_god
+                    .get_history_hash(&state.board, action.action);
                 action.score =
                     history.get_move_score(move_hash, ply, prev_move_idx, follow_move_idx);
             }
-
-            // self.active_god
-            //     .score_remaining(board, &mut self.move_list[self.index..]);
         }
 
         if self.stage == MovePickerStage::YieldNonImprovers {
@@ -228,7 +226,7 @@ impl MovePicker {
             self.index += 1;
 
             if Some(result_move.action) == self.tt_move {
-                return self.next(board, history, ply, prev_move_idx, follow_move_idx);
+                return self.next(state, history, ply, prev_move_idx, follow_move_idx);
             } else {
                 return Some(result_move);
             }

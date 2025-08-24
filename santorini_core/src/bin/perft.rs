@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use santorini_core::{
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::FullGameState,
     gods::{GodName, StaticGod},
 };
 
@@ -19,7 +19,7 @@ fn run_single_test_makemove(depth: usize, god: StaticGod) {
     let mut state = FullGameState::try_from(state_str).unwrap();
 
     let now = Instant::now();
-    let result_count = _test_depth_makemove(&mut state.board, god, depth);
+    let result_count = _test_depth_makemove(&mut state, god, depth);
     let duration = now.elapsed();
     let per_sec = result_count as f32 / duration.as_secs_f32();
     println!(
@@ -30,16 +30,16 @@ fn run_single_test_makemove(depth: usize, god: StaticGod) {
     );
 }
 
-fn _test_depth_makemove(state: &mut BoardState, god: StaticGod, depth: usize) -> usize {
+fn _test_depth_makemove(state: &mut FullGameState, god: StaticGod, depth: usize) -> usize {
     if depth == 0 {
-        (state.height_map[0].0 > 0) as usize
+        (state.board.height_map[0].0 > 0) as usize
     } else {
         let mut sum: usize = 0;
-        let actions = (god._get_all_moves)(state, state.current_player, BitBoard::EMPTY);
+        let actions = (god._get_all_moves)(state, state.board.current_player, BitBoard::EMPTY);
         for action in actions {
-            god.make_move(state, action.action);
+            god.make_move(&mut state.board, action.action);
             sum += _test_depth_makemove(state, god, depth - 1);
-            god.unmake_move(state, action.action);
+            god.unmake_move(&mut state.board, action.action);
         }
         sum
     }

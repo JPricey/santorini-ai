@@ -479,7 +479,7 @@ where
             // This is rare & cheap enough to do a full check for, instead of assuming the smother
             let active_god = root_state.get_active_god();
             let moves =
-                active_god.get_moves_for_search(&root_state.board, root_state.board.current_player);
+                active_god.get_moves_for_search(&root_state, root_state.board.current_player);
 
             if moves.len() > 0 {
                 root_state.print_to_console();
@@ -588,7 +588,7 @@ where
     let (_active_god, other_god) = state.get_active_non_active_gods();
 
     let is_in_check = other_god
-        .get_winning_moves(&state.board, !state.board.current_player)
+        .get_winning_moves(&state, !state.board.current_player)
         .len()
         > 0;
 
@@ -777,7 +777,7 @@ where
 
     // If we have a win right now, just take it
     if active_god
-        .get_winning_moves(&state.board, state.board.current_player)
+        .get_winning_moves(&state, state.board.current_player)
         .len()
         > 0
     {
@@ -787,7 +787,7 @@ where
 
     let eval;
     let child_moves;
-    let opponent_wins = other_god.get_winning_moves(&state.board, !state.board.current_player);
+    let opponent_wins = other_god.get_winning_moves(&state, !state.board.current_player);
 
     // If opponent is threatening a win, we must respond to it. Don't bother taking the current
     // eval, just know that we're losing
@@ -798,7 +798,7 @@ where
             blocker_board |= other_god.get_blocker_board(&state.board, action.action);
         }
         child_moves =
-            active_god.get_blocker_moves(&state.board, state.board.current_player, blocker_board);
+            active_god.get_blocker_moves(&state, state.board.current_player, blocker_board);
     } else {
         nnue_acc.replace_from_state(&state);
         eval = nnue_acc.evaluate();
@@ -976,7 +976,7 @@ where
         state
             .board
             .flip_worker_can_climb(other_player, other_is_blocked);
-        let other_wins = other_god.get_winning_moves(&state.board, other_player);
+        let other_wins = other_god.get_winning_moves(&state, other_player);
         state
             .board
             .flip_worker_can_climb(other_player, other_is_blocked);
@@ -1014,10 +1014,10 @@ where
         key_squares,
     );
 
-    if !move_picker.has_any_moves(&state.board) {
+    if !move_picker.has_any_moves(&state) {
         // If this is root, we need to pick a move
         if NT::ROOT {
-            let moves = active_god.get_moves_for_search(&state.board, state.board.current_player);
+            let moves = active_god.get_moves_for_search(&state, state.board.current_player);
             if moves.len() == 0 {
                 // There's actually no moves so we don't have to pick one
                 return -win_at_ply(ply);
@@ -1052,7 +1052,7 @@ where
         }
     }
 
-    if let Some(winning_action) = move_picker.get_winning_move(&state.board) {
+    if let Some(winning_action) = move_picker.get_winning_move(&state) {
         let score = win_at_ply(ply);
         if NT::ROOT {
             let mut winning_state = state.clone();
@@ -1184,7 +1184,7 @@ where
     };
 
     while let Some(child_scored_action) = move_picker.next(
-        &state.board,
+        &state,
         &search_state.history[current_player_idx],
         ply,
         prev_move_idx,
