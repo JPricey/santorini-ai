@@ -135,52 +135,6 @@ build_god_power!(
     god_name: GodName::Graeae,
     move_type: MortalMove,
     move_gen: graeae_move_gen,
-    hash1: 13716661772054342839,
-    hash2: 15637952489637380097,
+    hash1: 3621759432554562343,
+    hash2: 8641066751388211347,
 );
-
-#[cfg(test)]
-mod tests {
-    use crate::random_utils::GameStateFuzzer;
-
-    use super::*;
-
-    #[test]
-    fn test_mortal_check_detection() {
-        let mortal = GodName::Mortal.to_power();
-        let game_state_fuzzer = GameStateFuzzer::default();
-
-        for state in game_state_fuzzer {
-            if state.board.get_winner().is_some() {
-                continue;
-            }
-            let current_player = state.board.current_player;
-            let current_win = mortal.get_winning_moves(&state.board, current_player);
-            if current_win.len() != 0 {
-                continue;
-            }
-
-            let actions = mortal.get_moves_for_search(&state.board, current_player);
-            for action in actions {
-                let mut board = state.board.clone();
-                mortal.make_move(&mut board, action.action);
-
-                let is_check_move = action.score == CHECK_SENTINEL_SCORE;
-                let is_winning_next_turn =
-                    mortal.get_winning_moves(&board, current_player).len() > 0;
-
-                if is_check_move != is_winning_next_turn {
-                    println!(
-                        "Failed check detection. Check guess: {:?}. Actual: {:?}",
-                        is_check_move, is_winning_next_turn
-                    );
-                    println!("{:?}", state);
-                    state.board.print_to_console();
-                    println!("{:?}", action.action);
-                    board.print_to_console();
-                    assert_eq!(is_check_move, is_winning_next_turn);
-                }
-            }
-        }
-    }
-}
