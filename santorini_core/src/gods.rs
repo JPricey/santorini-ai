@@ -24,6 +24,7 @@ pub mod mortal;
 pub mod pan;
 pub mod prometheus;
 pub mod urania;
+pub mod graeae;
 
 pub type StaticGod = &'static GodPower;
 
@@ -54,6 +55,7 @@ pub enum GodName {
     Hermes = 9,
     Prometheus = 10,
     Urania = 11,
+    Graeae = 12,
 }
 
 impl GodName {
@@ -322,7 +324,7 @@ impl std::fmt::Display for GodPower {
     }
 }
 
-pub const ALL_GODS_BY_ID: [GodPower; 12] = [
+pub const ALL_GODS_BY_ID: [GodPower; 13] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
@@ -335,6 +337,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 12] = [
     hermes::build_hermes(),
     prometheus::build_prometheus(),
     urania::build_urania(),
+    graeae::build_graeae(),
 ];
 
 #[macro_export]

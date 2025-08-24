@@ -304,6 +304,18 @@ class GameBoardPanel(tk.Frame):
 
             self.buttons[idx].update_state(height=height, worker=worker)
 
+def get_coord_for_action(action):
+    action_type = action['type']
+
+    if action_type in ['place_worker', 'select_worker', 'move_worker', 'build', 'dome']:
+        return action["value"]
+    elif action_type in ['move_worker_with_swap', 'move_worker_with_push']:
+        return action["value"][0]
+    elif action_type in ['<end>',  '<no moves>']:
+        return None
+
+    print('ERROR: Unknown action type', action_type)
+
 
 def pretty_string_for_action(action):
     action_type = action['type']
@@ -533,7 +545,7 @@ class RootPanel:
 
         possibly_pressed_actions = []
         for action in self.action_selector.next_possible_actions:
-            if action.get('value') == coord:
+            if get_coord_for_action(action) == coord:
                 possibly_pressed_actions.append(action)
         if len(possibly_pressed_actions) == 0:
             for action in self.action_selector.next_possible_actions:
