@@ -70,6 +70,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
     const [state, setState] = useState(() => _getFreshState(initialFen));
     const [lastAiResponse, setLastAiResponse] = useState<SearchResult | null>(null);
     const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
+    const [gameStateHistories, setGameStateHistories] = useState<Array<string>>([initialFen]);
     const fenRef = useRef(state.fen);
 
     const {
@@ -80,12 +81,36 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
     } = state;
 
     const isAiTurn = getIsAiTurn(gameState.currentPlayer, props.aiConfig);
+    const isHumanVsHuman = !props.aiConfig?.p1Ai && !props.aiConfig?.p2Ai;
+
+    let undoTurn: (() => void) | null = null;
+    if (props.aiConfig?.p1Ai && props.aiConfig.p2Ai) {
+        // Can never undo in AI vs AI
+    } else if (isHumanVsHuman || isAiTurn) {
+        if (gameStateHistories.length > 1) {
+            undoTurn = () => {
+                const prevGameState = gameStateHistories[gameStateHistories.length - 2];
+                setGameStateHistories(gameStateHistories.slice(0, -1));
+                setState(_getFreshState(prevGameState));
+            }
+        }
+    } else {
+        // Human turn, need to undo the last ai turn
+        if (gameStateHistories.length > 2) {
+            undoTurn = () => {
+                const prevGameState = gameStateHistories[gameStateHistories.length - 3];
+                setGameStateHistories(gameStateHistories.slice(0, -2));
+                setState(_getFreshState(prevGameState));
+            }
+        }
+    }
 
     function updateStateWithNewSelector(selector: ActionSelector) {
         let followingActions: Array<PlayerAction>;
         const nextStep = selector.nextStep;
         if (nextStep.isDone) {
             setState(_getFreshState(nextStep.value.next_state));
+            setGameStateHistories([...gameStateHistories, nextStep.value.next_state]);
             return;
         } else {
             followingActions = nextStep.options;
@@ -125,16 +150,10 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
             if (startFen === endFen) {
                 setLastAiResponse(result);
                 setState(_getFreshState(result.next_state));
+                setGameStateHistories([...gameStateHistories, result.next_state]);
             }
         }
     }
-
-    // Automatically advance when there's only 1 choice
-    // useEffect(() => {
-    //     if (followingActions.length === 1) {
-    //         updateStateWithNewSelector(selector.getSelectorForNextAction(followingActions[0]));
-    //     }
-    // }, [state]);
 
     useEffect(() => {
         fenRef.current = state.fen;
@@ -157,7 +176,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
         }
     };
 
-    const undoTurn = () => {
+    const restartTurn = () => {
         setState(_getFreshState(state.fen));
     };
 
@@ -168,8 +187,9 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
     const sidebarProps: GameSidebarProps = {
         state: state,
         aiConfig: props.aiConfig,
-        undoTurn: undoTurn,
+        restartTurn: restartTurn,
         endTurn: endTurn,
+        undoTurn: undoTurn,
         lastAiResponse: lastAiResponse,
         returnToMenu: props.gameIsDoneCallback,
         isAiThinking: isAiThinking,
@@ -201,8 +221,9 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
 type GameSidebarProps = {
     state: FullGamePlayerState,
     aiConfig?: AiConfig,
-    undoTurn: () => void,
+    restartTurn: () => void,
     endTurn: () => void,
+    undoTurn: (() => void) | null,
     returnToMenu: () => void,
     lastAiResponse: SearchResult | null,
     isAiThinking: boolean,
@@ -281,13 +302,17 @@ function GameSidebar(props: GameSidebarProps) {
     )
 }
 
-function PlayerActionPanel({ state, undoTurn }: GameSidebarProps) {
+function PlayerActionPanel({ state, restartTurn, undoTurn }: GameSidebarProps) {
     const completedActions = state.completedActions;
 
     return (
         <div style={{ width: '100%' }}>
-            <button onClick={undoTurn} className='undo-button' disabled={completedActions.length === 0} >
+            <button onClick={restartTurn} className='undo-button' disabled={completedActions.length === 0} >
                 Redo Turn
+            </button>
+
+            <button onClick={() => undoTurn?.()} className='undo-button' disabled={undoTurn === null} >
+                Undo Last Turn
             </button>
 
             <h3>
