@@ -67,8 +67,18 @@ pub fn timestamp_string() -> String {
 }
 
 pub fn hash_u64(mut x: usize) -> usize {
-    x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-    x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
+    #[cfg(target_pointer_width = "64")]
+    const C1: usize = 0xbf58476d1ce4e5b9;
+    #[cfg(target_pointer_width = "64")]
+    const C2: usize = 0x94d049bb133111eb;
+
+    #[cfg(target_pointer_width = "32")]
+    const C1: usize = 484763065usize;
+    #[cfg(target_pointer_width = "32")]
+    const C2: usize = 321982955usize;
+
+    x = (x ^ (x >> 30)).wrapping_mul(C1);
+    x = (x ^ (x >> 27)).wrapping_mul(C2);
     x ^ (x >> 31)
 }
 

@@ -30,6 +30,8 @@ pub const fn win_at_ply(ply: usize) -> Hueristic {
     WINNING_SCORE - ply as Hueristic
 }
 
+const HALF_USIZE: u32 = size_of::<usize>() as u32 / 2;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BestMoveTrigger {
@@ -189,13 +191,15 @@ impl Histories {
             [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE];
 
         if let Some(prev_move_idx) = prev_move_hash {
-            res += self.response_history
-                [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE];
+            res +=
+                self.response_history[hash_u64(move_idx.rotate_left(HALF_USIZE) ^ prev_move_idx)
+                    % RESPONSE_HISTORY_SIZE];
         }
 
         if let Some(follow_move_idx) = follow_move_hash {
-            res += self.follow_history
-                [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE];
+            res +=
+                self.follow_history[hash_u64(move_idx.rotate_left(HALF_USIZE) ^ follow_move_idx)
+                    % FOLLOW_HISTORY_SIZE];
         }
 
         // if res > MoveScore::MAX - 4000 {
@@ -1106,8 +1110,11 @@ where
             let nmp_reduction = (4 + remaining_depth / 4).min(remaining_depth);
 
             search_state.search_stack[ply].is_null_move = true;
-            // TODO: pick a better number
-            search_state.search_stack[ply].move_hash = hash_u64(75938565738);
+            #[cfg(target_pointer_width = "32")]
+            const NULL_MOVE_HASH: usize = 2140012677;
+            #[cfg(target_pointer_width = "64")]
+            const NULL_MOVE_HASH: usize = 71369690056371976;
+            search_state.search_stack[ply].move_hash = hash_u64(NULL_MOVE_HASH);
 
             state.board.flip_current_player();
             let null_value = -_inner_search::<T, OffPV>(

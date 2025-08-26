@@ -427,6 +427,14 @@ impl BoardState {
         self.height_map[3]
     }
 
+    pub fn at_least_level_n(&self, level: usize) -> BitBoard {
+        if level == 0 {
+            BitBoard::MAIN_SECTION_MASK
+        } else {
+            self.height_map[level - 1]
+        }
+    }
+
     pub fn worker_xor(&mut self, player: Player, xor: BitBoard) {
         self.workers[player as usize] ^= xor;
         for pos in xor {

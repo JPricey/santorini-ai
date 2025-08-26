@@ -283,10 +283,10 @@ fn _print_neighbor_map() {
 }
 
 fn main() {
-    _print_neighbor_map();
+    // _print_neighbor_map();
     // _print_lmr_table();
 
-    // print_hashing_randoms(32);
+    print_hashing_randoms(2);
     // random_matchup();
 
     // println!("{:b}", MOVE_IS_WINNING_MASK);

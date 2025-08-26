@@ -92,6 +92,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
                 const prevGameState = gameStateHistories[gameStateHistories.length - 2];
                 setGameStateHistories(gameStateHistories.slice(0, -1));
                 setState(_getFreshState(prevGameState));
+                setLastAiResponse(null);
             }
         }
     } else {
@@ -101,6 +102,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
                 const prevGameState = gameStateHistories[gameStateHistories.length - 3];
                 setGameStateHistories(gameStateHistories.slice(0, -2));
                 setState(_getFreshState(prevGameState));
+                setLastAiResponse(null);
             }
         }
     }
@@ -180,6 +182,12 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
         setState(_getFreshState(state.fen));
     };
 
+    const retry = () => {
+        setGameStateHistories([initialFen]);
+        setState(_getFreshState(initialFen));
+        setLastAiResponse(null);
+    };
+
     const endTurn = () => {
         onGridClicked(null);
     };
@@ -190,6 +198,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
         restartTurn: restartTurn,
         endTurn: endTurn,
         undoTurn: undoTurn,
+        retry: retry,
         lastAiResponse: lastAiResponse,
         returnToMenu: props.gameIsDoneCallback,
         isAiThinking: isAiThinking,
@@ -225,11 +234,12 @@ type GameSidebarProps = {
     endTurn: () => void,
     undoTurn: (() => void) | null,
     returnToMenu: () => void,
+    retry: () => void,
     lastAiResponse: SearchResult | null,
     isAiThinking: boolean,
 }
 function GameSidebar(props: GameSidebarProps) {
-    const { state, lastAiResponse, returnToMenu, isAiThinking } = props;
+    const { state, lastAiResponse, returnToMenu, retry, isAiThinking } = props;
     const { gameState } = state;
 
     let toPlayText;
@@ -259,9 +269,14 @@ function GameSidebar(props: GameSidebarProps) {
                 {winner === null ?
                     <PlayerActionPanel {...props} />
                     :
-                    <button onClick={returnToMenu} className='back-button'>
-                        Back to Menu
-                    </button>
+                    <div>
+                        <button onClick={retry} className='back-button'>
+                            Retry Match
+                        </button>
+                        <button onClick={returnToMenu} className='back-button'>
+                            Back to Menu
+                        </button>
+                    </div>
                 }
             </div>
             <div className='game-sidebar-half'>

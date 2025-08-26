@@ -3,19 +3,15 @@ use crate::{
     board::{BoardState, NEIGHBOR_MAP},
     build_god_power,
     gods::{
-        FullAction, GodName, GodPower,
+        GodName, GodPower,
         generic::{
-            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
-            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
+            INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, STOP_ON_MATE,
+            ScoredMove,
         },
         mortal::MortalMove,
     },
     player::Player,
-    square::Square,
 };
-
-use super::PartialAction;
 
 fn graeae_move_gen<const F: MoveGenFlags>(
     board: &BoardState,

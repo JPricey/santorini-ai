@@ -315,19 +315,19 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
         let all_buildable_squares = !(non_selected_workers | board.height_map[3]);
 
         let pre_build_locations = worker_starting_neighbors & all_buildable_squares;
-        let pre_build_worker_moves = worker_moves & board.exactly_level_n(worker_starting_height);
-        let exactly_one_less = if worker_starting_height == 0 {
+        let pre_build_worker_moves = worker_moves & !board.height_map[worker_starting_height];
+        let moveable_ontop_of_prebuild = if worker_starting_height == 0 {
             BitBoard::EMPTY
         } else {
-            board.exactly_level_n(worker_starting_height - 1)
+            pre_build_worker_moves & !board.height_map[worker_starting_height - 1]
         };
 
         // If we pre-build
         for pre_build_pos in pre_build_locations {
             let pre_build_mask = BitBoard::as_mask(pre_build_pos);
 
-            let pre_build_worker_moves =
-                pre_build_worker_moves & !pre_build_mask | pre_build_mask & exactly_one_less;
+            let pre_build_worker_moves = pre_build_worker_moves & !pre_build_mask
+                | pre_build_mask & moveable_ontop_of_prebuild;
 
             for moving_worker_end_pos in pre_build_worker_moves.into_iter() {
                 let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
