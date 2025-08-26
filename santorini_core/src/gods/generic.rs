@@ -207,7 +207,17 @@ impl From<GenericMove> for WorkerPlacement {
 
 impl WorkerPlacement {
     pub fn new(a: Square, b: Square) -> Self {
-        let data: MoveData = ((a as MoveData) << 0) | ((b as MoveData) << POSITION_WIDTH);
+        let data: MoveData = ((a as MoveData) << 0)
+            | ((b as MoveData) << POSITION_WIDTH)
+            | ((25 as MoveData) << 2 * POSITION_WIDTH);
+
+        Self(data)
+    }
+
+    pub fn new_3(a: Square, b: Square, c: Square) -> Self {
+        let data: MoveData = ((a as MoveData) << 0)
+            | ((b as MoveData) << POSITION_WIDTH)
+            | ((c as MoveData) << 2 * POSITION_WIDTH);
 
         Self(data)
     }
@@ -220,8 +230,23 @@ impl WorkerPlacement {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
+    pub fn placement_3(self) -> Option<Square> {
+        let value = (self.0 >> 2 * POSITION_WIDTH) as u8 & LOWER_POSITION_MASK;
+        if value < 25 {
+            Some(Square::from(value))
+        } else {
+            None
+        }
+    }
+
     pub fn move_mask(self) -> BitBoard {
-        BitBoard::as_mask(self.placement_1()) | BitBoard::as_mask(self.placement_2())
+        if let Some(placement_3) = self.placement_3() {
+            BitBoard::as_mask(self.placement_1())
+                | BitBoard::as_mask(self.placement_2())
+                | BitBoard::as_mask(placement_3)
+        } else {
+            BitBoard::as_mask(self.placement_1()) | BitBoard::as_mask(self.placement_2())
+        }
     }
 
     pub fn make_move(self, board: &mut BoardState) {
@@ -235,21 +260,68 @@ impl WorkerPlacement {
     }
 
     pub fn move_to_actions(self) -> Vec<FullAction> {
-        return vec![
+        let placement_3 = self.placement_3();
+
+        if let Some(placement_3) = placement_3 {
             vec![
-                PartialAction::PlaceWorker(self.placement_1()),
-                PartialAction::PlaceWorker(self.placement_2()),
-            ],
+                vec![
+                    PartialAction::PlaceWorker(self.placement_1()),
+                    PartialAction::PlaceWorker(self.placement_2()),
+                    PartialAction::PlaceWorker(placement_3),
+                ],
+                vec![
+                    PartialAction::PlaceWorker(self.placement_2()),
+                    PartialAction::PlaceWorker(self.placement_1()),
+                    PartialAction::PlaceWorker(placement_3),
+                ],
+                vec![
+                    PartialAction::PlaceWorker(placement_3),
+                    PartialAction::PlaceWorker(self.placement_1()),
+                    PartialAction::PlaceWorker(self.placement_2()),
+                ],
+                vec![
+                    PartialAction::PlaceWorker(placement_3),
+                    PartialAction::PlaceWorker(self.placement_2()),
+                    PartialAction::PlaceWorker(self.placement_1()),
+                ],
+                vec![
+                    PartialAction::PlaceWorker(self.placement_1()),
+                    PartialAction::PlaceWorker(placement_3),
+                    PartialAction::PlaceWorker(self.placement_2()),
+                ],
+                vec![
+                    PartialAction::PlaceWorker(self.placement_2()),
+                    PartialAction::PlaceWorker(placement_3),
+                    PartialAction::PlaceWorker(self.placement_1()),
+                ],
+            ]
+        } else {
             vec![
-                PartialAction::PlaceWorker(self.placement_2()),
-                PartialAction::PlaceWorker(self.placement_1()),
-            ],
-        ];
+                vec![
+                    PartialAction::PlaceWorker(self.placement_1()),
+                    PartialAction::PlaceWorker(self.placement_2()),
+                ],
+                vec![
+                    PartialAction::PlaceWorker(self.placement_2()),
+                    PartialAction::PlaceWorker(self.placement_1()),
+                ],
+            ]
+        }
     }
 }
 
 impl std::fmt::Debug for WorkerPlacement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "P{} P{}", self.placement_1(), self.placement_2())
+        if let Some(placement_3) = self.placement_3() {
+            write!(
+                f,
+                "P{} P{} P{}",
+                self.placement_1(),
+                self.placement_2(),
+                placement_3
+            )
+        } else {
+            write!(f, "P{} P{}", self.placement_1(), self.placement_2())
+        }
     }
 }

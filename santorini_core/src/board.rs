@@ -9,10 +9,9 @@ use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
     hashing::{
-        HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
-        compute_hash_from_scratch_for_board,
+        compute_hash_from_scratch_for_board, HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS
     },
-    placement::{get_all_placements, get_starting_placements_count},
+    placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
     player::Player,
     square::Square,
 };
@@ -167,7 +166,12 @@ impl FullGameState {
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
         let placement_mode = get_starting_placements_count(&self.board).unwrap();
         if placement_mode > 0 {
-            let placement_actions = get_all_placements(&self.board);
+            let active_god = self.get_active_god();
+            let placement_actions = match active_god.num_workers {
+                2 => get_all_placements(&self.board),
+                3 => get_all_placements_3(&self.board),
+                _ => unreachable!("Unknown number of workers"),
+            };
             let mut res: Vec<GameStateWithAction> = Vec::new();
 
             for p in placement_actions {

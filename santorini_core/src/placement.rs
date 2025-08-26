@@ -1,5 +1,8 @@
 use crate::{
-    bitboard::BitBoard, board::{BoardState, FullGameState}, gods::generic::WorkerPlacement, square::Square,
+    bitboard::BitBoard,
+    board::{BoardState, FullGameState},
+    gods::generic::WorkerPlacement,
+    square::Square,
 };
 
 pub fn get_starting_placements_count(board: &BoardState) -> Result<usize, String> {
@@ -43,12 +46,73 @@ pub fn get_all_placements(board: &BoardState) -> Vec<WorkerPlacement> {
     res
 }
 
+pub fn get_all_placements_3(board: &BoardState) -> Vec<WorkerPlacement> {
+    debug_assert!(board.workers[board.current_player as usize] == BitBoard::EMPTY);
+    let mut res = Vec::new();
+
+    for a in 0_usize..25 {
+        let a_sq = Square::from(a);
+        if (board.workers[!board.current_player as usize] & BitBoard::as_mask(a_sq)).is_not_empty()
+        {
+            continue;
+        }
+
+        for b in a + 1..25 {
+            let b_sq = Square::from(b);
+            if (board.workers[!board.current_player as usize] & BitBoard::as_mask(b_sq))
+                .is_not_empty()
+            {
+                continue;
+            }
+
+            for c in b + 1..25 {
+                let c_sq = Square::from(c);
+                if (board.workers[!board.current_player as usize] & BitBoard::as_mask(c_sq))
+                    .is_not_empty()
+                {
+                    continue;
+                }
+
+                let action = WorkerPlacement::new_3(a_sq, b_sq, c_sq);
+                res.push(action);
+            }
+        }
+    }
+
+    res
+}
+
 pub fn get_unique_placements(state: &FullGameState) -> Vec<WorkerPlacement> {
     let mut b_clone = state.board.clone();
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
     let placements = get_all_placements(&b_clone);
+    for p in placements {
+        p.make_move(&mut b_clone);
+        let mut is_new = true;
+        for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
+            if unique_boards.contains(&permutation) {
+                is_new = false;
+                break;
+            }
+        }
+        if is_new {
+            unique_boards.push(b_clone.clone());
+            res.push(p);
+        }
+        p.unmake_move(&mut b_clone);
+    }
+
+    res
+}
+
+pub fn get_unique_placements_3(state: &FullGameState) -> Vec<WorkerPlacement> {
+    let mut b_clone = state.board.clone();
+    let mut res = Vec::new();
+    let mut unique_boards = Vec::new();
+
+    let placements = get_all_placements_3(&b_clone);
     for p in placements {
         p.make_move(&mut b_clone);
         let mut is_new = true;

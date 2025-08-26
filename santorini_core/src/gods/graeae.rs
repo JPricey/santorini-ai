@@ -1,13 +1,14 @@
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},
-    build_god_power,
+    build_god_power, build_god_power_movers,
     gods::{
-        GodName, GodPower,
+        GodName, GodPower, build_god_power_actions,
         generic::{
             INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, STOP_ON_MATE,
             ScoredMove,
         },
+        god_power,
         mortal::MortalMove,
     },
     player::Player,
@@ -126,11 +127,14 @@ fn graeae_move_gen<const F: MoveGenFlags>(
     result
 }
 
-build_god_power!(
-    build_graeae,
-    god_name: GodName::Graeae,
-    move_type: MortalMove,
-    move_gen: graeae_move_gen,
-    hash1: 3621759432554562343,
-    hash2: 8641066751388211347,
-);
+pub const fn build_graeae() -> GodPower {
+    god_power(
+        GodName::Graeae,
+        build_god_power_movers!(graeae_move_gen),
+        build_god_power_actions::<MortalMove>(),
+        3621759432554562343,
+        8641066751388211347,
+    )
+    .with_nnue_god_name(GodName::Mortal)
+    .with_num_workers(3)
+}

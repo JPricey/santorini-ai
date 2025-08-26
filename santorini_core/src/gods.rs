@@ -1,3 +1,5 @@
+use core::num;
+
 use super::search::Hueristic;
 use crate::{
     bitboard::BitBoard,
@@ -214,6 +216,8 @@ pub struct GodPower {
     _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
     _stringify_move: fn(action: GenericMove) -> String,
 
+    pub num_workers: usize,
+
     // _modify_moves: fn(board: &BoardState, from: Square, to_mask: BitBoard, is_win: bool, is_future: bool),
     pub hash1: HashType,
     pub hash2: HashType,
@@ -424,6 +428,8 @@ const fn god_power(
         _stringify_move: actions._stringify_move,
         _get_history_hash: actions._get_history_hash,
 
+        num_workers: 2,
+
         hash1,
         hash2,
     }
@@ -499,6 +505,8 @@ macro_rules! build_god_power {
                 _stringify_move,
                 _get_history_hash,
 
+                num_workers: 2,
+
                 hash1: $hash1,
                 hash2: $hash2,
             }
@@ -509,6 +517,11 @@ macro_rules! build_god_power {
 impl GodPower {
     pub const fn with_nnue_god_name(mut self, name: GodName) -> Self {
         self.model_god_name = name;
+        self
+    }
+
+    pub const fn with_num_workers(mut self, num_workers: usize) -> Self {
+        self.num_workers = num_workers;
         self
     }
 }

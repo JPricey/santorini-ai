@@ -9,7 +9,7 @@ use crate::{
     gods::generic::{GenericMove, MoveScore, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
-    placement::{get_starting_placements_count, get_unique_placements},
+    placement::{get_starting_placements_count, get_unique_placements, get_unique_placements_3},
     player::Player,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
@@ -631,7 +631,12 @@ where
     let alpha_orig = alpha;
     let mut should_stop = false;
 
-    let mut placements = get_unique_placements(&state);
+    let active_god = state.get_active_god();
+    let mut placements = match active_god.num_workers {
+        2 => get_unique_placements(&state),
+        3 => get_unique_placements_3(&state),
+        _ => unreachable!("Unknown worker count"),
+    };
     let mut best_action = placements[0];
 
     let tt_entry = search_context.tt.fetch(&state, ply);
