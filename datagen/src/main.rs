@@ -83,16 +83,6 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         for game_turn in game_history {
-            // eprintln!(
-            //     "{:?} {} {} {} {} {}",
-            //     game_turn.game_state,
-            //     game_turn.winner as usize + 1,
-            //     game_turn.score,
-            //     game_turn.move_count,
-            //     game_turn.calculated_depth,
-            //     game_turn.nodes_visited,
-            // );
-
             writeln!(
                 data_file,
                 "{:?} {} {} {} {} {}",

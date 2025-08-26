@@ -1,7 +1,7 @@
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, NEIGHBOR_MAP},
-    build_god_power, build_god_power_movers,
+    build_god_power_movers,
     gods::{
         GodName, GodPower, build_god_power_actions,
         generic::{

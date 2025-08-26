@@ -1,7 +1,7 @@
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState},
-    gods::generic::WorkerPlacement,
+    gods::generic::{GodMove, WorkerPlacement},
     square::Square,
 };
 

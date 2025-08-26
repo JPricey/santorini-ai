@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bitboard::BitBoard,
     board::FullGameState,
-    gods::generic::{GenericMove, MoveScore, WorkerPlacement},
+    gods::generic::{GenericMove, GodMove, MoveScore, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     placement::{get_starting_placements_count, get_unique_placements, get_unique_placements_3},
@@ -313,7 +313,6 @@ pub struct SearchState {
     pub killer_move_table: [Option<GenericMove>; MAX_PLY],
     pub search_stack: [SearchStackEntry; MAX_PLY],
     pub history: [Histories; 2],
-    // pub max_q_depth: u32,
 }
 
 impl Debug for SearchState {
@@ -652,7 +651,7 @@ where
 
     search_state.search_stack[ply].eval = -WINNING_SCORE_BUFFER;
     for action in placements {
-        search_state.search_stack[ply].move_hash = hash_u64(action.0 as usize);
+        search_state.search_stack[ply].move_hash = hash_u64(action.get_history_idx(&state.board));
         action.make_move(&mut state.board);
 
         let score = -match state.board.current_player {
@@ -1240,25 +1239,14 @@ where
             let remaining_reduction = reduction % 1024;
             let next_depth = remaining_depth - 1;
             let reduced_depth = (next_depth - used_reduction).clamp(0, next_depth);
-            // let reduced_depth = next_depth;
 
-            // if used_reduction >= 2 {
-            //     eprintln!(
-            //         "reduction: {}, remaining_depth: {remaining_depth} reduced_depth: {reduced_depth} ply: {ply}, move_idx: {move_idx}  remaining_reduction: {reduction} carry_reduction: {carry_reduction}",
-            //         used_reduction
-            //     );
-            // }
-
-            // if !NT::PV
-            //     && !NT::ROOT
-            //     && key_squares.is_none()
-            //     && ply >= 2
-            //     && next_depth <= 8
-            //     && move_picker.stage == MovePickerStage::YieldNonImprovers
-            //     && move_idx >= lmp_cutoff
-            // {
-            //     break;
-            // }
+            // Prune quiet moves once move scores get very low
+            if move_score < low_score_cutoff
+                && move_picker.stage == MovePickerStage::YieldNonImprovers
+                && key_squares.is_none()
+            {
+                break;
+            }
 
             // Soft qs on the last ply
             if ply >= 2
@@ -1266,15 +1254,6 @@ where
                 && key_squares.is_none()
                 && move_idx > 12
                 && move_picker.stage == MovePickerStage::YieldNonImprovers
-            // || (ply >= 4 && next_depth < 2 && move_idx >= 8)
-            // && !improving
-            {
-                break;
-            }
-
-            if move_score < low_score_cutoff
-                && move_picker.stage == MovePickerStage::YieldNonImprovers
-                && key_squares.is_none()
             {
                 break;
             }
@@ -1333,46 +1312,10 @@ where
 
         should_stop = search_context.should_stop(&search_state);
 
-        /*
-        total_eval += score as i32;
-        let avg_eval = (total_eval / move_idx as i32) as Hueristic;
-
-        if score >= avg_eval as Hueristic {
-            search_state.history.update_move(
-                history_move_idx,
-                ply,
-                1,
-            );
-        } else {
-            search_state.history.reduce_move(
-                history_move_idx,
-                remaining_depth.max(0) as usize,
-                ply,
-            );
-        }
-        */
-
         if score > best_score {
             best_score = score;
             best_action = child_action;
             best_action_idx = move_idx - 1;
-
-            // if move_score < best_move_score {
-            //     move_score_adjustment += nd;
-            // }
-
-            // search_state.history[current_player_idx].set_move_min(
-            //     history_move_idx,
-            //     ply,
-            //     nd,
-            //     prev_move_idx,
-            //     follow_move_idx,
-            // );
-
-            // if move_idx > 1000 {
-            //     eprintln!("{move_idx}: {}", active_god.stringify_move(child_action));
-            //     state.print_to_console();
-            // }
 
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(

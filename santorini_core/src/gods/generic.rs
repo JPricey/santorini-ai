@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -5,7 +6,6 @@ use crate::{
     board::BoardState,
     gods::{FullAction, PartialAction},
     square::Square,
-    utils::grid_position_builder,
 };
 use std::fmt::Debug;
 
@@ -32,39 +32,6 @@ pub const fn score_lookup(is_check: bool, is_improver: bool) -> MoveScore {
 
 pub const NULL_MOVE_DATA: MoveData = 0;
 
-const POSITION_SCORE_MULT: MoveScore = 1;
-pub const GRID_POSITION_SCORES: [MoveScore; 25] = grid_position_builder(
-    0 * POSITION_SCORE_MULT,
-    2 * POSITION_SCORE_MULT,
-    1 * POSITION_SCORE_MULT,
-    6 * POSITION_SCORE_MULT,
-    7 * POSITION_SCORE_MULT,
-    8 * POSITION_SCORE_MULT,
-);
-
-const WORKER_HEIGHT_COEFF: MoveScore = 1;
-pub const WORKER_HEIGHT_SCORES: [MoveScore; 4] = [
-    0 * WORKER_HEIGHT_COEFF,
-    30 * WORKER_HEIGHT_COEFF,
-    100 * WORKER_HEIGHT_COEFF,
-    31 * WORKER_HEIGHT_COEFF,
-];
-
-pub const IMPROVER_BUILD_HEIGHT_SCORES: [[MoveScore; 4]; 4] = [
-    [0, 0, 0, 0],
-    [8, 45, -388, 0],
-    [3, 14, 69, -800],
-    [0, 0, 0, 0],
-];
-
-pub const ENEMY_WORKER_BUILD_SCORES: [[MoveScore; 5]; 4] = [
-    [-111, 39, 41, 80, 0],
-    [-40, -100, 299, 400, 0],
-    [-8, -80, -10000, 12000, 0],
-    [0, 0, 0, 0, 0],
-];
-pub const CHECK_MOVE_BONUS: MoveScore = 8000;
-
 pub type MoveScore = i16;
 pub type MoveData = u32;
 
@@ -78,14 +45,6 @@ pub const POSITION_WIDTH: usize = 5;
 
 pub const FULL_HEIGHT_WIDTH: usize = 3;
 pub const FULL_HEIGHT_MASK: u8 = (1 << FULL_HEIGHT_WIDTH) - 1;
-
-// A move will be
-// 5 bits from
-// 5 bits to
-// 1 bit win?
-// 5 bits build
-// > 16 bits
-// would be nice to include some metadata about heights and stuff, but whatever
 
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
@@ -248,66 +207,6 @@ impl WorkerPlacement {
             BitBoard::as_mask(self.placement_1()) | BitBoard::as_mask(self.placement_2())
         }
     }
-
-    pub fn make_move(self, board: &mut BoardState) {
-        board.worker_xor(board.current_player, self.move_mask());
-        board.flip_current_player();
-    }
-
-    pub fn unmake_move(self, board: &mut BoardState) {
-        board.flip_current_player();
-        board.worker_xor(board.current_player, self.move_mask());
-    }
-
-    pub fn move_to_actions(self) -> Vec<FullAction> {
-        let placement_3 = self.placement_3();
-
-        if let Some(placement_3) = placement_3 {
-            vec![
-                vec![
-                    PartialAction::PlaceWorker(self.placement_1()),
-                    PartialAction::PlaceWorker(self.placement_2()),
-                    PartialAction::PlaceWorker(placement_3),
-                ],
-                vec![
-                    PartialAction::PlaceWorker(self.placement_2()),
-                    PartialAction::PlaceWorker(self.placement_1()),
-                    PartialAction::PlaceWorker(placement_3),
-                ],
-                vec![
-                    PartialAction::PlaceWorker(placement_3),
-                    PartialAction::PlaceWorker(self.placement_1()),
-                    PartialAction::PlaceWorker(self.placement_2()),
-                ],
-                vec![
-                    PartialAction::PlaceWorker(placement_3),
-                    PartialAction::PlaceWorker(self.placement_2()),
-                    PartialAction::PlaceWorker(self.placement_1()),
-                ],
-                vec![
-                    PartialAction::PlaceWorker(self.placement_1()),
-                    PartialAction::PlaceWorker(placement_3),
-                    PartialAction::PlaceWorker(self.placement_2()),
-                ],
-                vec![
-                    PartialAction::PlaceWorker(self.placement_2()),
-                    PartialAction::PlaceWorker(placement_3),
-                    PartialAction::PlaceWorker(self.placement_1()),
-                ],
-            ]
-        } else {
-            vec![
-                vec![
-                    PartialAction::PlaceWorker(self.placement_1()),
-                    PartialAction::PlaceWorker(self.placement_2()),
-                ],
-                vec![
-                    PartialAction::PlaceWorker(self.placement_2()),
-                    PartialAction::PlaceWorker(self.placement_1()),
-                ],
-            ]
-        }
-    }
 }
 
 impl std::fmt::Debug for WorkerPlacement {
@@ -323,5 +222,42 @@ impl std::fmt::Debug for WorkerPlacement {
         } else {
             write!(f, "P{} P{}", self.placement_1(), self.placement_2())
         }
+    }
+}
+
+impl GodMove for WorkerPlacement {
+    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+        let mut actions = vec![
+            PartialAction::PlaceWorker(self.placement_1()),
+            PartialAction::PlaceWorker(self.placement_2()),
+        ];
+
+        if let Some(placement_3) = self.placement_3() {
+            actions.push(PartialAction::PlaceWorker(placement_3));
+        }
+
+        let actions_len = actions.len();
+
+        let result: Vec<FullAction> = actions.into_iter().permutations(actions_len).collect();
+
+        result
+    }
+
+    fn make_move(self, board: &mut BoardState) {
+        board.worker_xor(board.current_player, self.move_mask());
+        board.flip_current_player();
+    }
+
+    fn unmake_move(self, board: &mut BoardState) {
+        board.flip_current_player();
+        board.worker_xor(board.current_player, self.move_mask());
+    }
+
+    fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
+        self.move_mask()
+    }
+
+    fn get_history_idx(self, _board: &BoardState) -> usize {
+        self.0 as usize
     }
 }

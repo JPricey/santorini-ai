@@ -7,7 +7,7 @@ use strum::IntoEnumIterator;
 use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
-    gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
+    gods::{generic::GodMove, BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
     hashing::{
         compute_hash_from_scratch_for_board, HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS
     },
@@ -18,7 +18,7 @@ use crate::{
 
 use serde::{Deserialize, Serialize};
 
-// const NUM_LEVELS: usize = 4;
+pub const NUM_LEVELS: usize = 4;
 pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
 
@@ -175,7 +175,7 @@ impl FullGameState {
             let mut res: Vec<GameStateWithAction> = Vec::new();
 
             for p in placement_actions {
-                for series in p.move_to_actions() {
+                for series in p.move_to_actions(&self.board) {
                     let mut new_board = self.board.clone();
                     p.make_move(&mut new_board);
 
