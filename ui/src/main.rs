@@ -729,10 +729,18 @@ impl eframe::App for MyApp {
 
                 let scroll_area_height = available_size.y / 2.0;
 
+                let matchup_text = format!(
+                    "{:?} v {:?}",
+                    self.state.gods[0].god_name, self.state.gods[1].god_name
+                );
+
                 let heading_text = if let Some(winner) = self.state.get_winner() {
-                    format!("Player {:?} Wins", winner)
+                    format!("Player {:?} Wins - {matchup_text}", winner)
                 } else {
-                    format!("Player {:?} to Play", self.state.board.current_player)
+                    format!(
+                        "Player {:?} to Play - {matchup_text}",
+                        self.state.board.current_player
+                    )
                 };
                 ui.heading(heading_text);
 
@@ -765,7 +773,7 @@ impl eframe::App for MyApp {
                         });
                 });
 
-                ui.heading("Settings");
+                ui.heading("Controls");
                 ui.horizontal(|ui| {
                     if ui
                         .add(
@@ -808,6 +816,7 @@ impl eframe::App for MyApp {
                     }
                 });
 
+                ui.heading("State Settings");
                 let fen = game_state_to_fen(&self.state);
                 ui.label(fen);
 
@@ -864,6 +873,7 @@ impl eframe::App for MyApp {
                     });
                 });
 
+                ui.heading("Modes");
                 let before = self.edit_mode;
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.edit_mode, EditMode::Play, "Play");
