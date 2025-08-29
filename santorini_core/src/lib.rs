@@ -1,23 +1,23 @@
 #![feature(portable_simd)]
 
-pub mod board;
 pub mod bitboard;
-pub mod square;
-pub mod player;
+pub mod board;
 pub mod engine;
 pub mod fen;
 pub mod gods;
+pub mod hashing;
+pub mod move_container;
+pub mod move_picker;
+pub mod nnue;
+pub mod placement;
+pub mod player;
+pub mod random_utils;
 pub mod search;
+pub mod search_terminators;
+pub mod square;
 pub mod transposition_table;
 pub mod uci_types;
 pub mod utils;
-pub mod nnue;
-pub mod move_container;
-pub mod random_utils;
-pub mod move_picker;
-pub mod search_terminators;
-pub mod hashing;
-pub mod placement;
 
 macro_rules! transmute_enum_masked {
     ($x:expr, $mask:expr) => {
@@ -31,9 +31,8 @@ macro_rules! transmute_enum {
     };
 }
 
-pub(crate) use transmute_enum_masked;
 pub(crate) use transmute_enum;
+pub(crate) use transmute_enum_masked;
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

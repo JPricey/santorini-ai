@@ -14,7 +14,7 @@ use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
     fen::{game_state_to_fen, parse_fen},
-    gods::{ALL_GODS_BY_ID, GameStateWithAction, PartialAction},
+    gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction},
     player::Player,
     search::BestSearchResult,
     square::Square,
@@ -83,7 +83,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::SelectWorker(_) => egui::Color32::BLUE,
         PartialAction::MoveWorker(_)
         | PartialAction::MoveWorkerWithSwap(_)
-        | PartialAction::MoveWorkerWithPush(_, _) => egui::Color32::GREEN,
+        | PartialAction::MoveWorkerWithPush(_, _) => egui::Color32::DARK_GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::EndTurn => egui::Color32::WHITE,
@@ -184,6 +184,7 @@ struct MyApp {
     engine_thinking: Arc<Mutex<EngineThinkingState>>,
 
     edit_mode: EditMode,
+    may_arrow_shortcuts: bool,
 }
 
 impl MyApp {
@@ -363,7 +364,7 @@ impl MyApp {
 
 impl Default for MyApp {
     fn default() -> Self {
-        let default_state = FullGameState::new_basic_state_mortals();
+        let default_state = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
         let mut result = Self {
             state: default_state.clone(),
             state_history: vec![default_state.clone()],
@@ -376,6 +377,7 @@ impl Default for MyApp {
             engine: EngineThreadWrapper::new(),
             engine_thinking: Arc::new(Mutex::new(EngineThinkingState::new(default_state.clone()))),
             edit_mode: Default::default(),
+            may_arrow_shortcuts: Default::default(),
         };
 
         result.update_state(result.state.clone());
@@ -720,9 +722,19 @@ impl eframe::App for MyApp {
             .resizable(false)
             .exact_width(400.0)
             .show(ctx, |ui| {
+                self.may_arrow_shortcuts = true;
+
+                ui.style_mut().spacing.item_spacing = egui::vec2(16.0, 16.0);
                 let available_size = ui.available_size();
 
                 let scroll_area_height = available_size.y / 2.0;
+
+                let heading_text = if let Some(winner) = self.state.get_winner() {
+                    format!("Player {:?} Wins", winner)
+                } else {
+                    format!("Player {:?} to Play", self.state.board.current_player)
+                };
+                ui.heading(heading_text);
 
                 ui.scope_builder(UiBuilder::new(), |ui| {
                     ui.set_min_height(scroll_area_height);
@@ -799,10 +811,13 @@ impl eframe::App for MyApp {
                 let fen = game_state_to_fen(&self.state);
                 ui.label(fen);
 
-                egui::TextEdit::singleline(&mut self.editor_fen_string)
+                let fen_input = egui::TextEdit::singleline(&mut self.editor_fen_string)
                     .clip_text(false)
-                    .desired_width(available_size.x)
-                    .show(ui);
+                    .desired_width(available_size.x);
+
+                if ui.add(fen_input).has_focus() {
+                    self.may_arrow_shortcuts = false;
+                }
 
                 ui.horizontal(|ui| {
                     if ui.button("Update FEN").clicked() {
@@ -892,20 +907,22 @@ impl eframe::App for MyApp {
                 });
             }
 
-            if i.consume_shortcut(&SHORTCUT_ENGINE_MOVE) {
-                self.try_engine_move();
-            }
+            if self.may_arrow_shortcuts {
+                if i.consume_shortcut(&SHORTCUT_ENGINE_MOVE) {
+                    self.try_engine_move();
+                }
 
-            if i.consume_shortcut(&SHORTCUT_REDO_TURN) {
-                self.clear_actions();
-            }
+                if i.consume_shortcut(&SHORTCUT_REDO_TURN) {
+                    self.clear_actions();
+                }
 
-            if i.consume_shortcut(&SHORTCUT_STATE_FORWARD) {
-                self.try_forward_state();
-            }
+                if i.consume_shortcut(&SHORTCUT_STATE_FORWARD) {
+                    self.try_forward_state();
+                }
 
-            if i.consume_shortcut(&SHORTCUT_STATE_BACKWARD) {
-                self.try_back_state();
+                if i.consume_shortcut(&SHORTCUT_STATE_BACKWARD) {
+                    self.try_back_state();
+                }
             }
         });
 
