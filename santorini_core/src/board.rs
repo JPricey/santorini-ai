@@ -511,6 +511,22 @@ impl BoardState {
         }
     }
 
+    fn _validate_player(&self, player: Player) -> Result<(), String> {
+        let player_idx = player as usize;
+        let player_workers = self.workers[player_idx];
+
+        if player_workers.count_ones() > 4 {
+            return Err(format!("Player {:?} has too many workers", player));
+        }
+
+        let dome_worker_collide = player_workers & self.height_map[3];
+        if dome_worker_collide.is_not_empty() {
+            return Err(format!("Player {:?} has workers on domes", player));
+        }
+
+        Ok(())
+    }
+
     pub fn validation_err(&self, base_hash: HashType) -> Result<(), String> {
         let starting_placements = get_starting_placements_count(self)?;
         if starting_placements == 1 {
@@ -523,12 +539,8 @@ impl BoardState {
             }
         }
 
-        // if self.workers[0].count_ones() > 2 {
-        //     return Err("Player 1 has more than 2 workers".to_owned());
-        // }
-        // if self.workers[1].count_ones() > 2 {
-        //     return Err("Player 2 has more than 2 workers".to_owned());
-        // }
+        self._validate_player(Player::One)?;
+        self._validate_player(Player::Two)?;
 
         for h in 1..4 {
             let height = self.height_map[h] & BitBoard::MAIN_SECTION_MASK;
@@ -554,6 +566,16 @@ impl BoardState {
         }
 
         Ok(())
+    }
+
+    pub fn get_worker_at(&self, square: Square) -> Option<Player> {
+        if (self.workers[0] & BitBoard::as_mask(square)).is_not_empty() {
+            Some(Player::One)
+        } else if (self.workers[1] & BitBoard::as_mask(square)).is_not_empty() {
+            Some(Player::Two)
+        } else {
+            None
+        }
     }
 
     pub fn print_to_console(&self) {

@@ -7,6 +7,7 @@ members = [
     "datagen",
     "bullet_prep",
     "wasm-app",
+    "ui",
 ]
 
 [workspace.dependencies]

@@ -17,6 +17,7 @@ pub mod athena;
 pub mod atlas;
 pub mod demeter;
 pub mod generic;
+pub mod graeae;
 pub mod hephaestus;
 pub mod hermes;
 pub mod minotaur;
@@ -24,7 +25,6 @@ pub mod mortal;
 pub mod pan;
 pub mod prometheus;
 pub mod urania;
-pub mod graeae;
 
 pub type StaticGod = &'static GodPower;
 
@@ -92,6 +92,7 @@ pub enum PartialAction {
     Build(Square),
     Dome(Square),
     NoMoves,
+    EndTurn,
 }
 
 pub type FullAction = Vec<PartialAction>;

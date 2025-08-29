@@ -65,7 +65,7 @@ pub const HIDDEN_SIZE: usize = 1024;
 pub const FEATURE_COUNT: usize = 25 + 3 * 2;
 
 type FeatureType = u16;
-const MAX_WORKER_FEATURE_COUNT: usize = 6;
+const MAX_WORKER_FEATURE_COUNT: usize = 8;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct FeatureSet {
