@@ -3,7 +3,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eframe::egui::{self, Color32, Key, Modifiers, Rangef, Stroke, UiBuilder, mutex::Mutex};
+use eframe::{
+    egui::{
+        self, Color32, Key, Modifiers, Rangef, Stroke, UiBuilder, ViewportBuilder, mutex::Mutex,
+    },
+    epaint::EllipseShape,
+};
 use santorini_core::{
     bitboard::BitBoard,
     board::FullGameState,
@@ -17,7 +22,10 @@ use santorini_core::{
 };
 
 fn main() -> Result<(), eframe::Error> {
-    let options = eframe::NativeOptions::default();
+    let mut options = eframe::NativeOptions::default();
+    options.viewport = ViewportBuilder::default()
+        .with_inner_size(egui::vec2(1280.0, 900.0))
+        .with_title("Santorini Analysis Engine");
 
     eframe::run_native(
         "Santorini Analysis Engine",
@@ -35,6 +43,19 @@ enum EditMode {
 }
 
 const WORKER_ROTATION: [Option<Player>; 3] = [None, Some(Player::One), Some(Player::Two)];
+
+const SHORTCUT_REDO_TURN: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::NONE, Key::ArrowDown);
+const SHORTCUT_ENGINE_MOVE: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp);
+const SHORTCUT_STATE_FORWARD: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::NONE, Key::ArrowRight);
+const SHORTCUT_STATE_BACKWARD: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft);
+
+fn shortcut_text(shortcut: egui::KeyboardShortcut) -> String {
+    shortcut.format(&egui::ModifierNames::SYMBOLS, false)
+}
 
 fn next_worker_rotation(current: Option<Player>) -> Option<Player> {
     let current_idx = WORKER_ROTATION.iter().position(|x| *x == current).unwrap();
@@ -91,18 +112,18 @@ fn game_state_with_partial_actions(
             }
             PartialAction::MoveWorker(square) => {
                 let selected_square = selected_square.take().unwrap();
-                let mask = BitBoard::as_mask(selected_square) | BitBoard::as_mask(square);
+                let mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
                 board.worker_xor(current_player, mask);
             }
             PartialAction::MoveWorkerWithSwap(square) => {
                 let selected_square = selected_square.take().unwrap();
-                let mask = BitBoard::as_mask(selected_square) | BitBoard::as_mask(square);
+                let mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
                 board.worker_xor(current_player, mask);
                 board.worker_xor(!current_player, mask);
             }
             PartialAction::MoveWorkerWithPush(square, push) => {
                 let selected_square = selected_square.take().unwrap();
-                let mask = BitBoard::as_mask(selected_square) | BitBoard::as_mask(square);
+                let mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
                 board.worker_xor(current_player, mask);
 
                 let mask2 = BitBoard::as_mask(square) | BitBoard::as_mask(push);
@@ -531,17 +552,7 @@ impl egui::Widget for SquareSpace {
         let box_height = height / 6.0;
         let box_bot_offset = height * 0.05;
 
-        for h in 0..self.height {
-            let hf = h as f32;
-            let box_full_width = width * 0.90 * f32::cos(hf / 3.0);
-            let box_width_margin = (width - box_full_width) / 2.0;
-            let box_bot = box_bot_offset + (1.0 + hf) * box_height;
-
-            let box_rect = egui::Rect::from_min_size(
-                rect.min + egui::vec2(box_width_margin, height - box_bot),
-                egui::vec2(box_full_width, box_height),
-            );
-
+        for h in (0..self.height).rev() {
             let color = match h {
                 0 => egui::Color32::LIGHT_GRAY,
                 1 => egui::Color32::GRAY,
@@ -550,13 +561,39 @@ impl egui::Widget for SquareSpace {
                 _ => unreachable!(),
             };
 
-            painter.rect(
-                box_rect,
-                width / 50.0,
-                color,
-                Stroke::new(1.0, egui::Color32::BLACK),
-                egui::StrokeKind::Middle,
-            );
+            let hf = h as f32;
+            let box_full_width = width * 0.90 * f32::cos(hf / 4.0);
+            let box_width_margin = (width - box_full_width) / 2.0;
+            let box_bot = box_bot_offset + (1.0 + hf) * box_height;
+            let stroke = Stroke::new(1.0, egui::Color32::BLACK);
+
+            if h == 3 {
+                let box_bot = box_bot - box_height;
+                let box_full_width = box_full_width - 0.1;
+                let center = rect.min + egui::vec2(width / 2.0, height - box_bot);
+                let radius = egui::vec2(box_full_width / 2.0, height * 0.2);
+
+                let dome = EllipseShape {
+                    center,
+                    radius,
+                    fill: color,
+                    stroke,
+                };
+                painter.add(dome);
+            } else {
+                let box_rect = egui::Rect::from_min_size(
+                    rect.min + egui::vec2(box_width_margin, height - box_bot),
+                    egui::vec2(box_full_width, box_height),
+                );
+
+                painter.rect(
+                    box_rect,
+                    width / 50.0,
+                    color,
+                    stroke,
+                    egui::StrokeKind::Middle,
+                );
+            }
         }
 
         let player_rad = width / 7.0;
@@ -717,6 +754,48 @@ impl eframe::App for MyApp {
                 });
 
                 ui.heading("Settings");
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(
+                            egui::Button::new("Redo Turn")
+                                .shortcut_text(shortcut_text(SHORTCUT_REDO_TURN)),
+                        )
+                        .clicked()
+                    {
+                        self.clear_actions();
+                    }
+
+                    if ui
+                        .add(
+                            egui::Button::new("Engine Move")
+                                .shortcut_text(shortcut_text(SHORTCUT_ENGINE_MOVE)),
+                        )
+                        .clicked()
+                    {
+                        self.try_engine_move();
+                    }
+
+                    if ui
+                        .add(
+                            egui::Button::new("Back")
+                                .shortcut_text(shortcut_text(SHORTCUT_STATE_BACKWARD)),
+                        )
+                        .clicked()
+                    {
+                        self.try_back_state();
+                    }
+
+                    if ui
+                        .add(
+                            egui::Button::new("Forward")
+                                .shortcut_text(shortcut_text(SHORTCUT_STATE_FORWARD)),
+                        )
+                        .clicked()
+                    {
+                        self.try_forward_state();
+                    }
+                });
+
                 let fen = game_state_to_fen(&self.state);
                 ui.label(fen);
 
@@ -813,28 +892,19 @@ impl eframe::App for MyApp {
                 });
             }
 
-            if i.consume_shortcut(&egui::KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp)) {
+            if i.consume_shortcut(&SHORTCUT_ENGINE_MOVE) {
                 self.try_engine_move();
             }
 
-            if i.consume_shortcut(&egui::KeyboardShortcut::new(
-                Modifiers::NONE,
-                Key::ArrowDown,
-            )) {
+            if i.consume_shortcut(&SHORTCUT_REDO_TURN) {
                 self.clear_actions();
             }
 
-            if i.consume_shortcut(&egui::KeyboardShortcut::new(
-                Modifiers::NONE,
-                Key::ArrowRight,
-            )) {
+            if i.consume_shortcut(&SHORTCUT_STATE_FORWARD) {
                 self.try_forward_state();
             }
 
-            if i.consume_shortcut(&egui::KeyboardShortcut::new(
-                Modifiers::NONE,
-                Key::ArrowLeft,
-            )) {
+            if i.consume_shortcut(&SHORTCUT_STATE_BACKWARD) {
                 self.try_back_state();
             }
         });
@@ -842,3 +912,6 @@ impl eframe::App for MyApp {
         ctx.request_repaint();
     }
 }
+
+// RUSTFLAGS="-C target-cpu=native" cargo run -p ui
+// RUSTFLAGS="-C target-cpu=native" cargo run -p ui -r
