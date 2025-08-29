@@ -880,6 +880,14 @@ impl eframe::App for MyApp {
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            ctx.options_mut(|options| {
+                let central_panel_size = ui.available_size();
+                let min_dim = central_panel_size.x.max(central_panel_size.y);
+
+                options.input_options.max_click_dist = (min_dim / 4.0).max(10.0);
+                options.input_options.max_click_duration = 1.0;
+            });
+
             let eval_bar_size = 20.0;
             let total_size = ui.available_size();
             if total_size.x <= eval_bar_size {
