@@ -85,6 +85,7 @@ fn run_all_scenarios(god_name: GodName) -> TestSummary {
         let mut game_state = FullGameState::try_from(state_str).unwrap();
         game_state.gods[0] = god_name.to_power();
         game_state.gods[1] = god_name.to_power();
+        game_state.recalculate_internals();
 
         let depth = (depth as i32 - 6).max(6) as usize;
 
