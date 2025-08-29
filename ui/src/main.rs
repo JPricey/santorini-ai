@@ -386,13 +386,6 @@ impl Default for MyApp {
     }
 }
 
-struct SquareSpace {
-    dim: f32,
-    worker: Option<Player>,
-    height: usize,
-    ui_action: Option<PartialAction>,
-}
-
 struct GameGrid<'a> {
     app: &'a mut MyApp,
 }
@@ -534,6 +527,13 @@ impl<'a> egui::Widget for GameGrid<'a> {
     }
 }
 
+struct SquareSpace {
+    dim: f32,
+    worker: Option<Player>,
+    height: usize,
+    ui_action: Option<PartialAction>,
+}
+
 impl egui::Widget for SquareSpace {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let width = self.dim;
@@ -551,7 +551,7 @@ impl egui::Widget for SquareSpace {
             egui::StrokeKind::Middle,
         );
 
-        let box_height = height / 6.0;
+        let box_height = height / 5.0;
         let box_bot_offset = height * 0.05;
 
         for h in (0..self.height).rev() {

@@ -130,6 +130,14 @@ impl BitBoard {
     pub const fn trailing_zeros(&self) -> u32 {
         self.0.trailing_zeros()
     }
+
+    pub fn all_squares(&self) -> Vec<Square> {
+        let mut res = Vec::with_capacity(self.count_ones() as usize);
+        for square in *self {
+            res.push(square);
+        }
+        res
+    }
 }
 
 impl Iterator for BitBoard {

@@ -153,18 +153,38 @@ impl std::fmt::Debug for HermesMove {
         let is_win = self.get_is_winning();
 
         if is_win {
-            write!(f, "{}>{}#", move_from, move_to)
-        } else if let Some(move_from_2) = self.move_from_position2() {
+            return write!(f, "{}>{}#", move_from, move_to);
+        }
+
+        let mut moves_from_mask = BitBoard::as_mask(move_from);
+        let mut moves_to_mask = BitBoard::as_mask(move_to);
+
+        if let Some(move_from_2) = self.move_from_position2() {
             let move_to_2 = self.move_to_position2();
-            write!(
-                f,
-                "{}>{} {}>{} ^{}",
-                move_from, move_to, move_from_2, move_to_2, build
-            )
-        } else if move_to == move_from {
-            write!(f, "^{}", build)
-        } else {
-            write!(f, "{}>{}^{}", move_from, move_to, build)
+            moves_from_mask |= BitBoard::as_mask(move_from_2);
+            moves_to_mask |= BitBoard::as_mask(move_to_2);
+        }
+        let move_delta = moves_from_mask ^ moves_to_mask;
+
+        let all_squares_from = (moves_from_mask & move_delta).all_squares();
+        let all_squares_to = (moves_to_mask & move_delta).all_squares();
+
+        assert_eq!(all_squares_from.len(), all_squares_to.len());
+        match all_squares_from.len() {
+            0 => write!(f, "^{}", build),
+            1 => write!(f, "{}>{}^{}", all_squares_from[0], all_squares_to[0], build),
+            2 => {
+                write!(
+                    f,
+                    "({},{})>({},{})^{}",
+                    all_squares_from[0],
+                    all_squares_from[1],
+                    all_squares_to[0],
+                    all_squares_to[1],
+                    build
+                )
+            }
+            _ => unreachable!(),
         }
     }
 }
