@@ -206,7 +206,7 @@ impl MyApp {
             self.state_idx += 1;
         }
 
-        self.reset_editor_fen();
+        self.copy_editor_fen();
         self.compute_next_states();
         self.engine_thinking.lock().reset(state.clone());
         let engine_thinking_clone = self.engine_thinking.clone();
@@ -308,7 +308,7 @@ impl MyApp {
         }
     }
 
-    pub fn reset_editor_fen(&mut self) {
+    pub fn copy_editor_fen(&mut self) {
         self.editor_fen_string = game_state_to_fen(&self.state);
         self.edtior_fen_error = None;
     }
@@ -809,8 +809,8 @@ impl eframe::App for MyApp {
                         self.try_set_editor_fen();
                     }
 
-                    if ui.button("Reset").clicked() {
-                        self.reset_editor_fen();
+                    if ui.button("Copy").clicked() {
+                        self.copy_editor_fen();
                     }
 
                     if ui.button("Clear Board").clicked() {
