@@ -155,6 +155,10 @@ impl FullGameState {
         FullGameState::new_basic_state(GodName::Mortal, GodName::Mortal)
     }
 
+    pub fn flip_current_player(&mut self) {
+        self.board.flip_current_player();
+    }
+
     pub fn get_next_states(&self) -> Vec<FullGameState> {
         let active_god = self.get_active_god();
         let board_states_with_action_list = active_god.get_all_next_states(&self);

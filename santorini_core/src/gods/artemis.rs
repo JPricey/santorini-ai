@@ -3,9 +3,12 @@ use crate::{
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
     build_god_power,
     gods::{
+        FullAction, GodName, GodPower, PartialAction,
         generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE
-        }, FullAction, GodName, GodPower, PartialAction
+            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
+            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
+            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
+        },
     },
     player::Player,
     square::Square,
@@ -342,16 +345,7 @@ build_god_power!(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        board::FullGameState,
-        gods::{
-            GodName,
-            artemis::{self, ArtemisMove},
-            generic::CHECK_SENTINEL_SCORE,
-        },
-        player::Player,
-        random_utils::GameStateFuzzer,
-    };
+    use crate::{board::FullGameState, gods::GodName, player::Player};
 
     #[test]
     fn test_artemis_basic() {
@@ -360,10 +354,6 @@ mod tests {
                 .unwrap();
 
         let next_states = state.get_next_states_interactive();
-        // for state in &next_states {
-        //     state.state.print_to_console();
-        //     println!("{:?}", state.actions);
-        // }
         assert_eq!(next_states.len(), 10);
     }
 
@@ -372,10 +362,6 @@ mod tests {
         let state =
             FullGameState::try_from("2300044444000000000000000/1/artemis:0/artemis:24").unwrap();
         let next_states = state.get_next_states_interactive();
-        // for state in &next_states {
-        //     state.state.print_to_console();
-        //     println!("{:?}", state.actions);
-        // }
         assert_eq!(next_states.len(), 1);
         assert_eq!(next_states[0].state.board.get_winner(), Some(Player::One))
     }
@@ -388,10 +374,9 @@ mod tests {
             artemis
                 .get_winning_moves(
                     &FullGameState::try_from(
-                        "12300 44444 44444 44444 44444/1/artemis:0/artemis:24"
+                        "12300 44444 44444 44444 00000/1/artemis:0/artemis:24"
                     )
-                    .unwrap()
-                    .board,
+                    .unwrap(),
                     Player::One
                 )
                 .len(),
@@ -403,10 +388,9 @@ mod tests {
             artemis
                 .get_winning_moves(
                     &FullGameState::try_from(
-                        "13300 44444 44444 44444 44444/1/artemis:0/artemis:24"
+                        "13300 44444 44444 44444 00000/1/artemis:0/artemis:24"
                     )
-                    .unwrap()
-                    .board,
+                    .unwrap(),
                     Player::One
                 )
                 .len(),
@@ -418,10 +402,9 @@ mod tests {
             artemis
                 .get_winning_moves(
                     &FullGameState::try_from(
-                        "22300 44444 44444 44444 44444/1/artemis:0/artemis:24"
+                        "22300 44444 44444 44444 00000/1/artemis:0/artemis:24"
                     )
-                    .unwrap()
-                    .board,
+                    .unwrap(),
                     Player::One
                 )
                 .len(),
@@ -433,10 +416,9 @@ mod tests {
             artemis
                 .get_winning_moves(
                     &FullGameState::try_from(
-                        "21300 44444 44444 44444 44444/1/artemis:0/artemis:24"
+                        "21300 44444 44444 44444 00000/1/artemis:0/artemis:24"
                     )
-                    .unwrap()
-                    .board,
+                    .unwrap(),
                     Player::One
                 )
                 .len(),
@@ -448,10 +430,9 @@ mod tests {
             artemis
                 .get_winning_moves(
                     &FullGameState::try_from(
-                        "23000 44444 44444 44444 44444/1/artemis:0/artemis:24"
+                        "23000 44444 44444 44444 00000/1/artemis:0/artemis:24"
                     )
-                    .unwrap()
-                    .board,
+                    .unwrap(),
                     Player::One
                 )
                 .len(),
@@ -463,10 +444,9 @@ mod tests {
             artemis
                 .get_winning_moves(
                     &FullGameState::try_from(
-                        "33000 44444 44444 44444 44444/1/artemis:0/artemis:24"
+                        "33000 44444 44444 44444 00000/1/artemis:0/artemis:24"
                     )
-                    .unwrap()
-                    .board,
+                    .unwrap(),
                     Player::One
                 )
                 .len(),

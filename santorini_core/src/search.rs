@@ -1,4 +1,4 @@
-use std::{array, collections::HashMap, fmt::Debug};
+use std::{array, fmt::Debug};
 
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
@@ -202,12 +202,6 @@ impl Histories {
                     % FOLLOW_HISTORY_SIZE];
         }
 
-        // if res > MoveScore::MAX - 4000 {
-        //     eprintln!(
-        //         "Move score overflow for move_idx: {}, ply: {}, res: {}",
-        //         move_idx, ply, res
-        //     );
-        // }
         res
     }
 
@@ -361,48 +355,6 @@ impl<'a, T: SearchTerminator> SearchContext<'a, T> {
     }
 }
 
-fn _print_history(history: &Histories) {
-    eprintln!("Global Move History (MAX {}):", GLOBAL_MOVE_HISTORY_MAX);
-    _print_array_histogram(&history.global_move_history);
-    eprintln!("Response History (MAX {}):", RESPONSE_HISTORY_MAX);
-    _print_array_histogram(&history.response_history);
-    eprintln!("Follow History (MAX {}):", FOLLOW_HISTORY_MAX);
-    _print_array_histogram(&history.follow_history);
-
-    for i in 0..MAX_MOVE_HISTORY_DEPTH {
-        eprintln!("Ply {i}:");
-        if !_print_array_histogram(&history.move_history_by_ply[i]) {
-            break;
-        }
-    }
-}
-
-fn _print_array_histogram(values_arr: &[MoveScore]) -> bool {
-    let mut values_hash: HashMap<MoveScore, usize> = Default::default();
-    let mut did_print_any = false;
-
-    for value in values_arr {
-        values_hash
-            .entry(*value)
-            .and_modify(|count| *count += 1)
-            .or_insert(1);
-    }
-
-    let mut values_vec: Vec<_> = values_hash.into_iter().collect();
-    values_vec.sort();
-
-    for (key, count) in values_vec {
-        if count > 1 {
-            eprintln!("{}: {}", key, count);
-            if key != 0 {
-                did_print_any = true;
-            }
-        }
-    }
-
-    did_print_any
-}
-
 pub fn negamax_search<T>(
     search_context: &mut SearchContext<T>,
     mut root_state: FullGameState,
@@ -525,11 +477,6 @@ where
             }
         }
     }
-
-    // eprintln!("Player One");
-    // _print_history(&search_state.history[0]);
-    // eprintln!("Player Two");
-    // _print_history(&search_state.history[1]);
 
     search_state
 }
@@ -1448,8 +1395,6 @@ mod tests {
         let mut search_context = SearchContext {
             tt: &mut tt,
             new_best_move_callback: Box::new(move |new_best_move| {
-                // eprintln!("{:?}", new_best_move);
-
                 if new_best_move.score < -WINNING_SCORE_BUFFER {
                     // increment loss counter
                     *loss_counter.borrow_mut() += 1;

@@ -141,6 +141,7 @@ fn check_state(state: &FullGameState) {
             let mut new_state = state.clone();
             active_god.make_move(&mut new_state.board, action.action);
             new_state.board.unset_worker_can_climb();
+            new_state.flip_current_player();
 
             let winning_moves = active_god
                 .get_winning_moves(&new_state, current_player);

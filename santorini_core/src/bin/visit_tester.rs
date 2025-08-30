@@ -16,6 +16,7 @@ const TUNE_UNTIL_ABOVE_SECS: Duration = Duration::from_secs(2);
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ScenarioEntry {
+    index: usize,
     state: FullGameState,
     duration_seconds: f32,
     nodes_visited: usize,
@@ -86,10 +87,15 @@ fn run_all_scenarios(args: VisitTesterArgs) -> TestSummary {
         god,
         reduction,
         minimum,
+        scenario,
         save: _,
     } = args;
 
     for (i, (state_str, depth)) in SEARCH_TEST_SCENARIOS.iter().cloned().enumerate() {
+        if scenario >= 0 && i as i32 != scenario {
+            continue;
+        }
+
         let mut game_state = FullGameState::try_from(state_str).unwrap();
         game_state.gods[0] = god.to_power();
         game_state.gods[1] = god.to_power();
@@ -103,6 +109,7 @@ fn run_all_scenarios(args: VisitTesterArgs) -> TestSummary {
         let best_move = result.best_move.clone().unwrap();
 
         let scenario_entry = ScenarioEntry {
+            index: i,
             state: game_state,
             duration_seconds: duration.as_secs_f32(),
             nodes_visited: result.nodes_visited,
@@ -140,6 +147,10 @@ struct VisitTesterArgs {
     #[arg(short = 's', long)]
     #[clap(default_value_t = false)]
     save: bool,
+
+    #[arg(short = 'c', long)]
+    #[clap(default_value_t = -1)]
+    scenario: i32,
 }
 
 pub fn main() {

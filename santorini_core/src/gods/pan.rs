@@ -1,7 +1,8 @@
 use crate::{
+    add_scored_move,
     bitboard::BitBoard,
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power,
+    build_god_power, build_parse_flags, build_push_winning_moves,
     gods::{
         GodName, GodPower,
         generic::{
@@ -10,6 +11,7 @@ use crate::{
         },
         mortal::MortalMove,
     },
+    non_checking_variable_prelude,
     player::Player,
 };
 
@@ -18,22 +20,37 @@ fn pan_move_gen<const F: MoveGenFlags>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let board = &state.board;
-    let current_player_idx = player as usize;
-    let exactly_level_0 = board.exactly_level_0();
-    let exactly_level_1 = board.exactly_level_1();
-    let exactly_level_2 = board.exactly_level_2();
-    let exactly_level_3 = board.exactly_level_3();
+    build_parse_flags!(
+        is_mate_only,
+        is_include_score,
+        is_stop_on_mate,
+        is_interact_with_key_squares
+    );
 
-    let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
-    if F & MATE_ONLY != 0 {
-        current_workers &= board.at_least_level_2();
+    non_checking_variable_prelude!(
+        state,
+        player,
+        board,
+        other_player,
+        current_player_idx,
+        other_player_idx,
+        exactly_level_0,
+        exactly_level_1,
+        exactly_level_2,
+        exactly_level_3,
+        domes,
+        own_workers,
+        other_workers,
+        result,
+        all_workers_mask,
+        is_mate_only,
+    );
+
+    let mut current_workers = own_workers;
+    let checkable_worker_positions_mask = board.at_least_level_2();
+    if is_mate_only {
+        current_workers &= checkable_worker_positions_mask;
     }
-    let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
-
-    let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
-
-    let all_workers_mask = board.workers[0] | board.workers[1];
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
@@ -41,14 +58,12 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
         let mut neighbor_2 = BitBoard::EMPTY;
         let mut neighbor_3 = BitBoard::EMPTY;
-        if F & INCLUDE_SCORE != 0 {
-            for other_pos_2 in (current_workers ^ moving_worker_start_mask) & exactly_level_2 {
-                neighbor_2 |= NEIGHBOR_MAP[other_pos_2 as usize];
-            }
+        for other_pos_2 in (current_workers ^ moving_worker_start_mask) & exactly_level_2 {
+            neighbor_2 |= NEIGHBOR_MAP[other_pos_2 as usize];
+        }
 
-            for other_pos_3 in (current_workers ^ moving_worker_start_mask) & exactly_level_3 {
-                neighbor_3 |= NEIGHBOR_MAP[other_pos_3 as usize];
-            }
+        for other_pos_3 in (current_workers ^ moving_worker_start_mask) & exactly_level_3 {
+            neighbor_3 |= NEIGHBOR_MAP[other_pos_3 as usize];
         }
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
@@ -57,56 +72,43 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
         if worker_starting_height == 2 {
             let winning_moves = worker_moves & (exactly_level_0 | exactly_level_3);
-            worker_moves ^= winning_moves;
-
-            for moving_worker_end_pos in winning_moves.into_iter() {
-                let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_winning_move(
-                        moving_worker_start_pos,
-                        moving_worker_end_pos,
-                    )
-                    .into(),
-                );
-                result.push(winning_move);
-                if F & STOP_ON_MATE != 0 {
-                    return result;
-                }
-            }
+            build_push_winning_moves!(
+                winning_moves,
+                worker_moves,
+                MortalMove::new_winning_move,
+                moving_worker_start_pos,
+                result,
+                is_stop_on_mate,
+            );
         } else if worker_starting_height == 3 {
-            let winning_moves = worker_moves & exactly_level_0 | exactly_level_1;
-            worker_moves ^= winning_moves;
-
-            for moving_worker_end_pos in winning_moves.into_iter() {
-                let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_winning_move(
-                        moving_worker_start_pos,
-                        moving_worker_end_pos,
-                    )
-                    .into(),
-                );
-                result.push(winning_move);
-                if F & STOP_ON_MATE != 0 {
-                    return result;
-                }
-            }
+            let winning_moves = worker_moves & (exactly_level_0 | exactly_level_1);
+            build_push_winning_moves!(
+                winning_moves,
+                worker_moves,
+                MortalMove::new_winning_move,
+                moving_worker_start_pos,
+                result,
+                is_stop_on_mate,
+            );
         }
 
-        if F & MATE_ONLY != 0 {
+        if is_mate_only {
             continue;
         }
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let buildable_squares = !(non_selected_workers | board.height_map[3]);
+        let buildable_squares = !(non_selected_workers | domes);
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height(moving_worker_end_pos);
+            let is_improving = worker_end_height > worker_starting_height;
 
             let mut worker_builds =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
             let worker_plausible_next_moves = worker_builds;
 
-            if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
+            if is_interact_with_key_squares {
                 if (moving_worker_end_mask & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
                 }
@@ -121,37 +123,27 @@ fn pan_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
+                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                let anti_worker_build_mask = !worker_build_mask;
                 let new_action = MortalMove::new_basic_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
                 );
-                if F & INCLUDE_SCORE != 0 {
-                    let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let final_level_0 = exactly_level_0 & !worker_build_mask;
-                    let final_level_1 = exactly_level_0 | exactly_level_1 & !worker_build_mask;
-                    let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask);
+                let winnable_from_2 = reach_2
+                    & ((exactly_level_0 | exactly_level_3) & anti_worker_build_mask
+                        | exactly_level_2 & worker_build_mask);
+                let winnable_from_3 =
+                    reach_3 & (exactly_level_0 | exactly_level_1 & anti_worker_build_mask);
 
-                    let check_board = ((reach_2 & (final_level_0 | final_level_3))
-                        | (reach_3 & (final_level_0 | final_level_1)))
+                let is_check = {
+                    let check_board = (winnable_from_2 | winnable_from_3)
                         & buildable_squares
                         & !moving_worker_end_mask;
-                    let is_check = check_board.is_not_empty();
+                    check_board.is_not_empty()
+                };
 
-                    if is_check {
-                        result.push(ScoredMove::new_checking_move(new_action.into()));
-                    } else {
-                        let is_improving = worker_end_height > worker_starting_height;
-                        if is_improving {
-                            result.push(ScoredMove::new_improving_move(new_action.into()));
-                        } else {
-                            result.push(ScoredMove::new_non_improver(new_action.into()));
-                        };
-                    }
-                } else {
-                    result.push(ScoredMove::new_unscored_move(new_action.into()));
-                }
+                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
             }
         }
     }
