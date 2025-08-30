@@ -100,7 +100,7 @@ impl From<GenericMove> for MortalMove {
 }
 
 impl MortalMove {
-    pub fn new_mortal_move(
+    pub fn new_basic_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -112,7 +112,7 @@ impl MortalMove {
         Self(data)
     }
 
-    pub fn new_mortal_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+    pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << MORTAL_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << MORTAL_MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
@@ -199,7 +199,7 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    MortalMove::new_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -237,7 +237,7 @@ pub fn mortal_move_gen<const F: MoveGenFlags>(
                 | (worker_plausible_next_moves
                     & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]);
             for worker_build_pos in worker_builds {
-                let new_action = MortalMove::new_mortal_move(
+                let new_action = MortalMove::new_basic_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,

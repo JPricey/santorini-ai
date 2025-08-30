@@ -47,7 +47,7 @@ fn graeae_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    MortalMove::new_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -88,7 +88,7 @@ fn graeae_move_gen<const F: MoveGenFlags>(
                     & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]);
 
             for worker_build_pos in worker_builds {
-                let new_action = MortalMove::new_mortal_move(
+                let new_action = MortalMove::new_basic_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,

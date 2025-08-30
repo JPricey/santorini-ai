@@ -3,9 +3,12 @@ use crate::{
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
     build_god_power,
     gods::{
+        GodName, GodPower,
         generic::{
-            MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, STOP_ON_MATE
-        }, mortal::MortalMove, GodName, GodPower
+            INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, STOP_ON_MATE,
+            ScoredMove,
+        },
+        mortal::MortalMove,
     },
     player::Player,
 };
@@ -58,7 +61,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in winning_moves.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    MortalMove::new_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -75,7 +78,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in winning_moves.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
-                    MortalMove::new_mortal_winning_move(
+                    MortalMove::new_winning_move(
                         moving_worker_start_pos,
                         moving_worker_end_pos,
                     )
@@ -118,7 +121,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
             }
 
             for worker_build_pos in worker_builds {
-                let new_action = MortalMove::new_mortal_move(
+                let new_action = MortalMove::new_basic_move(
                     moving_worker_start_pos,
                     moving_worker_end_pos,
                     worker_build_pos,
