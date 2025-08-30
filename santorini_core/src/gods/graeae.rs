@@ -1,17 +1,9 @@
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power,
-    gods::{
-        FullAction, GodName, GodPower,
-        generic::{
-            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
-            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
-        },
-    },
-    player::Player,
-    square::Square,
+    bitboard::BitBoard, board::{FullGameState, NEIGHBOR_MAP}, build_god_power_movers, gods::{
+        build_god_power_actions, generic::{
+            MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, STOP_ON_MATE
+        }, god_power, mortal::MortalMove, GodName, GodPower
+    }, player::Player
 };
 
 fn graeae_move_gen<const F: MoveGenFlags>(
