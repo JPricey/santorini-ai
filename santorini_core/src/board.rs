@@ -7,9 +7,10 @@ use strum::IntoEnumIterator;
 use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
-    gods::{generic::GodMove, BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
+    gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod, generic::GodMove},
     hashing::{
-        compute_hash_from_scratch_for_board, HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS
+        HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
+        compute_hash_from_scratch_for_board,
     },
     placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
     player::Player,
@@ -234,7 +235,7 @@ impl FullGameState {
     }
 
     pub fn validation_err(&self) -> Result<(), String> {
-        self.board.validation_err(self.base_hash())
+        self.board.validation_err(self.base_hash(), self.gods)
     }
 
     pub fn validate(&self) {
@@ -511,11 +512,17 @@ impl BoardState {
         }
     }
 
-    fn _validate_player(&self, player: Player) -> Result<(), String> {
+    fn _validate_player(&self, player: Player, god: StaticGod) -> Result<(), String> {
         let player_idx = player as usize;
         let player_workers = self.workers[player_idx];
 
-        if player_workers.count_ones() > 4 {
+        let worker_count = player_workers.count_ones();
+
+        if god.god_name == GodName::Hermes {
+            if !(worker_count == 0 || worker_count == 2) {
+                return Err("Hermes must have 2 workers".to_owned());
+            }
+        } else if worker_count > 4 {
             return Err(format!("Player {:?} has too many workers", player));
         }
 
@@ -527,7 +534,11 @@ impl BoardState {
         Ok(())
     }
 
-    pub fn validation_err(&self, base_hash: HashType) -> Result<(), String> {
+    pub fn validation_err(
+        &self,
+        base_hash: HashType,
+        gods: [StaticGod; 2],
+    ) -> Result<(), String> {
         let starting_placements = get_starting_placements_count(self)?;
         if starting_placements == 1 {
             if self.current_player != Player::Two {
@@ -539,8 +550,8 @@ impl BoardState {
             }
         }
 
-        self._validate_player(Player::One)?;
-        self._validate_player(Player::Two)?;
+        self._validate_player(Player::One, gods[0])?;
+        self._validate_player(Player::Two, gods[1])?;
 
         for h in 1..4 {
             let height = self.height_map[h] & BitBoard::MAIN_SECTION_MASK;
