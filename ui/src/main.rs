@@ -757,6 +757,7 @@ impl eframe::App for MyApp {
                                 ui.label("Score");
                                 ui.label("Secs");
                                 ui.label("Nodes");
+                                ui.label("Type");
                                 ui.end_row();
 
                                 let rows = self.engine_thinking.lock().engine_messages.clone();
@@ -767,6 +768,7 @@ impl eframe::App for MyApp {
                                     ui.label(format!("{}", msg.score));
                                     ui.label(format!("{:.2}", dur.as_secs_f32()));
                                     ui.label(format!("{}", msg.nodes_visited));
+                                    ui.label(format!("{:?}", msg.trigger));
                                     ui.end_row();
                                 }
                             });

@@ -12,7 +12,6 @@ use crate::{
     },
     player::Player,
     square::Square,
-    utils::move_all_workers_one_include_original_workers,
 };
 
 use super::PartialAction;
@@ -306,6 +305,26 @@ impl GodMove for HermesMove {
     }
 }
 
+fn flood_fill(walkable_squares: BitBoard, origin: BitBoard) -> BitBoard {
+    let mut result = origin;
+    let mut queue = origin;
+
+    loop {
+        if queue.is_empty() {
+            break;
+        }
+
+        let square = queue.lsb();
+        queue.0 &= queue.0 - 1;
+
+        let new = NEIGHBOR_MAP[square as usize] & walkable_squares & !result;
+        queue |= new;
+        result |= new;
+    }
+
+    result
+}
+
 fn hermes_move_gen<const F: MoveGenFlags>(
     board: &BoardState,
     player: Player,
@@ -430,17 +449,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     let f2 = worker_iter.next().unwrap();
     let m2 = BitBoard::as_mask(f2);
 
-    let mut c1 = m1;
-    let mut component_size = c1.count_ones();
-    loop {
-        let old_size = component_size;
-        c1 = move_all_workers_one_include_original_workers(c1) & h1_mask;
-        component_size = c1.count_ones();
-        if component_size == old_size {
-            break;
-        }
-    }
-
+    let c1 = flood_fill(h1_mask, m1);
     let mut c2;
     let h2;
     let is_overlap;
@@ -453,16 +462,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
         h2 = board.get_height(f2);
         let h2_mask = board.exactly_level_n(h2) & !other_workers;
 
-        c2 = m2;
-        let mut component_size = c2.count_ones();
-        loop {
-            let old_size = component_size;
-            c2 = move_all_workers_one_include_original_workers(c2) & h2_mask;
-            component_size = c2.count_ones();
-            if component_size == old_size {
-                break;
-            }
-        }
+        c2 = flood_fill(h2_mask, m2);
     }
 
     let blocked_squares = other_workers | board.height_map[3];
