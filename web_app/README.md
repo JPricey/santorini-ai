@@ -1,8 +1,8 @@
 # Getting Started
 
-TODO: steps to install node
+0. Install node (TODO: add steps for this)
 
-1. From this directory, execute `npm run build:wasm`. This will build the wasm-app rust project, and output wasm artifacts into web_app/pkg.
+1. From this directory, execute `npm run build:wasm`. This will build the wasm_app rust project, and output wasm artifacts into web_app/pkg.
 2. Execute `npm start dev`. This will start the dev server.
 
 ## Deployment

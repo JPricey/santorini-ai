@@ -227,6 +227,44 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
     );
 }
 
+function scoreToString(score: number) {
+    if (score > 9000) {
+        const dist = 10_000 - score;
+        return `Win in ${dist}`;
+    } else if (score < -9000) {
+        const dist = 10_000 + score;
+        return `Lose in ${dist}`;
+    }
+
+    return `${(sigmoid(score / 400) * 100).toFixed(2)}% to win`;
+}
+
+type CollapsibleSectionProps = {
+    title: string,
+    children: React.ReactNode,
+};
+function CollapsibleSection({ title, children }: CollapsibleSectionProps) {
+    const [isOpen, setIsOpen] = useState(true);
+
+    const toggleCollapse = () => {
+        setIsOpen(!isOpen);
+    };
+
+    return (
+        <div>
+            <h3 onClick={toggleCollapse} aria-expanded={isOpen}>
+                {title} {isOpen ? '▲' : '▼'}
+            </h3>
+            {isOpen && (
+                <div style={{ transition: 'height 0.3s ease-in-out', overflow: 'hidden' }}>
+                    {children}
+                </div>
+            )}
+        </div>
+    );
+}
+
+
 type GameSidebarProps = {
     state: FullGamePlayerState,
     aiConfig?: AiConfig,
@@ -281,11 +319,7 @@ function GameSidebar(props: GameSidebarProps) {
             </div>
             <div className='game-sidebar-half'>
                 {lastAiResponse === null ? null :
-                    <div>
-                        <h3>
-                            Last AI turn:
-                        </h3>
-
+                    <CollapsibleSection title={"Last AI Turn"}>
                         <ul>
                             {lastAiResponse.meta.actions.map((action, idx) => (
                                 <li key={idx}>{describeAction(action)}</li>
@@ -294,7 +328,7 @@ function GameSidebar(props: GameSidebarProps) {
                             <br />
 
                             <li key='win'>
-                                Predicted Win Chance: {(sigmoid(lastAiResponse.meta.score / 400) * 100).toFixed(2)}%
+                                Prediction: {scoreToString(lastAiResponse.meta.score)}
                             </li>
                             <li key='nodes'>
                                 Nodes checked: {lastAiResponse.meta.nodes_visited}
@@ -303,7 +337,7 @@ function GameSidebar(props: GameSidebarProps) {
                                 Ply: {lastAiResponse.meta.calculated_depth}
                             </li>
                         </ul>
-                    </div>
+                    </CollapsibleSection>
                 }
 
                 <div className='game-sidebar-filler' />

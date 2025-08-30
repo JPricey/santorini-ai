@@ -6,7 +6,7 @@ members = [
     "battler",
     "datagen",
     "bullet_prep",
-    "wasm-app",
+    "wasm_app",
     "ui",
 ]
 
