@@ -77,17 +77,24 @@ fn tune_scenario_depths() {
     eprintln!("{:?}", scenarios);
 }
 
-fn run_all_scenarios(god_name: GodName) -> TestSummary {
+fn run_all_scenarios(args: VisitTesterArgs) -> TestSummary {
     let mut tt = TranspositionTable::new();
     let mut summary = TestSummary::default();
 
+    let VisitTesterArgs {
+        god,
+        reduction,
+        minimum,
+        save: _,
+    } = args;
+
     for (i, (state_str, depth)) in SEARCH_TEST_SCENARIOS.iter().cloned().enumerate() {
         let mut game_state = FullGameState::try_from(state_str).unwrap();
-        game_state.gods[0] = god_name.to_power();
-        game_state.gods[1] = god_name.to_power();
+        game_state.gods[0] = god.to_power();
+        game_state.gods[1] = god.to_power();
         game_state.recalculate_internals();
 
-        let depth = (depth as i32 - 10).max(4) as usize;
+        let depth = (depth as i32 - reduction as i32).max(minimum as i32) as usize;
 
         tt.reset();
         let (result, duration) = run_scenario(&mut tt, &game_state, depth);
@@ -114,27 +121,45 @@ fn run_all_scenarios(god_name: GodName) -> TestSummary {
     summary
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone, Copy)]
 struct VisitTesterArgs {
     #[arg(short = 'g', long)]
     #[clap(default_value_t = GodName::Mortal)]
     god: GodName,
+
+    #[arg(short = 'r', long)]
+    #[clap(default_value_t = 0)]
+    reduction: usize,
+
+    #[arg(short = 'm', long)]
+    #[clap(default_value_t = 4)]
+    minimum: usize,
+
+    #[arg(short = 's', long)]
+    #[clap(default_value_t = false)]
+    save: bool,
 }
 
 pub fn main() {
     let args = VisitTesterArgs::parse();
-    let summary = run_all_scenarios(args.god);
+    let summary = run_all_scenarios(args);
 
     eprintln!(
         "Nodes Visited: {} Duration sum: {:.2}",
         summary.nodes_visited_sum, summary.duration_sum
     );
 
-    let toml_string = serde_yaml::to_string(&summary).expect("Failed to serialize summary");
-    std::fs::write("data/move_test.yaml", toml_string).expect("Failed to write corpus to file");
+    if args.save {
+        let toml_string = serde_yaml::to_string(&summary).expect("Failed to serialize summary");
+        std::fs::write("data/move_test.yaml", toml_string).expect("Failed to write corpus to file");
+    }
 }
 
-// cargo run -p santorini_core --bin visit_tester --release
+// cargo run -p santorini_core --bin visit_tester --release -- -g mortal -r 4 -m 4 (Nodes Visited: 22922961 Duration sum: 11.66)
+// cargo run -p santorini_core --bin visit_tester --release -- -g hephaestus -r 0 -m 4 (Nodes Visited: 12449382 Duration sum: 7.22)
+// cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4 (Nodes Visited: 17025864 Duration sum: 9.04)
+// cargo run -p santorini_core --bin visit_tester --release -- -g atlas -r 6 -m 4 (Nodes Visited: 29318945 Duration sum: 15.68)
+//
 // cargo run -p santorini_core --bin visit_tester --release -- -g artemis
 // cargo run -p santorini_core --bin visit_tester --release -- -g apollo
 // cargo run -p santorini_core --bin visit_tester --release -- -g hermes
