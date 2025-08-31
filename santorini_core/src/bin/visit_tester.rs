@@ -159,6 +159,8 @@ pub fn main() {
 
 // cargo run -p santorini_core --bin visit_tester --release -- -g mortal -r 4 -m 4
 // Nodes Visited: 24127546 Duration sum: 13.16
+// cargo run -p santorini_core --bin visit_tester --release -- -g pan -r 0 -m 4
+// Nodes Visited: 14762625 Duration sum: 7.80
 // cargo run -p santorini_core --bin visit_tester --release -- -g hephaestus -r 0 -m 4
 // Nodes Visited: 10514231 Duration sum: 6.02
 // cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4
