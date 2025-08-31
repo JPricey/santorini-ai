@@ -260,11 +260,15 @@ fn _print_neighbor_map() {
 }
 
 fn debug() {
+    let mut total = 0;
     let state = parse_fen("0010000000100000000000000/1/atlas:B3,D3/atlas:B4,C2").unwrap();
     let children = state.get_next_states();
     for child in children {
-        println!("{:?}: {}", child, child.get_next_states().len());
+        let children = child.get_next_states().len();
+        total += children;
+        println!("{:?}: {}", child, children);
     }
+    println!("Total: {}", total);
 }
 
 fn main() {
