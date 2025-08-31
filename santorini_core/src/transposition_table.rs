@@ -273,7 +273,7 @@ impl LMRTable {
             for played in 1..LMR_MAX_MOVES + 1 {
                 let ld = f64::ln(depth as f64);
                 let lp = f64::ln(played as f64);
-                res.table[depth][played] = ((1024.0 * (1.2 + ld * lp / 2.2)) as i32).max(0);
+                res.table[depth][played] = (1024.0 * (-2.2 + ld * lp / 2.2).max(-2.0)) as i32;
             }
         }
 

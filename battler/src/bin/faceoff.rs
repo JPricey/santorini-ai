@@ -17,7 +17,7 @@ use santorini_core::search::BestMoveTrigger;
 use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 use santorini_core::utils::timestamp_string;
 
-const DEFAULT_DURATION_SECS: f32 = 2.0;
+const DEFAULT_DURATION_SECS: f32 = 1.0;
 
 #[derive(Clone, Debug)]
 #[allow(dead_code)]

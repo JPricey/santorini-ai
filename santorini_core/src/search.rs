@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bitboard::BitBoard,
     board::FullGameState,
-    gods::generic::{GenericMove, GodMove, MoveScore, WorkerPlacement},
+    gods::generic::{GenericMove, GodMove, KILLER_MATCH_SCORE, MoveScore, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     placement::{get_starting_placements_count, get_unique_placements, get_unique_placements_3},
@@ -1227,11 +1227,12 @@ where
                 if !NT::PV {
                     reduction += 1024;
                 }
+
                 reduction += (is_cut_node && remaining_depth >= 6) as i32 * 1024;
                 reduction -= (eval_delta as i32) / 2;
                 reduction -= key_squares.is_some() as i32 * 2048;
                 reduction -= child_action.get_is_check() as i32 * 1024;
-                reduction -= MovePickerStage::YieldKiller as i32 * 1024;
+                reduction -= (move_score == KILLER_MATCH_SCORE) as i32 * 1024;
                 reduction = reduction.max(0);
             }
 
@@ -1338,6 +1339,10 @@ where
                 if alpha >= beta {
                     active_god.unmake_move(&mut state.board, child_action);
 
+                    if move_picker.stage == MovePickerStage::YieldNonImprovers {
+                        search_state.killer_move_table[ply] = Some(child_action);
+                    }
+
                     move_score_adjustment += 75 * nd;
                     search_state.history[current_player_idx].update_move(
                         history_move_hash,
@@ -1379,10 +1384,6 @@ where
         } else {
             SearchScoreType::Exact
         };
-
-        if alpha != alpha_orig && best_action_idx > 1 {
-            search_state.killer_move_table[ply as usize] = Some(best_action);
-        }
 
         let history_move_hash = active_god.get_history_hash(&state.board, best_action);
         search_state.history[current_player_idx].update_move(
