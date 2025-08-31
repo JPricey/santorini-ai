@@ -1,14 +1,15 @@
 use crate::{
     add_scored_move,
     bitboard::BitBoard,
-    board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power, build_parse_flags, build_push_winning_moves,
+    board::{FullGameState, NEIGHBOR_MAP},
+    build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
-        GodName, GodPower,
+        GodName, GodPower, build_god_power_actions,
         generic::{
             INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, STOP_ON_MATE,
             ScoredMove,
         },
+        god_power,
         mortal::MortalMove,
     },
     non_checking_variable_prelude,
@@ -151,11 +152,12 @@ fn pan_move_gen<const F: MoveGenFlags>(
     result
 }
 
-build_god_power!(
-    build_pan,
-    god_name: GodName::Pan,
-    move_type: MortalMove,
-    move_gen: pan_move_gen,
-    hash1: 9244705180822939865,
-    hash2: 18175931309899694692,
-);
+pub const fn build_pan() -> GodPower {
+    god_power(
+        GodName::Pan,
+        build_god_power_movers!(pan_move_gen),
+        build_god_power_actions::<MortalMove>(),
+        9244705180822939865,
+        18175931309899694692,
+    )
+}
