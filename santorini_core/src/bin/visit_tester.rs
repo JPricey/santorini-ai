@@ -16,6 +16,7 @@ const TUNE_UNTIL_ABOVE_SECS: Duration = Duration::from_secs(2);
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ScenarioEntry {
+    state: FullGameState,
     duration_seconds: f32,
     nodes_visited: usize,
     best_move: GenericMove,
@@ -102,6 +103,7 @@ fn run_all_scenarios(args: VisitTesterArgs) -> TestSummary {
         let best_move = result.best_move.clone().unwrap();
 
         let scenario_entry = ScenarioEntry {
+            state: game_state,
             duration_seconds: duration.as_secs_f32(),
             nodes_visited: result.nodes_visited,
             best_move: best_move.action,

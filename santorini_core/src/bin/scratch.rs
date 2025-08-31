@@ -6,6 +6,7 @@ use rand::{rng, Rng};
 use rand::seq::{IteratorRandom, SliceRandom};
 use santorini_core::bitboard::BitBoard;
 use santorini_core::board::{BoardState, NEIGHBOR_MAP, WRAPPING_NEIGHBOR_MAP};
+use santorini_core::fen::parse_fen;
 use santorini_core::gods::generic::{
     IMPROVER_SENTINEL_SCORE, MOVE_IS_CHECK_MASK, MOVE_IS_WINNING_MASK,
 };
@@ -258,11 +259,20 @@ fn _print_neighbor_map() {
     }
 }
 
+fn debug() {
+    let state = parse_fen("0010000000100000000000000/1/atlas:B3,D3/atlas:B4,C2").unwrap();
+    let children = state.get_next_states();
+    for child in children {
+        println!("{:?}: {}", child, child.get_next_states().len());
+    }
+}
+
 fn main() {
+    debug();
     // _print_neighbor_map();
     // _print_lmr_table();
 
-    print_hashing_randoms(2);
+    // print_hashing_randoms(2);
     // random_matchup();
 
     // println!("{:b}", MOVE_IS_WINNING_MASK);
