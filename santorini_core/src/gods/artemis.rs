@@ -191,9 +191,6 @@ fn artemis_move_gen<const F: MoveGenFlags>(
     let can_worker_climb = board.get_worker_can_climb(player);
 
     for moving_worker_start_pos in current_workers.into_iter() {
-        // if moving_worker_start_pos != Square::E5 {
-        //     continue;
-        // }
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
         let other_checkable_workers =
@@ -317,7 +314,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     {
                         result.push(ScoredMove::new_checking_move(new_action.into()));
                     } else {
-                        let is_improving = worker_end_height > worker_starting_height + 1;
+                        let is_improving = worker_end_height > worker_starting_height;
                         if is_improving {
                             result.push(ScoredMove::new_improving_move(new_action.into()));
                         } else {

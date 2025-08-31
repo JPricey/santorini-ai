@@ -1155,8 +1155,6 @@ where
 
     let mut should_stop = false;
     let mut move_idx = 0;
-    let mut best_action_idx = 0;
-    // let mut total_eval: i32 = 0;
     let next_depth = remaining_depth - 1;
 
     let lmp_d = remaining_depth.max(1) + improving as i32;
@@ -1316,7 +1314,6 @@ where
         if score > best_score {
             best_score = score;
             best_action = child_action;
-            best_action_idx = move_idx - 1;
 
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(

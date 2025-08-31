@@ -20,26 +20,17 @@ fn player_section_string(state: &FullGameState, player: Player) -> String {
 
     result += state.get_god_for_player(player).god_name.into();
 
-    let mut position_strings = state
-        .board
-        .get_positions_for_player(player)
-        .iter()
-        .map(Square::to_string)
-        .collect::<Vec<String>>();
-    position_strings.sort();
-
-    if position_strings.len() > 0 {
-        result += ":";
-    }
-
-    /*
     let position_strings = state
         .board
         .get_positions_for_player(player)
         .iter()
-        .map(|s| (*s as u8).to_string())
+        // .map(|s| (*s as u8).to_string())
+        .map(Square::to_string)
         .collect::<Vec<String>>();
-    */
+
+    if position_strings.len() > 0 {
+        result += ":";
+    }
 
     result += &position_strings.join(",");
 
