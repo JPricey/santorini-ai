@@ -184,11 +184,13 @@ impl MovePicker {
                 if let Some(killer_index) =
                     self.move_list.iter().position(|m| m.action == killer_move)
                 {
-                    if killer_index > self.index {
-                        self.move_list.swap(self.index, killer_index);
+                    if killer_index >= self.index {
+                        if killer_index != self.index {
+                            self.move_list.swap(self.index, killer_index);
+                        }
+                        self.index += 1;
+                        return Some(ScoredMove::new(killer_move, KILLER_MATCH_SCORE));
                     }
-                    self.index += 1;
-                    return Some(ScoredMove::new(killer_move, KILLER_MATCH_SCORE));
                 }
             }
         }
