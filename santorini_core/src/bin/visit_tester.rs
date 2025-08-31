@@ -101,7 +101,6 @@ fn run_all_scenarios(args: VisitTesterArgs) -> TestSummary {
         game_state.gods[1] = god.to_power();
         game_state.recalculate_internals();
 
-
         let depth = (depth as i32 - reduction as i32).max(minimum as i32) as usize;
 
         eprintln!("{i}: {depth} {:?}", game_state);
@@ -184,7 +183,7 @@ pub fn main() {
 // cargo run -p santorini_core --bin visit_tester --release -- -g athena -r 7 -m 4
 // Nodes Visited: 30654927 Duration sum: 16.35
 // cargo run -p santorini_core --bin visit_tester --release -- -g minotaur -r 17 -m 6
-// Nodes Visited: 59463785 Duration sum: 15.29
+// Nodes Visited: 33504776 Duration sum: 13.79
 // cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4
 // Nodes Visited: 13947635 Duration sum: 7.37
 // cargo run -p santorini_core --bin visit_tester --release -- -g apollo -r 20 -m 3

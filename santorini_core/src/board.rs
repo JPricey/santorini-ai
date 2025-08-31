@@ -79,6 +79,11 @@ pub const WRAPPING_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = {
     res
 };
 
+pub const MIDDLE_SPACES_MASK: BitBoard = BitBoard(0b00000_01110_01110_01110_00000);
+pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
+    .bit_not()
+    .bit_and(BitBoard::MAIN_SECTION_MASK);
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullGameState {
     pub board: BoardState,
@@ -538,11 +543,7 @@ impl BoardState {
         Ok(())
     }
 
-    pub fn validation_err(
-        &self,
-        base_hash: HashType,
-        gods: [StaticGod; 2],
-    ) -> Result<(), String> {
+    pub fn validation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
         let starting_placements = get_starting_placements_count(self)?;
         if starting_placements == 1 {
             if self.current_player != Player::Two {

@@ -11,20 +11,21 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
-pub mod urania;
-pub mod prometheus;
-pub mod pan;
-pub mod mortal;
-pub mod minotaur;
-pub mod hermes;
-pub mod hephaestus;
-pub mod graeae;
-pub mod generic;
-pub mod demeter;
-pub mod atlas;
-pub mod athena;
-pub mod artemis;
 pub mod apollo;
+pub mod artemis;
+pub mod athena;
+pub mod atlas;
+pub mod demeter;
+pub mod generic;
+pub mod graeae;
+pub mod hephaestus;
+pub mod hera;
+pub mod hermes;
+pub mod minotaur;
+pub mod mortal;
+pub mod pan;
+pub mod prometheus;
+pub mod urania;
 
 pub type StaticGod = &'static GodPower;
 
@@ -56,6 +57,7 @@ pub enum GodName {
     Prometheus = 10,
     Urania = 11,
     Graeae = 12,
+    Hera = 13,
 }
 
 impl GodName {
@@ -176,12 +178,13 @@ pub type MoveModifierFn =
 
 pub type MoveGeneratorFn =
     fn(board: &FullGameState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>;
- pub struct GodPowerMoveFns {
-     _get_all_moves: MoveGeneratorFn,
-     _get_wins: MoveGeneratorFn,
-     _get_win_blockers: MoveGeneratorFn,
-     _get_moves_for_search: MoveGeneratorFn,
- }
+pub struct GodPowerMoveFns {
+    _get_all_moves: MoveGeneratorFn,
+    _get_wins: MoveGeneratorFn,
+    _get_unscored_win_blockers: MoveGeneratorFn,
+    _get_scored_win_blockers: MoveGeneratorFn,
+    _get_moves_for_search: MoveGeneratorFn,
+}
 
 pub struct GodPowerActionFns {
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
@@ -201,7 +204,8 @@ pub struct GodPower {
     // Move Fns
     pub _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
-    _get_win_blockers: MoveGeneratorFn,
+    _get_scored_win_blockers: MoveGeneratorFn,
+    _get_unscored_win_blockers: MoveGeneratorFn,
     _get_moves_for_search: MoveGeneratorFn,
 
     // Action Fns
@@ -215,6 +219,8 @@ pub struct GodPower {
     _stringify_move: fn(action: GenericMove) -> String,
 
     pub num_workers: usize,
+
+    pub win_mask: BitBoard,
 
     // _modify_moves: fn(board: &BoardState, from: Square, to_mask: BitBoard, is_win: bool, is_future: bool),
     pub hash1: HashType,
@@ -271,13 +277,22 @@ impl GodPower {
         (self._get_wins)(state, player, BitBoard::EMPTY)
     }
 
-    pub fn get_blocker_moves(
+    pub fn get_scored_blocker_moves(
         &self,
         state: &FullGameState,
         player: Player,
         key_moves: BitBoard,
     ) -> Vec<ScoredMove> {
-        (self._get_win_blockers)(state, player, key_moves)
+        (self._get_scored_win_blockers)(state, player, key_moves)
+    }
+
+    pub fn get_unscored_blocker_moves(
+        &self,
+        state: &FullGameState,
+        player: Player,
+        key_moves: BitBoard,
+    ) -> Vec<ScoredMove> {
+        (self._get_unscored_win_blockers)(state, player, key_moves)
     }
 
     pub fn get_blocker_board(&self, board: &BoardState, action: GenericMove) -> BitBoard {
@@ -327,7 +342,7 @@ impl std::fmt::Display for GodPower {
     }
 }
 
-pub const ALL_GODS_BY_ID: [GodPower; 13] = [
+pub const ALL_GODS_BY_ID: [GodPower; 14] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
@@ -341,6 +356,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 13] = [
     prometheus::build_prometheus(),
     urania::build_urania(),
     graeae::build_graeae(),
+    hera::build_hera(),
 ];
 
 #[macro_export]
@@ -351,10 +367,22 @@ macro_rules! build_god_power_movers {
         {
             crate::gods::GodPowerMoveFns {
                 _get_all_moves: $move_gen::<0>,
-                _get_moves_for_search: $move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-                _get_wins: $move_gen::<{ MATE_ONLY }>,
-                _get_win_blockers: $move_gen::<
-                    { STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE },
+                _get_moves_for_search: $move_gen::<
+                    { crate::gods::generic::STOP_ON_MATE | crate::gods::generic::INCLUDE_SCORE },
+                >,
+                _get_wins: $move_gen::<{ crate::gods::generic::MATE_ONLY }>,
+                _get_scored_win_blockers: $move_gen::<
+                    {
+                        crate::gods::generic::STOP_ON_MATE
+                            | crate::gods::generic::INTERACT_WITH_KEY_SQUARES
+                            | crate::gods::generic::INCLUDE_SCORE
+                    },
+                >,
+                _get_unscored_win_blockers: $move_gen::<
+                    {
+                        crate::gods::generic::STOP_ON_MATE
+                            | crate::gods::generic::INTERACT_WITH_KEY_SQUARES
+                    },
                 >,
             }
         }
@@ -418,7 +446,8 @@ const fn god_power(
         _get_all_moves: movers._get_all_moves,
         _get_moves_for_search: movers._get_moves_for_search,
         _get_wins: movers._get_wins,
-        _get_win_blockers: movers._get_win_blockers,
+        _get_scored_win_blockers: movers._get_scored_win_blockers,
+        _get_unscored_win_blockers: movers._get_unscored_win_blockers,
 
         _get_blocker_board: actions._get_blocker_board,
         _get_actions_for_move: actions._get_actions_for_move,
@@ -429,88 +458,11 @@ const fn god_power(
 
         num_workers: 2,
 
+        win_mask: BitBoard::MAIN_SECTION_MASK,
+
         hash1,
         hash2,
     }
-}
-
-#[macro_export]
-macro_rules! build_god_power {
-    (
-        $fn_name:ident,
-        god_name: $god_name:expr,
-        move_type: $move_type:ident,
-        move_gen: $move_gen:ident,
-        hash1: $hash1:expr,
-        hash2: $hash2:expr,
-    ) => {
-        pub const fn $fn_name() -> GodPower {
-            use crate::gods::FullAction;
-            use crate::gods::generic::GenericMove;
-            use crate::gods::generic::GodMove;
-            use crate::nnue::NNUE_GOD_COUNT;
-            use crate::utils::hash_u64;
-
-            fn _stringify_move(action: GenericMove) -> String {
-                let action: $move_type = action.into();
-                format!("{:?}", action)
-            }
-
-            fn _get_actions_for_move(board: &BoardState, action: GenericMove) -> Vec<FullAction> {
-                let action: $move_type = action.into();
-                action.move_to_actions(board)
-            }
-
-            fn _make_move(board: &mut BoardState, action: GenericMove) {
-                let action: $move_type = action.into();
-                action.make_move(board)
-            }
-
-            fn _unmake_move(board: &mut BoardState, action: GenericMove) {
-                let action: $move_type = action.into();
-                action.unmake_move(board)
-            }
-
-            fn _get_blocker_board(board: &BoardState, action: GenericMove) -> BitBoard {
-                let action: $move_type = action.into();
-                action.get_blocker_board(board)
-            }
-
-            fn _get_history_hash(board: &BoardState, action: GenericMove) -> usize {
-                let action: $move_type = action.into();
-                hash_u64(action.get_history_idx(&board))
-            }
-
-            let model_god_name = if ($god_name) as usize >= NNUE_GOD_COUNT {
-                GodName::Mortal
-            } else {
-                $god_name
-            };
-
-            GodPower {
-                god_name: $god_name,
-                model_god_name: model_god_name,
-                _get_all_moves: $move_gen::<0>,
-                _get_moves_for_search: $move_gen::<{ STOP_ON_MATE | INCLUDE_SCORE }>,
-                _get_wins: $move_gen::<{ MATE_ONLY }>,
-                _get_win_blockers: $move_gen::<
-                    { STOP_ON_MATE | INTERACT_WITH_KEY_SQUARES | INCLUDE_SCORE },
-                >,
-
-                _get_actions_for_move,
-                _get_blocker_board,
-                _make_move,
-                _unmake_move,
-                _stringify_move,
-                _get_history_hash,
-
-                num_workers: 2,
-
-                hash1: $hash1,
-                hash2: $hash2,
-            }
-        }
-    };
 }
 
 impl GodPower {
@@ -521,6 +473,11 @@ impl GodPower {
 
     pub const fn with_num_workers(mut self, num_workers: usize) -> Self {
         self.num_workers = num_workers;
+        self
+    }
+
+    pub const fn with_win_mask(mut self, win_mask: BitBoard) -> Self {
+        self.win_mask = win_mask;
         self
     }
 }

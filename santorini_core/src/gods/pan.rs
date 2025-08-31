@@ -5,10 +5,7 @@ use crate::{
     build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
         GodName, GodPower, build_god_power_actions,
-        generic::{
-            INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags, STOP_ON_MATE,
-            ScoredMove,
-        },
+        generic::{MoveGenFlags, ScoredMove},
         god_power,
         mortal::MortalMove,
     },
@@ -35,10 +32,12 @@ fn pan_move_gen<const F: MoveGenFlags>(
         other_player,
         current_player_idx,
         other_player_idx,
+        other_god,
         exactly_level_0,
         exactly_level_1,
         exactly_level_2,
         exactly_level_3,
+        win_mask,
         domes,
         own_workers,
         other_workers,
@@ -72,7 +71,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
                 | all_workers_mask);
 
         if worker_starting_height == 2 {
-            let winning_moves = worker_moves & (exactly_level_0 | exactly_level_3);
+            let winning_moves = worker_moves & (exactly_level_0 | exactly_level_3) & win_mask;
             build_push_winning_moves!(
                 winning_moves,
                 worker_moves,
@@ -82,7 +81,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
                 is_stop_on_mate,
             );
         } else if worker_starting_height == 3 {
-            let winning_moves = worker_moves & (exactly_level_0 | exactly_level_1);
+            let winning_moves = worker_moves & (exactly_level_0 | exactly_level_1) & win_mask;
             build_push_winning_moves!(
                 winning_moves,
                 worker_moves,
@@ -140,7 +139,8 @@ fn pan_move_gen<const F: MoveGenFlags>(
                 let is_check = {
                     let check_board = (winnable_from_2 | winnable_from_3)
                         & buildable_squares
-                        & !moving_worker_end_mask;
+                        & !moving_worker_end_mask
+                        & win_mask;
                     check_board.is_not_empty()
                 };
 

@@ -29,10 +29,11 @@ macro_rules! build_parse_flags {
         $is_stop_on_mate:ident,
         $is_interact_with_key_squares:ident
     ) => {
-        let $is_mate_only = F & MATE_ONLY != 0;
-        let $is_include_score = F & INCLUDE_SCORE != 0;
-        let $is_stop_on_mate = F & STOP_ON_MATE != 0;
-        let $is_interact_with_key_squares = F & INTERACT_WITH_KEY_SQUARES != 0;
+        let $is_mate_only = F & crate::gods::generic::MATE_ONLY != 0;
+        let $is_include_score = F & crate::gods::generic::INCLUDE_SCORE != 0;
+        let $is_stop_on_mate = F & crate::gods::generic::STOP_ON_MATE != 0;
+        let $is_interact_with_key_squares =
+            F & crate::gods::generic::INTERACT_WITH_KEY_SQUARES != 0;
     };
 }
 
@@ -45,10 +46,12 @@ macro_rules! variable_prelude {
         $other_player:ident,
         $current_player_idx:ident,
         $other_player_idx:ident,
+        $other_god:ident,
         $exactly_level_0:ident,
         $exactly_level_1:ident,
         $exactly_level_2:ident,
         $exactly_level_3:ident,
+        $win_mask:ident,
         $domes:ident,
         $own_workers:ident,
         $other_workers:ident,
@@ -65,10 +68,12 @@ macro_rules! variable_prelude {
             $other_player,
             $current_player_idx,
             $other_player_idx,
+            $other_god,
             $exactly_level_0,
             $exactly_level_1,
             $exactly_level_2,
             $exactly_level_3,
+            $win_mask,
             $domes,
             $own_workers,
             $other_workers,
@@ -94,10 +99,12 @@ macro_rules! non_checking_variable_prelude {
         $other_player:ident,
         $current_player_idx:ident,
         $other_player_idx:ident,
+        $other_god: ident,
         $exactly_level_0:ident,
         $exactly_level_1:ident,
         $exactly_level_2:ident,
         $exactly_level_3:ident,
+        $win_mask: ident,
         $domes:ident,
         $own_workers:ident,
         $other_workers:ident,
@@ -110,6 +117,7 @@ macro_rules! non_checking_variable_prelude {
 
         let $current_player_idx = $player as usize;
         let $other_player_idx = $other_player as usize;
+        let $other_god = $state.gods[$other_player_idx];
 
         #[allow(unused_variables)]
         let $exactly_level_0 = $board.exactly_level_0();
@@ -126,21 +134,23 @@ macro_rules! non_checking_variable_prelude {
         let capacity = if $is_mate_only { 1 } else { 128 };
         let mut $result: Vec<ScoredMove> = Vec::with_capacity(capacity);
         let $all_workers_mask = $own_workers | $other_workers;
+
+        let $win_mask = $other_god.win_mask;
     };
 }
 
 #[macro_export]
 macro_rules! build_push_winning_moves {
     (
-        $wins_mask:ident,
+        $win_mask:ident,
         $worker_moves:ident,
         $build_winning_move:path,
         $worker_start_pos:path,
         $result:ident,
         $is_stop_on_mate:ident,
     ) => {
-        $worker_moves ^= $wins_mask;
-        for end_position in $wins_mask.into_iter() {
+        $worker_moves ^= $win_mask;
+        for end_position in $win_mask.into_iter() {
             let winning_move = ScoredMove::new_winning_move(
                 $build_winning_move($worker_start_pos, end_position).into(),
             );
@@ -188,10 +198,12 @@ macro_rules! build_power_move_generator {
                 other_player,
                 current_player_idx,
                 other_player_idx,
+                other_god,
                 exactly_level_0,
                 $exactly_level_1,
                 $exactly_level_2,
                 $exactly_level_3,
+                win_mask,
                 domes,
                 own_workers,
                 other_workers,
@@ -206,7 +218,6 @@ macro_rules! build_power_move_generator {
 
             for $worker_start_pos in current_workers.into_iter() {
                 let moving_worker_start_mask = BitBoard::as_mask($worker_start_pos);
-
                 #[allow(unused_variables)]
                 let other_own_workers = own_workers ^ moving_worker_start_mask;
                 let worker_starting_height = board.get_height($worker_start_pos);
@@ -224,7 +235,7 @@ macro_rules! build_power_move_generator {
                         | all_workers_mask);
 
                 if is_mate_only || worker_starting_height == 2 {
-                    let moves_to_level_3 = worker_moves & $exactly_level_3;
+                    let moves_to_level_3 = worker_moves & $exactly_level_3 & win_mask;
                     $crate::build_push_winning_moves!(
                         moves_to_level_3,
                         worker_moves,
@@ -258,9 +269,10 @@ macro_rules! build_power_move_generator {
                         }
                     }
 
-                    let $reach_board = other_threatening_neighbors
+                    let own_final_workers = other_own_workers | moving_worker_end_mask;
+                    let $reach_board = (other_threatening_neighbors
                         | (worker_plausible_next_moves
-                            & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]);
+                            & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize])) & win_mask & !own_final_workers;
 
                     $building_block
                 }

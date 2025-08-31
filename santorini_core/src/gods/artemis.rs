@@ -1,15 +1,17 @@
 use crate::{
+    add_scored_move,
     bitboard::BitBoard,
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power,
+    build_god_power_movers, build_parse_flags,
     gods::{
-        FullAction, GodName, GodPower, PartialAction,
+        FullAction, GodName, GodPower, PartialAction, build_god_power_actions,
         generic::{
-            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
-            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
+        god_power,
     },
+    non_checking_variable_prelude,
     player::Player,
     square::Square,
 };
@@ -175,36 +177,54 @@ fn artemis_move_gen<const F: MoveGenFlags>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let board = &state.board;
-    let current_player_idx = player as usize;
-    let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
-    let enemy_workers = board.workers[1 - current_player_idx] & BitBoard::MAIN_SECTION_MASK;
-    let non_enemy_workers = !enemy_workers;
-    if F & MATE_ONLY != 0 {
+    build_parse_flags!(
+        is_mate_only,
+        is_include_score,
+        is_stop_on_mate,
+        is_interact_with_key_squares
+    );
+
+    non_checking_variable_prelude!(
+        state,
+        player,
+        board,
+        other_player,
+        current_player_idx,
+        other_player_idx,
+        other_god,
+        exactly_level_0,
+        exactly_level_1,
+        exactly_level_2,
+        exactly_level_3,
+        win_mask,
+        domes,
+        own_workers,
+        other_workers,
+        result,
+        all_workers_mask,
+        is_mate_only,
+    );
+
+    let not_other_workers = !other_workers;
+    let mut current_workers = own_workers;
+    if is_mate_only {
         current_workers &= board.at_least_level_1()
     }
-    let capacity = if F & MATE_ONLY != 0 { 4 } else { 128 };
-    let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
-    let all_workers_mask = board.workers[0] | board.workers[1];
-
-    let starting_exactly_level_1 = board.exactly_level_1();
-    let starting_exactly_level_2 = board.exactly_level_2();
-    let starting_exactly_level_3 = board.exactly_level_3();
-
     let can_worker_climb = board.get_worker_can_climb(player);
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
-        let other_checkable_workers =
-            (current_workers ^ moving_worker_start_mask) & board.at_least_level_1();
+        let other_own_workers = current_workers ^ moving_worker_start_mask;
+        let other_checkable_workers = other_own_workers & board.at_least_level_1();
+
         let mut other_checkable_touching = BitBoard::EMPTY;
         for o in other_checkable_workers {
             other_checkable_touching |= NEIGHBOR_MAP[o as usize];
             other_checkable_touching |= BitBoard::as_mask(o);
         }
 
-        let mut valid_destinations = !(all_workers_mask | board.at_least_level_4());
+        let mut valid_destinations = !(all_workers_mask | domes);
 
         let mut worker_1d_moves = (NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
@@ -212,11 +232,11 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             & valid_destinations;
 
         if worker_starting_height == 2 {
-            let moves_to_level_3 = worker_1d_moves & starting_exactly_level_3;
-            worker_1d_moves ^= moves_to_level_3;
-            valid_destinations ^= moves_to_level_3;
+            let wining_moves = worker_1d_moves & exactly_level_3 & win_mask;
+            worker_1d_moves ^= wining_moves;
+            valid_destinations ^= wining_moves;
 
-            for moving_worker_end_pos in moves_to_level_3.into_iter() {
+            for moving_worker_end_pos in wining_moves.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
                     ArtemisMove::new_artemis_winning_move(
                         moving_worker_start_pos,
@@ -225,19 +245,19 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     .into(),
                 );
                 result.push(winning_move);
-                if F & STOP_ON_MATE != 0 {
+                if is_stop_on_mate {
                     return result;
                 }
             }
         }
 
         if can_worker_climb {
-            let at_height_2_1d = worker_1d_moves & starting_exactly_level_2;
+            let at_height_2_1d = worker_1d_moves & exactly_level_2;
             let mut winning_moves_to_level_3 = BitBoard::EMPTY;
             for pos in at_height_2_1d {
                 winning_moves_to_level_3 |= NEIGHBOR_MAP[pos as usize];
             }
-            winning_moves_to_level_3 &= starting_exactly_level_3 & valid_destinations;
+            winning_moves_to_level_3 &= exactly_level_3 & valid_destinations & win_mask;
             valid_destinations ^= winning_moves_to_level_3;
 
             for moving_worker_end_pos in winning_moves_to_level_3.into_iter() {
@@ -249,13 +269,13 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     .into(),
                 );
                 result.push(winning_move);
-                if F & STOP_ON_MATE != 0 {
+                if is_stop_on_mate {
                     return result;
                 }
             }
         }
 
-        if F & MATE_ONLY != 0 {
+        if is_mate_only {
             continue;
         }
 
@@ -273,15 +293,17 @@ fn artemis_move_gen<const F: MoveGenFlags>(
         worker_moves &= valid_destinations;
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let buildable_squares = !(non_selected_workers | board.height_map[3]);
+        let buildable_squares = !(non_selected_workers | domes);
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height(moving_worker_end_pos);
+            let is_improving = worker_end_height > worker_starting_height;
+            let not_any_workers = !(other_workers | other_own_workers | moving_worker_end_mask);
 
             let mut worker_builds =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
 
-            if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
+            if is_interact_with_key_squares {
                 if (moving_worker_end_mask & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
                 }
@@ -295,11 +317,14 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     worker_build_pos,
                 );
 
-                if F & (INCLUDE_SCORE) != 0 {
-                    let final_l3 = (starting_exactly_level_3 & !build_mask)
-                        | (starting_exactly_level_2 & build_mask);
-                    let final_l2 = (starting_exactly_level_2 & !build_mask)
-                        | (starting_exactly_level_1 & build_mask);
+                let is_check = {
+                    let final_l3 = ((exactly_level_3 & !build_mask)
+                        | (exactly_level_2 & build_mask))
+                        & not_any_workers
+                        & win_mask;
+                    let final_l2 = ((exactly_level_2 & !build_mask)
+                        | (exactly_level_1 & build_mask))
+                        & not_other_workers;
 
                     let mut final_touching_checks = BitBoard::EMPTY;
                     for s in final_l3 {
@@ -312,21 +337,10 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                         final_touching |= moving_worker_end_mask;
                     }
 
-                    if (final_touching & final_touching_checks & non_enemy_workers & final_l2)
-                        .is_not_empty()
-                    {
-                        result.push(ScoredMove::new_checking_move(new_action.into()));
-                    } else {
-                        let is_improving = worker_end_height > worker_starting_height;
-                        if is_improving {
-                            result.push(ScoredMove::new_improving_move(new_action.into()));
-                        } else {
-                            result.push(ScoredMove::new_non_improver(new_action.into()));
-                        };
-                    }
-                } else {
-                    result.push(ScoredMove::new_unscored_move(new_action.into()));
-                }
+                    (final_touching & final_touching_checks & final_l2).is_not_empty()
+                };
+
+                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
             }
         }
     }
@@ -334,15 +348,15 @@ fn artemis_move_gen<const F: MoveGenFlags>(
     result
 }
 
-build_god_power!(
-    build_artemis,
-    god_name: GodName::Artemis,
-    move_type: ArtemisMove,
-    move_gen: artemis_move_gen,
-    hash1: 12504034891281202406,
-    hash2: 10874494938488172730,
-);
-
+pub const fn build_artemis() -> GodPower {
+    god_power(
+        GodName::Artemis,
+        build_god_power_movers!(artemis_move_gen),
+        build_god_power_actions::<ArtemisMove>(),
+        12504034891281202406,
+        10874494938488172730,
+    )
+}
 #[cfg(test)]
 mod tests {
     use crate::{board::FullGameState, gods::GodName, player::Player};

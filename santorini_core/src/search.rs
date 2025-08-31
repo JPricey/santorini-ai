@@ -750,8 +750,11 @@ where
         for action in &opponent_wins {
             blocker_board |= other_god.get_blocker_board(&state.board, action.action);
         }
-        child_moves =
-            active_god.get_blocker_moves(&state, state.board.current_player, blocker_board);
+        child_moves = active_god.get_unscored_blocker_moves(
+            &state,
+            state.board.current_player,
+            blocker_board,
+        );
     } else {
         nnue_acc.replace_from_state(&state);
         eval = nnue_acc.evaluate();
@@ -1379,7 +1382,7 @@ mod tests {
     use core::panic;
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::{gods::pan, search_terminators::DynamicMaxDepthSearchTerminator};
+    use crate::search_terminators::DynamicMaxDepthSearchTerminator;
 
     use super::*;
 

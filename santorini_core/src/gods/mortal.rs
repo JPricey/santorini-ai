@@ -6,9 +6,8 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
-            GenericMove, GodMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK,
-            MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA,
-            POSITION_WIDTH, STOP_ON_MATE, ScoredMove,
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
     },

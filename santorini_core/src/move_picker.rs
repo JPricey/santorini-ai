@@ -58,9 +58,9 @@ impl MovePicker {
 
     fn _generate_moves(&mut self, state: &FullGameState) {
         if let Some(key_squares) = self.key_squares {
-            self.move_list = self
-                .active_god
-                .get_blocker_moves(state, self.player, key_squares);
+            self.move_list =
+                self.active_god
+                    .get_scored_blocker_moves(state, self.player, key_squares);
         } else {
             self.move_list = self.active_god.get_moves_for_search(state, self.player);
         }

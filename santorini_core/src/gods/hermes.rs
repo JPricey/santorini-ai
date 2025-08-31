@@ -1,14 +1,19 @@
 use crate::{
+    add_scored_move,
     bitboard::BitBoard,
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power,
+    build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
+        FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH, STOP_ON_MATE
-        }, FullAction, GodName, GodPower
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
     },
     player::Player,
     square::Square,
+    variable_prelude,
 };
 
 use super::PartialAction;
@@ -82,7 +87,7 @@ impl HermesMove {
         Self(data)
     }
 
-    pub fn new_hermes_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+    pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << HERMES_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << HERMES_MOVE_TO_POSITION_OFFSET)
             | HERMES_NOT_DOING_SPECIAL_MOVE_VALUE
@@ -327,33 +332,45 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let board  = &state.board;
-    let current_player_idx = player as usize;
-    let mut current_workers = board.workers[current_player_idx] & BitBoard::MAIN_SECTION_MASK;
-    let other_workers = board.workers[1 - current_player_idx] & BitBoard::MAIN_SECTION_MASK;
+    build_parse_flags!(
+        is_mate_only,
+        is_include_score,
+        is_stop_on_mate,
+        is_interact_with_key_squares
+    );
 
-    let exactly_level_2 = board.exactly_level_2();
-    let exactly_level_3 = board.exactly_level_3();
-
-    if F & MATE_ONLY != 0 {
-        current_workers &= exactly_level_2
-    }
-    let capacity = if F & MATE_ONLY != 0 { 1 } else { 128 };
-
-    let mut result: Vec<ScoredMove> = Vec::with_capacity(capacity);
-    let all_workers_mask = board.workers[0] | board.workers[1];
+    variable_prelude!(
+        state,
+        player,
+        board,
+        other_player,
+        current_player_idx,
+        other_player_idx,
+        other_god,
+        exactly_level_0,
+        exactly_level_1,
+        exactly_level_2,
+        exactly_level_3,
+        win_mask,
+        domes,
+        own_workers,
+        other_workers,
+        result,
+        all_workers_mask,
+        is_mate_only,
+        current_workers,
+        checkable_worker_positions_mask,
+    );
 
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
 
-        let mut neighbor_neighbor = BitBoard::EMPTY;
-        if F & INCLUDE_SCORE != 0 {
-            let other_checkable_workers =
-                (current_workers ^ moving_worker_start_mask) & exactly_level_2;
-            for other_pos in other_checkable_workers {
-                neighbor_neighbor |= NEIGHBOR_MAP[other_pos as usize];
-            }
+        let mut other_threatening_neighbors = BitBoard::EMPTY;
+        let other_threatening_workers =
+            (current_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
+        for other_pos in other_threatening_workers {
+            other_threatening_neighbors |= NEIGHBOR_MAP[other_pos as usize];
         }
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
@@ -361,49 +378,45 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                 | all_workers_mask);
         worker_moves &= !board.exactly_level_n(worker_starting_height);
 
-        if F & MATE_ONLY != 0 || worker_starting_height == 2 {
-            let moves_to_level_3 = worker_moves & board.height_map[2];
-            worker_moves ^= moves_to_level_3;
+        if is_mate_only || worker_starting_height == 2 {
+            let moves_to_level_3 = worker_moves & board.height_map[2] & win_mask;
 
-            for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                let winning_move = ScoredMove::new_winning_move(
-                    HermesMove::new_hermes_winning_move(
-                        moving_worker_start_pos,
-                        moving_worker_end_pos,
-                    )
-                    .into(),
-                );
-                result.push(winning_move);
-                if F & STOP_ON_MATE != 0 {
-                    return result;
-                }
-            }
+            build_push_winning_moves!(
+                moves_to_level_3,
+                worker_moves,
+                HermesMove::new_winning_move,
+                moving_worker_start_pos,
+                result,
+                is_stop_on_mate,
+            );
         }
 
-        if F & MATE_ONLY != 0 {
+        if is_mate_only {
             continue;
         }
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let buildable_squares = !(non_selected_workers | board.height_map[3]);
+        let unblocked_squares = !(non_selected_workers | board.height_map[3]);
 
         for moving_worker_end_pos in worker_moves.into_iter() {
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height(moving_worker_end_pos);
+            let is_improving = worker_end_height > worker_starting_height;
 
             let mut worker_builds =
-                NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+                NEIGHBOR_MAP[moving_worker_end_pos as usize] & unblocked_squares;
             let worker_plausible_next_moves = worker_builds;
 
-            if (F & INTERACT_WITH_KEY_SQUARES) != 0 {
+            if is_interact_with_key_squares {
                 if (moving_worker_end_mask & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
                 }
             }
 
-            let reach_board = neighbor_neighbor
+            let reach_board = (other_threatening_neighbors
                 | (worker_plausible_next_moves
-                    & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]);
+                    & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]))
+                & win_mask;
 
             for worker_build_pos in worker_builds {
                 let new_action = HermesMove::new_hermes_single_move(
@@ -411,30 +424,21 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                     moving_worker_end_pos,
                     worker_build_pos,
                 );
-                if F & INCLUDE_SCORE != 0 {
+
+                let is_check = {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                     let final_level_3 = (exactly_level_2 & worker_build_mask)
                         | (exactly_level_3 & !worker_build_mask);
-                    let check_board = reach_board & final_level_3 & buildable_squares;
-                    let is_check = check_board.is_not_empty();
-                    if is_check {
-                        result.push(ScoredMove::new_checking_move(new_action.into()));
-                    } else {
-                        let is_improving = worker_end_height > worker_starting_height;
-                        if is_improving {
-                            result.push(ScoredMove::new_improving_move(new_action.into()));
-                        } else {
-                            result.push(ScoredMove::new_non_improver(new_action.into()));
-                        };
-                    }
-                } else {
-                    result.push(ScoredMove::new_unscored_move(new_action.into()));
-                }
+                    let check_board = reach_board & final_level_3 & unblocked_squares;
+                    check_board.is_not_empty()
+                };
+
+                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
             }
         }
     }
 
-    if F & MATE_ONLY != 0 {
+    if is_mate_only {
         return result;
     }
 
@@ -480,9 +484,9 @@ fn hermes_move_gen<const F: MoveGenFlags>(
 
             let mut possible_builds = (NEIGHBOR_MAP[t1 as usize] | NEIGHBOR_MAP[t2 as usize])
                 & !(blocked_squares | both_mask);
-            let worker_plausible_next_moves = possible_builds;
+            let worker_plausible_next_moves = possible_builds & win_mask;
 
-            if F & INTERACT_WITH_KEY_SQUARES != 0 {
+            if is_interact_with_key_squares {
                 if (both_mask & key_squares).is_empty() {
                     possible_builds &= key_squares;
                 }
@@ -496,18 +500,14 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                     HermesMove::new_hermes_double_move(f1, t1, f2, t2, build, is_overlap);
                 let build_mask = BitBoard::as_mask(build);
 
-                if F & INCLUDE_SCORE != 0 {
-                    let is_check = l2_neighbors
+                let is_check = {
+                    let check_board = l2_neighbors
                         & worker_plausible_next_moves
                         & (exactly_level_3 & !build_mask | exactly_level_2 & build_mask);
-                    if is_check.is_not_empty() {
-                        result.push(ScoredMove::new_checking_move(new_action.into()));
-                    } else {
-                        result.push(ScoredMove::new_non_improver(new_action.into()));
-                    }
-                } else {
-                    result.push(ScoredMove::new_unscored_move(new_action.into()));
-                }
+                    check_board.is_not_empty()
+                };
+
+                add_scored_move!(new_action, is_include_score, is_check, false, result);
             }
         }
     }
@@ -515,11 +515,12 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     result
 }
 
-build_god_power!(
-    build_hermes,
-    god_name: GodName::Hermes,
-    move_type: HermesMove,
-    move_gen: hermes_move_gen,
-    hash1: 8064494721607657900,
-    hash2: 8099092864803375172,
-);
+pub const fn build_hermes() -> GodPower {
+    god_power(
+        GodName::Hermes,
+        build_god_power_movers!(hermes_move_gen),
+        build_god_power_actions::<HermesMove>(),
+        8064494721607657900,
+        8099092864803375172,
+    )
+}

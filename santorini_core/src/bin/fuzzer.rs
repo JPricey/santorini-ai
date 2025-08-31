@@ -28,7 +28,7 @@ fn check_state(state: &FullGameState) {
             key_moves |= other_god.get_blocker_board(board, other_win_action.action);
         }
 
-        let blocks = active_god.get_blocker_moves(state, current_player, key_moves);
+        let blocks = active_god.get_scored_blocker_moves(state, current_player, key_moves);
 
         for action in &blocks {
             let stringed_action = active_god.stringify_move(action.action);
@@ -51,11 +51,21 @@ fn check_state(state: &FullGameState) {
 
             if !did_block_any {
                 if state.gods.contains(&GodName::Artemis.to_power()) {
+                    // Artemis includes all neighboring 2s as part of their mask, but they aren't
+                    // nessesarily part of the path, so ignore
                     continue;
                 }
                 if state.gods.contains(&GodName::Pan.to_power())
-                    && state.gods.contains(&GodName::Athena.to_power())
+                    && (state.gods.contains(&GodName::Athena.to_power())
+                        || state.gods.contains(&GodName::Hera.to_power()))
                 {
+                    // Athena thinks that going up always blocks wins, but this doesn't work vs pan
+                    // Hera thinks that when pan is on a 3, building on a 0 will block his win
+                    continue;
+                }
+                if state.gods.contains(&GodName::Minotaur.to_power()) {
+                    // Minotaur puts spots that it pushes TO during a mate into the blocker board
+                    // but this only works on dome builds / moves - not lower builds.
                     continue;
                 }
                 eprintln!("Block action didn't remove any wins: {}", stringed_action);
@@ -84,7 +94,12 @@ fn check_state(state: &FullGameState) {
 
             let new_oppo_wins = other_god.get_winning_moves(&new_state, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
-                eprintln!("Missed blocking move: {} full: {:?} {:?}", stringed_action, action, action.action.get_is_check());
+                eprintln!(
+                    "Missed blocking move: {} full: {:?} {:?}",
+                    stringed_action,
+                    action,
+                    action.action.get_is_check()
+                );
 
                 state.print_to_console();
                 new_state.print_to_console();
@@ -99,7 +114,12 @@ fn check_state(state: &FullGameState) {
                 }
 
                 for blocker in &blocks {
-                    eprintln!("Blocker: {} full: {:?} {:?}", active_god.stringify_move(blocker.action), blocker, blocker.action.get_is_check());
+                    eprintln!(
+                        "Blocker: {} full: {:?} {:?}",
+                        active_god.stringify_move(blocker.action),
+                        blocker,
+                        blocker.action.get_is_check()
+                    );
                 }
 
                 panic!("Missed blocking move failure");
@@ -143,8 +163,7 @@ fn check_state(state: &FullGameState) {
             new_state.board.unset_worker_can_climb();
             new_state.flip_current_player();
 
-            let winning_moves = active_god
-                .get_winning_moves(&new_state, current_player);
+            let winning_moves = active_god.get_winning_moves(&new_state, current_player);
 
             for winning_move in &winning_moves {
                 state.print_to_console();
@@ -155,7 +174,11 @@ fn check_state(state: &FullGameState) {
 
                 won_state.print_to_console();
 
-                eprintln!("{} was a check/win but wasn't in checks: {}", stringed_action, active_god.stringify_move(winning_move.action));
+                eprintln!(
+                    "{} was a check/win but wasn't in checks: {}",
+                    stringed_action,
+                    active_god.stringify_move(winning_move.action)
+                );
 
                 panic!(
                     "Move was a check/win but wasn't in checks: {}",
@@ -199,8 +222,12 @@ fn check_state(state: &FullGameState) {
             panic!("Win when blocked by athena: {}", stringed_action);
         }
 
+        let win_mask = other_god.win_mask;
+
         let mut is_valid_win = false;
-        if old_height == 2 && new_height == 3 {
+        if (win_mask & BitBoard::as_mask(new_pos)).is_empty() {
+            is_valid_win = false;
+        } else if old_height == 2 && new_height == 3 {
             is_valid_win = true;
         } else if is_pan_falling_win {
             is_valid_win = true;
@@ -310,6 +337,8 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
 fn main() {
     let mut rng = rng();
 
+    let banned_gods = vec![];
+
     loop {
         let mut root_state = get_board_with_random_placements(&mut rng);
         // root_state.gods[0] = GodName::Minotaur.to_power();
@@ -318,16 +347,11 @@ fn main() {
         root_state.gods[0] = get_random_god(&mut rng);
         root_state.gods[1] = get_random_god(&mut rng);
 
-        // root_state.gods[0] = GodName::Minotaur.to_power();
-        // root_state.gods[1] = GodName::Athena.to_power();
-
-        if root_state.gods[0].god_name == GodName::Minotaur
-            || root_state.gods[1].god_name == GodName::Minotaur
+        if banned_gods.contains(&root_state.gods[0].god_name)
+            || banned_gods.contains(&root_state.gods[1].god_name)
         {
             continue;
         }
-
-        // root_state.print_to_console();
 
         run_match(root_state, &mut rng);
     }

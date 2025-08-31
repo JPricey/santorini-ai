@@ -63,7 +63,7 @@ impl std::ops::Not for BitBoard {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self(!self.0)
+        self.bit_not()
     }
 }
 
@@ -123,11 +123,11 @@ impl BitBoard {
         self.0 != 0
     }
 
-    pub const fn count_ones(&self) -> u32 {
+    pub const fn count_ones(self) -> u32 {
         self.0.count_ones()
     }
 
-    pub const fn trailing_zeros(&self) -> u32 {
+    pub const fn trailing_zeros(self) -> u32 {
         self.0.trailing_zeros()
     }
 
@@ -137,6 +137,19 @@ impl BitBoard {
             res.push(square);
         }
         res
+    }
+
+    // const bit operations, since the trait is non-const
+    pub const fn bit_and(self, other: Self) -> Self {
+        Self(self.0 & other.0)
+    }
+
+    pub const fn bit_or(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    pub const fn bit_not(self) -> Self {
+        Self(!self.0)
     }
 }
 

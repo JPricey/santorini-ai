@@ -466,10 +466,6 @@ fn build_feature_set(board: &BoardState, god1: GodName, god2: GodName) -> Featur
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
-    use crate::{board::FullGameState, random_utils::RandomSingleGameStateGenerator};
-
     // #[test]
     // fn test_incremental_updates() {
     //     let game_iter = RandomSingleGameStateGenerator::default();
