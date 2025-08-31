@@ -732,6 +732,12 @@ where
         return score;
     }
 
+    if q_depth > 20 {
+        // Give up at some max depth
+        nnue_acc.replace_from_state(&state);
+        return nnue_acc.evaluate().min(beta);
+    }
+
     let eval;
     let child_moves;
     let opponent_wins = other_god.get_winning_moves(&state, !state.board.current_player);

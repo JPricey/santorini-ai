@@ -101,7 +101,10 @@ fn run_all_scenarios(args: VisitTesterArgs) -> TestSummary {
         game_state.gods[1] = god.to_power();
         game_state.recalculate_internals();
 
+
         let depth = (depth as i32 - reduction as i32).max(minimum as i32) as usize;
+
+        eprintln!("{i}: {depth} {:?}", game_state);
 
         tt.reset();
         let (result, duration) = run_scenario(&mut tt, &game_state, depth);
@@ -172,13 +175,25 @@ pub fn main() {
 // Nodes Visited: 24127546 Duration sum: 13.16
 // cargo run -p santorini_core --bin visit_tester --release -- -g pan -r 0 -m 4
 // Nodes Visited: 14762625 Duration sum: 7.80
+// cargo run -p santorini_core --bin visit_tester --release -- -g artemis -r 7 -m 4
+// Nodes Visited: 15354454 Duration sum: 10.55
 // cargo run -p santorini_core --bin visit_tester --release -- -g hephaestus -r 0 -m 4
 // Nodes Visited: 10514231 Duration sum: 6.02
-// cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4
-// Nodes Visited: 13947635 Duration sum: 7.37
 // cargo run -p santorini_core --bin visit_tester --release -- -g atlas -r 6 -m 4
 // Nodes Visited: 21993972 Duration sum: 12.15
-//
-// cargo run -p santorini_core --bin visit_tester --release -- -g artemis
-// cargo run -p santorini_core --bin visit_tester --release -- -g apollo
-// cargo run -p santorini_core --bin visit_tester --release -- -g hermes
+// cargo run -p santorini_core --bin visit_tester --release -- -g athena -r 7 -m 4
+// Nodes Visited: 30654927 Duration sum: 16.35
+// cargo run -p santorini_core --bin visit_tester --release -- -g minotaur -r 17 -m 6
+// Nodes Visited: 59463785 Duration sum: 15.29
+// cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4
+// Nodes Visited: 13947635 Duration sum: 7.37
+// cargo run -p santorini_core --bin visit_tester --release -- -g apollo -r 20 -m 3
+// Nodes Visited: 11168757 Duration sum: 6.24
+// cargo run -p santorini_core --bin visit_tester --release -- -g hermes -r 20 -m 4
+// Nodes Visited: 3282845 Duration sum: 11.12
+// cargo run -p santorini_core --bin visit_tester --release -- -g prometheus -r 10 -m 4
+// Nodes Visited: 5186548 Duration sum: 5.71
+// cargo run -p santorini_core --bin visit_tester --release -- -g urania -r 8 -m 4
+// Nodes Visited: 1180074 Duration sum: 1.08
+// cargo run -p santorini_core --bin visit_tester --release -- -g graeae -r 6 -m 4
+// Nodes Visited: 1778873 Duration sum: 1.39
