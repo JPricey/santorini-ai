@@ -155,10 +155,14 @@ pub fn main() {
     }
 }
 
-// cargo run -p santorini_core --bin visit_tester --release -- -g mortal -r 4 -m 4 (Nodes Visited: 22922961 Duration sum: 11.66)
-// cargo run -p santorini_core --bin visit_tester --release -- -g hephaestus -r 0 -m 4 (Nodes Visited: 12449382 Duration sum: 7.22)
-// cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4 (Nodes Visited: 17025864 Duration sum: 9.04)
-// cargo run -p santorini_core --bin visit_tester --release -- -g atlas -r 6 -m 4 (Nodes Visited: 29318945 Duration sum: 15.68)
+// cargo run -p santorini_core --bin visit_tester --release -- -g mortal -r 4 -m 4
+// (Nodes Visited: 22922961 Duration sum: 11.66)
+// cargo run -p santorini_core --bin visit_tester --release -- -g hephaestus -r 0 -m 4
+// (Nodes Visited: 12449382 Duration sum: 7.22)
+// cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4
+// (Nodes Visited: 17025864 Duration sum: 9.04)
+// cargo run -p santorini_core --bin visit_tester --release -- -g atlas -r 6 -m 4
+// (Nodes Visited: 29318945 Duration sum: 15.68)
 //
 // cargo run -p santorini_core --bin visit_tester --release -- -g artemis
 // cargo run -p santorini_core --bin visit_tester --release -- -g apollo
