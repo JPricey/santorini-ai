@@ -1,12 +1,8 @@
-use core::panic;
-
 use rand::{Rng, rng};
 
 use santorini_core::{
-    bitboard::BitBoard,
-    board::{FullGameState, NEIGHBOR_MAP},
-    consistency_checker::{self, consistency_check},
-    gods::{GodName, generic::CHECK_SENTINEL_SCORE},
+    board::FullGameState,
+    consistency_checker::consistency_check,
     random_utils::{get_board_with_random_placements, get_random_god, get_random_move},
 };
 

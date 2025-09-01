@@ -20,7 +20,11 @@ pub fn get_starting_placements_count(board: &BoardState) -> Result<usize, String
 }
 
 pub fn get_all_placements(board: &BoardState) -> Vec<WorkerPlacement> {
-    debug_assert!(board.workers[board.current_player as usize] == BitBoard::EMPTY);
+    debug_assert!(
+        board.workers[board.current_player as usize] == BitBoard::EMPTY,
+        "{:?}",
+        board
+    );
     let mut res = Vec::new();
 
     for a in 0_usize..25 {

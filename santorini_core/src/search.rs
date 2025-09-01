@@ -568,9 +568,9 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    search_state.search_stack[ply].eval = -INFINITY;
-    state.validate();
+    debug_assert!(state.validation_err().is_ok());
 
+    search_state.search_stack[ply].eval = -INFINITY;
     search_state.nodes_visited += 1;
     let mut best_score = -INFINITY;
 
@@ -602,7 +602,7 @@ where
         let mut child_state = state.clone();
         action.make_move(&mut child_state.board);
 
-        let score = -match state.board.current_player {
+        let score = -match child_state.board.current_player {
             Player::One => _start_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
@@ -633,7 +633,7 @@ where
 
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
-                    state.clone(),
+                    child_state.clone(),
                     best_action.into(),
                     true,
                     score,
