@@ -197,25 +197,6 @@ impl GodMove for PrometheusMove {
         }
     }
 
-    fn unmake_move(self, board: &mut BoardState) {
-        let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
-
-        if self.get_is_winning() {
-            board.unset_winner(board.current_player);
-            return;
-        }
-
-        {
-            let build_position = self.build_position();
-            board.unbuild(build_position);
-        }
-
-        if let Some(build_position) = self.pre_build_position() {
-            board.unbuild(build_position);
-        }
-    }
-
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
         self.move_mask()
     }

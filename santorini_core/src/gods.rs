@@ -191,7 +191,6 @@ pub struct GodPowerActionFns {
     _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 
     _make_move: fn(board: &mut BoardState, action: GenericMove),
-    _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 
     _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
     _stringify_move: fn(action: GenericMove) -> String,
@@ -213,7 +212,6 @@ pub struct GodPower {
     _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 
     _make_move: fn(board: &mut BoardState, action: GenericMove),
-    _unmake_move: fn(board: &mut BoardState, action: GenericMove),
 
     _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
     _stringify_move: fn(action: GenericMove) -> String,
@@ -302,11 +300,6 @@ impl GodPower {
     pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
         (self._make_move)(board, action);
         board.flip_current_player();
-    }
-
-    pub fn unmake_move(&self, board: &mut BoardState, action: GenericMove) {
-        board.flip_current_player();
-        (self._unmake_move)(board, action);
     }
 
     pub fn stringify_move(&self, action: GenericMove) -> String {
@@ -408,11 +401,6 @@ pub const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
         action.make_move(board)
     }
 
-    fn _unmake_move<T: GodMove>(board: &mut BoardState, action: GenericMove) {
-        let action: T = action.into();
-        action.unmake_move(board)
-    }
-
     fn _get_blocker_board<T: GodMove>(board: &BoardState, action: GenericMove) -> BitBoard {
         let action: T = action.into();
         action.get_blocker_board(board)
@@ -427,7 +415,6 @@ pub const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
         _get_actions_for_move: _get_actions_for_move::<T>,
         _get_blocker_board: _get_blocker_board::<T>,
         _make_move: _make_move::<T>,
-        _unmake_move: _unmake_move::<T>,
         _stringify_move: _stringify_move::<T>,
         _get_history_hash: _get_history_hash::<T>,
     }
@@ -452,7 +439,6 @@ const fn god_power(
         _get_blocker_board: actions._get_blocker_board,
         _get_actions_for_move: actions._get_actions_for_move,
         _make_move: actions._make_move,
-        _unmake_move: actions._unmake_move,
         _stringify_move: actions._stringify_move,
         _get_history_hash: actions._get_history_hash,
 

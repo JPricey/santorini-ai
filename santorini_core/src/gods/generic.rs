@@ -57,8 +57,6 @@ pub trait GodMove: From<GenericMove> + Into<GenericMove> + std::fmt::Debug {
 
     fn make_move(self, board: &mut BoardState);
 
-    fn unmake_move(self, board: &mut BoardState);
-
     fn get_blocker_board(self, board: &BoardState) -> BitBoard;
 
     fn get_history_idx(self, board: &BoardState) -> usize;
@@ -246,11 +244,6 @@ impl GodMove for WorkerPlacement {
     fn make_move(self, board: &mut BoardState) {
         board.worker_xor(board.current_player, self.move_mask());
         board.flip_current_player();
-    }
-
-    fn unmake_move(self, board: &mut BoardState) {
-        board.flip_current_player();
-        board.worker_xor(board.current_player, self.move_mask());
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {

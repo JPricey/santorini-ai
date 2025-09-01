@@ -303,16 +303,6 @@ fn check_state(state: &FullGameState) {
             } else {
                 all_states.push(board_clone.clone());
             }
-
-            // Make/unmake
-            active_god.unmake_move(&mut board_clone, action.action);
-            if board_clone != *board {
-                board_clone.print_to_console();
-                panic!(
-                    "Unmake move did not restore original state: {:?}",
-                    active_god.stringify_move(action.action)
-                );
-            }
         }
     }
 }

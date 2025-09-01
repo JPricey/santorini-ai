@@ -6,7 +6,7 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
-            FULL_HEIGHT_MASK, FULL_HEIGHT_WIDTH, GenericMove, GodMove, LOWER_POSITION_MASK,
+            FULL_HEIGHT_WIDTH, GenericMove, GodMove, LOWER_POSITION_MASK,
             MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH,
             ScoredMove,
         },
@@ -22,10 +22,8 @@ use super::PartialAction;
 pub const ATLAS_MOVE_FROM_POSITION_OFFSET: usize = 0;
 pub const ATLAS_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 pub const ATLAS_BUILD_POSITION_OFFSET: usize = ATLAS_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const ATLAS_BUILD_OLD_HEIGHT_POSITION_OFFSET: usize =
-    ATLAS_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 pub const ATLAS_IS_DOME_BUILD_POSITION_OFFSET: usize =
-    ATLAS_BUILD_OLD_HEIGHT_POSITION_OFFSET + FULL_HEIGHT_WIDTH;
+    ATLAS_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 pub const ATLAS_IS_DOME_BUILD_MASK: MoveData = 1 << ATLAS_IS_DOME_BUILD_POSITION_OFFSET;
 
@@ -61,12 +59,10 @@ impl AtlasMove {
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
-        old_build_height: MoveData,
     ) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << ATLAS_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << ATLAS_MOVE_TO_POSITION_OFFSET)
             | ((build_position as MoveData) << ATLAS_BUILD_POSITION_OFFSET)
-            | ((old_build_height as MoveData) << ATLAS_BUILD_OLD_HEIGHT_POSITION_OFFSET)
             | ATLAS_IS_DOME_BUILD_MASK;
 
         Self(data)
@@ -89,10 +85,6 @@ impl AtlasMove {
 
     pub fn build_position(self) -> Square {
         Square::from((self.0 >> ATLAS_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
-    }
-
-    pub fn old_build_height(self) -> u8 {
-        ((self.0 >> ATLAS_BUILD_OLD_HEIGHT_POSITION_OFFSET) as u8) & FULL_HEIGHT_MASK
     }
 
     pub fn is_dome_build(self) -> bool {
@@ -167,23 +159,6 @@ impl GodMove for AtlasMove {
         }
     }
 
-    fn unmake_move(self, board: &mut BoardState) {
-        let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
-
-        if self.get_is_winning() {
-            board.unset_winner(board.current_player);
-            return;
-        }
-
-        let build_position = self.build_position();
-        if self.is_dome_build() {
-            board.undome(build_position, self.old_build_height() as usize);
-        } else {
-            board.unbuild(build_position);
-        }
-    }
-
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
         self.move_mask()
     }
@@ -252,7 +227,6 @@ build_power_move_generator!(
                     worker_start_pos,
                     worker_end_pos,
                     worker_build_pos,
-                    worker_build_height as MoveData,
                 );
                 let is_check = {
                     let final_level_3 = exactly_level_3 & !worker_build_mask;

@@ -484,7 +484,7 @@ where
 fn _root_search<T>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
-    state: &mut FullGameState,
+    state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
     remaining_depth: usize,
 ) -> Hueristic
@@ -521,7 +521,7 @@ where
 fn _start_inner_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
-    state: &mut FullGameState,
+    state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
     ply: usize,
     remaining_depth: usize,
@@ -557,7 +557,7 @@ where
 fn _placement_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
-    state: &mut FullGameState,
+    state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
     ply: usize,
     remaining_depth: usize,
@@ -599,13 +599,14 @@ where
     search_state.search_stack[ply].eval = -WINNING_SCORE_BUFFER;
     for action in placements {
         search_state.search_stack[ply].move_hash = hash_u64(action.get_history_idx(&state.board));
-        action.make_move(&mut state.board);
+        let mut state_clone = state.clone();
+        action.make_move(&mut state_clone.board);
 
         let score = -match state.board.current_player {
             Player::One => _start_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
-                state,
+                &state_clone,
                 nnue_acc,
                 ply + 1,
                 remaining_depth,
@@ -615,7 +616,7 @@ where
             Player::Two => _placement_search::<T, NT::Next>(
                 search_context,
                 search_state,
-                state,
+                &state_clone,
                 nnue_acc,
                 ply + 1,
                 remaining_depth,
@@ -648,13 +649,10 @@ where
             if score > alpha {
                 alpha = score;
                 if alpha >= beta {
-                    action.unmake_move(&mut state.board);
                     break;
                 }
             }
         }
-
-        action.unmake_move(&mut state.board);
 
         should_stop = search_context.should_stop(&search_state);
         if should_stop {
@@ -688,7 +686,7 @@ where
 fn _q_extend<T>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
-    state: &mut FullGameState,
+    state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
     ply: usize,
     q_depth: u32,
@@ -774,12 +772,13 @@ where
 
     let mut should_stop = false;
     for child_move in child_moves.iter().rev() {
-        active_god.make_move(&mut state.board, child_move.action);
+        let mut state_clone = state.clone();
+        active_god.make_move(&mut state_clone.board, child_move.action);
 
         let score = -_q_extend(
             search_context,
             search_state,
-            state,
+            &state_clone,
             nnue_acc,
             ply + 1,
             q_depth + 1,
@@ -794,13 +793,10 @@ where
                 alpha = score;
 
                 if alpha >= beta {
-                    active_god.unmake_move(&mut state.board, child_move.action);
                     break;
                 }
             }
         }
-
-        active_god.unmake_move(&mut state.board, child_move.action);
 
         should_stop = search_context.should_stop(&search_state);
         if should_stop {
@@ -828,7 +824,7 @@ where
 fn _inner_search<T, NT>(
     search_context: &mut SearchContext<T>,
     search_state: &mut SearchState,
-    state: &mut FullGameState,
+    state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
     is_in_check: bool,
     ply: usize,
@@ -845,6 +841,8 @@ where
     debug_assert!(state.validation_err().is_ok());
 
     let current_player_idx = state.board.current_player as usize;
+    let other_player_idx = !state.board.current_player;
+
     if is_in_check {
         remaining_depth += 1;
     }
@@ -926,16 +924,16 @@ where
     }
 
     let key_squares = if is_in_check {
-        let other_player = !state.board.current_player;
-        let other_is_blocked = !state.board.get_worker_can_climb(other_player);
+        let other_is_blocked = !state.board.get_worker_can_climb(other_player_idx);
 
-        state
+        let mut state_clone = state.clone();
+        state_clone
             .board
-            .flip_worker_can_climb(other_player, other_is_blocked);
-        let other_wins = other_god.get_winning_moves(&state, other_player);
-        state
+            .flip_worker_can_climb(other_player_idx, other_is_blocked);
+        let other_wins = other_god.get_winning_moves(&state_clone, other_player_idx);
+        state_clone
             .board
-            .flip_worker_can_climb(other_player, other_is_blocked);
+            .flip_worker_can_climb(other_player_idx, other_is_blocked);
 
         if other_wins.len() == 0 {
             // TODO: fix all these?
@@ -980,10 +978,11 @@ where
             } else {
                 let score = -win_at_ply(ply + 1);
                 let best_action = moves[0].action;
-                active_god.make_move(&mut state.board, best_action);
+                let mut state_clone = state.clone();
+                active_god.make_move(&mut state_clone.board, best_action);
 
                 let new_best_move = BestSearchResult::new(
-                    state.clone(),
+                    state_clone.clone(),
                     best_action,
                     false,
                     score,
@@ -995,7 +994,6 @@ where
                 search_state.best_move = Some(new_best_move.clone());
                 (search_context.new_best_move_callback)(new_best_move);
 
-                active_god.unmake_move(&mut state.board, best_action);
                 return score;
             }
         }
@@ -1076,11 +1074,12 @@ where
             const NULL_MOVE_HASH: usize = 71369690056371976;
             search_state.search_stack[ply].move_hash = hash_u64(NULL_MOVE_HASH);
 
-            state.board.flip_current_player();
+            let mut state_clone = state.clone();
+            state_clone.board.flip_current_player();
             let null_value = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
-                state,
+                &state_clone,
                 nnue_acc,
                 false,
                 ply + 1,
@@ -1090,7 +1089,7 @@ where
                 -beta + 1,
                 !is_cut_node,
             );
-            state.board.flip_current_player();
+            state_clone.board.flip_current_player();
             search_state.search_stack[ply].is_null_move = false;
 
             // cutoff above beta
@@ -1156,12 +1155,13 @@ where
         let mut move_score_adjustment = 0;
 
         let mut score;
+        let mut state_clone = state.clone();
         if move_idx == 1 {
-            active_god.make_move(&mut state.board, child_action);
+            active_god.make_move(&mut state_clone.board, child_action);
             score = -_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
-                state,
+                &state_clone,
                 nnue_acc,
                 child_is_check,
                 ply + 1,
@@ -1213,13 +1213,13 @@ where
                 break;
             }
 
-            active_god.make_move(&mut state.board, child_action);
+            active_god.make_move(&mut state_clone.board, child_action);
 
             // Try a 0-window search
             score = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
-                state,
+                &state_clone,
                 nnue_acc,
                 child_is_check,
                 ply + 1,
@@ -1235,7 +1235,7 @@ where
                 score = -_inner_search::<T, OffPV>(
                     search_context,
                     search_state,
-                    state,
+                    &state_clone,
                     nnue_acc,
                     child_is_check,
                     ply + 1,
@@ -1252,7 +1252,7 @@ where
                 score = -_inner_search::<T, NT::Next>(
                     search_context,
                     search_state,
-                    state,
+                    &state_clone,
                     nnue_acc,
                     child_is_check,
                     ply + 1,
@@ -1273,7 +1273,7 @@ where
 
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
-                    state.clone(),
+                    state_clone.clone(),
                     best_action,
                     false,
                     score,
@@ -1290,8 +1290,6 @@ where
                 alpha = score;
 
                 if alpha >= beta {
-                    active_god.unmake_move(&mut state.board, child_action);
-
                     if move_picker.stage == MovePickerStage::YieldNonImprovers {
                         search_state.killer_move_table[ply] = Some(child_action);
                     }
@@ -1308,8 +1306,6 @@ where
                 }
             }
         }
-
-        active_god.unmake_move(&mut state.board, child_action);
 
         let mut delta_scaled = (score - best_score) as HistoryDelta;
         delta_scaled /= 60;

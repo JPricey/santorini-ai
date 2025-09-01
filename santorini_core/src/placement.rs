@@ -83,12 +83,12 @@ pub fn get_all_placements_3(board: &BoardState) -> Vec<WorkerPlacement> {
 }
 
 pub fn get_unique_placements(state: &FullGameState) -> Vec<WorkerPlacement> {
-    let mut b_clone = state.board.clone();
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
-    let placements = get_all_placements(&b_clone);
+    let placements = get_all_placements(&state.board);
     for p in placements {
+        let mut b_clone = state.board.clone();
         p.make_move(&mut b_clone);
         let mut is_new = true;
         for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
@@ -101,19 +101,18 @@ pub fn get_unique_placements(state: &FullGameState) -> Vec<WorkerPlacement> {
             unique_boards.push(b_clone.clone());
             res.push(p);
         }
-        p.unmake_move(&mut b_clone);
     }
 
     res
 }
 
 pub fn get_unique_placements_3(state: &FullGameState) -> Vec<WorkerPlacement> {
-    let mut b_clone = state.board.clone();
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
-    let placements = get_all_placements_3(&b_clone);
+    let placements = get_all_placements_3(&state.board);
     for p in placements {
+        let mut b_clone = state.board.clone();
         p.make_move(&mut b_clone);
         let mut is_new = true;
         for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
@@ -126,7 +125,6 @@ pub fn get_unique_placements_3(state: &FullGameState) -> Vec<WorkerPlacement> {
             unique_boards.push(b_clone.clone());
             res.push(p);
         }
-        p.unmake_move(&mut b_clone);
     }
 
     res

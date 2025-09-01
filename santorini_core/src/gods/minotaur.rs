@@ -215,25 +215,6 @@ impl GodMove for MinotaurMove {
         }
     }
 
-    fn unmake_move(self, board: &mut BoardState) {
-        let move_from = BitBoard::as_mask(self.move_from_position());
-        let move_to = BitBoard::as_mask(self.move_to_position());
-        board.worker_xor(board.current_player, move_to | move_from);
-
-        if self.get_is_winning() {
-            board.unset_winner(board.current_player);
-            return;
-        }
-
-        let build_position = self.build_position();
-        board.unbuild(build_position);
-
-        if let Some(push_to) = self.push_to_position() {
-            let push_mask = BitBoard::as_mask(push_to);
-            board.worker_xor(!board.current_player, move_to | push_mask);
-        }
-    }
-
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
         let mut result = self.move_mask();
 
