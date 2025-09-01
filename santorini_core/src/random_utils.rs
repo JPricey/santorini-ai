@@ -8,17 +8,27 @@ use crate::{
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
 };
 
-pub fn get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
+pub fn get_board_with_random_placements_worker_counters(
+    rng: &mut impl Rng,
+    c1: usize,
+    c2: usize,
+) -> FullGameState {
     let mut result = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
-    let worker_spots: Vec<usize> = (0..25).choose_multiple(rng, 4).iter().cloned().collect();
+    let worker_spots = (0..25).choose_multiple(rng, c1 + c2);
+    let mut iter = worker_spots.iter();
 
-    result.board.workers[0].0 |= 1 << worker_spots[0];
-    result.board.workers[0].0 |= 1 << worker_spots[1];
-
-    result.board.workers[1].0 |= 1 << worker_spots[2];
-    result.board.workers[1].0 |= 1 << worker_spots[3];
+    for _ in 0..c1 {
+        result.board.workers[0].0 |= 1 << iter.next().unwrap();
+    }
+    for _ in 0..c2 {
+        result.board.workers[1].0 |= 1 << iter.next().unwrap();
+    }
 
     result
+}
+
+pub fn get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
+    get_board_with_random_placements_worker_counters(rng, 2, 2)
 }
 
 pub fn get_random_god(rng: &mut impl Rng) -> StaticGod {

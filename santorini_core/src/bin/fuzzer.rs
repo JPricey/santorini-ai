@@ -4,7 +4,10 @@ use santorini_core::{
     board::FullGameState,
     consistency_checker::consistency_check,
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
-    random_utils::{get_board_with_random_placements, get_random_move},
+    random_utils::{
+        get_board_with_random_placements, get_board_with_random_placements_worker_counters,
+        get_random_move,
+    },
 };
 
 fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
@@ -70,25 +73,35 @@ impl GodRandomizer {
 fn main() {
     let mut rng = rng();
 
-    let god1_selector = GodRandomizer::new_exactly(GodName::Limus);
-    // let god1_selector = GodRandomizer::new_any();
+    let god1_selector = GodRandomizer::new_any();
+    // let god1_selector = GodRandomizer::new_exactly(GodName::Limus);
 
     let god2_selector = GodRandomizer::new_any();
     // let god2_selector = GodRandomizer::new_exactly(GodName::Minotaur);
     // let god2_selector = GodRandomizer::new_one_of(vec![GodName::Mortal].into_iter());
 
     loop {
-        let mut root_state = get_board_with_random_placements(&mut rng);
-        // root_state.gods[0] = GodName::Minotaur.to_power();
-        // root_state.gods[1] = GodName::Mortal.to_power();
-
-        root_state.gods[0] = god1_selector.get();
-        root_state.gods[1] = god2_selector.get();
+        let mut g1 = god1_selector.get();
+        let mut g2 = god2_selector.get();
 
         if rng.random_bool(0.5) {
-            root_state.gods.swap(0, 1);
+            std::mem::swap(&mut g1, &mut g2);
         }
 
+        let mut c1 = g1.num_workers;
+        if rng.random_bool(0.1) {
+            c1 -= 1;
+        };
+
+        let mut c2 = g2.num_workers;
+        if rng.random_bool(0.1) {
+            c2 -= 1;
+        };
+
+        let mut root_state = get_board_with_random_placements_worker_counters(&mut rng, c1, c2);
+
+        root_state.gods[0] = g1;
+        root_state.gods[1] = g2;
         root_state.recalculate_internals();
 
         run_match(root_state, &mut rng);

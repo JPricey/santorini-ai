@@ -7,9 +7,13 @@ use strum::IntoEnumIterator;
 use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
-    gods::{generic::{GenericMove, GodMove}, BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
+    gods::{
+        BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
+        generic::{GenericMove, GodMove},
+    },
     hashing::{
-        compute_hash_from_scratch_for_board, HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS
+        HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
+        compute_hash_from_scratch_for_board,
     },
     placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
     player::Player,
@@ -533,8 +537,8 @@ impl BoardState {
         let worker_count = player_workers.count_ones();
 
         if god.god_name == GodName::Hermes {
-            if !(worker_count == 0 || worker_count == 2) {
-                return Err("Hermes must have 2 workers".to_owned());
+            if worker_count > 2 {
+                return Err("Player {:?} Hrmes can't have more than 2 workers".to_owned());
             }
         } else if worker_count > 4 {
             return Err(format!("Player {:?} has too many workers", player));

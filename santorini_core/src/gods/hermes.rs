@@ -438,11 +438,56 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     let m1 = BitBoard::as_mask(f1);
     let h1 = board.get_height(f1);
     let h1_mask = board.exactly_level_n(h1) & !other_workers;
+    let c1 = flood_fill(h1_mask, m1);
 
-    let f2 = worker_iter.next().unwrap();
+    let Some(f2) = worker_iter.next() else {
+        // There's only 1 hermes worker
+        let non_selected_workers = all_workers_mask ^ m1;
+        let buildable_squares = !(non_selected_workers | domes);
+
+        for t1 in c1 {
+            let worker_end_mask = BitBoard::as_mask(t1);
+            let worker_end_height = board.get_height(t1);
+
+            build_building_masks!(
+                worker_end_pos: t1,
+                open_squares: buildable_squares,
+                build_mask: build_mask,
+                is_interact_with_key_squares: is_interact_with_key_squares,
+                key_squares_expr: (worker_end_mask & key_squares).is_empty(),
+                key_squares: key_squares,
+
+                all_possible_builds: all_possible_builds,
+                narrowed_builds: narrowed_builds,
+                worker_plausible_next_moves: worker_plausible_next_moves,
+            );
+
+            let reach_board = (worker_plausible_next_moves
+                & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize])
+                & win_mask;
+
+            for worker_build_pos in narrowed_builds {
+                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                let new_action = HermesMove::new_hermes_single_move(f1, t1, worker_build_pos);
+
+                let is_check = {
+                    let check_board = (exactly_level_2 & worker_build_mask
+                        | exactly_level_3 & !worker_build_mask)
+                        & reach_board
+                        & buildable_squares;
+                    check_board.is_not_empty()
+                };
+
+                add_scored_move!(new_action, is_include_score, is_check, false, result);
+            }
+        }
+
+        return result;
+    };
+
+    // There's 2 hermes workers
     let m2 = BitBoard::as_mask(f2);
 
-    let c1 = flood_fill(h1_mask, m1);
     let mut c2;
     let h2;
     let is_overlap;
@@ -458,7 +503,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
         c2 = flood_fill(h2_mask, m2);
     }
 
-    let blocked_squares = other_workers | board.height_map[3];
+    let blocked_squares = other_workers | domes;
 
     let l1 = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize];
     let l2 = BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize];
