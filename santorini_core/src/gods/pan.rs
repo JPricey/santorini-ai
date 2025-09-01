@@ -1,7 +1,17 @@
 use crate::{
-    add_scored_move, bitboard::BitBoard, board::{FullGameState, NEIGHBOR_MAP}, build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves, gods::{
-        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, GodName, GodPower
-    }, non_checking_variable_prelude, player::Player
+    add_scored_move,
+    bitboard::BitBoard,
+    board::{FullGameState, NEIGHBOR_MAP},
+    build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves,
+    gods::{
+        GodName, GodPower, build_god_power_actions,
+        generic::{MoveGenFlags, ScoredMove},
+        god_power,
+        hypnus::hypnus_moveable_worker_filter,
+        mortal::MortalMove,
+    },
+    non_checking_variable_prelude,
+    player::Player,
 };
 
 fn pan_move_gen<const F: MoveGenFlags>(
@@ -38,7 +48,11 @@ fn pan_move_gen<const F: MoveGenFlags>(
        is_mate_only:  is_mate_only,
     );
 
+    let is_against_hypnus = other_god.is_hypnus();
     let mut current_workers = own_workers;
+    if is_against_hypnus {
+        current_workers = hypnus_moveable_worker_filter(board, current_workers);
+    }
     let checkable_worker_positions_mask = board.at_least_level_2();
     if is_mate_only {
         current_workers &= checkable_worker_positions_mask;
@@ -50,11 +64,12 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
         let mut neighbor_2 = BitBoard::EMPTY;
         let mut neighbor_3 = BitBoard::EMPTY;
-        for other_pos_2 in (current_workers ^ moving_worker_start_mask) & exactly_level_2 {
+        let other_lvl_2_workers = (own_workers ^ moving_worker_start_mask) & exactly_level_2;
+        for other_pos_2 in other_lvl_2_workers {
             neighbor_2 |= NEIGHBOR_MAP[other_pos_2 as usize];
         }
 
-        for other_pos_3 in (current_workers ^ moving_worker_start_mask) & exactly_level_3 {
+        for other_pos_3 in (own_workers ^ moving_worker_start_mask) & exactly_level_3 {
             neighbor_3 |= NEIGHBOR_MAP[other_pos_3 as usize];
         }
 
@@ -95,6 +110,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height(moving_worker_end_pos);
             let is_improving = worker_end_height > worker_starting_height;
+            let is_now_lvl_2 = (worker_end_height == 2) as usize;
 
             build_building_masks!(
                 worker_end_pos: moving_worker_end_pos,
@@ -111,7 +127,11 @@ fn pan_move_gen<const F: MoveGenFlags>(
 
             let mut reach_2 = neighbor_2;
             let mut reach_3 = neighbor_3;
-            if worker_end_height == 2 {
+
+            // dont worry about reach 3 vs hypnus because it's not possible to get up there
+            if is_against_hypnus && (other_lvl_2_workers.count_ones() as usize + is_now_lvl_2) < 2 {
+                reach_2 = BitBoard::EMPTY
+            } else if worker_end_height == 2 {
                 reach_2 |= worker_plausible_next_moves;
             } else if worker_end_height == 3 {
                 reach_3 |= worker_plausible_next_moves;

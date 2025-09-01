@@ -10,6 +10,7 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        hypnus::hypnus_moveable_worker_filter,
     },
     non_checking_variable_prelude,
     player::Player,
@@ -194,8 +195,13 @@ fn artemis_move_gen<const F: MoveGenFlags>(
        is_mate_only:  is_mate_only,
     );
 
+    let is_against_hypnus = other_god.is_hypnus();
     let not_other_workers = !other_workers;
+
     let mut current_workers = own_workers;
+    if is_against_hypnus {
+        current_workers = hypnus_moveable_worker_filter(board, current_workers);
+    }
     if is_mate_only {
         current_workers &= board.at_least_level_1()
     }
@@ -204,7 +210,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
     for moving_worker_start_pos in current_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
-        let other_own_workers = current_workers ^ moving_worker_start_mask;
+        let other_own_workers = own_workers ^ moving_worker_start_mask;
         let other_checkable_workers = other_own_workers & board.at_least_level_1();
 
         let mut other_checkable_touching = BitBoard::EMPTY;
@@ -302,6 +308,31 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                 worker_plausible_next_moves: _worker_plausible_next_moves,
             );
 
+            let mut own_touching = BitBoard::EMPTY;
+            if worker_end_height >= 1 {
+                own_touching |= NEIGHBOR_MAP[moving_worker_end_pos as usize];
+                own_touching |= moving_worker_end_mask;
+            }
+
+            let mut final_touching = other_checkable_touching | own_touching;
+            if is_against_hypnus {
+                // Against hypnus, pretend you can't get to lvl 3
+                let has_other_lvl_2 = (other_checkable_workers & exactly_level_2).is_not_empty();
+                let has_other_lvl_1 = (other_checkable_workers & exactly_level_1).is_not_empty();
+
+                if (has_other_lvl_2 && worker_end_height == 2)
+                    || (has_other_lvl_1 && worker_end_height == 1)
+                {
+                    // Good
+                } else if has_other_lvl_2 && worker_end_height == 1 {
+                    final_touching = own_touching & !other_own_workers;
+                } else if has_other_lvl_1 && worker_end_height == 2 {
+                    final_touching = other_checkable_touching & !moving_worker_end_mask;
+                } else {
+                    final_touching = BitBoard::EMPTY;
+                }
+            }
+
             for worker_build_pos in narrowed_builds {
                 let build_mask = BitBoard::as_mask(worker_build_pos);
                 let new_action = ArtemisMove::new_artemis_move(
@@ -310,11 +341,11 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     worker_build_pos,
                 );
 
-                let is_check = {
-                    let final_l3 = ((exactly_level_3 & !build_mask)
-                        | (exactly_level_2 & build_mask))
-                        & not_any_workers
-                        & win_mask;
+                let final_l3 = ((exactly_level_3 & !build_mask) | (exactly_level_2 & build_mask))
+                    & not_any_workers
+                    & win_mask;
+
+                let is_check = final_touching.is_not_empty() && final_l3.is_not_empty() && {
                     let final_l2 = ((exactly_level_2 & !build_mask)
                         | (exactly_level_1 & build_mask))
                         & not_other_workers;
@@ -322,12 +353,6 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                     let mut final_touching_checks = BitBoard::EMPTY;
                     for s in final_l3 {
                         final_touching_checks |= NEIGHBOR_MAP[s as usize];
-                    }
-
-                    let mut final_touching = other_checkable_touching;
-                    if worker_end_height >= 1 {
-                        final_touching |= NEIGHBOR_MAP[moving_worker_end_pos as usize];
-                        final_touching |= moving_worker_end_mask;
                     }
 
                     (final_touching & final_touching_checks & final_l2).is_not_empty()

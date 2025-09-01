@@ -49,12 +49,48 @@ impl ConsistencyChecker {
             self.self_check_validations(&search_moves);
             self.validate_wins(&own_winning_moves);
             self.validate_build_blockers(&search_moves);
+            self.validate_hypnus_moves(&search_moves);
         }
 
         if self.errors.len() == 0 {
             Ok(())
         } else {
             Err(std::mem::take(&mut self.errors))
+        }
+    }
+
+    fn validate_hypnus_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let current_player = self.state.board.current_player;
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
+
+        if other_god.god_name != GodName::Hypnus {
+            return;
+        }
+
+        for action in actions {
+            let action = action.action;
+
+            let new_state = self.state.next_state(active_god, action);
+            let new_workers = new_state.board.workers[current_player as usize];
+            let old_workers = self.state.board.workers[current_player as usize];
+
+            let moved_workers = old_workers & !new_workers;
+            for moved_worker in moved_workers {
+                let old_worker_height = self.state.board.get_height(moved_worker);
+                if old_worker_height == 0 {
+                    continue;
+                }
+
+                let height_at_worker = self.state.board.height_map[old_worker_height - 1];
+                if (old_workers & height_at_worker).count_ones() == 1 {
+                    self.errors.push(format!(
+                        "Moved a highest worker against hypnus: {} -> {:?}",
+                        active_god.stringify_move(action),
+                        new_state,
+                    ));
+                    return;
+                }
+            }
         }
     }
 
@@ -132,13 +168,6 @@ impl ConsistencyChecker {
                 & !self.state.board.height_map[3];
 
             if new_dome_builds_from_lvl_3.is_not_empty() {
-                // eprint!(
-                //     "made a dome: {} \n{}",
-                //     active_god.stringify_move(mortal_action),
-                //     new_dome_builds_from_lvl_3,
-                // );
-                // new_state.print_to_console();
-
                 let seen_dome_build = dome_build_actions.contains(&mortal_action);
 
                 if !seen_dome_build {

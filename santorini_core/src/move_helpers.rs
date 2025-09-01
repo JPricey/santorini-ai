@@ -54,6 +54,7 @@ macro_rules! variable_prelude {
         domes: $domes:ident,
         win_mask: $win_mask:ident,
         build_mask: $build_mask:ident,
+        is_against_hypnus: $is_against_hypnus:ident,
         own_workers: $own_workers:ident,
         other_workers: $other_workers:ident,
         result: $result:ident,
@@ -84,7 +85,11 @@ macro_rules! variable_prelude {
             is_mate_only: $is_mate_only,
         );
 
+        let $is_against_hypnus = $other_god.is_hypnus();
         let mut $current_workers = $own_workers;
+        if $is_against_hypnus {
+            $current_workers = crate::gods::hypnus::hypnus_moveable_worker_filter(&$board, $current_workers);
+        }
         let $checkable_worker_positions_mask = $exactly_level_2;
         if $is_mate_only {
             $current_workers &= $checkable_worker_positions_mask;
@@ -239,6 +244,7 @@ macro_rules! build_power_move_generator {
                 domes:  domes,
                 win_mask:  win_mask,
                 build_mask: build_mask,
+                is_against_hypnus: is_against_hypnus,
                 own_workers:  own_workers,
                 other_workers:  other_workers,
                 result: $result,
@@ -258,7 +264,7 @@ macro_rules! build_power_move_generator {
 
                 let mut other_threatening_neighbors = BitBoard::EMPTY;
                 let other_threatening_workers =
-                    (current_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
+                    (own_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
                 for other_pos in other_threatening_workers {
                     other_threatening_neighbors |= NEIGHBOR_MAP[other_pos as usize];
                 }
@@ -292,7 +298,6 @@ macro_rules! build_power_move_generator {
                     let worker_end_height = board.get_height($worker_end_pos);
                     let $is_improving = worker_end_height > worker_starting_height;
 
-
                     $crate::build_building_masks!(
                         worker_end_pos: $worker_end_pos,
                         open_squares: $unblocked_squares,
@@ -307,9 +312,16 @@ macro_rules! build_power_move_generator {
                     );
 
                     let own_final_workers = other_own_workers | moving_worker_end_mask;
-                    let $reach_board = (other_threatening_neighbors
-                        | (worker_plausible_next_moves
-                            & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize])) & win_mask & !own_final_workers;
+                    let is_now_lvl_2 =  (worker_end_height == 2) as usize;
+
+                    let $reach_board =
+                    if is_against_hypnus && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2 {
+                        BitBoard::EMPTY
+                    } else {
+                        (other_threatening_neighbors | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                            & win_mask
+                            & !own_final_workers
+                    };
 
                     $building_block
                 }

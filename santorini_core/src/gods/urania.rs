@@ -40,6 +40,7 @@ fn urania_move_gen<const F: MoveGenFlags>(
        domes:  domes,
        win_mask:  win_mask,
        build_mask: build_mask,
+       is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
        other_workers:  other_workers,
        result:  result,
@@ -53,9 +54,8 @@ fn urania_move_gen<const F: MoveGenFlags>(
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
 
-        let other_own_workers = current_workers ^ moving_worker_start_mask;
-        let other_threatening_workers =
-            (current_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
+        let other_own_workers = own_workers ^ moving_worker_start_mask;
+        let other_threatening_workers = other_own_workers & checkable_worker_positions_mask;
 
         let mut other_threatening_neighbors = BitBoard::EMPTY;
         for other_pos in other_threatening_workers {
@@ -102,10 +102,16 @@ fn urania_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            let reach_board = (other_threatening_neighbors
-                | (worker_plausible_next_moves
-                    & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]))
-                & win_mask;
+            let is_now_lvl_2 = (worker_end_height == 2) as usize;
+            let reach_board = if is_against_hypnus
+                && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
+            {
+                BitBoard::EMPTY
+            } else {
+                (other_threatening_neighbors
+                    | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                    & win_mask
+            };
 
             for worker_build_pos in worker_builds {
                 let new_action = MortalMove::new_basic_move(
@@ -116,8 +122,9 @@ fn urania_move_gen<const F: MoveGenFlags>(
 
                 let is_check = {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask) & not_own_workers;
+                    let final_level_3 = ((exactly_level_2 & worker_build_mask)
+                        | (exactly_level_3 & !worker_build_mask))
+                        & not_own_workers;
                     let check_board = reach_board & final_level_3 & buildable_squares;
                     check_board.is_not_empty()
                 };

@@ -200,6 +200,7 @@ fn apollo_move_gen<const F: MoveGenFlags>(
        domes:  domes,
        win_mask:  win_mask,
        build_mask: build_mask,
+       is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
        other_workers:  other_workers,
        result:  result,
@@ -284,8 +285,15 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            let reach_board = other_threatening_neighbors
-                | (end_neighbors & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]);
+            let is_now_lvl_2 = (worker_end_height == 2) as usize;
+            let reach_board = if is_against_hypnus
+                && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
+            {
+                BitBoard::EMPTY
+            } else {
+                other_threatening_neighbors
+                    | (end_neighbors & BitBoard::CONDITIONAL_MASK[is_now_lvl_2])
+            };
 
             for worker_build_pos in worker_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);

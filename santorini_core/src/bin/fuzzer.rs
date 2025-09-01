@@ -4,10 +4,7 @@ use santorini_core::{
     board::FullGameState,
     consistency_checker::consistency_check,
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
-    random_utils::{
-        get_board_with_random_placements, get_board_with_random_placements_worker_counters,
-        get_random_move,
-    },
+    random_utils::{get_board_with_random_placements_worker_counters, get_random_move},
 };
 
 fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
@@ -61,24 +58,31 @@ impl GodRandomizer {
         }
     }
 
+    pub fn new_not_one_of(gods: &Vec<GodName>) -> Self {
+        Self::new_one_of(
+            ALL_GODS_BY_ID
+                .map(|g| g.god_name)
+                .iter()
+                .filter(|g| !gods.contains(g))
+                .cloned(),
+        )
+    }
+
     pub fn get(&self) -> StaticGod {
         let mut rng = rng();
         self.gods.choose(&mut rng).unwrap()
     }
-
-    // pub fn new_not_one_of() -> Self {
-    // }
 }
 
 fn main() {
     let mut rng = rng();
 
-    let god1_selector = GodRandomizer::new_any();
-    // let god1_selector = GodRandomizer::new_exactly(GodName::Limus);
+    // let god1_selector = GodRandomizer::new_any();
+    let god1_selector = GodRandomizer::new_exactly(GodName::Hypnus);
 
     let god2_selector = GodRandomizer::new_any();
-    // let god2_selector = GodRandomizer::new_exactly(GodName::Minotaur);
-    // let god2_selector = GodRandomizer::new_one_of(vec![GodName::Mortal].into_iter());
+    // let god2_selector = GodRandomizer::new_exactly(GodName::Artemis);
+    // let god2_selector = GodRandomizer::new_not_one_of(&vec![GodName::Artemis]);
 
     loop {
         let mut g1 = god1_selector.get();
@@ -103,6 +107,11 @@ fn main() {
         root_state.gods[0] = g1;
         root_state.gods[1] = g2;
         root_state.recalculate_internals();
+
+        if root_state.validation_err().is_err() {
+            // eprintln!("Invalid Matchup: {:?}", root_state);
+            continue;
+        }
 
         run_match(root_state, &mut rng);
     }

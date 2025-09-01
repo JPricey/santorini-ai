@@ -274,6 +274,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
        domes:  domes,
        win_mask:  win_mask,
        build_mask: build_mask,
+       is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
        other_workers:  other_workers,
        result:  result,
@@ -288,7 +289,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
 
-        let other_own_workers = current_workers ^ moving_worker_start_mask;
+        let other_own_workers = own_workers ^ moving_worker_start_mask;
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
@@ -415,33 +416,36 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                         (other_own_workers | moving_worker_end_mask) & exactly_level_2;
 
                     let mut is_check = false;
-                    let blocked_for_final_push_squares = other_own_workers
-                        | moving_worker_end_mask
-                        | domes
-                        | (exactly_level_3 & worker_build_mask)
-                        | other_workers_post_push;
 
-                    for worker in checkable_own_workers {
-                        let ns = NEIGHBOR_MAP[worker as usize] & possible_dest_board;
-                        if (ns & not_other_pushed_workers).is_not_empty() {
-                            is_check = true;
-                            break;
-                        } else {
-                            for o in ns & other_workers_post_push {
-                                if let Some(push_to) =
-                                    MINOTAUR_PUSH_TO_MAPPING[worker as usize][o as usize]
-                                {
-                                    let tmp_push_to_mask = BitBoard::as_mask(push_to);
-                                    if (tmp_push_to_mask & blocked_for_final_push_squares)
-                                        .is_empty()
+                    if !is_against_hypnus || checkable_own_workers.count_ones() >= 2 {
+                        let blocked_for_final_push_squares = other_own_workers
+                            | moving_worker_end_mask
+                            | domes
+                            | (exactly_level_3 & worker_build_mask)
+                            | other_workers_post_push;
+
+                        for worker in checkable_own_workers {
+                            let ns = NEIGHBOR_MAP[worker as usize] & possible_dest_board;
+                            if (ns & not_other_pushed_workers).is_not_empty() {
+                                is_check = true;
+                                break;
+                            } else {
+                                for o in ns & other_workers_post_push {
+                                    if let Some(push_to) =
+                                        MINOTAUR_PUSH_TO_MAPPING[worker as usize][o as usize]
                                     {
-                                        is_check = true;
-                                        break;
+                                        let tmp_push_to_mask = BitBoard::as_mask(push_to);
+                                        if (tmp_push_to_mask & blocked_for_final_push_squares)
+                                            .is_empty()
+                                        {
+                                            is_check = true;
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                            if is_check {
-                                break;
+                                if is_check {
+                                    break;
+                                }
                             }
                         }
                     }

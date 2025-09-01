@@ -549,6 +549,10 @@ impl BoardState {
             return Err(format!("Player {:?} has workers on domes", player));
         }
 
+        if god.is_hypnus() && self.workers[1 - player_idx].count_ones() == 1 {
+            return Err("Can't play hypnus against a solo worker".to_owned());
+        }
+
         Ok(())
     }
 

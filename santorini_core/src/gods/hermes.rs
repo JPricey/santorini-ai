@@ -341,6 +341,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
        domes:  domes,
        win_mask:  win_mask,
        build_mask: build_mask,
+       is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
        other_workers:  other_workers,
        result:  result,
@@ -356,7 +357,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
 
         let mut other_threatening_neighbors = BitBoard::EMPTY;
         let other_threatening_workers =
-            (current_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
+            (own_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
         for other_pos in other_threatening_workers {
             other_threatening_neighbors |= NEIGHBOR_MAP[other_pos as usize];
         }
@@ -404,10 +405,16 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                 worker_plausible_next_moves: worker_plausible_next_moves,
             );
 
-            let reach_board = (other_threatening_neighbors
-                | (worker_plausible_next_moves
-                    & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]))
-                & win_mask;
+            let is_now_lvl_2 = (worker_end_height == 2) as usize;
+            let reach_board = if is_against_hypnus
+                && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
+            {
+                BitBoard::EMPTY
+            } else {
+                (other_threatening_neighbors
+                    | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                    & win_mask
+            };
 
             for worker_build_pos in narrowed_builds {
                 let new_action = HermesMove::new_hermes_single_move(
@@ -537,6 +544,8 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                     HermesMove::new_hermes_double_move(f1, t1, f2, t2, build, is_overlap);
                 let worker_build_mask = BitBoard::as_mask(build);
 
+                // dont need hypnus check here. if you can move both workers, it's because they are
+                // both on the same level
                 let is_check = {
                     let check_board = l2_neighbors
                         & worker_plausible_next_moves
