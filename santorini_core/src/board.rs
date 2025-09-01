@@ -7,10 +7,9 @@ use strum::IntoEnumIterator;
 use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
-    gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod, generic::GodMove},
+    gods::{generic::{GenericMove, GodMove}, BoardStateWithAction, GameStateWithAction, GodName, StaticGod},
     hashing::{
-        HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
-        compute_hash_from_scratch_for_board,
+        compute_hash_from_scratch_for_board, HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS
     },
     placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
     player::Player,
@@ -162,6 +161,12 @@ impl FullGameState {
 
     pub fn flip_current_player(&mut self) {
         self.board.flip_current_player();
+    }
+
+    pub fn next_state(&self, god: StaticGod, action: GenericMove) -> FullGameState {
+        let mut result = self.clone();
+        god.make_move(&mut result.board, action);
+        result
     }
 
     pub fn get_next_states(&self) -> Vec<FullGameState> {

@@ -599,14 +599,14 @@ where
     search_state.search_stack[ply].eval = -WINNING_SCORE_BUFFER;
     for action in placements {
         search_state.search_stack[ply].move_hash = hash_u64(action.get_history_idx(&state.board));
-        let mut state_clone = state.clone();
-        action.make_move(&mut state_clone.board);
+        let mut child_state = state.clone();
+        action.make_move(&mut child_state.board);
 
         let score = -match state.board.current_player {
             Player::One => _start_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
-                &state_clone,
+                &child_state,
                 nnue_acc,
                 ply + 1,
                 remaining_depth,
@@ -616,7 +616,7 @@ where
             Player::Two => _placement_search::<T, NT::Next>(
                 search_context,
                 search_state,
-                &state_clone,
+                &child_state,
                 nnue_acc,
                 ply + 1,
                 remaining_depth,
@@ -772,13 +772,12 @@ where
 
     let mut should_stop = false;
     for child_move in child_moves.iter().rev() {
-        let mut state_clone = state.clone();
-        active_god.make_move(&mut state_clone.board, child_move.action);
+        let child_state = state.next_state(active_god, child_move.action);
 
         let score = -_q_extend(
             search_context,
             search_state,
-            &state_clone,
+            &child_state,
             nnue_acc,
             ply + 1,
             q_depth + 1,
@@ -978,11 +977,10 @@ where
             } else {
                 let score = -win_at_ply(ply + 1);
                 let best_action = moves[0].action;
-                let mut state_clone = state.clone();
-                active_god.make_move(&mut state_clone.board, best_action);
+                let child_state = state.next_state(active_god, best_action);
 
                 let new_best_move = BestSearchResult::new(
-                    state_clone.clone(),
+                    child_state.clone(),
                     best_action,
                     false,
                     score,
@@ -1009,8 +1007,7 @@ where
     if let Some(winning_action) = move_picker.get_winning_move(&state) {
         let score = win_at_ply(ply);
         if NT::ROOT {
-            let mut winning_state = state.clone();
-            active_god.make_move(&mut winning_state.board, winning_action);
+            let winning_state = state.next_state(active_god, winning_action);
             debug_assert!(winning_state.get_winner() == Some(state.board.current_player));
 
             let new_best_move = BestSearchResult::new(
@@ -1155,13 +1152,13 @@ where
         let mut move_score_adjustment = 0;
 
         let mut score;
-        let mut state_clone = state.clone();
+        let child_state;
         if move_idx == 1 {
-            active_god.make_move(&mut state_clone.board, child_action);
+            child_state = state.next_state(active_god, child_action);
             score = -_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,
-                &state_clone,
+                &child_state,
                 nnue_acc,
                 child_is_check,
                 ply + 1,
@@ -1213,13 +1210,13 @@ where
                 break;
             }
 
-            active_god.make_move(&mut state_clone.board, child_action);
+            child_state = state.next_state(active_god, child_action);
 
             // Try a 0-window search
             score = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
-                &state_clone,
+                &child_state,
                 nnue_acc,
                 child_is_check,
                 ply + 1,
@@ -1235,7 +1232,7 @@ where
                 score = -_inner_search::<T, OffPV>(
                     search_context,
                     search_state,
-                    &state_clone,
+                    &child_state,
                     nnue_acc,
                     child_is_check,
                     ply + 1,
@@ -1252,7 +1249,7 @@ where
                 score = -_inner_search::<T, NT::Next>(
                     search_context,
                     search_state,
-                    &state_clone,
+                    &child_state,
                     nnue_acc,
                     child_is_check,
                     ply + 1,
@@ -1273,7 +1270,7 @@ where
 
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
-                    state_clone.clone(),
+                    child_state.clone(),
                     best_action,
                     false,
                     score,

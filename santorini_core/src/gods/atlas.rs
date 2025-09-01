@@ -6,9 +6,8 @@ use crate::{
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
-            FULL_HEIGHT_WIDTH, GenericMove, GodMove, LOWER_POSITION_MASK,
-            MOVE_IS_WINNING_MASK, MoveData, MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH,
-            ScoredMove,
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
     },
@@ -22,8 +21,7 @@ use super::PartialAction;
 pub const ATLAS_MOVE_FROM_POSITION_OFFSET: usize = 0;
 pub const ATLAS_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 pub const ATLAS_BUILD_POSITION_OFFSET: usize = ATLAS_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const ATLAS_IS_DOME_BUILD_POSITION_OFFSET: usize =
-    ATLAS_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+pub const ATLAS_IS_DOME_BUILD_POSITION_OFFSET: usize = ATLAS_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 pub const ATLAS_IS_DOME_BUILD_MASK: MoveData = 1 << ATLAS_IS_DOME_BUILD_POSITION_OFFSET;
 
