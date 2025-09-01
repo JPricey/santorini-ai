@@ -10,7 +10,7 @@ use santorini_core::{
     utils::sigmoid,
 };
 
-const SECS_PER_MOVE: f32 = 10.0;
+const SECS_PER_MOVE: f32 = 1.0;
 
 fn play_match(engine: &mut EngineThreadWrapper, god1: GodName, god2: GodName) -> Player {
     let mut game_state = FullGameState::new_empty_state(god1, god2);
@@ -100,6 +100,13 @@ fn print_results(results: &Vec<MatchupResult>) {
 pub fn all_matchups() -> Vec<(GodName, GodName)> {
     let banned_gods = vec![GodName::Mortal];
 
+    let must_include = vec![
+        // GodName::Limus,
+        // GodName::Hera,
+        // GodName::Urania,
+        // GodName::Graeae,
+    ];
+
     let mut res = Vec::new();
     for god1 in ALL_GODS_BY_ID {
         let god1 = god1.god_name;
@@ -110,6 +117,12 @@ pub fn all_matchups() -> Vec<(GodName, GodName)> {
         for god2 in ALL_GODS_BY_ID {
             let god2 = god2.god_name;
             if banned_gods.contains(&god2) || god1 == god2 {
+                continue;
+            }
+
+            if must_include.len() > 0
+                && !(must_include.contains(&god1) | must_include.contains(&god2))
+            {
                 continue;
             }
 
@@ -158,6 +171,9 @@ impl std::fmt::Display for BalanceMatchupResult {
     }
 }
 
+/// Outputs how balanced the AI thinks each matchup is by playing out a few turns and returning the
+/// score
+/// Used to determine which gods to pick for an even match
 pub fn balance_matchups(moves_per_game: usize, secs_per_move: f32) {
     let mut engine = EngineThreadWrapper::new();
     engine.spin_for_pending_state();
@@ -165,7 +181,7 @@ pub fn balance_matchups(moves_per_game: usize, secs_per_move: f32) {
     let mut all_results = Vec::new();
 
     for (god1, god2) in all_matchups() {
-        eprintln!("starting balance matching {} {}", god1, god2);
+        eprintln!("starting matchup {} {}", god1, god2);
         let mut scores = Vec::new();
 
         let mut game_state = FullGameState::new_empty_state(god1, god2);
@@ -203,7 +219,8 @@ pub fn balance_matchups(moves_per_game: usize, secs_per_move: f32) {
 }
 
 pub fn main() {
-    balance_matchups(4, 5.0);
+    // balance_matchups(4, 5.0);
+    full_matchups()
 }
 
 // cargo run -p battler --bin matchups --release
