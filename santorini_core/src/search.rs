@@ -1086,7 +1086,6 @@ where
                 -beta + 1,
                 !is_cut_node,
             );
-            state_clone.board.flip_current_player();
             search_state.search_stack[ply].is_null_move = false;
 
             // cutoff above beta

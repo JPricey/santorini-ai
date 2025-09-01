@@ -334,7 +334,7 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
 
                 if is_interact_with_key_squares {
                     if ((moving_worker_end_mask | pre_build_mask) & key_squares).is_empty() {
-                        worker_builds = worker_builds & key_squares;
+                        worker_builds &= key_squares;
                     }
                 }
 
@@ -393,7 +393,7 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
 
             if is_interact_with_key_squares {
                 if (moving_worker_end_mask & key_squares).is_empty() {
-                    worker_builds = worker_builds & key_squares;
+                    worker_builds &= key_squares;
                 }
             }
 

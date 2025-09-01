@@ -48,6 +48,8 @@ pub const FULL_HEIGHT_MASK: u8 = (1 << FULL_HEIGHT_WIDTH) - 1;
 
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
+pub const MOVE_DATA_MAIN_SECTION: MoveData = MOVE_IS_CHECK_MASK - 1;
+
 
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct GenericMove(pub MoveData);
