@@ -40,46 +40,48 @@ macro_rules! build_parse_flags {
 #[macro_export]
 macro_rules! variable_prelude {
     (
-        $state:ident,
-        $player:ident,
-        $board:ident,
-        $other_player:ident,
-        $current_player_idx:ident,
-        $other_player_idx:ident,
-        $other_god:ident,
-        $exactly_level_0:ident,
-        $exactly_level_1:ident,
-        $exactly_level_2:ident,
-        $exactly_level_3:ident,
-        $win_mask:ident,
-        $domes:ident,
-        $own_workers:ident,
-        $other_workers:ident,
-        $result:ident,
-        $all_workers_mask:ident,
-        $is_mate_only: ident,
-        $current_workers: ident,
-        $checkable_worker_positions_mask: ident,
+        state: $state:ident,
+        player: $player:ident,
+        board: $board:ident,
+        other_player: $other_player:ident,
+        current_player_idx: $current_player_idx:ident,
+        other_player_idx: $other_player_idx:ident,
+        other_god: $other_god:ident,
+        exactly_level_0: $exactly_level_0:ident,
+        exactly_level_1: $exactly_level_1:ident,
+        exactly_level_2: $exactly_level_2:ident,
+        exactly_level_3: $exactly_level_3:ident,
+        domes: $domes:ident,
+        win_mask: $win_mask:ident,
+        build_mask: $build_mask:ident,
+        own_workers: $own_workers:ident,
+        other_workers: $other_workers:ident,
+        result: $result:ident,
+        all_workers_mask: $all_workers_mask:ident,
+        is_mate_only: $is_mate_only: ident,
+        current_workers: $current_workers: ident,
+        checkable_worker_positions_mask: $checkable_worker_positions_mask: ident,
     ) => {
         $crate::non_checking_variable_prelude!(
-            $state,
-            $player,
-            $board,
-            $other_player,
-            $current_player_idx,
-            $other_player_idx,
-            $other_god,
-            $exactly_level_0,
-            $exactly_level_1,
-            $exactly_level_2,
-            $exactly_level_3,
-            $win_mask,
-            $domes,
-            $own_workers,
-            $other_workers,
-            $result,
-            $all_workers_mask,
-            $is_mate_only,
+            state: $state,
+            player: $player,
+            board: $board,
+            other_player: $other_player,
+            current_player_idx: $current_player_idx,
+            other_player_idx: $other_player_idx,
+            other_god: $other_god,
+            exactly_level_0: $exactly_level_0,
+            exactly_level_1: $exactly_level_1,
+            exactly_level_2: $exactly_level_2,
+            exactly_level_3: $exactly_level_3,
+            domes: $domes,
+            win_mask: $win_mask,
+            build_mask: $build_mask,
+            own_workers: $own_workers,
+            other_workers: $other_workers,
+            result: $result,
+            all_workers_mask: $all_workers_mask,
+            is_mate_only: $is_mate_only,
         );
 
         let mut $current_workers = $own_workers;
@@ -93,24 +95,25 @@ macro_rules! variable_prelude {
 #[macro_export]
 macro_rules! non_checking_variable_prelude {
     (
-        $state:ident,
-        $player:ident,
-        $board:ident,
-        $other_player:ident,
-        $current_player_idx:ident,
-        $other_player_idx:ident,
-        $other_god: ident,
-        $exactly_level_0:ident,
-        $exactly_level_1:ident,
-        $exactly_level_2:ident,
-        $exactly_level_3:ident,
-        $win_mask: ident,
-        $domes:ident,
-        $own_workers:ident,
-        $other_workers:ident,
-        $result:ident,
-        $all_workers_mask:ident,
-        $is_mate_only: ident,
+        state: $state:ident,
+        player: $player:ident,
+        board: $board:ident,
+        other_player: $other_player:ident,
+        current_player_idx: $current_player_idx:ident,
+        other_player_idx: $other_player_idx:ident,
+        other_god: $other_god: ident,
+        exactly_level_0: $exactly_level_0:ident,
+        exactly_level_1: $exactly_level_1:ident,
+        exactly_level_2: $exactly_level_2:ident,
+        exactly_level_3: $exactly_level_3:ident,
+        domes: $domes:ident,
+        win_mask: $win_mask: ident,
+        build_mask: $build_mask: ident,
+        own_workers: $own_workers:ident,
+        other_workers: $other_workers:ident,
+        result: $result:ident,
+        all_workers_mask: $all_workers_mask:ident,
+        is_mate_only: $is_mate_only: ident,
     ) => {
         let $board = &$state.board;
         let $other_player = !$player;
@@ -136,6 +139,7 @@ macro_rules! non_checking_variable_prelude {
         let $all_workers_mask = $own_workers | $other_workers;
 
         let $win_mask = $other_god.win_mask;
+        let $build_mask = $other_god.get_build_mask($other_workers) | $exactly_level_3;
     };
 }
 
@@ -157,6 +161,35 @@ macro_rules! build_push_winning_moves {
             $result.push(winning_move);
             if $is_stop_on_mate {
                 return $result;
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! build_building_masks {
+    (
+        worker_end_pos: $worker_end_pos: ident,
+        open_squares: $open_squares: ident,
+        build_mask: $build_mask: ident,
+        is_interact_with_key_squares: $is_interact_with_key_squares:path,
+        key_squares_expr: $key_squares_expr:expr,
+        key_squares: $key_squares:ident,
+
+        all_possible_builds: $all_possible_builds:ident,
+        narrowed_builds: $narrowed_builds:ident,
+        worker_plausible_next_moves: $worker_plausible_next_moves:ident,
+    ) => {
+        let mut $all_possible_builds =
+            crate::board::NEIGHBOR_MAP[$worker_end_pos as usize] & $open_squares;
+        let $worker_plausible_next_moves = $all_possible_builds;
+        $all_possible_builds &= $build_mask;
+        let mut $narrowed_builds = $all_possible_builds;
+
+        if $is_interact_with_key_squares {
+            #[allow(unused_parens)]
+            if $key_squares_expr {
+                $narrowed_builds &= $key_squares;
             }
         }
     };
@@ -192,26 +225,27 @@ macro_rules! build_power_move_generator {
             $crate::build_parse_flags!(is_mate_only, $is_include_score, is_stop_on_mate, is_interact_with_key_squares);
 
             $crate::variable_prelude!(
-                $state,
-                player,
-                board,
-                other_player,
-                current_player_idx,
-                other_player_idx,
-                other_god,
-                exactly_level_0,
-                $exactly_level_1,
-                $exactly_level_2,
-                $exactly_level_3,
-                win_mask,
-                domes,
-                own_workers,
-                other_workers,
-                $result,
-                all_workers_mask,
-                is_mate_only,
-                current_workers,
-                checkable_worker_positions_mask,
+                state: $state,
+                player:  player,
+                board:  board,
+                other_player:  other_player,
+                current_player_idx:  current_player_idx,
+                other_player_idx:  other_player_idx,
+                other_god:  other_god,
+                exactly_level_0:  exactly_level_0,
+                exactly_level_1: $exactly_level_1,
+                exactly_level_2: $exactly_level_2,
+                exactly_level_3: $exactly_level_3,
+                domes:  domes,
+                win_mask:  win_mask,
+                build_mask: build_mask,
+                own_workers:  own_workers,
+                other_workers:  other_workers,
+                result: $result,
+                all_workers_mask:  all_workers_mask,
+                is_mate_only:  is_mate_only,
+                current_workers:  current_workers,
+                checkable_worker_positions_mask:  checkable_worker_positions_mask,
             );
 
             $extra_init
@@ -258,16 +292,19 @@ macro_rules! build_power_move_generator {
                     let worker_end_height = board.get_height($worker_end_pos);
                     let $is_improving = worker_end_height > worker_starting_height;
 
-                    let $all_possible_builds =
-                        NEIGHBOR_MAP[$worker_end_pos as usize] & $unblocked_squares;
-                    let worker_plausible_next_moves = $all_possible_builds;
-                    let mut $narrowed_builds = $all_possible_builds;
 
-                    if is_interact_with_key_squares {
-                        if (moving_worker_end_mask & key_squares).is_empty() {
-                            $narrowed_builds = $all_possible_builds & key_squares;
-                        }
-                    }
+                    $crate::build_building_masks!(
+                        worker_end_pos: $worker_end_pos,
+                        open_squares: $unblocked_squares,
+                        build_mask: build_mask,
+                        is_interact_with_key_squares: is_interact_with_key_squares,
+                        key_squares_expr: (moving_worker_end_mask & key_squares).is_empty(),
+                        key_squares: key_squares,
+
+                        all_possible_builds: $all_possible_builds,
+                        narrowed_builds: $narrowed_builds,
+                        worker_plausible_next_moves: worker_plausible_next_moves,
+                    );
 
                     let own_final_workers = other_own_workers | moving_worker_end_mask;
                     let $reach_board = (other_threatening_neighbors

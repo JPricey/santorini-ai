@@ -26,26 +26,27 @@ fn graeae_move_gen<const F: MoveGenFlags>(
     );
 
     variable_prelude!(
-        state,
-        player,
-        board,
-        other_player,
-        current_player_idx,
-        other_player_idx,
-        other_god,
-        exactly_level_0,
-        exactly_level_1,
-        exactly_level_2,
-        exactly_level_3,
-        win_mask,
-        domes,
-        own_workers,
-        other_workers,
-        result,
-        all_workers_mask,
-        is_mate_only,
-        current_workers,
-        checkable_worker_positions_mask,
+       state:  state,
+       player:  player,
+       board:  board,
+       other_player:  other_player,
+       current_player_idx:  current_player_idx,
+       other_player_idx:  other_player_idx,
+       other_god:  other_god,
+       exactly_level_0:  exactly_level_0,
+       exactly_level_1:  exactly_level_1,
+       exactly_level_2:  exactly_level_2,
+       exactly_level_3:  exactly_level_3,
+       domes:  domes,
+       win_mask:  win_mask,
+       build_mask: build_mask,
+       own_workers:  own_workers,
+       other_workers:  other_workers,
+       result:  result,
+       all_workers_mask:  all_workers_mask,
+       is_mate_only:  is_mate_only,
+       current_workers:  current_workers,
+       checkable_worker_positions_mask:  checkable_worker_positions_mask,
     );
 
     for worker_start_pos in current_workers.into_iter() {
@@ -95,6 +96,7 @@ fn graeae_move_gen<const F: MoveGenFlags>(
             let mut worker_builds = other_all_neighbors & buildable_squares;
             let worker_plausible_next_moves =
                 NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+            worker_builds &= build_mask;
 
             if is_interact_with_key_squares {
                 if (moving_worker_end_mask & key_squares).is_empty() {

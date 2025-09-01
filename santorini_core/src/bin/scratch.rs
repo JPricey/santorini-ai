@@ -26,6 +26,6 @@ fn debug() {
 }
 
 fn main() {
-    debug();
-    // print_hashing_randoms(2);
+    // debug();
+    print_hashing_randoms(2);
 }

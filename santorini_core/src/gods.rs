@@ -21,6 +21,7 @@ pub mod graeae;
 pub mod hephaestus;
 pub mod hera;
 pub mod hermes;
+pub mod limus;
 pub mod minotaur;
 pub mod mortal;
 pub mod pan;
@@ -58,6 +59,7 @@ pub enum GodName {
     Urania = 11,
     Graeae = 12,
     Hera = 13,
+    Limus = 14,
 }
 
 impl GodName {
@@ -196,6 +198,12 @@ pub struct GodPowerActionFns {
     _stringify_move: fn(action: GenericMove) -> String,
 }
 
+pub type BuildMaskFn = fn(oppo_workers: BitBoard) -> BitBoard;
+
+fn _default_build_mask(_oppo_workers: BitBoard) -> BitBoard {
+    BitBoard::MAIN_SECTION_MASK
+}
+
 pub struct GodPower {
     pub god_name: GodName,
     pub model_god_name: GodName,
@@ -206,6 +214,9 @@ pub struct GodPower {
     _get_scored_win_blockers: MoveGeneratorFn,
     _get_unscored_win_blockers: MoveGeneratorFn,
     _get_moves_for_search: MoveGeneratorFn,
+
+    // God specific move blockers
+    _build_mask_fn: BuildMaskFn,
 
     // Action Fns
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
@@ -227,6 +238,10 @@ pub struct GodPower {
 }
 
 impl GodPower {
+    pub fn get_build_mask(&self, own_workers: BitBoard) -> BitBoard {
+        (self._build_mask_fn)(own_workers)
+    }
+
     pub fn get_next_states_interactive(&self, state: &FullGameState) -> Vec<BoardStateWithAction> {
         let all_moves = (self._get_all_moves)(state, state.board.current_player, BitBoard::EMPTY);
 
@@ -335,7 +350,7 @@ impl std::fmt::Display for GodPower {
     }
 }
 
-pub const ALL_GODS_BY_ID: [GodPower; 14] = [
+pub const ALL_GODS_BY_ID: [GodPower; 15] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
@@ -350,6 +365,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 14] = [
     urania::build_urania(),
     graeae::build_graeae(),
     hera::build_hera(),
+    limus::build_limus(),
 ];
 
 #[macro_export]
@@ -436,6 +452,8 @@ const fn god_power(
         _get_scored_win_blockers: movers._get_scored_win_blockers,
         _get_unscored_win_blockers: movers._get_unscored_win_blockers,
 
+        _build_mask_fn: _default_build_mask,
+
         _get_blocker_board: actions._get_blocker_board,
         _get_actions_for_move: actions._get_actions_for_move,
         _make_move: actions._make_move,
@@ -464,6 +482,11 @@ impl GodPower {
 
     pub const fn with_win_mask(mut self, win_mask: BitBoard) -> Self {
         self.win_mask = win_mask;
+        self
+    }
+
+    pub const fn with_build_mask_fn(mut self, build_mask_fn: BuildMaskFn) -> Self {
+        self._build_mask_fn = build_mask_fn;
         self
     }
 }

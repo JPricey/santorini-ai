@@ -1,16 +1,7 @@
 use crate::{
-    add_scored_move,
-    bitboard::BitBoard,
-    board::{FullGameState, NEIGHBOR_MAP},
-    build_god_power_movers, build_parse_flags, build_push_winning_moves,
-    gods::{
-        GodName, GodPower, build_god_power_actions,
-        generic::{MoveGenFlags, ScoredMove},
-        god_power,
-        mortal::MortalMove,
-    },
-    non_checking_variable_prelude,
-    player::Player,
+    add_scored_move, bitboard::BitBoard, board::{FullGameState, NEIGHBOR_MAP}, build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves, gods::{
+        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, GodName, GodPower
+    }, non_checking_variable_prelude, player::Player
 };
 
 fn pan_move_gen<const F: MoveGenFlags>(
@@ -26,24 +17,25 @@ fn pan_move_gen<const F: MoveGenFlags>(
     );
 
     non_checking_variable_prelude!(
-        state,
-        player,
-        board,
-        other_player,
-        current_player_idx,
-        other_player_idx,
-        other_god,
-        exactly_level_0,
-        exactly_level_1,
-        exactly_level_2,
-        exactly_level_3,
-        win_mask,
-        domes,
-        own_workers,
-        other_workers,
-        result,
-        all_workers_mask,
-        is_mate_only,
+       state:  state,
+       player:  player,
+       board:  board,
+       other_player:  other_player,
+       current_player_idx:  current_player_idx,
+       other_player_idx:  other_player_idx,
+       other_god:  other_god,
+       exactly_level_0:  exactly_level_0,
+       exactly_level_1:  exactly_level_1,
+       exactly_level_2:  exactly_level_2,
+       exactly_level_3:  exactly_level_3,
+       domes:  domes,
+       win_mask:  win_mask,
+       build_mask: build_mask,
+       own_workers:  own_workers,
+       other_workers:  other_workers,
+       result:  result,
+       all_workers_mask:  all_workers_mask,
+       is_mate_only:  is_mate_only,
     );
 
     let mut current_workers = own_workers;
@@ -104,15 +96,18 @@ fn pan_move_gen<const F: MoveGenFlags>(
             let worker_end_height = board.get_height(moving_worker_end_pos);
             let is_improving = worker_end_height > worker_starting_height;
 
-            let mut worker_builds =
-                NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
-            let worker_plausible_next_moves = worker_builds;
+            build_building_masks!(
+                worker_end_pos: moving_worker_end_pos,
+                open_squares: buildable_squares,
+                build_mask: build_mask,
+                is_interact_with_key_squares: is_interact_with_key_squares,
+                key_squares_expr: (moving_worker_end_mask & key_squares).is_empty(),
+                key_squares: key_squares,
 
-            if is_interact_with_key_squares {
-                if (moving_worker_end_mask & key_squares).is_empty() {
-                    worker_builds = worker_builds & key_squares;
-                }
-            }
+                all_possible_builds: all_possible_builds,
+                narrowed_builds: narrowed_builds,
+                worker_plausible_next_moves: worker_plausible_next_moves,
+            );
 
             let mut reach_2 = neighbor_2;
             let mut reach_3 = neighbor_3;
@@ -122,7 +117,7 @@ fn pan_move_gen<const F: MoveGenFlags>(
                 reach_3 |= worker_plausible_next_moves;
             }
 
-            for worker_build_pos in worker_builds {
+            for worker_build_pos in narrowed_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                 let anti_worker_build_mask = !worker_build_mask;
                 let new_action = MortalMove::new_basic_move(

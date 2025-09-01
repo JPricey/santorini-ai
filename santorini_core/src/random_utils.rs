@@ -1,4 +1,7 @@
-use rand::{rng, seq::IteratorRandom, Rng};
+use rand::{
+    Rng, rng,
+    seq::{IndexedRandom, IteratorRandom},
+};
 
 use crate::{
     board::FullGameState,
@@ -19,7 +22,7 @@ pub fn get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
 }
 
 pub fn get_random_god(rng: &mut impl Rng) -> StaticGod {
-    ALL_GODS_BY_ID.iter().choose(rng).unwrap()
+    ALL_GODS_BY_ID.choose(rng).unwrap()
 }
 
 pub fn get_random_move(state: &FullGameState, rng: &mut impl Rng) -> Option<FullGameState> {

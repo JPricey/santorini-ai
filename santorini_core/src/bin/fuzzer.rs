@@ -1,9 +1,10 @@
-use rand::{Rng, rng};
+use rand::{Rng, rng, seq::IndexedRandom};
 
 use santorini_core::{
     board::FullGameState,
     consistency_checker::consistency_check,
-    random_utils::{get_board_with_random_placements, get_random_god, get_random_move},
+    gods::{ALL_GODS_BY_ID, GodName, StaticGod},
+    random_utils::{get_board_with_random_placements, get_random_move},
 };
 
 fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
@@ -33,24 +34,62 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
     }
 }
 
+struct GodRandomizer {
+    gods: Vec<StaticGod>,
+}
+
+#[allow(dead_code)]
+impl GodRandomizer {
+    pub fn new_any() -> Self {
+        Self {
+            gods: ALL_GODS_BY_ID.iter().collect(),
+        }
+    }
+
+    pub fn new_exactly(god: GodName) -> Self {
+        Self {
+            gods: vec![god.to_power()],
+        }
+    }
+
+    pub fn new_one_of<I: Iterator<Item = GodName>>(gods: I) -> Self {
+        Self {
+            gods: gods.map(|n| n.to_power()).collect(),
+        }
+    }
+
+    pub fn get(&self) -> StaticGod {
+        let mut rng = rng();
+        self.gods.choose(&mut rng).unwrap()
+    }
+
+    // pub fn new_not_one_of() -> Self {
+    // }
+}
+
 fn main() {
     let mut rng = rng();
 
-    let banned_gods = vec![];
+    let god1_selector = GodRandomizer::new_exactly(GodName::Limus);
+    // let god1_selector = GodRandomizer::new_any();
+
+    let god2_selector = GodRandomizer::new_any();
+    // let god2_selector = GodRandomizer::new_exactly(GodName::Minotaur);
+    // let god2_selector = GodRandomizer::new_one_of(vec![GodName::Mortal].into_iter());
 
     loop {
         let mut root_state = get_board_with_random_placements(&mut rng);
         // root_state.gods[0] = GodName::Minotaur.to_power();
         // root_state.gods[1] = GodName::Mortal.to_power();
 
-        root_state.gods[0] = get_random_god(&mut rng);
-        root_state.gods[1] = get_random_god(&mut rng);
+        root_state.gods[0] = god1_selector.get();
+        root_state.gods[1] = god2_selector.get();
 
-        if banned_gods.contains(&root_state.gods[0].god_name)
-            || banned_gods.contains(&root_state.gods[1].god_name)
-        {
-            continue;
+        if rng.random_bool(0.5) {
+            root_state.gods.swap(0, 1);
         }
+
+        root_state.recalculate_internals();
 
         run_match(root_state, &mut rng);
     }

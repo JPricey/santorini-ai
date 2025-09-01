@@ -186,26 +186,27 @@ fn apollo_move_gen<const F: MoveGenFlags>(
     );
 
     variable_prelude!(
-        state,
-        player,
-        board,
-        other_player,
-        current_player_idx,
-        other_player_idx,
-        other_god,
-        exactly_level_0,
-        exactly_level_1,
-        exactly_level_2,
-        exactly_level_3,
-        win_mask,
-        domes,
-        own_workers,
-        other_workers,
-        result,
-        all_workers_mask,
-        is_mate_only,
-        current_workers,
-        checkable_worker_positions_mask,
+       state:  state,
+       player:  player,
+       board:  board,
+       other_player:  other_player,
+       current_player_idx:  current_player_idx,
+       other_player_idx:  other_player_idx,
+       other_god:  other_god,
+       exactly_level_0:  exactly_level_0,
+       exactly_level_1:  exactly_level_1,
+       exactly_level_2:  exactly_level_2,
+       exactly_level_3:  exactly_level_3,
+       domes:  domes,
+       win_mask:  win_mask,
+       build_mask: build_mask,
+       own_workers:  own_workers,
+       other_workers:  other_workers,
+       result:  result,
+       all_workers_mask:  all_workers_mask,
+       is_mate_only:  is_mate_only,
+       current_workers:  current_workers,
+       checkable_worker_positions_mask:  checkable_worker_positions_mask,
     );
 
     for moving_worker_start_pos in current_workers.into_iter() {
@@ -253,18 +254,25 @@ fn apollo_move_gen<const F: MoveGenFlags>(
         }
 
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let non_swapped_buildable_squares = !(non_selected_workers | board.height_map[3]);
-        let swapped_buildable_squares = !(all_workers_mask | board.height_map[3]);
-        let worker_builds_by_is_swap = [non_swapped_buildable_squares, swapped_buildable_squares];
+        let blocked_squares_minus_opponent_workers = non_selected_workers | domes;
+
         for moving_worker_end_pos in worker_moves.into_iter() {
-            let is_swap = (BitBoard::as_mask(moving_worker_end_pos) & other_workers).is_not_empty();
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let not_own_workers = !(other_own_workers | moving_worker_end_mask);
             let worker_end_height = board.get_height(moving_worker_end_pos);
             let is_improving = worker_end_height > worker_starting_height;
 
+            let mut final_other_workers = other_workers;
+            let mut final_build_mask = build_mask;
+            let is_swap = (BitBoard::as_mask(moving_worker_end_pos) & other_workers).is_not_empty();
+            if is_swap {
+                final_other_workers ^= moving_worker_end_mask | moving_worker_start_mask;
+                final_build_mask = other_god.get_build_mask(final_other_workers) | exactly_level_3;
+            }
+            let buildable_squares = !(blocked_squares_minus_opponent_workers | final_other_workers);
+
             let end_neighbors = NEIGHBOR_MAP[moving_worker_end_pos as usize];
-            let mut worker_builds = end_neighbors & worker_builds_by_is_swap[is_swap as usize];
+            let mut worker_builds = end_neighbors & buildable_squares & final_build_mask;
 
             if is_interact_with_key_squares {
                 if ((moving_worker_start_mask & BitBoard::CONDITIONAL_MASK[is_swap as usize]

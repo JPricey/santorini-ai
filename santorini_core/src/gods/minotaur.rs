@@ -260,26 +260,27 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
     );
 
     variable_prelude!(
-        state,
-        player,
-        board,
-        other_player,
-        current_player_idx,
-        other_player_idx,
-        other_god,
-        exactly_level_0,
-        exactly_level_1,
-        exactly_level_2,
-        exactly_level_3,
-        win_mask,
-        domes,
-        own_workers,
-        other_workers,
-        result,
-        all_workers_mask,
-        is_mate_only,
-        current_workers,
-        checkable_worker_positions_mask,
+       state:  state,
+       player:  player,
+       board:  board,
+       other_player:  other_player,
+       current_player_idx:  current_player_idx,
+       other_player_idx:  other_player_idx,
+       other_god:  other_god,
+       exactly_level_0:  exactly_level_0,
+       exactly_level_1:  exactly_level_1,
+       exactly_level_2:  exactly_level_2,
+       exactly_level_3:  exactly_level_3,
+       domes:  domes,
+       win_mask:  win_mask,
+       build_mask: build_mask,
+       own_workers:  own_workers,
+       other_workers:  other_workers,
+       result:  result,
+       all_workers_mask:  all_workers_mask,
+       is_mate_only:  is_mate_only,
+       current_workers:  current_workers,
+       checkable_worker_positions_mask:  checkable_worker_positions_mask,
     );
     let blocked_squares = all_workers_mask | domes;
 
@@ -352,6 +353,9 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             let mut push_to_spot: Option<Square> = None;
             let mut push_to_mask = BitBoard::EMPTY;
 
+            let mut final_build_mask = build_mask;
+            let mut other_workers_post_push = other_workers;
+
             if (moving_worker_end_mask & other_workers).is_not_empty() {
                 if let Some(push_to) = MINOTAUR_PUSH_TO_MAPPING[moving_worker_start_pos as usize]
                     [moving_worker_end_pos as usize]
@@ -361,6 +365,11 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                         push_to_spot = Some(push_to);
                         push_to_mask = tmp_push_to_mask;
                         worker_builds ^= tmp_push_to_mask;
+
+                        other_workers_post_push =
+                            other_workers ^ push_to_mask ^ moving_worker_end_mask;
+                        final_build_mask =
+                            other_god.get_build_mask(other_workers_post_push) | exactly_level_3;
                     } else {
                         continue;
                     }
@@ -369,6 +378,8 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                 }
             }
 
+            worker_builds &= final_build_mask;
+
             if is_interact_with_key_squares {
                 if ((moving_worker_end_mask | push_to_mask) & key_squares).is_empty() {
                     worker_builds = worker_builds & key_squares;
@@ -376,8 +387,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             }
 
             let free_move_spaces = !(other_own_workers | domes | moving_worker_end_mask);
-            let other_pushed_workers = other_workers | push_to_mask;
-            let not_other_pushed_workers = !other_pushed_workers;
+            let not_other_pushed_workers = !other_workers_post_push;
 
             for worker_build_pos in worker_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
@@ -409,7 +419,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                         | moving_worker_end_mask
                         | domes
                         | (exactly_level_3 & worker_build_mask)
-                        | other_pushed_workers;
+                        | other_workers_post_push;
 
                     for worker in checkable_own_workers {
                         let ns = NEIGHBOR_MAP[worker as usize] & possible_dest_board;
@@ -417,7 +427,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                             is_check = true;
                             break;
                         } else {
-                            for o in ns & other_pushed_workers {
+                            for o in ns & other_workers_post_push {
                                 if let Some(push_to) =
                                     MINOTAUR_PUSH_TO_MAPPING[worker as usize][o as usize]
                                 {

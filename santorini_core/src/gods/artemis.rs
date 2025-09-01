@@ -2,7 +2,7 @@ use crate::{
     add_scored_move,
     bitboard::BitBoard,
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power_movers, build_parse_flags,
+    build_building_masks, build_god_power_movers, build_parse_flags,
     gods::{
         FullAction, GodName, GodPower, PartialAction, build_god_power_actions,
         generic::{
@@ -173,24 +173,25 @@ fn artemis_move_gen<const F: MoveGenFlags>(
     );
 
     non_checking_variable_prelude!(
-        state,
-        player,
-        board,
-        other_player,
-        current_player_idx,
-        other_player_idx,
-        other_god,
-        exactly_level_0,
-        exactly_level_1,
-        exactly_level_2,
-        exactly_level_3,
-        win_mask,
-        domes,
-        own_workers,
-        other_workers,
-        result,
-        all_workers_mask,
-        is_mate_only,
+       state:  state,
+       player:  player,
+       board:  board,
+       other_player:  other_player,
+       current_player_idx:  current_player_idx,
+       other_player_idx:  other_player_idx,
+       other_god:  other_god,
+       exactly_level_0:  exactly_level_0,
+       exactly_level_1:  exactly_level_1,
+       exactly_level_2:  exactly_level_2,
+       exactly_level_3:  exactly_level_3,
+       domes:  domes,
+       win_mask:  win_mask,
+       build_mask: build_mask,
+       own_workers:  own_workers,
+       other_workers:  other_workers,
+       result:  result,
+       all_workers_mask:  all_workers_mask,
+       is_mate_only:  is_mate_only,
     );
 
     let not_other_workers = !other_workers;
@@ -288,16 +289,20 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             let is_improving = worker_end_height > worker_starting_height;
             let not_any_workers = !(other_workers | other_own_workers | moving_worker_end_mask);
 
-            let mut worker_builds =
-                NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
+            build_building_masks!(
+                worker_end_pos: moving_worker_end_pos,
+                open_squares: buildable_squares,
+                build_mask: build_mask,
+                is_interact_with_key_squares: is_interact_with_key_squares,
+                key_squares_expr: (moving_worker_end_mask & key_squares).is_empty(),
+                key_squares: key_squares,
 
-            if is_interact_with_key_squares {
-                if (moving_worker_end_mask & key_squares).is_empty() {
-                    worker_builds = worker_builds & key_squares;
-                }
-            }
+                all_possible_builds: all_possible_builds,
+                narrowed_builds: narrowed_builds,
+                worker_plausible_next_moves: _worker_plausible_next_moves,
+            );
 
-            for worker_build_pos in worker_builds {
+            for worker_build_pos in narrowed_builds {
                 let build_mask = BitBoard::as_mask(worker_build_pos);
                 let new_action = ArtemisMove::new_artemis_move(
                     moving_worker_start_pos,

@@ -1,6 +1,6 @@
 use crate::{
     bitboard::BitBoard,
-    board::{FullGameState, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState, NEIGHBOR_MAP},
     gods::{
         GodName, StaticGod,
         athena::AthenaMove,
@@ -32,19 +32,24 @@ impl ConsistencyChecker {
     }
 
     pub fn perform_all_validations(&mut self) -> Result<(), Vec<String>> {
-        let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        if let Err(err) = self.state.validation_err() {
+            self.errors.push(err);
+        } else {
+            let current_player = self.state.board.current_player;
+            let (active_god, other_god) = self.state.get_active_non_active_gods();
 
-        let other_wins = other_god.get_winning_moves(&self.state, !current_player);
+            let other_wins = other_god.get_winning_moves(&self.state, !current_player);
 
-        let search_moves = active_god.get_moves_for_search(&self.state, current_player);
-        self._check_wins_on_end_only("SearchMoves", &search_moves);
+            let search_moves = active_god.get_moves_for_search(&self.state, current_player);
+            self.check_wins_on_end_only("SearchMoves", &search_moves);
 
-        let own_winning_moves = active_god.get_winning_moves(&self.state, current_player);
+            let own_winning_moves = active_god.get_winning_moves(&self.state, current_player);
 
-        self._opponent_check_blockers(&other_wins, &search_moves);
-        self._self_check_validations(&search_moves);
-        self._validate_wins(&own_winning_moves);
+            self.opponent_check_blockers(&other_wins, &search_moves);
+            self.self_check_validations(&search_moves);
+            self.validate_wins(&own_winning_moves);
+            self.validate_build_blockers(&search_moves);
+        }
 
         if self.errors.len() == 0 {
             Ok(())
@@ -53,7 +58,103 @@ impl ConsistencyChecker {
         }
     }
 
-    fn _check_wins_on_end_only(&mut self, label: &str, actions: &Vec<ScoredMove>) -> bool {
+    fn validate_build_blockers(&mut self, actions: &Vec<ScoredMove>) {
+        let current_player = self.state.board.current_player;
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
+
+        if other_god.god_name != GodName::Limus {
+            return;
+        }
+
+        let mut dome_build_actions = Vec::new();
+
+        // Returns a mask of all builds done, except for lvl 3 -> domes (which limus allows)
+        fn get_new_builds_mask(new_state: &BoardState, old_state: &BoardState) -> BitBoard {
+            let mut new_builds = BitBoard::EMPTY;
+            new_builds |= new_state.height_map[2] & !old_state.height_map[2];
+            new_builds |= new_state.height_map[1] & !old_state.height_map[1];
+            new_builds |= new_state.height_map[0] & !old_state.height_map[0];
+            let new_dome_builds_from_non_lvl_3 =
+                new_state.height_map[3] & !old_state.height_map[2] & !old_state.height_map[3];
+
+            new_builds | new_dome_builds_from_non_lvl_3
+        }
+
+        for action in actions {
+            let action = action.action;
+            if action.get_is_winning() {
+                continue;
+            }
+
+            let new_state = self.state.next_state(active_god, action);
+            let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
+            let new_dome_builds_from_lvl_3 = new_state.board.height_map[3]
+                & self.state.board.height_map[2]
+                & !self.state.board.height_map[3];
+
+            let build_mask =
+                other_god.get_build_mask(new_state.board.workers[!current_player as usize]);
+
+            if new_dome_builds_from_lvl_3.is_not_empty() {
+                dome_build_actions.push(action);
+            }
+
+            if (new_builds & !build_mask).is_not_empty() {
+                let error_string = format!(
+                    "Built in a build masked area: {} -> {:?}. Build mask:\n{}. Builds:\n:{}",
+                    active_god.stringify_move(action),
+                    new_state,
+                    build_mask,
+                    new_builds
+                );
+                self.errors.push(error_string);
+                return;
+            }
+        }
+
+        let mut against_mortal_state = self.state.clone();
+        against_mortal_state.gods[!current_player as usize] = GodName::Mortal.to_power();
+        let mortal_search_moves =
+            active_god.get_moves_for_search(&against_mortal_state, current_player);
+
+        for mortal_move in mortal_search_moves {
+            let mortal_action = mortal_move.action;
+            let new_state = self.state.next_state(active_god, mortal_action);
+            // We could have built a dome and ALSO somewhere else. these moves are invalid too, so
+            // skip.
+            let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
+            if new_builds.is_not_empty() {
+                continue;
+            }
+
+            let new_dome_builds_from_lvl_3 = new_state.board.height_map[3]
+                & self.state.board.height_map[2]
+                & !self.state.board.height_map[3];
+
+            if new_dome_builds_from_lvl_3.is_not_empty() {
+                // eprint!(
+                //     "made a dome: {} \n{}",
+                //     active_god.stringify_move(mortal_action),
+                //     new_dome_builds_from_lvl_3,
+                // );
+                // new_state.print_to_console();
+
+                let seen_dome_build = dome_build_actions.contains(&mortal_action);
+
+                if !seen_dome_build {
+                    let error_string = format!(
+                        "Was able to build vaid dome against mortal, but not limus: {} -> {:?}",
+                        active_god.stringify_move(mortal_action),
+                        new_state,
+                    );
+                    self.errors.push(error_string);
+                    return;
+                }
+            }
+        }
+    }
+
+    fn check_wins_on_end_only(&mut self, label: &str, actions: &Vec<ScoredMove>) -> bool {
         for (i, action) in actions.iter().enumerate() {
             if action.get_is_winning() {
                 if i < actions.len() - 1 {
@@ -69,7 +170,7 @@ impl ConsistencyChecker {
         return true;
     }
 
-    fn _opponent_check_blockers(
+    fn opponent_check_blockers(
         &mut self,
         other_wins: &Vec<ScoredMove>,
         search_moves: &Vec<ScoredMove>,
@@ -96,22 +197,16 @@ impl ConsistencyChecker {
             active_god.get_scored_blocker_moves(&self.state, current_player, key_moves);
         let unscored_blocker_actions =
             active_god.get_unscored_blocker_moves(&self.state, current_player, key_moves);
-        let blocker_len = scored_blocker_actions.len();
-        self._check_wins_on_end_only("ScoredBlockerActions", &scored_blocker_actions);
+        self.check_wins_on_end_only("ScoredBlockerActions", &scored_blocker_actions);
         self._test_blocker_moves_are_consistent(&scored_blocker_actions, &unscored_blocker_actions);
 
         // Test that blockers actually block
-        for (i, block_action) in scored_blocker_actions.iter().enumerate() {
+        for block_action in scored_blocker_actions.iter() {
             let block_action = block_action.action;
             let stringed_action = active_god.stringify_move(block_action);
             let blocked_state = self.state.next_state(active_god, block_action);
 
             if blocked_state.board.get_winner() == Some(current_player) {
-                if i != blocker_len - 1 {
-                    self.errors
-                        .push(format!("Win blocker won, but wasn't last move: {i}/ {blocker_len}: {stringed_action}"));
-                    return;
-                }
                 continue;
             }
 
@@ -215,7 +310,7 @@ impl ConsistencyChecker {
         }
     }
 
-    fn _self_check_validations(&mut self, search_moves: &Vec<ScoredMove>) {
+    fn self_check_validations(&mut self, search_moves: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
         let (active_god, other_god) = self.state.get_active_non_active_gods();
 
@@ -269,7 +364,7 @@ impl ConsistencyChecker {
         }
     }
 
-    fn _validate_wins(&mut self, wins: &Vec<ScoredMove>) {
+    fn validate_wins(&mut self, wins: &Vec<ScoredMove>) {
         for winning_action in wins {
             self._validate_win_from_current_state(winning_action.action);
         }

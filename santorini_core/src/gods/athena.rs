@@ -2,7 +2,7 @@ use crate::{
     add_scored_move,
     bitboard::BitBoard,
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power_movers, build_parse_flags, build_push_winning_moves,
+    build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
@@ -186,26 +186,27 @@ fn athena_move_gen<const F: MoveGenFlags>(
     );
 
     variable_prelude!(
-        state,
-        player,
-        board,
-        other_player,
-        current_player_idx,
-        other_player_idx,
-        other_god,
-        exactly_level_0,
-        exactly_level_1,
-        exactly_level_2,
-        exactly_level_3,
-        win_mask,
-        domes,
-        own_workers,
-        other_workers,
-        result,
-        all_workers_mask,
-        is_mate_only,
-        current_workers,
-        checkable_worker_positions_mask,
+       state:  state,
+       player:  player,
+       board:  board,
+       other_player:  other_player,
+       current_player_idx:  current_player_idx,
+       other_player_idx:  other_player_idx,
+       other_god:  other_god,
+       exactly_level_0:  exactly_level_0,
+       exactly_level_1:  exactly_level_1,
+       exactly_level_2:  exactly_level_2,
+       exactly_level_3:  exactly_level_3,
+       domes:  domes,
+       win_mask:  win_mask,
+       build_mask: build_mask,
+       own_workers:  own_workers,
+       other_workers:  other_workers,
+       result:  result,
+       all_workers_mask:  all_workers_mask,
+       is_mate_only:  is_mate_only,
+       current_workers:  current_workers,
+       checkable_worker_positions_mask:  checkable_worker_positions_mask,
     );
     let did_not_improve_last_turn = board.get_worker_can_climb(!player);
 
@@ -250,22 +251,25 @@ fn athena_move_gen<const F: MoveGenFlags>(
             let is_improving = worker_end_height > worker_starting_height;
             let not_own_workers = !(other_own_workers | moving_worker_end_mask);
 
-            let mut worker_builds =
-                NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
-            let worker_plausible_next_moves = worker_builds;
+            build_building_masks!(
+                worker_end_pos: moving_worker_end_pos,
+                open_squares: buildable_squares,
+                build_mask: build_mask,
+                is_interact_with_key_squares: is_interact_with_key_squares,
+                key_squares_expr: (!is_improving && (moving_worker_end_mask & key_squares).is_empty()),
+                key_squares: key_squares,
 
-            if is_interact_with_key_squares {
-                if !is_improving && (moving_worker_end_mask & key_squares).is_empty() {
-                    worker_builds = worker_builds & key_squares;
-                }
-            }
+                all_possible_builds: all_possible_builds,
+                narrowed_builds: narrowed_builds,
+                worker_plausible_next_moves: worker_plausible_next_moves,
+            );
 
             let reach_board = (other_threatening_neighbors
                 | (worker_plausible_next_moves
                     & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize]))
                 & win_mask;
 
-            for worker_build_pos in worker_builds {
+            for worker_build_pos in narrowed_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                 let new_action = AthenaMove::new_athena_move(
                     moving_worker_start_pos,

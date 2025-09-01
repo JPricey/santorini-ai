@@ -2,7 +2,7 @@ use crate::{
     add_scored_move,
     bitboard::BitBoard,
     board::{BoardState, FullGameState, NEIGHBOR_MAP},
-    build_god_power_movers, build_parse_flags, build_push_winning_moves,
+    build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
@@ -243,26 +243,27 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
     );
 
     variable_prelude!(
-        state,
-        player,
-        board,
-        other_player,
-        current_player_idx,
-        other_player_idx,
-        other_god,
-        exactly_level_0,
-        exactly_level_1,
-        exactly_level_2,
-        exactly_level_3,
-        win_mask,
-        domes,
-        own_workers,
-        other_workers,
-        result,
-        all_workers_mask,
-        is_mate_only,
-        current_workers,
-        checkable_worker_positions_mask,
+       state:  state,
+       player:  player,
+       board:  board,
+       other_player:  other_player,
+       current_player_idx:  current_player_idx,
+       other_player_idx:  other_player_idx,
+       other_god:  other_god,
+       exactly_level_0:  exactly_level_0,
+       exactly_level_1:  exactly_level_1,
+       exactly_level_2:  exactly_level_2,
+       exactly_level_3:  exactly_level_3,
+       domes:  domes,
+       win_mask:  win_mask,
+       build_mask: build_mask,
+       own_workers:  own_workers,
+       other_workers:  other_workers,
+       result:  result,
+       all_workers_mask:  all_workers_mask,
+       is_mate_only:  is_mate_only,
+       current_workers:  current_workers,
+       checkable_worker_positions_mask:  checkable_worker_positions_mask,
     );
 
     for moving_worker_start_pos in current_workers.into_iter() {
@@ -304,7 +305,7 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
         let unblocked_squares = !(non_selected_workers | board.height_map[3]);
 
-        let pre_build_locations = worker_starting_neighbors & unblocked_squares;
+        let pre_build_locations = worker_starting_neighbors & unblocked_squares & build_mask;
         let pre_build_worker_moves = worker_moves & !board.height_map[worker_starting_height];
         let moveable_ontop_of_prebuild = if worker_starting_height == 0 {
             BitBoard::EMPTY
@@ -325,9 +326,11 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
                     + ((moving_worker_end_pos == pre_build_pos) as usize);
                 let is_improving = worker_end_height > worker_starting_height;
 
+                // can't use build_building_masks here due to extra logic before key squares
                 let mut worker_builds =
                     NEIGHBOR_MAP[moving_worker_end_pos as usize] & unblocked_squares;
                 let worker_plausible_next_moves = worker_builds;
+                worker_builds &= build_mask;
 
                 let both_buildable = worker_builds & pre_build_locations;
                 worker_builds &= !(pre_build_mask & exactly_level_3);
@@ -387,15 +390,18 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
             let worker_end_height = board.get_height(moving_worker_end_pos);
             let is_improving = worker_end_height > worker_starting_height;
 
-            let mut worker_builds =
-                NEIGHBOR_MAP[moving_worker_end_pos as usize] & unblocked_squares;
-            let worker_plausible_next_moves = worker_builds;
+            build_building_masks!(
+                worker_end_pos: moving_worker_end_pos,
+                open_squares: unblocked_squares,
+                build_mask: build_mask,
+                is_interact_with_key_squares: is_interact_with_key_squares,
+                key_squares_expr: (moving_worker_end_mask & key_squares).is_empty(),
+                key_squares: key_squares,
 
-            if is_interact_with_key_squares {
-                if (moving_worker_end_mask & key_squares).is_empty() {
-                    worker_builds &= key_squares;
-                }
-            }
+                all_possible_builds: all_possible_builds,
+                narrowed_builds: narrowed_builds,
+                worker_plausible_next_moves: worker_plausible_next_moves,
+            );
 
             let own_final_workers = other_own_workers | moving_worker_end_mask;
             let reach_board = (other_threatening_neighbors
@@ -404,7 +410,7 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
                 & win_mask
                 & !own_final_workers;
 
-            for worker_build_pos in worker_builds {
+            for worker_build_pos in narrowed_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                 let new_action = PrometheusMove::new_basic_move(
                     moving_worker_start_pos,
