@@ -91,6 +91,20 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
     }
 }
 
+fn partial_action_label(action: &PartialAction) -> &str {
+    match action {
+        PartialAction::PlaceWorker(_) => "Place Worker",
+        PartialAction::SelectWorker(_) => "Select Worker",
+        PartialAction::MoveWorker(_) => "Move Worker",
+        PartialAction::MoveWorkerWithSwap(_) => "Move Worker (Swap)",
+        PartialAction::MoveWorkerWithPush(..) => "Move Worker (Push)",
+        PartialAction::Build(_) => "Build",
+        PartialAction::Dome(_) => "Add Dome",
+        PartialAction::EndTurn => "End Turn",
+        PartialAction::NoMoves => "Pass",
+    }
+}
+
 fn game_state_with_partial_actions(
     state: &FullGameState,
     actions: &Vec<PartialAction>,
@@ -436,10 +450,16 @@ impl<'a> egui::Widget for GameGrid<'a> {
                 let point =
                     grid_float_pos + egui::Vec2::new(c as f32 * bound_dim, r as f32 * bound_dim);
 
-                if ui
-                    .put(egui::Rect::from_min_size(point, size), square_space)
-                    .clicked()
-                {
+                let mut placed_square =
+                    ui.put(egui::Rect::from_min_size(point, size), square_space);
+                if let Some(ui_action) = ui_action {
+                    placed_square = placed_square.on_hover_ui(|ui| {
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                        ui.label(partial_action_label(&ui_action));
+                    });
+                }
+
+                if placed_square.clicked() {
                     match self.app.edit_mode {
                         EditMode::Play => {
                             if let Some(action) = ui_action {
@@ -488,7 +508,7 @@ impl<'a> egui::Widget for GameGrid<'a> {
                             self.app.update_state(new_state);
                         }
                     }
-                };
+                }
             }
         }
 
