@@ -60,7 +60,7 @@ macro_rules! variable_prelude {
         result: $result:ident,
         all_workers_mask: $all_workers_mask:ident,
         is_mate_only: $is_mate_only: ident,
-        current_workers: $current_workers: ident,
+        acting_workers: $acting_workers: ident,
         checkable_worker_positions_mask: $checkable_worker_positions_mask: ident,
     ) => {
         $crate::non_checking_variable_prelude!(
@@ -78,21 +78,18 @@ macro_rules! variable_prelude {
             domes: $domes,
             win_mask: $win_mask,
             build_mask: $build_mask,
+            is_against_hypnus: $is_against_hypnus,
             own_workers: $own_workers,
             other_workers: $other_workers,
             result: $result,
             all_workers_mask: $all_workers_mask,
             is_mate_only: $is_mate_only,
+            acting_workers: $acting_workers,
         );
 
-        let $is_against_hypnus = $other_god.is_hypnus();
-        let mut $current_workers = $own_workers;
-        if $is_against_hypnus {
-            $current_workers = crate::gods::hypnus::hypnus_moveable_worker_filter(&$board, $current_workers);
-        }
         let $checkable_worker_positions_mask = $exactly_level_2;
         if $is_mate_only {
-            $current_workers &= $checkable_worker_positions_mask;
+            $acting_workers &= $checkable_worker_positions_mask;
         }
     };
 }
@@ -114,11 +111,13 @@ macro_rules! non_checking_variable_prelude {
         domes: $domes:ident,
         win_mask: $win_mask: ident,
         build_mask: $build_mask: ident,
+        is_against_hypnus: $is_against_hypnus: ident,
         own_workers: $own_workers:ident,
         other_workers: $other_workers:ident,
         result: $result:ident,
         all_workers_mask: $all_workers_mask:ident,
         is_mate_only: $is_mate_only: ident,
+        acting_workers:  $acting_workers: ident,
     ) => {
         let $board = &$state.board;
         let $other_player = !$player;
@@ -145,6 +144,13 @@ macro_rules! non_checking_variable_prelude {
 
         let $win_mask = $other_god.win_mask;
         let $build_mask = $other_god.get_build_mask($other_workers) | $exactly_level_3;
+
+        let $is_against_hypnus = $other_god.is_hypnus();
+        let mut $acting_workers = $own_workers;
+        if $is_against_hypnus {
+            $acting_workers =
+                crate::gods::hypnus::hypnus_moveable_worker_filter(&$board, $acting_workers);
+        }
     };
 }
 
@@ -250,13 +256,13 @@ macro_rules! build_power_move_generator {
                 result: $result,
                 all_workers_mask:  all_workers_mask,
                 is_mate_only:  is_mate_only,
-                current_workers:  current_workers,
+                acting_workers:  acting_workers,
                 checkable_worker_positions_mask:  checkable_worker_positions_mask,
             );
 
             $extra_init
 
-            for $worker_start_pos in current_workers.into_iter() {
+            for $worker_start_pos in acting_workers.into_iter() {
                 let moving_worker_start_mask = BitBoard::as_mask($worker_start_pos);
                 #[allow(unused_variables)]
                 let other_own_workers = own_workers ^ moving_worker_start_mask;

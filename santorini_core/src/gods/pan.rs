@@ -7,7 +7,6 @@ use crate::{
         GodName, GodPower, build_god_power_actions,
         generic::{MoveGenFlags, ScoredMove},
         god_power,
-        hypnus::hypnus_moveable_worker_filter,
         mortal::MortalMove,
     },
     non_checking_variable_prelude,
@@ -41,24 +40,21 @@ fn pan_move_gen<const F: MoveGenFlags>(
        domes:  domes,
        win_mask:  win_mask,
        build_mask: build_mask,
+       is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
        other_workers:  other_workers,
        result:  result,
        all_workers_mask:  all_workers_mask,
        is_mate_only:  is_mate_only,
+       acting_workers: acting_workers,
     );
 
-    let is_against_hypnus = other_god.is_hypnus();
-    let mut current_workers = own_workers;
-    if is_against_hypnus {
-        current_workers = hypnus_moveable_worker_filter(board, current_workers);
-    }
     let checkable_worker_positions_mask = board.at_least_level_2();
     if is_mate_only {
-        current_workers &= checkable_worker_positions_mask;
+        acting_workers &= checkable_worker_positions_mask;
     }
 
-    for moving_worker_start_pos in current_workers.into_iter() {
+    for moving_worker_start_pos in acting_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
 

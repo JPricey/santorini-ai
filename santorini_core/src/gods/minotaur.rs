@@ -244,12 +244,12 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
        result:  result,
        all_workers_mask:  all_workers_mask,
        is_mate_only:  is_mate_only,
-       current_workers:  current_workers,
+       acting_workers:  acting_workers,
        checkable_worker_positions_mask:  checkable_worker_positions_mask,
     );
     let blocked_squares = all_workers_mask | domes;
 
-    for moving_worker_start_pos in current_workers.into_iter() {
+    for moving_worker_start_pos in acting_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
 
