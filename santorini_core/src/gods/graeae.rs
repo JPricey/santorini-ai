@@ -4,10 +4,13 @@ use crate::{
     board::FullGameState,
     build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
-        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, GodName, GodPower
+        GodName, GodPower, build_god_power_actions,
+        generic::{MoveGenFlags, ScoredMove},
+        god_power,
+        mortal::MortalMove,
     },
     player::Player,
-    variable_prelude,
+    variable_prelude, worker_move_loop,
 };
 
 fn graeae_move_gen<const F: MoveGenFlags>(
@@ -50,7 +53,7 @@ fn graeae_move_gen<const F: MoveGenFlags>(
 
     for worker_start_pos in acting_workers.into_iter() {
         let moving_worker_start_mask = BitBoard::as_mask(worker_start_pos);
-        let worker_starting_height = board.get_height(worker_start_pos);
+        let worker_start_height = board.get_height(worker_start_pos);
         let other_own_workers = own_workers ^ moving_worker_start_mask;
 
         let mut other_threatening_neighbors = BitBoard::EMPTY;
@@ -63,10 +66,10 @@ fn graeae_move_gen<const F: MoveGenFlags>(
         }
 
         let mut worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
-            & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
+            & !(board.height_map[board.get_worker_climb_height(player, worker_start_height)]
                 | all_workers_mask);
 
-        if is_mate_only || worker_starting_height == 2 {
+        if is_mate_only || worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & exactly_level_3 & win_mask;
             build_push_winning_moves!(
                 moves_to_level_3,
@@ -85,52 +88,58 @@ fn graeae_move_gen<const F: MoveGenFlags>(
         let non_moved_workers = all_workers_mask ^ moving_worker_start_mask;
         let unblocked_squares = !(non_moved_workers | domes);
 
-        for moving_worker_end_pos in worker_moves.into_iter() {
-            let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-            let worker_end_height = board.get_height(moving_worker_end_pos);
-            let is_improving = worker_end_height > worker_starting_height;
+        worker_move_loop!(
+            board: board,
+            is_against_harpies: is_against_harpies,
+            worker_start_pos: worker_start_pos,
+            worker_moves: worker_moves,
+            worker_start_height: worker_start_height,
+            worker_end_pos: worker_end_pos,
+            worker_end_mask: worker_end_mask,
+            worker_end_height: worker_end_height,
+            is_improving: is_improving,
+            is_now_lvl_2: is_now_lvl_2,
+            => {
+                let open_squares = unblocked_squares & !worker_end_mask;
+                let mut worker_builds = other_all_neighbors & open_squares;
+                let worker_plausible_next_moves =
+                    NEIGHBOR_MAP[worker_end_pos as usize] & open_squares;
+                worker_builds &= build_mask;
 
-            let buildable_squares = unblocked_squares & !moving_worker_end_mask;
-
-            let mut worker_builds = other_all_neighbors & buildable_squares;
-            let worker_plausible_next_moves =
-                NEIGHBOR_MAP[moving_worker_end_pos as usize] & buildable_squares;
-            worker_builds &= build_mask;
-
-            if is_interact_with_key_squares {
-                if (moving_worker_end_mask & key_squares).is_empty() {
-                    worker_builds = worker_builds & key_squares;
+                if is_interact_with_key_squares {
+                    if (worker_end_mask & key_squares).is_empty() {
+                        worker_builds = worker_builds & key_squares;
+                    }
                 }
-            }
 
-            let is_now_lvl_2 = (worker_end_height == 2) as usize;
-            let reach_board = if is_against_hypnus
-                && ((other_own_workers & exactly_level_2).count_ones() as usize + is_now_lvl_2) < 2
-            {
-                BitBoard::EMPTY
-            } else {
-                (other_threatening_neighbors
-                    | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
-                    & win_mask
-            };
-
-            for worker_build_pos in worker_builds {
-                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                let new_action = MortalMove::new_basic_move(
-                    worker_start_pos,
-                    moving_worker_end_pos,
-                    worker_build_pos,
-                );
-                let is_check = {
-                    let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask);
-                    let check_board = reach_board & final_level_3 & buildable_squares;
-                    check_board.is_not_empty()
+                let reach_board = if is_against_hypnus
+                    && ((other_own_workers & exactly_level_2).count_ones() as usize + is_now_lvl_2) < 2
+                {
+                    BitBoard::EMPTY
+                } else {
+                    (other_threatening_neighbors
+                        | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                        & win_mask
+                        & open_squares
                 };
 
-                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
-            }
-        }
+                for worker_build_pos in worker_builds {
+                    let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                    let new_action = MortalMove::new_basic_move(
+                        worker_start_pos,
+                        worker_end_pos,
+                        worker_build_pos,
+                    );
+                    let is_check = {
+                        let final_level_3 = (exactly_level_2 & worker_build_mask)
+                            | (exactly_level_3 & !worker_build_mask);
+                        let check_board = reach_board & final_level_3;
+                        check_board.is_not_empty()
+                    };
+
+                    add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+                }
+        });
     }
 
     result

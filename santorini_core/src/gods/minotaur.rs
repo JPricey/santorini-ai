@@ -1,12 +1,16 @@
 use crate::{
     add_scored_move,
     bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
-    board::{BoardState, FullGameState, },
+    board::{BoardState, FullGameState},
     build_god_power_movers, build_parse_flags,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, FullAction, GodName, GodPower
+        FullAction, GodName, GodPower, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        harpies::slide_position,
     },
     player::Player,
     square::Square,
@@ -239,7 +243,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
        win_mask:  win_mask,
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
-       is_against_harpies: _is_against_harpies,
+       is_against_harpies: is_against_harpies,
        own_workers:  own_workers,
        oppo_workers:  oppo_workers,
        result:  result,
@@ -264,18 +268,18 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             let moves_to_level_3 = worker_moves & exactly_level_3 & win_mask;
             worker_moves ^= moves_to_level_3;
 
-            for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
+            for worker_end_pos in moves_to_level_3.into_iter() {
+                let moving_worker_end_mask = BitBoard::as_mask(worker_end_pos);
                 if (moving_worker_end_mask & oppo_workers).is_not_empty() {
-                    if let Some(push_to) = PUSH_MAPPING[moving_worker_start_pos as usize]
-                        [moving_worker_end_pos as usize]
+                    if let Some(push_to) =
+                        PUSH_MAPPING[moving_worker_start_pos as usize][worker_end_pos as usize]
                     {
                         let push_to_mask = BitBoard::as_mask(push_to);
                         if (push_to_mask & blocked_squares).is_empty() {
                             let winning_move = ScoredMove::new_winning_move(
                                 MinotaurMove::new_minotaur_winning_push_move(
                                     moving_worker_start_pos,
-                                    moving_worker_end_pos,
+                                    worker_end_pos,
                                     push_to,
                                 )
                                 .into(),
@@ -288,11 +292,8 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                     }
                 } else {
                     let winning_move = ScoredMove::new_winning_move(
-                        MinotaurMove::new_winning_move(
-                            moving_worker_start_pos,
-                            moving_worker_end_pos,
-                        )
-                        .into(),
+                        MinotaurMove::new_winning_move(moving_worker_start_pos, worker_end_pos)
+                            .into(),
                     );
                     result.push(winning_move);
                     if is_stop_on_mate {
@@ -309,13 +310,10 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
         let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
         let all_buildable_squares = !(non_selected_workers | domes);
 
-        for moving_worker_end_pos in worker_moves.into_iter() {
-            let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-            let worker_end_height = board.get_height(moving_worker_end_pos);
-            let is_improving = worker_end_height > worker_starting_height;
+        for worker_end_pos in worker_moves.into_iter() {
+            let mut worker_end_pos = worker_end_pos;
+            let mut moving_worker_end_mask = BitBoard::as_mask(worker_end_pos);
 
-            let end_neighbors = NEIGHBOR_MAP[moving_worker_end_pos as usize];
-            let mut worker_builds = end_neighbors & all_buildable_squares;
             let mut push_to_spot: Option<Square> = None;
             let mut push_to_mask = BitBoard::EMPTY;
 
@@ -324,13 +322,12 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
 
             if (moving_worker_end_mask & oppo_workers).is_not_empty() {
                 if let Some(push_to) =
-                    PUSH_MAPPING[moving_worker_start_pos as usize][moving_worker_end_pos as usize]
+                    PUSH_MAPPING[moving_worker_start_pos as usize][worker_end_pos as usize]
                 {
                     let tmp_push_to_mask = BitBoard::as_mask(push_to);
                     if (tmp_push_to_mask & blocked_squares).is_empty() {
                         push_to_spot = Some(push_to);
                         push_to_mask = tmp_push_to_mask;
-                        worker_builds ^= tmp_push_to_mask;
 
                         other_workers_post_push =
                             oppo_workers ^ push_to_mask ^ moving_worker_end_mask;
@@ -343,6 +340,17 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                     continue;
                 }
             }
+
+            if is_against_harpies && push_to_spot.is_none() {
+                worker_end_pos = slide_position(&board, moving_worker_start_pos, worker_end_pos);
+                moving_worker_end_mask = BitBoard::as_mask(worker_end_pos);
+            }
+
+            let worker_end_height = board.get_height(worker_end_pos);
+            let is_improving = worker_end_height > worker_starting_height;
+
+            let end_neighbors = NEIGHBOR_MAP[worker_end_pos as usize];
+            let mut worker_builds = end_neighbors & all_buildable_squares & !push_to_mask;
 
             worker_builds &= final_build_mask;
 
@@ -361,14 +369,14 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                 let new_action = if let Some(push_to) = push_to_spot {
                     MinotaurMove::new_minotaur_push_move(
                         moving_worker_start_pos,
-                        moving_worker_end_pos,
+                        worker_end_pos,
                         worker_build_pos,
                         push_to,
                     )
                 } else {
                     MinotaurMove::new_minotaur_move(
                         moving_worker_start_pos,
-                        moving_worker_end_pos,
+                        worker_end_pos,
                         worker_build_pos,
                     )
                 };

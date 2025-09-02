@@ -39,8 +39,6 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     add_matchup(GodName::Harpies, GodName::Urania, BannedReason::Engine);
     // TODO: special move logic
     add_matchup(GodName::Harpies, GodName::Artemis, BannedReason::Engine);
-    // TODO: special check to ignore harpies on pushes
-    add_matchup(GodName::Harpies, GodName::Minotaur, BannedReason::Engine);
     // TODO: is_swap isn't sufficient to decide where the opponent worker ends up
     add_matchup(GodName::Harpies, GodName::Apollo, BannedReason::Engine);
     // TODO: moving ontop of the build spot is a special case
