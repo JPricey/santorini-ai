@@ -2,11 +2,14 @@
 
 pub mod bitboard;
 pub mod board;
+pub mod consistency_checker;
+pub mod direction;
 pub mod engine;
 pub mod fen;
 pub mod gods;
 pub mod hashing;
 pub mod move_container;
+pub mod move_helpers;
 pub mod move_picker;
 pub mod nnue;
 pub mod placement;
@@ -18,8 +21,7 @@ pub mod square;
 pub mod transposition_table;
 pub mod uci_types;
 pub mod utils;
-pub mod move_helpers;
-pub mod consistency_checker;
+
 
 macro_rules! transmute_enum_masked {
     ($x:expr, $mask:expr) => {

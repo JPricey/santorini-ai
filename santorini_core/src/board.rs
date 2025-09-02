@@ -6,10 +6,11 @@ use strum::IntoEnumIterator;
 
 use crate::{
     bitboard::BitBoard,
+    direction::ICoord,
     fen::{game_state_to_fen, parse_fen},
     gods::{
         BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
-        generic::{GenericMove, GodMove},
+        generic::{GenericMove, GodMove, NULL_MOVE_DATA},
     },
     hashing::{
         HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
@@ -18,6 +19,7 @@ use crate::{
     placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
     player::Player,
     square::Square,
+    transmute_enum,
 };
 
 use serde::{Deserialize, Serialize};
@@ -26,60 +28,86 @@ pub const NUM_LEVELS: usize = 4;
 pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
 
-pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = {
-    let mut res = [BitBoard::EMPTY; NUM_SQUARES];
-
-    const_for!(r in 0..5 => {
-        const_for!(c in 0..5 => {
-            let square = Square::from_col_row(c, r);
-            let square_idx = square as usize;
-
-            const_for!(dr in -1_i32..2 => {
-                const_for!(dc in -1_i32..2 => {
-                    if dr == 0 && dc == 0 {
-                        continue;
-                    }
-
-                    let new_c = c as i32 + dc;
-                    let new_r = r as i32 + dr;
-
-                    if new_c < 0 || new_c >= 5 || new_r < 0 || new_r >= 5 {
-                        continue;
-                    }
-
-                    res[square_idx].0 |= BitBoard::as_mask(Square::from_col_row(new_c as usize, new_r as usize)).0;
-                })
-            })
+#[macro_export]
+macro_rules! for_each_direction {
+    ($dir: ident => $body: block) => {
+        use const_for::const_for;
+        const_for!(i in 0..8 => {
+            let $dir = $crate::direction::Direction::from_u8(i);
+            $body
         })
+    }
+}
+
+#[macro_export]
+macro_rules! square_map {
+    ($square: ident => $body: expr) => {{
+        let mut arr: [core::mem::MaybeUninit<_>; NUM_SQUARES] =
+            unsafe { core::mem::MaybeUninit::uninit().assume_init() };
+        let mut i = 0;
+        while i < NUM_SQUARES {
+            let $square: Square = $crate::transmute_enum!(i as u8);
+            arr[i] = core::mem::MaybeUninit::new($body);
+            i += 1;
+        }
+        unsafe { std::mem::transmute_copy::<_, [_; NUM_SQUARES]>(&arr) }
+    }};
+}
+
+pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+    let mut res = BitBoard::EMPTY;
+    let coord = square.to_icoord();
+    for_each_direction!(dir => {
+        let new_coord = coord.add(dir.to_icoord());
+        if let Some(n) = new_coord.to_square() {
+            res = res.bit_or(BitBoard::as_mask(n));
+        }
     });
-
     res
-};
+});
 
-pub const WRAPPING_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = {
-    let mut res = [BitBoard::EMPTY; NUM_SQUARES];
+pub const INCLUSIVE_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+    let coord = square.to_icoord();
+    let mut res = BitBoard::as_mask(square);
+    for_each_direction!(dir => {
+        let new_coord = coord.add(dir.to_icoord());
+        if let Some(n) = new_coord.to_square() {
+            res = res.bit_or(BitBoard::as_mask(n));
+        }
+    });
+    res
+});
 
-    const_for!(r in 0..5 => {
-        const_for!(c in 0..5 => {
-            let square = Square::from_col_row(c, r);
-            let square_idx = square as usize;
+pub const WRAPPING_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+    let coord = square.to_icoord();
+    let mut res = BitBoard::as_mask(square);
+    for_each_direction!(dir => {
+        let mut new_coord = coord.add(dir.to_icoord()).add(ICoord::new(5, 5));
+        new_coord.col %= 5;
+        new_coord.row %= 5;
 
-            const_for!(dr in 4..7 => {
-                const_for!(dc in 4..7 => {
-                    if dr == 5 && dc == 5 {
-                        continue;
+        res = res.bit_or(BitBoard::as_mask(new_coord.to_square().unwrap()));
+    });
+    res
+});
+
+pub const PUSH_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
+    let mut result = [[None; NUM_SQUARES]; NUM_SQUARES];
+    const_for!(from in 0..25 => {
+        const_for!(to in 0..25 => {
+            let to_mask = BitBoard::as_mask(transmute_enum!(to as u8));
+            if (NEIGHBOR_MAP[from as usize].0 & to_mask.0) != 0 {
+                let delta = to - from;
+                let dest = to + delta;
+                if dest >= 0 && dest < 25 {
+                    if NEIGHBOR_MAP[to as usize].0 & 1 << dest != 0 {
+                        result[from as usize][to as usize] = Some(transmute_enum!(dest as u8));
                     }
-
-                    let new_c = (c + dc) % 5;
-                    let new_r = (r + dr) % 5;
-
-                    res[square_idx].0 |= BitBoard::as_mask(Square::from_col_row(new_c as usize, new_r as usize)).0;
-                })
-            })
-        })
+                }
+            }
+        });
     });
-
-    res
+    result
 };
 
 pub const MIDDLE_SPACES_MASK: BitBoard = BitBoard(0b00000_01110_01110_01110_00000);

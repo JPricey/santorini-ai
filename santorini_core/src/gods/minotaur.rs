@@ -1,7 +1,7 @@
 use crate::{
     add_scored_move,
     bitboard::BitBoard,
-    board::{BoardState, FullGameState, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState, NEIGHBOR_MAP, PUSH_MAPPING},
     build_god_power_movers, build_parse_flags,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
@@ -13,44 +13,11 @@ use crate::{
     },
     player::Player,
     square::Square,
-    transmute_enum, variable_prelude,
+    variable_prelude,
 };
 
 use super::PartialAction;
 
-const MINOTAUR_PUSH_TO_MAPPING: [[Option<Square>; 25]; 25] = {
-    let mut result = [[None; 25]; 25];
-
-    let mut from: i32 = 0;
-    loop {
-        if from >= 25 {
-            break;
-        }
-
-        let mut to: i32 = 0;
-        loop {
-            if to >= 25 {
-                break;
-            }
-            let to_mask = BitBoard::as_mask(transmute_enum!(to as u8));
-            if (NEIGHBOR_MAP[from as usize].0 & to_mask.0) != 0 {
-                let delta = to - from;
-                let dest = to + delta;
-                if dest >= 0 && dest < 25 {
-                    if NEIGHBOR_MAP[to as usize].0 & 1 << dest != 0 {
-                        result[from as usize][to as usize] = Some(transmute_enum!(dest as u8));
-                    }
-                }
-            }
-            to += 1;
-        }
-        from += 1;
-    }
-
-    result
-};
-
-// from(5)|to(5)|build(5)|win(1)
 pub const MINOTAUR_MOVE_FROM_POSITION_OFFSET: usize = 0;
 pub const MINOTAUR_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 pub const MINOTAUR_BUILD_POSITION_OFFSET: usize = MINOTAUR_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
@@ -302,8 +269,8 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
                 if (moving_worker_end_mask & other_workers).is_not_empty() {
-                    if let Some(push_to) = MINOTAUR_PUSH_TO_MAPPING
-                        [moving_worker_start_pos as usize][moving_worker_end_pos as usize]
+                    if let Some(push_to) = PUSH_MAPPING[moving_worker_start_pos as usize]
+                        [moving_worker_end_pos as usize]
                     {
                         let push_to_mask = BitBoard::as_mask(push_to);
                         if (push_to_mask & blocked_squares).is_empty() {
@@ -358,8 +325,8 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             let mut other_workers_post_push = other_workers;
 
             if (moving_worker_end_mask & other_workers).is_not_empty() {
-                if let Some(push_to) = MINOTAUR_PUSH_TO_MAPPING[moving_worker_start_pos as usize]
-                    [moving_worker_end_pos as usize]
+                if let Some(push_to) =
+                    PUSH_MAPPING[moving_worker_start_pos as usize][moving_worker_end_pos as usize]
                 {
                     let tmp_push_to_mask = BitBoard::as_mask(push_to);
                     if (tmp_push_to_mask & blocked_squares).is_empty() {
@@ -431,8 +398,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                                 break;
                             } else {
                                 for o in ns & other_workers_post_push {
-                                    if let Some(push_to) =
-                                        MINOTAUR_PUSH_TO_MAPPING[worker as usize][o as usize]
+                                    if let Some(push_to) = PUSH_MAPPING[worker as usize][o as usize]
                                     {
                                         let tmp_push_to_mask = BitBoard::as_mask(push_to);
                                         if (tmp_push_to_mask & blocked_for_final_push_squares)

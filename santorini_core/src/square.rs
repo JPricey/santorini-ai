@@ -1,7 +1,7 @@
 use std::{fmt, str::FromStr};
 
-use crate::bitboard::BitBoard;
 use crate::transmute_enum;
+use crate::{bitboard::BitBoard, direction::ICoord};
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, EnumIter)]
@@ -20,6 +20,20 @@ use strum::EnumIter;
 impl Square {
     pub const fn from_col_row(col: usize, row: usize) -> Square {
         transmute_enum!((col + 5 * row) as u8)
+    }
+
+    pub const fn to_col_row(self) -> (usize, usize) {
+        let val = self as usize;
+        (val % 5, val / 5)
+    }
+
+    pub const fn to_icoord(self) -> ICoord {
+        let (c, r) = self.to_col_row();
+        ICoord::new(c as i32, r as i32)
+    }
+
+    pub const fn const_from_u8(val: u8) -> Self {
+        transmute_enum!(val)
     }
 }
 

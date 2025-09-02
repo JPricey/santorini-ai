@@ -77,8 +77,8 @@ impl GodRandomizer {
 fn main() {
     let mut rng = rng();
 
-    // let god1_selector = GodRandomizer::new_any();
-    let god1_selector = GodRandomizer::new_exactly(GodName::Hypnus);
+    let god1_selector = GodRandomizer::new_any();
+    // let god1_selector = GodRandomizer::new_exactly(GodName::Hypnus);
 
     let god2_selector = GodRandomizer::new_any();
     // let god2_selector = GodRandomizer::new_exactly(GodName::Artemis);
