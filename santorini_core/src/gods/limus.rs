@@ -1,19 +1,14 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
     build_god_power_movers,
     gods::{
-        build_god_power_actions, god_power, mortal::{mortal_move_gen, MortalMove}, GodName, GodPower
+        GodName, GodPower, build_god_power_actions, god_power,
+        mortal::{MortalMove, mortal_move_gen},
     },
 };
 
 fn _limus_build_mask(own_workers: BitBoard) -> BitBoard {
-    let mut own_neighbors = BitBoard::EMPTY;
-
-    for worker in own_workers {
-        own_neighbors |= NEIGHBOR_MAP[worker as usize];
-    }
-
-    !own_neighbors
+    !apply_mapping_to_mask(own_workers, &NEIGHBOR_MAP)
 }
 
 pub const fn build_limus() -> GodPower {

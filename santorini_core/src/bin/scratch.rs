@@ -2,7 +2,7 @@
 #![feature(portable_simd)]
 
 use rand::{Rng, rng};
-use santorini_core::{fen::parse_fen, for_each_direction};
+use santorini_core::{bitboard::WRAPPING_NEIGHBOR_MAP, fen::parse_fen, for_each_direction};
 
 fn print_hashing_randoms(size: usize) {
     let mut rng = rng();
@@ -26,6 +26,9 @@ fn debug() {
 }
 
 fn main() {
+    for i in 0..25 {
+        eprintln!("{i}: {}", WRAPPING_NEIGHBOR_MAP[i]);
+    }
     // debug();
     print_hashing_randoms(2);
 }

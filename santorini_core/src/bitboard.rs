@@ -58,7 +58,7 @@ pub const INCLUSIVE_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square =
 
 pub const WRAPPING_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
     let coord = square.to_icoord();
-    let mut res = BitBoard::as_mask(square);
+    let mut res = BitBoard::EMPTY;
     for_each_direction!(dir => {
         let mut new_coord = coord.add(dir.to_icoord()).add(ICoord::new(5, 5));
         new_coord.col %= 5;
