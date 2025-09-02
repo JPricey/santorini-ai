@@ -66,8 +66,12 @@ pub enum GodName {
 }
 
 impl GodName {
-    pub fn to_power(&self) -> StaticGod {
+    pub const fn to_power(&self) -> StaticGod {
         &ALL_GODS_BY_ID[*self as usize]
+    }
+
+    pub const fn is_equal(self, other: GodName) -> bool {
+        self as usize == other as usize
     }
 }
 

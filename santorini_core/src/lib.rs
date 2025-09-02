@@ -8,6 +8,7 @@ pub mod engine;
 pub mod fen;
 pub mod gods;
 pub mod hashing;
+pub mod matchup;
 pub mod move_container;
 pub mod move_helpers;
 pub mod move_picker;
@@ -21,7 +22,6 @@ pub mod square;
 pub mod transposition_table;
 pub mod uci_types;
 pub mod utils;
-
 
 macro_rules! transmute_enum_masked {
     ($x:expr, $mask:expr) => {

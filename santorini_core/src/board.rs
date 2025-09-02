@@ -14,6 +14,7 @@ use crate::{
         HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
         compute_hash_from_scratch_for_board,
     },
+    matchup::Matchup,
     placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
     player::Player,
     square::Square,
@@ -97,6 +98,11 @@ impl FullGameState {
 
     pub fn new_basic_state_mortals() -> Self {
         FullGameState::new_basic_state(GodName::Mortal, GodName::Mortal)
+    }
+
+    pub fn set_matchup(&mut self, matchup: &Matchup) {
+        self.gods = matchup.gods;
+        self.recalculate_internals();
     }
 
     pub fn flip_current_player(&mut self) {
