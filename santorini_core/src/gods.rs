@@ -8,6 +8,7 @@ use crate::{
     square::Square,
     utils::hash_u64,
 };
+use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
@@ -364,7 +365,7 @@ impl std::fmt::Display for GodPower {
     }
 }
 
-pub const ALL_GODS_BY_ID: [GodPower; 16] = [
+counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     mortal::build_mortal(),
     pan::build_pan(),
     artemis::build_artemis(),
@@ -381,7 +382,7 @@ pub const ALL_GODS_BY_ID: [GodPower; 16] = [
     hera::build_hera(),
     limus::build_limus(),
     hypnus::build_hypnus(),
-];
+]);
 
 #[macro_export]
 macro_rules! build_god_power_movers {

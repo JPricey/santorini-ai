@@ -10,7 +10,7 @@ use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{
         BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
-        generic::{GenericMove, GodMove, NULL_MOVE_DATA},
+        generic::{GenericMove, GodMove},
     },
     hashing::{
         HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,

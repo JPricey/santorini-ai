@@ -16,3 +16,4 @@ chrono = "0.4.41"
 rand = { workspace=true}
 const_for = "0.1.5"
 itertools = "0.14.0"
+counted-array = "0.1.2"
