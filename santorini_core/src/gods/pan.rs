@@ -1,14 +1,10 @@
 use crate::{
     add_scored_move,
-    bitboard::BitBoard,
-    board::{FullGameState, NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP},
+    board::FullGameState,
     build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
-        GodName, GodPower, build_god_power_actions,
-        generic::{MoveGenFlags, ScoredMove},
-        god_power,
-        hypnus::hypnus_moveable_worker_filter,
-        mortal::MortalMove,
+        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, hypnus::hypnus_moveable_worker_filter, mortal::MortalMove, GodName, GodPower
     },
     non_checking_variable_prelude,
     player::Player,

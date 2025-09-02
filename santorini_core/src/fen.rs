@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, FullGameState, NUM_SQUARES},
+    bitboard::{BitBoard, NUM_SQUARES},
+    board::{BoardState, FullGameState},
     gods::{ALL_GODS_BY_ID, GodName},
     player::Player,
     square::Square,

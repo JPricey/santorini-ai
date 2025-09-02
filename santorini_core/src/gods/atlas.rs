@@ -1,7 +1,7 @@
 use crate::{
     add_scored_move,
     bitboard::BitBoard,
-    board::{BoardState, FullGameState, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState},
     build_god_power_movers, build_power_move_generator,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,

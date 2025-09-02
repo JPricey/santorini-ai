@@ -1,6 +1,97 @@
+use const_for::const_for;
 use std::fmt;
 
-use crate::{square::Square, transmute_enum};
+use crate::{direction::ICoord, square::Square, transmute_enum};
+
+pub const BOARD_WIDTH: usize = 5;
+pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
+
+#[macro_export]
+macro_rules! for_each_direction {
+    ($dir: ident => $body: block) => {
+        use const_for::const_for;
+        const_for!(i in 0..8 => {
+            let $dir = $crate::direction::Direction::from_u8(i);
+            $body
+        })
+    }
+}
+
+#[macro_export]
+macro_rules! square_map {
+    ($square: ident => $body: expr) => {{
+        let mut arr: [core::mem::MaybeUninit<_>; NUM_SQUARES] =
+            unsafe { core::mem::MaybeUninit::uninit().assume_init() };
+        let mut i = 0;
+        while i < NUM_SQUARES {
+            let $square: Square = $crate::transmute_enum!(i as u8);
+            arr[i] = core::mem::MaybeUninit::new($body);
+            i += 1;
+        }
+        unsafe { std::mem::transmute_copy::<_, [_; NUM_SQUARES]>(&arr) }
+    }};
+}
+
+pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+    let mut res = BitBoard::EMPTY;
+    let coord = square.to_icoord();
+    for_each_direction!(dir => {
+        let new_coord = coord.add(dir.to_icoord());
+        if let Some(n) = new_coord.to_square() {
+            res = res.bit_or(BitBoard::as_mask(n));
+        }
+    });
+    res
+});
+
+pub const INCLUSIVE_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+    let coord = square.to_icoord();
+    let mut res = BitBoard::as_mask(square);
+    for_each_direction!(dir => {
+        let new_coord = coord.add(dir.to_icoord());
+        if let Some(n) = new_coord.to_square() {
+            res = res.bit_or(BitBoard::as_mask(n));
+        }
+    });
+    res
+});
+
+pub const WRAPPING_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+    let coord = square.to_icoord();
+    let mut res = BitBoard::as_mask(square);
+    for_each_direction!(dir => {
+        let mut new_coord = coord.add(dir.to_icoord()).add(ICoord::new(5, 5));
+        new_coord.col %= 5;
+        new_coord.row %= 5;
+
+        res = res.bit_or(BitBoard::as_mask(new_coord.to_square().unwrap()));
+    });
+    res
+});
+
+pub const PUSH_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
+    let mut result = [[None; NUM_SQUARES]; NUM_SQUARES];
+    const_for!(from in 0..25 => {
+        const_for!(to in 0..25 => {
+            let to_mask = BitBoard::as_mask(transmute_enum!(to as u8));
+            if (NEIGHBOR_MAP[from as usize].0 & to_mask.0) != 0 {
+                let delta = to - from;
+                let dest = to + delta;
+                if dest >= 0 && dest < 25 {
+                    if NEIGHBOR_MAP[to as usize].0 & 1 << dest != 0 {
+                        result[from as usize][to as usize] = Some(transmute_enum!(dest as u8));
+                    }
+                }
+            }
+        });
+    });
+    result
+};
+
+pub const MIDDLE_SPACES_MASK: BitBoard = BitBoard(0b00000_01110_01110_01110_00000);
+pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
+    .bit_not()
+    .bit_and(BitBoard::MAIN_SECTION_MASK);
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
 pub struct BitBoard(pub u32);

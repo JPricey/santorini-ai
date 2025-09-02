@@ -1,6 +1,6 @@
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, FullGameState, NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP},
+    board::{BoardState, FullGameState},
     gods::{
         GodName, StaticGod,
         athena::AthenaMove,

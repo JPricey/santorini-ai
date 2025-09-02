@@ -1,7 +1,10 @@
 use crate::{
-    board::MIDDLE_SPACES_MASK, build_god_power_movers, gods::{
-        build_god_power_actions, god_power, mortal::{mortal_move_gen, MortalMove}, GodName, GodPower
-    }
+    bitboard::MIDDLE_SPACES_MASK,
+    build_god_power_movers,
+    gods::{
+        GodName, GodPower, build_god_power_actions, god_power,
+        mortal::{MortalMove, mortal_move_gen},
+    },
 };
 
 pub const fn build_hera() -> GodPower {

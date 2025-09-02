@@ -1,31 +1,8 @@
 #![feature(stdarch_x86_avx512)]
 #![feature(avx512_target_feature)]
 #![allow(unused)]
-use crate::{
-    bitboard::BitBoard,
-    board::{BOARD_WIDTH, FullGameState},
-    gods::PartialAction,
-};
+use crate::{bitboard::BitBoard, board::FullGameState, gods::PartialAction};
 use chrono::Local;
-
-pub const EXCEPT_LEFT_COL: BitBoard =
-    BitBoard(0b11110 | 0b11110 << 5 | 0b11110 << 10 | 0b11110 << 15 | 0b11110 << 20);
-pub const EXCEPT_RIGHT_COL: BitBoard =
-    BitBoard(0b01111 | 0b01111 << 5 | 0b01111 << 10 | 0b01111 << 15 | 0b01111 << 20);
-
-/// WARNING:
-/// Expects that board bits 25-29 are completely clear
-/// And will wipe out any data in bits 30-31
-pub fn move_all_workers_one_include_original_workers(mask: BitBoard) -> BitBoard {
-    let down = mask.0 >> BOARD_WIDTH;
-    let up = mask.0 << BOARD_WIDTH;
-    let verticals = (mask.0 | up | down);
-
-    let left = (verticals >> 1) & EXCEPT_RIGHT_COL.0;
-    let right = (verticals << 1) & EXCEPT_LEFT_COL.0;
-
-    BitBoard((verticals | left | right) & BitBoard::MAIN_SECTION_MASK.0)
-}
 
 pub fn find_action_path(
     start_state: &FullGameState,
@@ -166,10 +143,7 @@ pub const SEARCH_TEST_SCENARIOS: [(&'static str, usize); 56] = [
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        board::{FullGameState, NEIGHBOR_MAP},
-        square::Square,
-    };
+    use crate::{bitboard::NEIGHBOR_MAP, board::FullGameState, square::Square};
 
     use super::*;
 
@@ -181,28 +155,5 @@ mod tests {
         ];
 
         assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_move_all_workers_one_worker() {
-        for pos in 0..25 {
-            let worker_mask = BitBoard::as_mask_u8(pos);
-            let expected = NEIGHBOR_MAP[pos as usize] | worker_mask;
-            let computed = move_all_workers_one_include_original_workers(worker_mask);
-
-            assert_eq!(computed, expected);
-        }
-    }
-
-    #[test]
-    fn test_move_all_workers_two_workers() {
-        for p1 in 0..25 {
-            for p2 in 0..25 {
-                let mask = BitBoard(1 << p1 | 1 << p2);
-                let expected = (NEIGHBOR_MAP[p1] | NEIGHBOR_MAP[p2]) | mask;
-                let computed = move_all_workers_one_include_original_workers(mask);
-                assert_eq!(computed, expected);
-            }
-        }
     }
 }

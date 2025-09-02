@@ -1,13 +1,10 @@
 use crate::{
     add_scored_move,
-    bitboard::BitBoard,
-    board::{FullGameState, WRAPPING_NEIGHBOR_MAP},
+    bitboard::{BitBoard, WRAPPING_NEIGHBOR_MAP},
+    board::FullGameState,
     build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
-        GodName, GodPower, build_god_power_actions,
-        generic::{MoveGenFlags, ScoredMove},
-        god_power,
-        mortal::MortalMove,
+        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, GodName, GodPower
     },
     player::Player,
     variable_prelude,

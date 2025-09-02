@@ -186,7 +186,7 @@ macro_rules! build_building_masks {
         worker_plausible_next_moves: $worker_plausible_next_moves:ident,
     ) => {
         let mut $all_possible_builds =
-            crate::board::NEIGHBOR_MAP[$worker_end_pos as usize] & $open_squares;
+            crate::bitboard::NEIGHBOR_MAP[$worker_end_pos as usize] & $open_squares;
         let $worker_plausible_next_moves = $all_possible_builds;
         $all_possible_builds &= $build_mask;
         let mut $narrowed_builds = $all_possible_builds;
@@ -266,10 +266,10 @@ macro_rules! build_power_move_generator {
                 let other_threatening_workers =
                     (own_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
                 for other_pos in other_threatening_workers {
-                    other_threatening_neighbors |= NEIGHBOR_MAP[other_pos as usize];
+                    other_threatening_neighbors |= crate::bitboard::NEIGHBOR_MAP[other_pos as usize];
                 }
 
-                let mut worker_moves = NEIGHBOR_MAP[$worker_start_pos as usize]
+                let mut worker_moves = crate::bitboard::NEIGHBOR_MAP[$worker_start_pos as usize]
                     & !(board.height_map
                         [board.get_worker_climb_height(player, worker_starting_height)]
                         | all_workers_mask);

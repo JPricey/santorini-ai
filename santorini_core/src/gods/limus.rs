@@ -1,10 +1,8 @@
 use crate::{
-    bitboard::BitBoard,
-    board::NEIGHBOR_MAP,
+    bitboard::{BitBoard, NEIGHBOR_MAP},
     build_god_power_movers,
     gods::{
-        GodName, GodPower, build_god_power_actions, god_power,
-        mortal::{MortalMove, mortal_move_gen},
+        build_god_power_actions, god_power, mortal::{mortal_move_gen, MortalMove}, GodName, GodPower
     },
 };
 
