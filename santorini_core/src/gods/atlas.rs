@@ -214,7 +214,7 @@ build_power_move_generator!(
                 let is_check = {
                     let final_level_3 = (exactly_level_2 & worker_build_mask)
                         | (exactly_level_3 & !worker_build_mask);
-                    let check_board = reach_board & final_level_3 & unblocked_squares;
+                    let check_board = reach_board & final_level_3;
                     check_board.is_not_empty()
                 };
                 add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
@@ -228,7 +228,7 @@ build_power_move_generator!(
                 );
                 let is_check = {
                     let final_level_3 = exactly_level_3 & !worker_build_mask;
-                    let check_board = reach_board & final_level_3 & unblocked_squares;
+                    let check_board = reach_board & final_level_3;
                     check_board.is_not_empty()
                 };
                 add_scored_move!(new_action, is_include_score, is_check, is_improving, result);

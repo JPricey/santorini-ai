@@ -207,6 +207,63 @@ macro_rules! build_building_masks {
 }
 
 #[macro_export]
+macro_rules! worker_move_loop {
+    (
+        board: $board: ident,
+        worker_moves: $worker_moves:ident,
+        worker_start_height: $worker_start_height:ident,
+        worker_end_pos: $worker_end_pos:ident,
+        worker_end_mask: $worker_end_mask:ident,
+        worker_end_height: $worker_end_height: ident,
+        is_improving: $is_improving: ident,
+        is_now_lvl_2: $is_now_lvl_2: ident,
+        =>
+        $body: stmt
+    ) => {
+        for $worker_end_pos in $worker_moves.into_iter() {
+            let $worker_end_mask = BitBoard::as_mask($worker_end_pos);
+            let $worker_end_height = $board.get_height($worker_end_pos);
+            let $is_improving = $worker_end_height > $worker_start_height;
+            let $is_now_lvl_2 = ($worker_end_height == 2) as usize;
+
+            $body
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! worker_selection_loop {
+    (
+        board: $board: ident,
+        acting_workers: $acting_workers: ident,
+        own_workers: $own_workers: ident,
+        worker_start_pos: $worker_start_pos: ident,
+        worker_start_mask: $worker_start_mask: ident,
+        worker_start_height: $worker_start_height: ident,
+        other_own_workers: $other_own_workers: ident,
+        other_threatening_workers: $other_threatening_workers: ident,
+        checkable_worker_positions_mask: $checkable_worker_positions_mask: ident,
+        other_threatening_neighbors: $other_threatening_neighbors: ident,
+        =>
+        $body: stmt
+    ) => {
+        for $worker_start_pos in $acting_workers.into_iter() {
+            let $worker_start_mask = BitBoard::as_mask($worker_start_pos);
+            let $other_own_workers = $own_workers ^ $worker_start_mask;
+            let $worker_start_height = $board.get_height($worker_start_pos);
+
+            let $other_threatening_workers = $other_own_workers & $checkable_worker_positions_mask;
+            let $other_threatening_neighbors = $crate::bitboard::apply_mapping_to_mask(
+                $other_threatening_workers,
+                &$crate::bitboard::NEIGHBOR_MAP,
+            );
+
+            $body
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! build_power_move_generator {
     (
         $fn_name:ident,
@@ -262,22 +319,26 @@ macro_rules! build_power_move_generator {
 
             $extra_init
 
-            for $worker_start_pos in acting_workers.into_iter() {
-                let moving_worker_start_mask = BitBoard::as_mask($worker_start_pos);
-                #[allow(unused_variables)]
-                let other_own_workers = own_workers ^ moving_worker_start_mask;
-                let worker_starting_height = board.get_height($worker_start_pos);
-
-                let other_threatening_workers =
-                    (own_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
-                let other_threatening_neighbors = $crate::bitboard::apply_mapping_to_mask(other_threatening_workers, &$crate::bitboard::NEIGHBOR_MAP);
+            $crate::worker_selection_loop!(
+                board: board,
+                acting_workers: acting_workers,
+                own_workers: own_workers,
+                worker_start_pos: $worker_start_pos,
+                worker_start_mask: worker_start_mask,
+                worker_start_height: worker_start_height,
+                other_own_workers: other_own_workers,
+                other_threatening_workers: other_threatening_workers,
+                checkable_worker_positions_mask: checkable_worker_positions_mask,
+                other_threatening_neighbors: other_threatening_neighbors,
+            => {
+                let non_moving_workers = oppo_workers | other_own_workers;
 
                 let mut worker_moves = crate::bitboard::NEIGHBOR_MAP[$worker_start_pos as usize]
                     & !(board.height_map
-                        [board.get_worker_climb_height(player, worker_starting_height)]
+                        [board.get_worker_climb_height(player, worker_start_height)]
                         | all_workers_mask);
 
-                if is_mate_only || worker_starting_height == 2 {
+                if is_mate_only || worker_start_height == 2 {
                     let moves_to_level_3 = worker_moves & $exactly_level_3 & win_mask;
                     $crate::build_push_winning_moves!(
                         moves_to_level_3,
@@ -293,20 +354,24 @@ macro_rules! build_power_move_generator {
                     continue;
                 }
 
-                let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-                let $unblocked_squares = !(non_selected_workers | domes);
-
-                for $worker_end_pos in worker_moves.into_iter() {
-                    let moving_worker_end_mask = BitBoard::as_mask($worker_end_pos);
-                    let worker_end_height = board.get_height($worker_end_pos);
-                    let $is_improving = worker_end_height > worker_starting_height;
+                $crate::worker_move_loop!(
+                    board: board,
+                    worker_moves: worker_moves,
+                    worker_start_height: worker_start_height,
+                    worker_end_pos: $worker_end_pos,
+                    worker_end_mask: worker_end_mask,
+                    worker_end_height: worker_end_height,
+                    is_improving: $is_improving,
+                    is_now_lvl_2: is_now_lvl_2,
+                => {
+                    let $unblocked_squares = !(non_moving_workers | worker_end_mask | domes);
 
                     $crate::build_building_masks!(
                         worker_end_pos: $worker_end_pos,
                         open_squares: $unblocked_squares,
                         build_mask: build_mask,
                         is_interact_with_key_squares: is_interact_with_key_squares,
-                        key_squares_expr: (moving_worker_end_mask & key_squares).is_empty(),
+                        key_squares_expr: (worker_end_mask & key_squares).is_empty(),
                         key_squares: key_squares,
 
                         all_possible_builds: $all_possible_builds,
@@ -314,21 +379,18 @@ macro_rules! build_power_move_generator {
                         worker_plausible_next_moves: worker_plausible_next_moves,
                     );
 
-                    let own_final_workers = other_own_workers | moving_worker_end_mask;
-                    let is_now_lvl_2 =  (worker_end_height == 2) as usize;
-
                     let $reach_board =
                     if is_against_hypnus && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2 {
                         BitBoard::EMPTY
                     } else {
                         (other_threatening_neighbors | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
                             & win_mask
-                            & !own_final_workers
+                            & $unblocked_squares
                     };
 
                     $building_block
-                }
-            }
+                });
+            });
 
             $result
         }
