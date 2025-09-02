@@ -56,7 +56,7 @@ macro_rules! variable_prelude {
         build_mask: $build_mask:ident,
         is_against_hypnus: $is_against_hypnus:ident,
         own_workers: $own_workers:ident,
-        other_workers: $other_workers:ident,
+        oppo_workers: $oppo_workers:ident,
         result: $result:ident,
         all_workers_mask: $all_workers_mask:ident,
         is_mate_only: $is_mate_only: ident,
@@ -80,7 +80,7 @@ macro_rules! variable_prelude {
             build_mask: $build_mask,
             is_against_hypnus: $is_against_hypnus,
             own_workers: $own_workers,
-            other_workers: $other_workers,
+            oppo_workers: $oppo_workers,
             result: $result,
             all_workers_mask: $all_workers_mask,
             is_mate_only: $is_mate_only,
@@ -113,7 +113,7 @@ macro_rules! non_checking_variable_prelude {
         build_mask: $build_mask: ident,
         is_against_hypnus: $is_against_hypnus: ident,
         own_workers: $own_workers:ident,
-        other_workers: $other_workers:ident,
+        oppo_workers: $oppo_workers:ident,
         result: $result:ident,
         all_workers_mask: $all_workers_mask:ident,
         is_mate_only: $is_mate_only: ident,
@@ -136,14 +136,14 @@ macro_rules! non_checking_variable_prelude {
         let $domes = $board.at_least_level_4();
 
         let $own_workers = $board.workers[$current_player_idx] & BitBoard::MAIN_SECTION_MASK;
-        let $other_workers = $board.workers[$other_player_idx] & BitBoard::MAIN_SECTION_MASK;
+        let $oppo_workers = $board.workers[$other_player_idx] & BitBoard::MAIN_SECTION_MASK;
 
         let capacity = if $is_mate_only { 1 } else { 128 };
         let mut $result: Vec<ScoredMove> = Vec::with_capacity(capacity);
-        let $all_workers_mask = $own_workers | $other_workers;
+        let $all_workers_mask = $own_workers | $oppo_workers;
 
         let $win_mask = $other_god.win_mask;
-        let $build_mask = $other_god.get_build_mask($other_workers) | $exactly_level_3;
+        let $build_mask = $other_god.get_build_mask($oppo_workers) | $exactly_level_3;
 
         let $is_against_hypnus = $other_god.is_hypnus();
         let mut $acting_workers = $own_workers;
@@ -252,7 +252,7 @@ macro_rules! build_power_move_generator {
                 build_mask: build_mask,
                 is_against_hypnus: is_against_hypnus,
                 own_workers:  own_workers,
-                other_workers:  other_workers,
+                oppo_workers:  oppo_workers,
                 result: $result,
                 all_workers_mask:  all_workers_mask,
                 is_mate_only:  is_mate_only,

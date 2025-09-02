@@ -442,7 +442,7 @@ fn build_feature_set(board: &BoardState, god1: GodName, god2: GodName) -> Featur
             features.worker_features.push(feature);
         }
     }
-    let (own_workers, other_workers) = match board.current_player {
+    let (own_workers, oppo_workers) = match board.current_player {
         Player::One => (0, 1),
         Player::Two => (1, 0),
     };
@@ -456,7 +456,7 @@ fn build_feature_set(board: &BoardState, god1: GodName, god2: GodName) -> Featur
 
     _add_worker_features(
         board,
-        board.workers[other_workers] & BitBoard::MAIN_SECTION_MASK,
+        board.workers[oppo_workers] & BitBoard::MAIN_SECTION_MASK,
         &mut res,
         OPPO_WORKER_OFFSET as FeatureType,
     );

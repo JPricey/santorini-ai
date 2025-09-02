@@ -202,7 +202,7 @@ fn apollo_move_gen<const F: MoveGenFlags>(
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
-       other_workers:  other_workers,
+       oppo_workers:  oppo_workers,
        result:  result,
        all_workers_mask:  all_workers_mask,
        is_mate_only:  is_mate_only,
@@ -234,7 +234,7 @@ fn apollo_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let is_swap =
-                    (BitBoard::as_mask(moving_worker_end_pos) & other_workers).is_not_empty();
+                    (BitBoard::as_mask(moving_worker_end_pos) & oppo_workers).is_not_empty();
                 let winning_move = ScoredMove::new_winning_move(
                     ApolloMove::new_apollo_winning_move(
                         moving_worker_start_pos,
@@ -263,9 +263,9 @@ fn apollo_move_gen<const F: MoveGenFlags>(
             let worker_end_height = board.get_height(moving_worker_end_pos);
             let is_improving = worker_end_height > worker_starting_height;
 
-            let mut final_other_workers = other_workers;
+            let mut final_other_workers = oppo_workers;
             let mut final_build_mask = build_mask;
-            let is_swap = (BitBoard::as_mask(moving_worker_end_pos) & other_workers).is_not_empty();
+            let is_swap = (BitBoard::as_mask(moving_worker_end_pos) & oppo_workers).is_not_empty();
             if is_swap {
                 final_other_workers ^= moving_worker_end_mask | moving_worker_start_mask;
                 final_build_mask = other_god.get_build_mask(final_other_workers) | exactly_level_3;

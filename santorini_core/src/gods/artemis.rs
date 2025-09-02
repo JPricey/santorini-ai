@@ -189,14 +189,14 @@ fn artemis_move_gen<const F: MoveGenFlags>(
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
-       other_workers:  other_workers,
+       oppo_workers:  oppo_workers,
        result:  result,
        all_workers_mask:  all_workers_mask,
        is_mate_only:  is_mate_only,
        acting_workers: acting_workers,
     );
 
-    let not_other_workers = !other_workers;
+    let not_other_workers = !oppo_workers;
 
     if is_mate_only {
         acting_workers &= board.at_least_level_1()
@@ -289,7 +289,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
             let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
             let worker_end_height = board.get_height(moving_worker_end_pos);
             let is_improving = worker_end_height > worker_starting_height;
-            let not_any_workers = !(other_workers | other_own_workers | moving_worker_end_mask);
+            let not_any_workers = !(oppo_workers | other_own_workers | moving_worker_end_mask);
 
             build_building_masks!(
                 worker_end_pos: moving_worker_end_pos,

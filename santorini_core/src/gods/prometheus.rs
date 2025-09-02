@@ -256,7 +256,7 @@ fn prometheus_move_gen<const F: MoveGenFlags>(
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
-       other_workers:  other_workers,
+       oppo_workers:  oppo_workers,
        result:  result,
        all_workers_mask:  all_workers_mask,
        is_mate_only:  is_mate_only,

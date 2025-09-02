@@ -240,7 +240,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
-       other_workers:  other_workers,
+       oppo_workers:  oppo_workers,
        result:  result,
        all_workers_mask:  all_workers_mask,
        is_mate_only:  is_mate_only,
@@ -265,7 +265,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
 
             for moving_worker_end_pos in moves_to_level_3.into_iter() {
                 let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-                if (moving_worker_end_mask & other_workers).is_not_empty() {
+                if (moving_worker_end_mask & oppo_workers).is_not_empty() {
                     if let Some(push_to) = PUSH_MAPPING[moving_worker_start_pos as usize]
                         [moving_worker_end_pos as usize]
                     {
@@ -319,9 +319,9 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
             let mut push_to_mask = BitBoard::EMPTY;
 
             let mut final_build_mask = build_mask;
-            let mut other_workers_post_push = other_workers;
+            let mut other_workers_post_push = oppo_workers;
 
-            if (moving_worker_end_mask & other_workers).is_not_empty() {
+            if (moving_worker_end_mask & oppo_workers).is_not_empty() {
                 if let Some(push_to) =
                     PUSH_MAPPING[moving_worker_start_pos as usize][moving_worker_end_pos as usize]
                 {
@@ -332,7 +332,7 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                         worker_builds ^= tmp_push_to_mask;
 
                         other_workers_post_push =
-                            other_workers ^ push_to_mask ^ moving_worker_end_mask;
+                            oppo_workers ^ push_to_mask ^ moving_worker_end_mask;
                         final_build_mask =
                             other_god.get_build_mask(other_workers_post_push) | exactly_level_3;
                     } else {

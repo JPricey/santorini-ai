@@ -343,7 +343,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
        own_workers:  own_workers,
-       other_workers:  other_workers,
+       oppo_workers:  oppo_workers,
        result:  result,
        all_workers_mask:  all_workers_mask,
        is_mate_only:  is_mate_only,
@@ -444,7 +444,7 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     let f1 = worker_iter.next().unwrap();
     let m1 = BitBoard::as_mask(f1);
     let h1 = board.get_height(f1);
-    let h1_mask = board.exactly_level_n(h1) & !other_workers;
+    let h1_mask = board.exactly_level_n(h1) & !oppo_workers;
     let c1 = flood_fill(h1_mask, m1);
 
     let Some(f2) = worker_iter.next() else {
@@ -505,12 +505,12 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     } else {
         is_overlap = false;
         h2 = board.get_height(f2);
-        let h2_mask = board.exactly_level_n(h2) & !other_workers;
+        let h2_mask = board.exactly_level_n(h2) & !oppo_workers;
 
         c2 = flood_fill(h2_mask, m2);
     }
 
-    let blocked_squares = other_workers | domes;
+    let blocked_squares = oppo_workers | domes;
 
     let l1 = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize];
     let l2 = BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize];
