@@ -1,10 +1,14 @@
 use crate::{
     add_scored_move,
-    bitboard::{BitBoard, NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::FullGameState,
     build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves,
     gods::{
-        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, hypnus::hypnus_moveable_worker_filter, mortal::MortalMove, GodName, GodPower
+        GodName, GodPower, build_god_power_actions,
+        generic::{MoveGenFlags, ScoredMove},
+        god_power,
+        hypnus::hypnus_moveable_worker_filter,
+        mortal::MortalMove,
     },
     non_checking_variable_prelude,
     player::Player,
@@ -58,16 +62,12 @@ fn pan_move_gen<const F: MoveGenFlags>(
         let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
         let worker_starting_height = board.get_height(moving_worker_start_pos);
 
-        let mut neighbor_2 = BitBoard::EMPTY;
-        let mut neighbor_3 = BitBoard::EMPTY;
         let other_lvl_2_workers = (own_workers ^ moving_worker_start_mask) & exactly_level_2;
-        for other_pos_2 in other_lvl_2_workers {
-            neighbor_2 |= NEIGHBOR_MAP[other_pos_2 as usize];
-        }
-
-        for other_pos_3 in (own_workers ^ moving_worker_start_mask) & exactly_level_3 {
-            neighbor_3 |= NEIGHBOR_MAP[other_pos_3 as usize];
-        }
+        let neighbor_2 = apply_mapping_to_mask(other_lvl_2_workers, &NEIGHBOR_MAP);
+        let neighbor_3 = apply_mapping_to_mask(
+            (own_workers ^ moving_worker_start_mask) & exactly_level_3,
+            &NEIGHBOR_MAP,
+        );
 
         let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
             & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]

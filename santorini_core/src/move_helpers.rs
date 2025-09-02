@@ -262,12 +262,9 @@ macro_rules! build_power_move_generator {
                 let other_own_workers = own_workers ^ moving_worker_start_mask;
                 let worker_starting_height = board.get_height($worker_start_pos);
 
-                let mut other_threatening_neighbors = BitBoard::EMPTY;
                 let other_threatening_workers =
                     (own_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
-                for other_pos in other_threatening_workers {
-                    other_threatening_neighbors |= crate::bitboard::NEIGHBOR_MAP[other_pos as usize];
-                }
+                let other_threatening_neighbors = $crate::bitboard::apply_mapping_to_mask(other_threatening_workers, &$crate::bitboard::NEIGHBOR_MAP);
 
                 let mut worker_moves = crate::bitboard::NEIGHBOR_MAP[$worker_start_pos as usize]
                     & !(board.height_map

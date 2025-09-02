@@ -93,6 +93,13 @@ pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
     .bit_not()
     .bit_and(BitBoard::MAIN_SECTION_MASK);
 
+pub fn apply_mapping_to_mask(mask: BitBoard, mapping: &[BitBoard; NUM_SQUARES]) -> BitBoard {
+    mask.into_iter()
+        .fold(BitBoard::EMPTY, |accum: BitBoard, s: Square| {
+            accum | mapping[s as usize]
+        })
+}
+
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
 pub struct BitBoard(pub u32);
 
