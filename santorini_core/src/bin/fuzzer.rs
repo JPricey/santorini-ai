@@ -4,7 +4,7 @@ use santorini_core::{
     board::FullGameState,
     consistency_checker::consistency_check,
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
-    matchup::{self, MatchupSelector},
+    matchup::MatchupSelector,
     random_utils::{get_board_with_random_placements_worker_counters, get_random_move},
 };
 

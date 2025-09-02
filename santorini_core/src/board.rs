@@ -7,7 +7,7 @@ use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
     gods::{
-        self, BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
+        BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
         generic::{GenericMove, GodMove},
     },
     hashing::{
@@ -203,7 +203,7 @@ impl FullGameState {
     }
 
     pub fn playable_err(&self) -> Result<(), String> {
-        self.board.playable_err(self.base_hash(), self.gods)
+        self.board.playable_err(self.gods)
     }
 
     pub fn validate(&self) {
@@ -480,15 +480,9 @@ impl BoardState {
         }
     }
 
-    fn _validate_player(&self, player: Player, god: StaticGod) -> Result<(), String> {
+    fn _validate_player(&self, player: Player, _god: StaticGod) -> Result<(), String> {
         let player_idx = player as usize;
         let player_workers = self.workers[player_idx];
-
-        let worker_count = player_workers.count_ones();
-
-        if worker_count > 4 {
-            return Err(format!("Player {:?} has too many workers", player));
-        }
 
         let dome_worker_collide = player_workers & self.height_map[3];
         if dome_worker_collide.is_not_empty() {
@@ -500,11 +494,11 @@ impl BoardState {
 
     fn validation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
         self.representation_err(base_hash, gods)?;
-        self.playable_err(base_hash, gods)?;
+        self.playable_err(gods)?;
         Ok(())
     }
 
-    fn playable_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
+    fn playable_err(&self, gods: [StaticGod; 2]) -> Result<(), String> {
         let matchup = Matchup::new(gods[0].god_name, gods[1].god_name);
         if let Some(reason) = BANNED_MATCHUPS.get(&matchup) {
             let err_str = match reason {
@@ -540,6 +534,10 @@ impl BoardState {
                     player
                 ));
             }
+        }
+
+        if worker_count > 4 {
+            return Err(format!("Player {:?} has too many workers", player));
         }
 
         if own_god.is_hypnus() && oppo_count == 1 {

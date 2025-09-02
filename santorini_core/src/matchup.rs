@@ -14,7 +14,7 @@ pub enum BannedReason {
 }
 pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::new(|| {
     let mut set = HashMap::new();
-    let mut add_matchup = |g1: GodName, g2: GodName, reason: BannedReason| {
+    let mut _add_matchup = |g1: GodName, g2: GodName, reason: BannedReason| {
         set.insert(Matchup::new(g1, g2), reason);
         set.insert(Matchup::new(g2, g1), reason);
     };
