@@ -88,6 +88,10 @@ impl FullGameState {
         res
     }
 
+    pub fn new_for_matchup(matchup: &Matchup) -> Self {
+        FullGameState::new(BoardState::default(), matchup.god_1(), matchup.god_2())
+    }
+
     pub fn new_empty_state(p1: GodName, p2: GodName) -> Self {
         FullGameState::new(BoardState::default(), p1.to_power(), p2.to_power())
     }

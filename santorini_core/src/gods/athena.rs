@@ -1,8 +1,8 @@
 use crate::{
     add_scored_move, after_move_power_generator,
-    bitboard::{BitBoard, NEIGHBOR_MAP},
+    bitboard::BitBoard,
     board::{BoardState, FullGameState},
-    build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves,
+    build_building_masks, build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
@@ -13,12 +13,10 @@ use crate::{
     },
     player::Player,
     square::Square,
-    variable_prelude,
 };
 
 use super::PartialAction;
 
-// from(5)|to(5)|build(5)|win(1)
 pub const ATHENA_MOVE_FROM_POSITION_OFFSET: usize = 0;
 pub const ATHENA_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 pub const ATHENA_BUILD_POSITION_OFFSET: usize = ATHENA_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
@@ -265,4 +263,3 @@ pub const fn build_athena() -> GodPower {
         15381411414297507361,
     )
 }
-

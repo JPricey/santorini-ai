@@ -106,6 +106,7 @@ impl Matchup {
 pub struct MatchupSelector {
     valid_gods: [Vec<GodName>; 2],
     can_swap: bool,
+    can_mirror: bool,
 }
 
 fn _all_god_names() -> Vec<GodName> {
@@ -117,6 +118,7 @@ impl Default for MatchupSelector {
         Self {
             valid_gods: [_all_god_names(), _all_god_names()],
             can_swap: false,
+            can_mirror: true,
         }
     }
 }
@@ -137,6 +139,25 @@ impl MatchupSelector {
             matchup = matchup.flip();
         }
         matchup
+    }
+
+    pub fn get_all(&self) -> Vec<Matchup> {
+        let mut res = Vec::new();
+
+        for g1 in self.valid_gods[0].iter() {
+            for g2 in self.valid_gods[1].iter() {
+                if g1 == g2 && !self.can_mirror {
+                    continue;
+                }
+
+                res.push(Matchup::new(*g1, *g2));
+                if self.can_swap {
+                    res.push(Matchup::new(*g2, *g1));
+                }
+            }
+        }
+
+        res
     }
 
     fn _get(&self) -> Option<Matchup> {
@@ -171,6 +192,11 @@ impl MatchupSelector {
         self
     }
 
+    pub fn minus_god_for_both(&mut self, god_name: GodName) -> &mut Self {
+        self.minus_god_for_player(Player::One, god_name);
+        self.minus_god_for_player(Player::Two, god_name)
+    }
+
     pub fn minus_gods_for_player(&mut self, player: Player, gods: &Vec<GodName>) -> &mut Self {
         for god in gods {
             self.minus_god_for_player(player, *god);
@@ -188,6 +214,11 @@ impl MatchupSelector {
 
     pub fn with_can_swap_option(&mut self, can_swap: bool) -> &mut Self {
         self.can_swap = can_swap;
+        self
+    }
+
+    pub fn with_can_mirror_option(&mut self, can_mirror: bool) -> &mut Self {
+        self.can_mirror = can_mirror;
         self
     }
 }

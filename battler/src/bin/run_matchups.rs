@@ -4,6 +4,7 @@ use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
     gods::{ALL_GODS_BY_ID, GodName},
+    matchup::{Matchup, MatchupSelector},
     nnue::SCALE,
     player::Player,
     search::Hueristic,
@@ -12,8 +13,8 @@ use santorini_core::{
 
 const SECS_PER_MOVE: f32 = 1.0;
 
-fn play_match(engine: &mut EngineThreadWrapper, god1: GodName, god2: GodName) -> Player {
-    let mut game_state = FullGameState::new_empty_state(god1, god2);
+fn play_match(engine: &mut EngineThreadWrapper, matchup: &Matchup) -> Player {
+    let mut game_state = FullGameState::new_for_matchup(&matchup);
 
     loop {
         let Ok(engine_result) = engine.search_for_duration(&game_state, SECS_PER_MOVE) else {
@@ -97,40 +98,13 @@ fn print_results(results: &Vec<MatchupResult>) {
     }
 }
 
-pub fn all_matchups() -> Vec<(GodName, GodName)> {
-    let banned_gods = vec![GodName::Mortal];
+pub fn all_matchups() -> Vec<Matchup> {
+    let all_matchups = MatchupSelector::default()
+        .minus_god_for_both(GodName::Mortal)
+        .with_can_mirror_option(false)
+        .get_all();
 
-    let must_include = vec![
-        // GodName::Limus,
-        // GodName::Hera,
-        // GodName::Urania,
-        // GodName::Graeae,
-    ];
-
-    let mut res = Vec::new();
-    for god1 in ALL_GODS_BY_ID {
-        let god1 = god1.god_name;
-        if banned_gods.contains(&god1) {
-            continue;
-        }
-
-        for god2 in ALL_GODS_BY_ID {
-            let god2 = god2.god_name;
-            if banned_gods.contains(&god2) || god1 == god2 {
-                continue;
-            }
-
-            if must_include.len() > 0
-                && !(must_include.contains(&god1) | must_include.contains(&god2))
-            {
-                continue;
-            }
-
-            res.push((god1, god2));
-        }
-    }
-
-    res
+    all_matchups
 }
 
 pub fn full_matchups() {
@@ -139,12 +113,16 @@ pub fn full_matchups() {
 
     let mut all_results = Vec::new();
 
-    for (god1, god2) in all_matchups() {
-        eprintln!("starting matching {} {}", god1, god2);
-        let result = play_match(&mut engine, god1, god2);
-        eprintln!("done matching {} {}. Winner: {:?}", god1, god2, result);
+    for matchup in all_matchups() {
+        eprintln!("starting match: {}", matchup);
+        let result = play_match(&mut engine, &matchup);
+        eprintln!("done match {}. Winner: {:?}", matchup, result);
 
-        all_results.push(MatchupResult::new(god1, god2, result));
+        all_results.push(MatchupResult::new(
+            matchup.god_1().god_name,
+            matchup.god_2().god_name,
+            result,
+        ));
         print_results(&all_results);
     }
 }
@@ -179,12 +157,18 @@ pub fn balance_matchups(moves_per_game: usize, secs_per_move: f32) {
     engine.spin_for_pending_state();
 
     let mut all_results = Vec::new();
+    let all_matchups = MatchupSelector::default()
+        .with_can_mirror_option(false)
+        .get_all();
+    for m in &all_matchups {
+        eprintln!("matchup: {}", m);
+    }
 
-    for (god1, god2) in all_matchups() {
-        eprintln!("starting matchup {} {}", god1, god2);
+    for matchup in &all_matchups {
+        eprintln!("starting matchup {}", matchup);
         let mut scores = Vec::new();
 
-        let mut game_state = FullGameState::new_empty_state(god1, god2);
+        let mut game_state = FullGameState::new_for_matchup(matchup);
         for _ in 0..moves_per_game {
             let engine_result = engine
                 .search_for_duration(&game_state, secs_per_move)
@@ -206,8 +190,8 @@ pub fn balance_matchups(moves_per_game: usize, secs_per_move: f32) {
         let average_score =
             scores.iter().cloned().map(f32::from).sum::<f32>() / scores.len() as f32;
         all_results.push(BalanceMatchupResult {
-            god1,
-            god2,
+            god1: matchup.god_1().god_name,
+            god2: matchup.god_2().god_name,
             scores,
             average_score,
         });
