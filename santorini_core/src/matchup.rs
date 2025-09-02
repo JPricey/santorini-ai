@@ -7,14 +7,14 @@ use crate::{
     player::Player,
 };
 
-#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub enum BannedReason {
     Game,
     Engine,
 }
 pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::new(|| {
     let mut set = HashMap::new();
-    let mut _add_matchup = |g1: GodName, g2: GodName, reason: BannedReason| {
+    let mut add_matchup = |g1: GodName, g2: GodName, reason: BannedReason| {
         set.insert(Matchup::new(g1, g2), reason);
         set.insert(Matchup::new(g2, g1), reason);
     };
@@ -23,11 +23,9 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     //     Matchup::new(GodName::Graeae, GodName::Nemesis),
     //     BannedReason::Game,
     // );
-    //
-    // set.insert(
-    //     Matchup::new(GodName::Harpies, GodName::Hermes),
-    //     BannedReason::Game,
-    // );
+
+    add_matchup(GodName::Harpies, GodName::Hermes, BannedReason::Game);
+
     // set.insert(
     //     Matchup::new(GodName::Harpies, GodName::Triton),
     //     BannedReason::Game,
@@ -37,8 +35,27 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     //     BannedReason::Game,
     // );
 
+    // TODO: add wrap arounds to push map
+    add_matchup(GodName::Harpies, GodName::Urania, BannedReason::Engine);
+    // TODO: special move logic
+    add_matchup(GodName::Harpies, GodName::Artemis, BannedReason::Engine);
+    // TODO: special check to ignore harpies on pushes
+    add_matchup(GodName::Harpies, GodName::Minotaur, BannedReason::Engine);
+    // TODO: is_swap isn't sufficient to decide where the opponent worker ends up
+    add_matchup(GodName::Harpies, GodName::Apollo, BannedReason::Engine);
+    // TODO: moving ontop of the build spot is a special case
+    add_matchup(GodName::Harpies, GodName::Prometheus, BannedReason::Engine);
+
     set
 });
+
+pub fn matchup_banned_reason(matchup: &Matchup) -> Option<BannedReason> {
+    BANNED_MATCHUPS.get(matchup).copied()
+}
+
+pub fn is_matchup_banned(matchup: &Matchup) -> bool {
+    matchup_banned_reason(matchup).is_some()
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Matchup {

@@ -55,6 +55,7 @@ macro_rules! variable_prelude {
         win_mask: $win_mask:ident,
         build_mask: $build_mask:ident,
         is_against_hypnus: $is_against_hypnus:ident,
+        is_against_harpies: $is_against_harpies:ident,
         own_workers: $own_workers:ident,
         oppo_workers: $oppo_workers:ident,
         result: $result:ident,
@@ -79,6 +80,7 @@ macro_rules! variable_prelude {
             win_mask: $win_mask,
             build_mask: $build_mask,
             is_against_hypnus: $is_against_hypnus,
+            is_against_harpies: $is_against_harpies,
             own_workers: $own_workers,
             oppo_workers: $oppo_workers,
             result: $result,
@@ -112,6 +114,7 @@ macro_rules! non_checking_variable_prelude {
         win_mask: $win_mask: ident,
         build_mask: $build_mask: ident,
         is_against_hypnus: $is_against_hypnus: ident,
+        is_against_harpies: $is_against_harpies: ident,
         own_workers: $own_workers:ident,
         oppo_workers: $oppo_workers:ident,
         result: $result:ident,
@@ -146,6 +149,8 @@ macro_rules! non_checking_variable_prelude {
         let $build_mask = $other_god.get_build_mask($oppo_workers) | $exactly_level_3;
 
         let $is_against_hypnus = $other_god.is_hypnus();
+        let $is_against_harpies = $other_god.is_harpies();
+
         let mut $acting_workers = $own_workers;
         if $is_against_hypnus {
             $acting_workers =
@@ -210,6 +215,8 @@ macro_rules! build_building_masks {
 macro_rules! worker_move_loop {
     (
         board: $board: ident,
+        is_against_harpies: $is_against_harpies: ident,
+        worker_start_pos: $worker_start_pos: ident,
         worker_moves: $worker_moves:ident,
         worker_start_height: $worker_start_height:ident,
         worker_end_pos: $worker_end_pos:ident,
@@ -221,6 +228,15 @@ macro_rules! worker_move_loop {
         $body: stmt
     ) => {
         for $worker_end_pos in $worker_moves.into_iter() {
+            let mut $worker_end_pos = $worker_end_pos;
+            if $is_against_harpies {
+                $worker_end_pos = crate::gods::harpies::slide_position(
+                    &$board,
+                    $worker_start_pos,
+                    $worker_end_pos,
+                )
+            }
+
             let $worker_end_mask = BitBoard::as_mask($worker_end_pos);
             let $worker_end_height = $board.get_height($worker_end_pos);
             let $is_improving = $worker_end_height > $worker_start_height;
@@ -264,6 +280,134 @@ macro_rules! worker_selection_loop {
 }
 
 #[macro_export]
+macro_rules! after_move_power_generator {
+    (
+        $fn_name:ident,
+        build_winning_move: $build_winning_move:path,
+        state: $state:ident,
+        player: $player:ident,
+        board: $board:ident,
+        is_include_score: $is_include_score:ident,
+        is_interact_with_key_squares: $is_interact_with_key_squares:ident,
+        key_squares: $key_squares: ident,
+        is_against_hypnus: $is_against_hypnus:ident,
+        is_against_harpies: $is_against_harpies:ident,
+        is_check: $is_check:ident,
+        is_improving: $is_improving:ident,
+        exactly_level_1: $exactly_level_1: ident,
+        exactly_level_2: $exactly_level_2: ident,
+        exactly_level_3: $exactly_level_3: ident,
+        domes: $domes: ident,
+        win_mask: $win_mask:ident,
+        build_mask: $build_mask:ident,
+        worker_start_pos: $worker_start_pos: ident,
+        worker_end_pos: $worker_end_pos: ident,
+        worker_end_mask: $worker_end_mask: ident,
+        worker_end_height: $worker_end_height: ident,
+        non_moving_workers: $non_moving_workers: ident,
+        all_possible_builds: $all_possible_builds:ident,
+        narrowed_builds: $narrowed_builds:ident,
+        reach_board: $reach_board:ident,
+        unblocked_squares: $unblocked_squares:ident,
+        other_threatening_workers: $other_threatening_workers:ident,
+        other_threatening_neighbors: $other_threatening_neighbors:ident,
+        is_now_lvl_2: $is_now_lvl_2:ident,
+        result: $result:ident,
+        extra_init: $extra_init:stmt,
+        move_block: $move_block:block
+    ) => {
+        pub fn $fn_name<const F: MoveGenFlags>(
+            $state: &FullGameState,
+            $player: Player,
+            $key_squares: BitBoard,
+        ) -> Vec<ScoredMove> {
+            $crate::build_parse_flags!(is_mate_only, $is_include_score, is_stop_on_mate, $is_interact_with_key_squares);
+
+            $crate::variable_prelude!(
+                state: $state,
+                player:  $player,
+                board:  $board,
+                other_player:  other_player,
+                current_player_idx:  current_player_idx,
+                other_player_idx:  other_player_idx,
+                other_god:  other_god,
+                exactly_level_0:  exactly_level_0,
+                exactly_level_1: $exactly_level_1,
+                exactly_level_2: $exactly_level_2,
+                exactly_level_3: $exactly_level_3,
+                domes:  $domes,
+                win_mask:  $win_mask,
+                build_mask: $build_mask,
+                is_against_hypnus: $is_against_hypnus,
+                is_against_harpies: $is_against_harpies,
+                own_workers:  own_workers,
+                oppo_workers:  oppo_workers,
+                result: $result,
+                all_workers_mask:  all_workers_mask,
+                is_mate_only:  is_mate_only,
+                acting_workers:  acting_workers,
+                checkable_worker_positions_mask:  checkable_worker_positions_mask,
+            );
+
+            $extra_init
+
+            $crate::worker_selection_loop!(
+                board: $board,
+                acting_workers: acting_workers,
+                own_workers: own_workers,
+                worker_start_pos: $worker_start_pos,
+                worker_start_mask: worker_start_mask,
+                worker_start_height: worker_start_height,
+                other_own_workers: other_own_workers,
+                other_threatening_workers: $other_threatening_workers,
+                checkable_worker_positions_mask: checkable_worker_positions_mask,
+                other_threatening_neighbors: $other_threatening_neighbors,
+            => {
+                let $non_moving_workers = oppo_workers | other_own_workers;
+
+                let mut worker_moves = crate::bitboard::NEIGHBOR_MAP[$worker_start_pos as usize]
+                    & !($board.height_map
+                        [$board.get_worker_climb_height($player, worker_start_height)]
+                        | all_workers_mask);
+
+                if is_mate_only || worker_start_height == 2 {
+                    let moves_to_level_3 = worker_moves & $exactly_level_3 & $win_mask;
+                    $crate::build_push_winning_moves!(
+                        moves_to_level_3,
+                        worker_moves,
+                        $build_winning_move,
+                        $worker_start_pos,
+                        $result,
+                        is_stop_on_mate,
+                    );
+                }
+
+                if is_mate_only {
+                    continue;
+                }
+
+                $crate::worker_move_loop!(
+                    board: $board,
+                    is_against_harpies: $is_against_harpies,
+                    worker_start_pos: $worker_start_pos,
+                    worker_moves: worker_moves,
+                    worker_start_height: worker_start_height,
+                    worker_end_pos: $worker_end_pos,
+                    worker_end_mask: $worker_end_mask,
+                    worker_end_height: $worker_end_height,
+                    is_improving: $is_improving,
+                    is_now_lvl_2: $is_now_lvl_2,
+                => {
+                    $move_block
+                });
+            });
+
+            $result
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! build_power_move_generator {
     (
         $fn_name:ident,
@@ -285,114 +429,66 @@ macro_rules! build_power_move_generator {
         building_block: $building_block: block,
         extra_init: $extra_init:stmt,
     ) => {
-        pub fn $fn_name<const F: MoveGenFlags>(
-            $state: &FullGameState,
-            player: Player,
-            key_squares: BitBoard,
-        ) -> Vec<ScoredMove> {
-            $crate::build_parse_flags!(is_mate_only, $is_include_score, is_stop_on_mate, is_interact_with_key_squares);
+        $crate::after_move_power_generator!(
+            $fn_name,
+            build_winning_move: $build_winning_move,
+            state: $state,
+            player: player,
+            board: board,
+            is_include_score: $is_include_score,
+            is_interact_with_key_squares: is_interact_with_key_squares,
+            key_squares: key_squares,
+            is_against_hypnus: is_against_hypnus,
+            is_against_harpies: is_against_harpies,
+            is_check: $is_check,
+            is_improving: $is_improving,
+            exactly_level_1: $exactly_level_1,
+            exactly_level_2: $exactly_level_2,
+            exactly_level_3: $exactly_level_3,
+            domes: domes,
+            win_mask: win_mask,
+            build_mask: build_mask,
+            worker_start_pos: $worker_start_pos,
+            worker_end_pos: $worker_end_pos,
+            worker_end_mask: worker_end_mask,
+            worker_end_height: worker_end_height,
+            non_moving_workers: non_moving_workers,
+            all_possible_builds: $all_possible_builds,
+            narrowed_builds: $narrowed_builds,
+            reach_board: $reach_board,
+            unblocked_squares: $unblocked_squares,
+            other_threatening_workers: other_threatening_workers,
+            other_threatening_neighbors: other_threatening_neighbors,
+            is_now_lvl_2: is_now_lvl_2,
+            result: $result,
+            extra_init: $extra_init,
+            move_block: {
+                let $unblocked_squares = !(non_moving_workers | worker_end_mask | domes);
 
-            $crate::variable_prelude!(
-                state: $state,
-                player:  player,
-                board:  board,
-                other_player:  other_player,
-                current_player_idx:  current_player_idx,
-                other_player_idx:  other_player_idx,
-                other_god:  other_god,
-                exactly_level_0:  exactly_level_0,
-                exactly_level_1: $exactly_level_1,
-                exactly_level_2: $exactly_level_2,
-                exactly_level_3: $exactly_level_3,
-                domes:  domes,
-                win_mask:  win_mask,
-                build_mask: build_mask,
-                is_against_hypnus: is_against_hypnus,
-                own_workers:  own_workers,
-                oppo_workers:  oppo_workers,
-                result: $result,
-                all_workers_mask:  all_workers_mask,
-                is_mate_only:  is_mate_only,
-                acting_workers:  acting_workers,
-                checkable_worker_positions_mask:  checkable_worker_positions_mask,
-            );
-
-            $extra_init
-
-            $crate::worker_selection_loop!(
-                board: board,
-                acting_workers: acting_workers,
-                own_workers: own_workers,
-                worker_start_pos: $worker_start_pos,
-                worker_start_mask: worker_start_mask,
-                worker_start_height: worker_start_height,
-                other_own_workers: other_own_workers,
-                other_threatening_workers: other_threatening_workers,
-                checkable_worker_positions_mask: checkable_worker_positions_mask,
-                other_threatening_neighbors: other_threatening_neighbors,
-            => {
-                let non_moving_workers = oppo_workers | other_own_workers;
-
-                let mut worker_moves = crate::bitboard::NEIGHBOR_MAP[$worker_start_pos as usize]
-                    & !(board.height_map
-                        [board.get_worker_climb_height(player, worker_start_height)]
-                        | all_workers_mask);
-
-                if is_mate_only || worker_start_height == 2 {
-                    let moves_to_level_3 = worker_moves & $exactly_level_3 & win_mask;
-                    $crate::build_push_winning_moves!(
-                        moves_to_level_3,
-                        worker_moves,
-                        $build_winning_move,
-                        $worker_start_pos,
-                        $result,
-                        is_stop_on_mate,
-                    );
-                }
-
-                if is_mate_only {
-                    continue;
-                }
-
-                $crate::worker_move_loop!(
-                    board: board,
-                    worker_moves: worker_moves,
-                    worker_start_height: worker_start_height,
+                $crate::build_building_masks!(
                     worker_end_pos: $worker_end_pos,
-                    worker_end_mask: worker_end_mask,
-                    worker_end_height: worker_end_height,
-                    is_improving: $is_improving,
-                    is_now_lvl_2: is_now_lvl_2,
-                => {
-                    let $unblocked_squares = !(non_moving_workers | worker_end_mask | domes);
+                    open_squares: $unblocked_squares,
+                    build_mask: build_mask,
+                    is_interact_with_key_squares: is_interact_with_key_squares,
+                    key_squares_expr: (worker_end_mask & key_squares).is_empty(),
+                    key_squares: key_squares,
 
-                    $crate::build_building_masks!(
-                        worker_end_pos: $worker_end_pos,
-                        open_squares: $unblocked_squares,
-                        build_mask: build_mask,
-                        is_interact_with_key_squares: is_interact_with_key_squares,
-                        key_squares_expr: (worker_end_mask & key_squares).is_empty(),
-                        key_squares: key_squares,
+                    all_possible_builds: $all_possible_builds,
+                    narrowed_builds: $narrowed_builds,
+                    worker_plausible_next_moves: worker_plausible_next_moves,
+                );
 
-                        all_possible_builds: $all_possible_builds,
-                        narrowed_builds: $narrowed_builds,
-                        worker_plausible_next_moves: worker_plausible_next_moves,
-                    );
+                let $reach_board =
+                if is_against_hypnus && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2 {
+                    BitBoard::EMPTY
+                } else {
+                    (other_threatening_neighbors | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                        & win_mask
+                        & $unblocked_squares
+                };
 
-                    let $reach_board =
-                    if is_against_hypnus && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2 {
-                        BitBoard::EMPTY
-                    } else {
-                        (other_threatening_neighbors | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
-                            & win_mask
-                            & $unblocked_squares
-                    };
-
-                    $building_block
-                });
-            });
-
-            $result
-        }
-    };
+                $building_block
+            }
+        );
+    }
 }

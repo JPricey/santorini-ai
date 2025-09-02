@@ -19,6 +19,7 @@ pub mod atlas;
 pub mod demeter;
 pub mod generic;
 pub mod graeae;
+pub mod harpies;
 pub mod hephaestus;
 pub mod hera;
 pub mod hermes;
@@ -63,6 +64,7 @@ pub enum GodName {
     Hera = 13,
     Limus = 14,
     Hypnus = 15,
+    Harpies = 16,
 }
 
 impl GodName {
@@ -261,6 +263,10 @@ impl GodPower {
         self.god_name == GodName::Hypnus
     }
 
+    pub fn is_harpies(&self) -> bool {
+        self.god_name == GodName::Harpies
+    }
+
     pub fn get_next_states_interactive(&self, state: &FullGameState) -> Vec<BoardStateWithAction> {
         let all_moves = (self._get_all_moves)(state, state.board.current_player, BitBoard::EMPTY);
 
@@ -386,6 +392,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     hera::build_hera(),
     limus::build_limus(),
     hypnus::build_hypnus(),
+    harpies::build_harpies(),
 ]);
 
 #[macro_export]
@@ -542,24 +549,25 @@ mod tests {
     #[test]
     fn test_all_hashes_are_unique() {
         let mut rng = rng();
-        let suggestion: HashType = rng.random_range(0..u64::MAX);
+        let suggestions: [HashType; 2] =
+            [rng.random_range(0..u64::MAX), rng.random_range(0..u64::MAX)];
         let mut all_hashes: HashSet<HashType> = HashSet::new();
         for god_power in ALL_GODS_BY_ID.iter() {
             assert!(
                 !all_hashes.contains(&god_power.hash1),
-                "hash1 number {} for {:?} is not unique. Here's a new suggestion: {}",
+                "hash1 number {} for {:?} is not unique. Here's some suggestions: {:?}",
                 god_power.hash1,
                 god_power.god_name,
-                suggestion
+                suggestions
             );
             all_hashes.insert(god_power.hash1);
 
             assert!(
                 !all_hashes.contains(&god_power.hash2),
-                "hash2 number {} for {:?} is not unique. Here's a new suggestion: {}",
+                "hash2 number {} for {:?} is not unique. Here's some suggestions: {:?}",
                 god_power.hash2,
                 god_power.god_name,
-                suggestion
+                suggestions
             );
             all_hashes.insert(god_power.hash2);
         }

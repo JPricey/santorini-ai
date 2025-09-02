@@ -38,6 +38,7 @@ fn graeae_move_gen<const F: MoveGenFlags>(
        win_mask:  win_mask,
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
+       is_against_harpies: is_against_harpies,
        own_workers:  own_workers,
        oppo_workers:  oppo_workers,
        result:  result,
