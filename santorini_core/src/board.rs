@@ -7,14 +7,14 @@ use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
     gods::{
-        BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
+        self, BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
         generic::{GenericMove, GodMove},
     },
     hashing::{
         HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
         compute_hash_from_scratch_for_board,
     },
-    matchup::Matchup,
+    matchup::{self, BANNED_MATCHUPS, Matchup},
     placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
     player::Player,
     square::Square,
@@ -101,7 +101,7 @@ impl FullGameState {
     }
 
     pub fn set_matchup(&mut self, matchup: &Matchup) {
-        self.gods = matchup.gods;
+        self.gods = matchup.get_gods();
         self.recalculate_internals();
     }
 
@@ -196,6 +196,14 @@ impl FullGameState {
 
     pub fn validation_err(&self) -> Result<(), String> {
         self.board.validation_err(self.base_hash(), self.gods)
+    }
+
+    pub fn representation_err(&self) -> Result<(), String> {
+        self.board.representation_err(self.base_hash(), self.gods)
+    }
+
+    pub fn playable_err(&self) -> Result<(), String> {
+        self.board.playable_err(self.base_hash(), self.gods)
     }
 
     pub fn validate(&self) {
@@ -478,11 +486,7 @@ impl BoardState {
 
         let worker_count = player_workers.count_ones();
 
-        if god.god_name == GodName::Hermes {
-            if worker_count > 2 {
-                return Err("Player {:?} Hrmes can't have more than 2 workers".to_owned());
-            }
-        } else if worker_count > 4 {
+        if worker_count > 4 {
             return Err(format!("Player {:?} has too many workers", player));
         }
 
@@ -491,14 +495,65 @@ impl BoardState {
             return Err(format!("Player {:?} has workers on domes", player));
         }
 
-        if god.is_hypnus() && self.workers[1 - player_idx].count_ones() == 1 {
+        Ok(())
+    }
+
+    fn validation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
+        self.representation_err(base_hash, gods)?;
+        self.playable_err(base_hash, gods)?;
+        Ok(())
+    }
+
+    fn playable_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
+        let matchup = Matchup::new(gods[0].god_name, gods[1].god_name);
+        if let Some(reason) = BANNED_MATCHUPS.get(&matchup) {
+            let err_str = match reason {
+                matchup::BannedReason::Game => "This matchup is banned",
+                matchup::BannedReason::Engine => "This matchup is not yet implemented",
+            };
+            return Err(err_str.to_owned());
+        }
+
+        self._validate_playable_player(Player::One, gods)?;
+        self._validate_playable_player(Player::Two, gods)?;
+
+        Ok(())
+    }
+
+    fn _validate_playable_player(
+        &self,
+        player: Player,
+        gods: [StaticGod; 2],
+    ) -> Result<(), String> {
+        let player_idx = player as usize;
+        let (own_god, other_god) = (gods[player_idx], gods[1 - player_idx]);
+        let own_workers = self.workers[player_idx];
+        let worker_count = own_workers.count_ones();
+
+        let oppo_workers = self.workers[1 - player_idx];
+        let oppo_count = oppo_workers.count_ones();
+
+        if own_god.god_name == GodName::Hermes {
+            if worker_count > 2 {
+                return Err(format!(
+                    "Player {:?} as Hermes can't have more than 2 workers",
+                    player
+                ));
+            }
+        }
+
+        if own_god.is_hypnus() && oppo_count == 1 {
             return Err("Can't play hypnus against a solo worker".to_owned());
+        }
+
+        if own_god.is_hypnus() && other_god.god_name == GodName::Artemis && oppo_count > 2 {
+            return Err("Can't play hypnus against artemis with >2 workers".to_owned());
         }
 
         Ok(())
     }
 
-    pub fn validation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
+    fn representation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
         let starting_placements = get_starting_placements_count(self)?;
         if starting_placements == 1 {
             if self.current_player != Player::Two {

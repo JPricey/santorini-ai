@@ -1,3 +1,5 @@
+use std::{cell::LazyCell, collections::HashMap};
+
 use rand::{Rng, seq::IndexedRandom};
 
 use crate::{
@@ -5,9 +7,42 @@ use crate::{
     player::Player,
 };
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+pub enum BannedReason {
+    Game,
+    Engine,
+}
+pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::new(|| {
+    let mut set = HashMap::new();
+    let mut add_matchup = |g1: GodName, g2: GodName, reason: BannedReason| {
+        set.insert(Matchup::new(g1, g2), reason);
+        set.insert(Matchup::new(g2, g1), reason);
+    };
+
+    // set.insert(
+    //     Matchup::new(GodName::Graeae, GodName::Nemesis),
+    //     BannedReason::Game,
+    // );
+    //
+    // set.insert(
+    //     Matchup::new(GodName::Harpies, GodName::Hermes),
+    //     BannedReason::Game,
+    // );
+    // set.insert(
+    //     Matchup::new(GodName::Harpies, GodName::Triton),
+    //     BannedReason::Game,
+    // );
+    // set.insert(
+    //     Matchup::new(GodName::Urania, GodName::Aphrodite),
+    //     BannedReason::Game,
+    // );
+
+    set
+});
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Matchup {
-    pub gods: [StaticGod; 2],
+    pub gods: [GodName; 2],
 }
 
 impl std::fmt::Display for Matchup {
@@ -17,14 +52,12 @@ impl std::fmt::Display for Matchup {
 }
 
 impl Matchup {
-    pub const fn new(gods: [StaticGod; 2]) -> Self {
-        Self { gods }
+    pub const fn new(g1: GodName, g2: GodName) -> Self {
+        Self { gods: [g1, g2] }
     }
 
-    pub const fn from_god_names(g1: GodName, g2: GodName) -> Self {
-        Self {
-            gods: [g1.to_power(), g2.to_power()],
-        }
+    pub const fn new_arr(gods: [GodName; 2]) -> Self {
+        Self { gods }
     }
 
     pub const fn flip(&self) -> Self {
@@ -34,8 +67,7 @@ impl Matchup {
     }
 
     pub const fn is_equal(&self, other: &Self) -> bool {
-        self.gods[0].god_name.is_equal(other.gods[0].god_name)
-            && self.gods[1].god_name.is_equal(other.gods[1].god_name)
+        self.gods[0].is_equal(other.gods[0]) && self.gods[1].is_equal(other.gods[1])
     }
 
     pub const fn is_same_gods(&self, other: &Self) -> bool {
@@ -43,11 +75,15 @@ impl Matchup {
     }
 
     pub const fn god_1(&self) -> StaticGod {
-        self.gods[0]
+        self.gods[0].to_power()
     }
 
     pub const fn god_2(&self) -> StaticGod {
-        self.gods[1]
+        self.gods[1].to_power()
+    }
+
+    pub const fn get_gods(&self) -> [StaticGod; 2] {
+        [self.gods[0].to_power(), self.gods[1].to_power()]
     }
 }
 
@@ -72,17 +108,12 @@ impl Default for MatchupSelector {
 
 impl MatchupSelector {
     pub fn get(&self) -> Matchup {
-        let mut rng = &mut rand::rng();
-        let g1 = self.valid_gods[0].choose(&mut rng).unwrap();
-        let g2 = self.valid_gods[1].choose(&mut rng).unwrap();
-
-        let res = Matchup::from_god_names(*g1, *g2);
-
-        if self.can_swap && rng.random() {
-            res.flip()
-        } else {
-            res
+        for _ in 0..1000000 {
+            if let Some(res) = self._get() {
+                return res;
+            }
         }
+        panic!("Couldn't find matchup: {:?}", self);
     }
 
     pub fn get_maybe_flipped(&self) -> Matchup {
@@ -91,6 +122,24 @@ impl MatchupSelector {
             matchup = matchup.flip();
         }
         matchup
+    }
+
+    fn _get(&self) -> Option<Matchup> {
+        let mut rng = &mut rand::rng();
+        let g1 = self.valid_gods[0].choose(&mut rng).unwrap();
+        let g2 = self.valid_gods[1].choose(&mut rng).unwrap();
+
+        let res = Matchup::new(*g1, *g2);
+
+        if BANNED_MATCHUPS.get(&res).is_some() {
+            return None;
+        }
+
+        Some(if self.can_swap && rng.random() {
+            res.flip()
+        } else {
+            res
+        })
     }
 
     pub fn with_exact_god_for_player(&mut self, player: Player, god_name: GodName) -> &mut Self {

@@ -205,9 +205,21 @@ impl MyApp {
     pub fn update_state(&mut self, state: FullGameState) {
         assert_eq!(self.state, self.state_history[self.state_idx]);
 
+        let mut is_playable = true;
+
         if let Err(err) = state.validation_err() {
             self.edtior_fen_error = Some(err);
-            return;
+            is_playable = false;
+
+            if state.representation_err().is_err() {
+                return;
+            }
+        } else {
+            self.edtior_fen_error = None;
+        }
+
+        if state.get_winner().is_some() {
+            is_playable = false;
         }
 
         self.state = state.clone();
@@ -222,7 +234,7 @@ impl MyApp {
         }
 
         self.copy_editor_fen();
-        self.compute_next_states();
+        self.compute_next_states(is_playable);
         self.engine_thinking.lock().reset(state.clone());
         let engine_thinking_clone = self.engine_thinking.clone();
         let state_clone = state.clone();
@@ -235,20 +247,20 @@ impl MyApp {
 
         let _ = self.engine.stop();
 
-        if state.get_winner().is_none() {
+        if is_playable {
             let _ = self.engine.start_search(&state, Some(callback));
         }
     }
 
-    pub fn compute_next_states(&mut self) {
+    pub fn compute_next_states(&mut self, is_playable: bool) {
         self.current_actions.clear();
         self.available_next_actions.clear();
 
-        if self.state.get_winner().is_some() {
-            self.next_states.clear();
-        } else {
+        if is_playable {
             self.next_states = self.state.get_next_states_interactive();
             self.compute_next_actions();
+        } else {
+            self.next_states.clear();
         }
     }
 
@@ -325,7 +337,6 @@ impl MyApp {
 
     pub fn copy_editor_fen(&mut self) {
         self.editor_fen_string = game_state_to_fen(&self.state);
-        self.edtior_fen_error = None;
     }
 
     pub fn clear_board(&mut self) {
@@ -476,7 +487,7 @@ impl<'a> egui::Widget for GameGrid<'a> {
                                 } else {
                                     new_state.board.build_up(square);
                                 }
-                                if new_state.validation_err().is_ok() {
+                                if new_state.representation_err().is_ok() {
                                     break;
                                 }
                             }
@@ -500,7 +511,7 @@ impl<'a> egui::Widget for GameGrid<'a> {
                                         .board
                                         .worker_xor(new_worker, BitBoard::as_mask(square));
                                 }
-                                if new_state.validation_err().is_ok() {
+                                if new_state.representation_err().is_ok() {
                                     break;
                                 }
                             }
