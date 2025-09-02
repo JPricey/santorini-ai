@@ -5,7 +5,8 @@ use std::{
 
 use eframe::{
     egui::{
-        self, Color32, Key, Modifiers, Rangef, Stroke, UiBuilder, ViewportBuilder, mutex::Mutex,
+        self, Color32, Key, Modifiers, Rangef, Response, Stroke, Ui, UiBuilder, ViewportBuilder,
+        mutex::Mutex,
     },
     epaint::EllipseShape,
 };
@@ -55,6 +56,23 @@ const SHORTCUT_STATE_BACKWARD: egui::KeyboardShortcut =
 
 fn shortcut_text(shortcut: egui::KeyboardShortcut) -> String {
     shortcut.format(&egui::ModifierNames::SYMBOLS, false)
+}
+
+fn shortcut_text_long(shortcut: egui::KeyboardShortcut) -> String {
+    shortcut.format(&egui::ModifierNames::NAMES, false)
+}
+
+fn shortcut_button(
+    ui: &mut Ui,
+    button_text: &str,
+    tooltip: &str,
+    shortcut: egui::KeyboardShortcut,
+) -> Response {
+    ui.add(egui::Button::new(button_text).shortcut_text(shortcut_text(shortcut)))
+        .on_hover_text(format!(
+            "{tooltip} Shortcut: {}",
+            shortcut_text_long(shortcut)
+        ))
 }
 
 fn next_worker_rotation(current: Option<Player>) -> Option<Player> {
@@ -464,10 +482,7 @@ impl<'a> egui::Widget for GameGrid<'a> {
                 let mut placed_square =
                     ui.put(egui::Rect::from_min_size(point, size), square_space);
                 if let Some(ui_action) = ui_action {
-                    placed_square = placed_square.on_hover_ui(|ui| {
-                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                        ui.label(partial_action_label(&ui_action));
-                    });
+                    placed_square = placed_square.on_hover_text(partial_action_label(&ui_action));
                 }
 
                 if placed_square.clicked() {
@@ -755,7 +770,7 @@ impl eframe::App for MyApp {
             .show(ctx, |ui| {
                 self.may_arrow_shortcuts = true;
 
-                ui.style_mut().spacing.item_spacing = egui::vec2(16.0, 16.0);
+                ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 16.0);
                 let available_size = ui.available_size();
 
                 let scroll_area_height = available_size.y / 2.0;
@@ -808,41 +823,35 @@ impl eframe::App for MyApp {
 
                 ui.heading("Controls");
                 ui.horizontal(|ui| {
-                    if ui
-                        .add(
-                            egui::Button::new("Redo Turn")
-                                .shortcut_text(shortcut_text(SHORTCUT_REDO_TURN)),
-                        )
-                        .clicked()
+                    if shortcut_button(
+                        ui,
+                        "Redo Turn",
+                        "Undo any actions taken this turn.",
+                        SHORTCUT_REDO_TURN,
+                    )
+                    .clicked()
                     {
                         self.clear_actions();
                     }
 
-                    if ui
-                        .add(
-                            egui::Button::new("Engine Move")
-                                .shortcut_text(shortcut_text(SHORTCUT_ENGINE_MOVE)),
-                        )
-                        .clicked()
+                    if shortcut_button(
+                        ui,
+                        "Engine Move",
+                        "Play the engine move.",
+                        SHORTCUT_ENGINE_MOVE,
+                    )
+                    .clicked()
                     {
                         self.try_engine_move();
                     }
 
-                    if ui
-                        .add(
-                            egui::Button::new("Back")
-                                .shortcut_text(shortcut_text(SHORTCUT_STATE_BACKWARD)),
-                        )
+                    if shortcut_button(ui, "Back", "Go back a turn", SHORTCUT_STATE_BACKWARD)
                         .clicked()
                     {
                         self.try_back_state();
                     }
 
-                    if ui
-                        .add(
-                            egui::Button::new("Forward")
-                                .shortcut_text(shortcut_text(SHORTCUT_STATE_FORWARD)),
-                        )
+                    if shortcut_button(ui, "Forward", "Go forward a turn", SHORTCUT_STATE_FORWARD)
                         .clicked()
                     {
                         self.try_forward_state();
@@ -862,19 +871,27 @@ impl eframe::App for MyApp {
                 }
 
                 ui.horizontal(|ui| {
-                    if ui.button("Update FEN").clicked() {
+                    if ui
+                        .button("Set Position")
+                        .on_hover_text("Set current position to the FEN in the editor above")
+                        .clicked()
+                    {
                         self.try_set_editor_fen();
                     }
 
-                    if ui.button("Copy").clicked() {
-                        self.copy_editor_fen();
-                    }
-
-                    if ui.button("Clear Board").clicked() {
+                    if ui
+                        .button("Reset Board")
+                        .on_hover_text("Reset to starting positions")
+                        .clicked()
+                    {
                         self.clear_board();
                     }
 
-                    if ui.button("Swap Gods").clicked() {
+                    if ui
+                        .button("Swap Gods")
+                        .on_hover_text("Swap the gods in this position")
+                        .clicked()
+                    {
                         let mut new_state = self.state.clone();
                         new_state.gods[0] = self.state.gods[1];
                         new_state.gods[1] = self.state.gods[0];
@@ -882,7 +899,11 @@ impl eframe::App for MyApp {
                         self.update_state(new_state);
                     }
 
-                    if ui.button("Swap Turns").clicked() {
+                    if ui
+                        .button("Swap Turns")
+                        .on_hover_text("Swap whose turn it is")
+                        .clicked()
+                    {
                         let mut new_state = self.state.clone();
                         new_state.board.current_player = !new_state.board.current_player;
                         new_state.recalculate_internals();
@@ -910,8 +931,10 @@ impl eframe::App for MyApp {
                 let before = self.edit_mode;
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.edit_mode, EditMode::Play, "Play");
-                    ui.radio_value(&mut self.edit_mode, EditMode::EditHeights, "Edit Height");
-                    ui.radio_value(&mut self.edit_mode, EditMode::EditWorkers, "Edit Worker");
+                    ui.radio_value(&mut self.edit_mode, EditMode::EditHeights, "Edit Height")
+                        .on_hover_text("Edit square heights on the game board");
+                    ui.radio_value(&mut self.edit_mode, EditMode::EditWorkers, "Edit Worker")
+                        .on_hover_text("Edit worker placements on the game board");
                 });
                 if before != self.edit_mode {
                     if before == EditMode::Play {
