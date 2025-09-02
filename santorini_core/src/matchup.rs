@@ -1,4 +1,7 @@
-use std::{cell::LazyCell, collections::HashMap};
+use std::{
+    cell::LazyCell,
+    collections::{HashMap, HashSet},
+};
 
 use rand::{Rng, seq::IndexedRandom};
 
@@ -55,7 +58,7 @@ pub fn is_matchup_banned(matchup: &Matchup) -> bool {
     matchup_banned_reason(matchup).is_some()
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
 pub struct Matchup {
     pub gods: [GodName; 2],
 }
@@ -142,7 +145,7 @@ impl MatchupSelector {
     }
 
     pub fn get_all(&self) -> Vec<Matchup> {
-        let mut res = Vec::new();
+        let mut res = HashSet::new();
 
         for g1 in self.valid_gods[0].iter() {
             for g2 in self.valid_gods[1].iter() {
@@ -150,14 +153,22 @@ impl MatchupSelector {
                     continue;
                 }
 
-                res.push(Matchup::new(*g1, *g2));
+                let m = Matchup::new(*g1, *g2);
+                if is_matchup_banned(&m) {
+                    continue;
+                }
+
+                res.insert(m);
                 if self.can_swap {
-                    res.push(Matchup::new(*g2, *g1));
+                    let flipped = m.flip();
+                    res.insert(flipped);
                 }
             }
         }
 
-        res
+        let mut res_vec: Vec<Matchup> = res.into_iter().collect();
+        res_vec.sort();
+        res_vec
     }
 
     fn _get(&self) -> Option<Matchup> {
@@ -180,6 +191,11 @@ impl MatchupSelector {
 
     pub fn with_exact_god_for_player(&mut self, player: Player, god_name: GodName) -> &mut Self {
         self.valid_gods[player as usize] = vec![god_name];
+        self
+    }
+
+    pub fn with_exact_gods_for_player(&mut self, player: Player, gods: Vec<GodName>) -> &mut Self {
+        self.valid_gods[player as usize] = gods;
         self
     }
 

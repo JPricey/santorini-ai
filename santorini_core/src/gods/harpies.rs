@@ -48,7 +48,7 @@ mod tests {
         bitboard::NEIGHBOR_MAP,
         fen::parse_fen,
         gods::ALL_GODS_BY_ID,
-        matchup::{self, BANNED_MATCHUPS, Matchup, is_matchup_banned},
+        matchup::{Matchup, is_matchup_banned},
     };
 
     use super::*;

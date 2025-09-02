@@ -102,7 +102,23 @@ pub fn all_matchups() -> Vec<Matchup> {
     let all_matchups = MatchupSelector::default()
         .minus_god_for_both(GodName::Mortal)
         .with_can_mirror_option(false)
+        .with_can_swap()
+        .with_exact_gods_for_player(
+            Player::One,
+            vec![
+                GodName::Urania,
+                GodName::Graeae,
+                GodName::Hera,
+                GodName::Limus,
+                GodName::Hypnus,
+                GodName::Harpies,
+            ],
+        )
         .get_all();
+
+    // for m in &all_matchups {
+    //     eprintln!("matchup: {}", m);
+    // }
 
     all_matchups
 }
@@ -116,7 +132,8 @@ pub fn full_matchups() {
     for matchup in all_matchups() {
         eprintln!("starting match: {}", matchup);
         let result = play_match(&mut engine, &matchup);
-        eprintln!("done match {}. Winner: {:?}", matchup, result);
+        let winning_god = matchup.gods[result as usize];
+        eprintln!("done match {}. Winner: {:?} - {:?}", matchup, result, winning_god);
 
         all_results.push(MatchupResult::new(
             matchup.god_1().god_name,

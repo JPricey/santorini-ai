@@ -4,10 +4,7 @@ use std::{
 };
 
 use eframe::{
-    egui::{
-        self, Color32, Key, Modifiers, Rangef, Response, Stroke, Ui, UiBuilder, ViewportBuilder,
-        mutex::Mutex,
-    },
+    egui::{self, Color32, Key, Modifiers, Rangef, Response, Stroke, Ui, UiBuilder, mutex::Mutex},
     epaint::EllipseShape,
 };
 use santorini_core::{
@@ -15,7 +12,7 @@ use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
     fen::{game_state_to_fen, parse_fen},
-    gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction},
+    gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction, WIP_GODS},
     player::Player,
     search::BestSearchResult,
     square::Square,
@@ -23,14 +20,21 @@ use santorini_core::{
 };
 
 fn main() -> Result<(), eframe::Error> {
-    let mut options = eframe::NativeOptions::default();
-    options.viewport = ViewportBuilder::default()
-        .with_inner_size(egui::vec2(1280.0, 900.0))
-        .with_title("Santorini Analysis Engine");
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_title("Santorini Analysis Engine")
+            .with_inner_size([1280.0, 800.0])
+            .with_min_inner_size([300.0, 220.0])
+            .with_icon(
+                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/dome.png")[..])
+                    .unwrap(),
+            ),
+        ..Default::default()
+    };
 
     eframe::run_native(
         "Santorini Analysis Engine",
-        options,
+        native_options,
         Box::new(|_cc| Ok(Box::new(MyApp::default()))),
     )
 }
@@ -217,6 +221,7 @@ struct MyApp {
 
     edit_mode: EditMode,
     may_arrow_shortcuts: bool,
+    may_show_wip_gods: bool,
 }
 
 impl MyApp {
@@ -421,6 +426,7 @@ impl Default for MyApp {
             engine_thinking: Arc::new(Mutex::new(EngineThinkingState::new(default_state.clone()))),
             edit_mode: Default::default(),
             may_arrow_shortcuts: Default::default(),
+            may_show_wip_gods: Default::default(),
         };
 
         result.update_state(result.state.clone());
@@ -695,11 +701,16 @@ impl<'a> egui::Widget for GodChanger<'a> {
                 .selected_text(format!("{:?}", selected))
                 .show_ui(ui, |ui| {
                     for god in ALL_GODS_BY_ID.iter() {
-                        ui.selectable_value(
-                            &mut selected,
-                            god.god_name,
-                            format!("{:?}", god.god_name),
-                        );
+                        let god_name = god.god_name;
+                        let is_wip = WIP_GODS.contains(&god_name);
+                        if self.app.may_show_wip_gods || !is_wip {
+                            let wip_string = if is_wip { " (WIP)" } else { "" };
+                            ui.selectable_value(
+                                &mut selected,
+                                god_name,
+                                format!("{:?} {}", god.god_name, wip_string),
+                            );
+                        }
                     }
                 });
         });
@@ -926,6 +937,8 @@ impl eframe::App for MyApp {
                         player: Player::Two,
                     });
                 });
+
+                ui.checkbox(&mut self.may_show_wip_gods, "Include WIP gods").on_hover_text("Some gods are WIP, meaning their move logic is supported, but the AI does not know how to evaluate their positions correctly. Check this box to include them in the gods picker");
 
                 ui.heading("Modes");
                 let before = self.edit_mode;

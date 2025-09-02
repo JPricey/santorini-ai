@@ -45,6 +45,8 @@ pub type StaticGod = &'static GodPower;
     Deserialize,
     EnumString,
     IntoStaticStr,
+    PartialOrd,
+    Ord,
 )]
 #[strum(serialize_all = "lowercase")]
 pub enum GodName {
@@ -66,6 +68,15 @@ pub enum GodName {
     Hypnus = 15,
     Harpies = 16,
 }
+
+counted_array!(pub const WIP_GODS: [GodName; _] = [
+    GodName::Urania,
+    GodName::Graeae,
+    GodName::Hera,
+    GodName::Limus,
+    GodName::Hypnus,
+    GodName::Harpies,
+]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -97,8 +108,8 @@ pub enum MoveWorkerMeta {
 #[serde(tag = "type", content = "value")]
 #[serde(rename_all = "snake_case")]
 pub enum PartialAction {
-    PlaceWorker(Square),
     SelectWorker(Square),
+    PlaceWorker(Square),
     MoveWorker(Square),
     MoveWorkerWithSwap(Square),
     MoveWorkerWithPush(Square, Square),

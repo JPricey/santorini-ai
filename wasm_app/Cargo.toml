@@ -2,6 +2,8 @@
 name = "wasm_app"
 version = "0.1.0"
 edition = "2024"
+repository="https://github.com/JPricey/santorini-ai"
+publish=false
 
 [lib]
 crate-type = ["cdylib"]

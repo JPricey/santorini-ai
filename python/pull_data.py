@@ -2,13 +2,7 @@ import subprocess
 import os
 import time
 
-REMOTES = [
-    # ("1.208.108.242", "54427"),
-    ("216.209.229.43", "35641"),
-    ("171.235.166.92", "42291"),
-    ("182.227.40.157", "50764"),
-    ("115.72.153.141", "10143"),
-]
+REMOTES = [ ]
 
 # rsync -chavzP -e "ssh -p $REMOTE_PORT" root@$REMOTE_HOST:/root/santorini/game_data/* tmp/gen_3/
 

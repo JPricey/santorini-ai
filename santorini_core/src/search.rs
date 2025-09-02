@@ -24,7 +24,6 @@ pub type Hueristic = i16;
 pub const WINNING_SCORE: Hueristic = 10_000;
 pub const INFINITY: Hueristic = WINNING_SCORE * 2;
 pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
-pub static mut NUM_SEARCHES: usize = 0;
 
 pub const fn win_at_ply(ply: usize) -> Hueristic {
     WINNING_SCORE - ply as Hueristic
@@ -730,7 +729,7 @@ where
         return score;
     }
 
-    if q_depth > 20 {
+    if q_depth > 20 || ply >= MAX_PLY {
         // Give up at some max depth
         nnue_acc.replace_from_state(&state);
         return nnue_acc.evaluate().min(beta);
@@ -760,7 +759,6 @@ where
         return eval.min(beta);
     }
 
-    // check standing pat
     if eval >= beta {
         return beta;
     }
@@ -1032,6 +1030,10 @@ where
     } else {
         nnue_acc.evaluate()
     };
+
+    if ply >= MAX_PLY {
+        return eval;
+    }
 
     let ss = &mut search_state.search_stack;
     ss[ply].eval = eval;

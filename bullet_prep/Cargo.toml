@@ -2,6 +2,8 @@
 name = "bullet_prep"
 version = "0.1.0"
 edition = "2024"
+repository="https://github.com/JPricey/santorini-ai"
+publish=false
 
 [dependencies]
 santorini_core = { path = "../santorini_core" }

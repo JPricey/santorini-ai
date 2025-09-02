@@ -28,4 +28,9 @@ lto = true
 panic = "abort"
 debug = false
 
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
 # debug = "line-tables-only"
