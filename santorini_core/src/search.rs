@@ -465,12 +465,11 @@ where
             break;
         }
 
-        if false && score.abs() > WINNING_SCORE_BUFFER && !search_context.should_stop(&search_state)
-        {
+        if score.abs() > WINNING_SCORE_BUFFER && !search_context.should_stop(&search_state) {
             // If we see a win/loss, maybe the refutation was pruned out. Keep searching a bit further
             // to confirm, but there's no need to search forever
             let win_depth = WINNING_SCORE - score.abs();
-            if depth as Hueristic > win_depth + 1 {
+            if depth as Hueristic > 2 * (win_depth + 1) {
                 let mut best_move = search_state.best_move.clone().unwrap();
                 best_move.trigger = BestMoveTrigger::EndOfLine;
                 (search_context.new_best_move_callback)(best_move);
