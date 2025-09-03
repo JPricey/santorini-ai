@@ -17,7 +17,7 @@ This project requires nightly rust:
 Run the analysis engine UI:
 `cargo run -p ui -r`
 
-Run the standalong UCI, for use with a different UI:
+Run the standalone UCI, for use with a different UI:
 `cargo run -p uci -r`
 
 ## Acklowledgements
