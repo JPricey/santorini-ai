@@ -11,9 +11,6 @@ OR, check out the analysis engine, runnable as a native app:
 Or, run the UCI-like process, and build your own UI ontop of Santorini AI.
 
 ## Running locally
-This project requires nightly rust:
-`rustup install nightly-2025-07-26`
-
 Run the analysis engine UI:
 `cargo run -p ui -r`
 
