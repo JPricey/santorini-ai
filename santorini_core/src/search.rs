@@ -835,7 +835,10 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    debug_assert!(state.validation_err().is_ok());
+    if let Err(err) = state.validation_err() {
+        panic!("Invalid state encountered during search: {:?}\nState: {:?}", err, state);
+    }
+    // debug_assert!(state.validation_err().is_ok());
 
     let current_player_idx = state.board.current_player as usize;
     let other_player_idx = !state.board.current_player;

@@ -8,13 +8,13 @@ macro_rules! add_scored_move {
         $result:ident
     ) => {
         let scored_move = if !$is_include_score {
-            ScoredMove::new_unscored_move($new_action.into())
+            crate::gods::generic::ScoredMove::new_unscored_move($new_action.into())
         } else if $is_check {
-            ScoredMove::new_checking_move($new_action.into())
+            crate::gods::generic::ScoredMove::new_checking_move($new_action.into())
         } else if $is_improving {
-            ScoredMove::new_improving_move($new_action.into())
+            crate::gods::generic::ScoredMove::new_improving_move($new_action.into())
         } else {
-            ScoredMove::new_non_improver($new_action.into())
+            crate::gods::generic::ScoredMove::new_non_improver($new_action.into())
         };
 
         $result.push(scored_move)
@@ -142,7 +142,7 @@ macro_rules! non_checking_variable_prelude {
         let $oppo_workers = $board.workers[$other_player_idx] & BitBoard::MAIN_SECTION_MASK;
 
         let capacity = if $is_mate_only { 1 } else { 128 };
-        let mut $result: Vec<ScoredMove> = Vec::with_capacity(capacity);
+        let mut $result: Vec<crate::gods::generic::ScoredMove> = Vec::with_capacity(capacity);
         let $all_workers_mask = $own_workers | $oppo_workers;
 
         let $win_mask = $other_god.win_mask;
@@ -171,7 +171,7 @@ macro_rules! build_push_winning_moves {
     ) => {
         $worker_moves ^= $win_mask;
         for end_position in $win_mask.into_iter() {
-            let winning_move = ScoredMove::new_winning_move(
+            let winning_move = crate::gods::generic::ScoredMove::new_winning_move(
                 $build_winning_move($worker_start_pos, end_position).into(),
             );
             $result.push(winning_move);
@@ -214,16 +214,16 @@ macro_rules! build_building_masks {
 #[macro_export]
 macro_rules! worker_move_loop {
     (
-        board: $board: ident,
-        is_against_harpies: $is_against_harpies: ident,
-        worker_start_pos: $worker_start_pos: ident,
+        board: $board:ident,
+        is_against_harpies: $is_against_harpies:ident,
+        worker_start_pos: $worker_start_pos:ident,
         worker_moves: $worker_moves:ident,
         worker_start_height: $worker_start_height:ident,
         worker_end_pos: $worker_end_pos:ident,
         worker_end_mask: $worker_end_mask:ident,
-        worker_end_height: $worker_end_height: ident,
-        is_improving: $is_improving: ident,
-        is_now_lvl_2: $is_now_lvl_2: ident,
+        worker_end_height: $worker_end_height:ident,
+        is_improving: $is_improving:ident,
+        is_now_lvl_2: $is_now_lvl_2:ident,
         =>
         $body: stmt
     ) => {
@@ -301,6 +301,7 @@ macro_rules! after_move_power_generator {
         win_mask: $win_mask:ident,
         build_mask: $build_mask:ident,
         worker_start_pos: $worker_start_pos: ident,
+        worker_start_mask: $worker_start_mask: ident,
         worker_end_pos: $worker_end_pos: ident,
         worker_end_mask: $worker_end_mask: ident,
         worker_end_height: $worker_end_height: ident,
@@ -316,11 +317,11 @@ macro_rules! after_move_power_generator {
         extra_init: $extra_init:stmt,
         move_block: $move_block:block
     ) => {
-        pub fn $fn_name<const F: MoveGenFlags>(
-            $state: &FullGameState,
-            $player: Player,
+        pub fn $fn_name<const F: crate::gods::generic::MoveGenFlags>(
+            $state: &crate::board::FullGameState,
+            $player: crate::player::Player,
             $key_squares: BitBoard,
-        ) -> Vec<ScoredMove> {
+        ) -> Vec<crate::gods::generic::ScoredMove> {
             $crate::build_parse_flags!(is_mate_only, $is_include_score, is_stop_on_mate, $is_interact_with_key_squares);
 
             $crate::variable_prelude!(
@@ -356,7 +357,7 @@ macro_rules! after_move_power_generator {
                 acting_workers: acting_workers,
                 own_workers: own_workers,
                 worker_start_pos: $worker_start_pos,
-                worker_start_mask: worker_start_mask,
+                worker_start_mask: $worker_start_mask,
                 worker_start_height: worker_start_height,
                 other_own_workers: other_own_workers,
                 other_threatening_workers: $other_threatening_workers,
@@ -449,6 +450,7 @@ macro_rules! build_power_move_generator {
             win_mask: win_mask,
             build_mask: build_mask,
             worker_start_pos: $worker_start_pos,
+            worker_start_mask: worker_start_mask,
             worker_end_pos: $worker_end_pos,
             worker_end_mask: worker_end_mask,
             worker_end_height: worker_end_height,

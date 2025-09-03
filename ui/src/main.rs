@@ -90,7 +90,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         PartialAction::PlaceWorker(x)
         | PartialAction::SelectWorker(x)
         | PartialAction::MoveWorker(x)
-        | PartialAction::MoveWorkerWithSwap(x)
+        | PartialAction::MoveWorkerWithSwap(x, _)
         | PartialAction::MoveWorkerWithPush(x, _)
         | PartialAction::Build(x)
         | PartialAction::Dome(x) => Some(*x),
@@ -104,7 +104,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::PlaceWorker(_) => egui::Color32::YELLOW,
         PartialAction::SelectWorker(_) => egui::Color32::BLUE,
         PartialAction::MoveWorker(_)
-        | PartialAction::MoveWorkerWithSwap(_)
+        | PartialAction::MoveWorkerWithSwap(_, _)
         | PartialAction::MoveWorkerWithPush(_, _) => egui::Color32::DARK_GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
@@ -118,7 +118,7 @@ fn partial_action_label(action: &PartialAction) -> &str {
         PartialAction::PlaceWorker(_) => "Place Worker",
         PartialAction::SelectWorker(_) => "Select Worker",
         PartialAction::MoveWorker(_) => "Move Worker",
-        PartialAction::MoveWorkerWithSwap(_) => "Move Worker (Swap)",
+        PartialAction::MoveWorkerWithSwap(..) => "Move Worker (Swap)",
         PartialAction::MoveWorkerWithPush(..) => "Move Worker (Push)",
         PartialAction::Build(_) => "Build",
         PartialAction::Dome(_) => "Add Dome",
@@ -151,11 +151,14 @@ fn game_state_with_partial_actions(
                 let mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
                 board.worker_xor(current_player, mask);
             }
-            PartialAction::MoveWorkerWithSwap(square) => {
+            PartialAction::MoveWorkerWithSwap(square, swapped_from) => {
                 let selected_square = selected_square.take().unwrap();
-                let mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
-                board.worker_xor(current_player, mask);
-                board.worker_xor(!current_player, mask);
+                let self_mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
+                board.worker_xor(current_player, self_mask);
+
+                let other_mask =
+                    BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(swapped_from);
+                board.worker_xor(!current_player, other_mask);
             }
             PartialAction::MoveWorkerWithPush(square, push) => {
                 let selected_square = selected_square.take().unwrap();

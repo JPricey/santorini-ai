@@ -2,7 +2,10 @@
 #![feature(portable_simd)]
 
 use rand::{Rng, rng};
-use santorini_core::{bitboard::WRAPPING_NEIGHBOR_MAP, fen::parse_fen, for_each_direction};
+use santorini_core::{
+    bitboard::{BitBoard, PUSH_MAPPING, WRAPPING_NEIGHBOR_MAP}, fen::parse_fen, for_each_direction, gods::harpies::MAY_WRAP_FROM_PUSH_MAPPING, square::Square
+};
+use strum::IntoEnumIterator;
 
 fn print_hashing_randoms(size: usize) {
     let mut rng = rng();
@@ -26,9 +29,18 @@ fn debug() {
 }
 
 fn main() {
-    for i in 0..25 {
-        eprintln!("{i}: {}", WRAPPING_NEIGHBOR_MAP[i]);
+    for from in Square::iter() {
+        for to in Square::iter() {
+            if let Some(push) = MAY_WRAP_FROM_PUSH_MAPPING[from as usize][to as usize] {
+                eprintln!("{from:?} -> {to:?} pushes to {push:?}");
+                let mask =
+                    BitBoard::as_mask(from) | BitBoard::as_mask(to) | BitBoard::as_mask(push);
+
+                eprintln!("{mask}");
+            }
+        }
     }
+
     // debug();
     print_hashing_randoms(2);
 }

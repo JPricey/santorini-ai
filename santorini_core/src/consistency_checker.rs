@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     bitboard::{BitBoard, NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
@@ -5,6 +7,7 @@ use crate::{
         GodName, StaticGod,
         athena::AthenaMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
+        harpies::slide_position,
         mortal::MortalMove,
     },
     player::Player,
@@ -47,6 +50,7 @@ impl ConsistencyChecker {
 
             self.opponent_check_blockers(&other_wins, &search_moves);
             self.self_check_validations(&search_moves);
+            self.validate_non_duplicates(&search_moves);
             self.validate_wins(&own_winning_moves);
             self.validate_build_blockers(&search_moves);
             self.validate_hypnus_moves(&search_moves);
@@ -56,6 +60,28 @@ impl ConsistencyChecker {
             Ok(())
         } else {
             Err(std::mem::take(&mut self.errors))
+        }
+    }
+
+    fn validate_non_duplicates(&mut self, actions: &Vec<ScoredMove>) {
+        let mut seen = HashMap::<BoardState, GenericMove>::new();
+        let active_god = self.state.get_active_god();
+
+        for action in actions {
+            let action = action.action;
+            let new_state = self.state.next_state(active_god, action);
+
+            if let Some(other_action) = seen.get(&new_state.board) {
+                self.errors.push(format!(
+                    "Duplicate move found: {} / {} -> {:?}",
+                    active_god.stringify_move(action),
+                    active_god.stringify_move(*other_action),
+                    new_state,
+                ));
+                return;
+            }
+
+            seen.insert(new_state.board, action);
         }
     }
 
@@ -370,14 +396,35 @@ impl ConsistencyChecker {
             let is_real_checker = wins_from_check_state.len() > 0;
 
             if is_check_flag != is_real_checker {
-                self.errors.push(format!(
-                    "Check flag/real checker mismatch on action {i}/{}: {}. Flag: {} RealChecker: {}",
-                    search_moves.len(),
-                    stringed_action,
-                    is_check_flag,
-                    is_real_checker
-                ));
-                continue;
+                if is_real_checker
+                    && active_god.god_name == GodName::Artemis
+                    && other_god.god_name == GodName::Harpies
+                {
+                    let wins_from_mortal_check_state = GodName::Mortal
+                        .to_power()
+                        .get_winning_moves(&check_state, current_player);
+                    if wins_from_mortal_check_state.len() > 0 {
+                        self.errors.push(format!(
+                            "Check detection failure. Artemis v Harpies missed a win that a mortal could make. Check move: {}. Mortal win: {}",
+                            stringed_action,
+                            GodName::Mortal.to_power().stringify_move(wins_from_mortal_check_state[0].action),
+                        ));
+                    }
+                } else {
+                    let type_msg = match is_real_checker {
+                        true => "Missed real check.",
+                        false => "False positive.",
+                    };
+
+                    self.errors.push(format!(
+                        "Check detection failure. {type_msg} {i}/{}: {}. Flag: {} RealChecker: {}",
+                        search_moves.len(),
+                        stringed_action,
+                        is_check_flag,
+                        is_real_checker
+                    ));
+                    continue;
+                }
             }
 
             for winning_action in wins_from_check_state {
@@ -478,6 +525,25 @@ impl ConsistencyChecker {
 
             if (old_height == 1 || old_height == 3) && new_height == 3 && path.is_not_empty() {
                 return;
+            }
+
+            if other_god.god_name == GodName::Harpies {
+                let mut matched = false;
+                for n in old_n {
+                    let slide_n = slide_position(&state.board, old_pos, n);
+                    if state.board.get_height(slide_n) == 2 {
+                        let final_n = NEIGHBOR_MAP[slide_n as usize];
+
+                        if (new_only & final_n).is_not_empty() {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+
+                if matched {
+                    return;
+                }
             }
         }
 

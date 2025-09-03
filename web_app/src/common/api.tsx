@@ -32,7 +32,7 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.SelectWorker; value: string }
     | { type: typeof PlayerActionTypes.MoveWorker; value: string }
     | { type: typeof PlayerActionTypes.MoveWorkerWithPush; value: [string, string] }
-    | { type: typeof PlayerActionTypes.MoveWorkerWithSwap; value: string }
+    | { type: typeof PlayerActionTypes.MoveWorkerWithSwap; value: [string, string] }
     | { type: typeof PlayerActionTypes.Build; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
     | { type: typeof PlayerActionTypes.EndTurn }
@@ -132,13 +132,17 @@ export function gameStateWithActions(gameState: GameState, partialActions: Array
                 if (fromIdx === -1) {
                     break;
                 }
-                const toSquare = squareStrToSquare(action.value);
+                const toSquare = squareStrToSquare(action.value[0]);
                 if (!toSquare.ok) {
+                    break;
+                }
+                const swapFromSquare = squareStrToSquare(action.value[1]);
+                if (!swapFromSquare.ok) {
                     break;
                 }
                 result.players[currentPlayerIdx].workers[fromIdx] = toSquare.val;
 
-                const swapIdx = result.players[otherPlayerIdx].workers.indexOf(toSquare.val);
+                const swapIdx = result.players[otherPlayerIdx].workers.indexOf(swapFromSquare.val);
                 if (swapIdx === -1) {
                     break;
                 }

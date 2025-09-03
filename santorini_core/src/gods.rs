@@ -111,7 +111,7 @@ pub enum PartialAction {
     SelectWorker(Square),
     PlaceWorker(Square),
     MoveWorker(Square),
-    MoveWorkerWithSwap(Square),
+    MoveWorkerWithSwap(Square, Square),
     MoveWorkerWithPush(Square, Square),
     Build(Square),
     Dome(Square),

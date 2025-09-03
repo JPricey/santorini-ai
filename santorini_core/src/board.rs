@@ -264,7 +264,7 @@ pub const HEIGHT_RESTRICTION_SECTION_MASK: BitBoard = BitBoard(0b11 << 30);
  * bit 31 represents the amount that player 2 can move up on their next turn
  * move of the time these will be "11", they only change to 0 when playing against athena
  */
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Hash)]
 pub struct BoardState {
     pub current_player: Player,
     // height_map[L - 1][s] represents if square s is GTE L

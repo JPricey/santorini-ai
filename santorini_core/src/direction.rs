@@ -61,4 +61,11 @@ impl ICoord {
             row: self.row + other.row,
         }
     }
+
+    pub const fn sub(self, other: Self) -> Self {
+        Self {
+            col: self.col - other.col,
+            row: self.row - other.row,
+        }
+    }
 }

@@ -1,17 +1,16 @@
 use crate::{
     add_scored_move,
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::BoardState,
     build_god_power_movers, build_power_move_generator,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+            NULL_MOVE_DATA, POSITION_WIDTH,
         },
         god_power,
     },
-    player::Player,
     square::Square,
 };
 

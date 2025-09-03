@@ -17,11 +17,11 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
         case PlayerActionTypes.PlaceWorker:
         case PlayerActionTypes.SelectWorker:
         case PlayerActionTypes.MoveWorker:
-        case PlayerActionTypes.MoveWorkerWithSwap:
         case PlayerActionTypes.Build:
         case PlayerActionTypes.Dome:
             return action.value === squareStr ? action.type : null;
         case PlayerActionTypes.MoveWorkerWithPush:
+        case PlayerActionTypes.MoveWorkerWithSwap:
             return action.value[0] === squareStr ? action.type : null;
         case PlayerActionTypes.EndTurn:
         case PlayerActionTypes.NoMoves:

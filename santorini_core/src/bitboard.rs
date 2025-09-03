@@ -6,6 +6,8 @@ use crate::{direction::ICoord, square::Square, transmute_enum};
 pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
 
+pub type BitboardMapping = [BitBoard; NUM_SQUARES];
+
 #[macro_export]
 macro_rules! for_each_direction {
     ($dir: ident => $body: block) => {
@@ -32,7 +34,7 @@ macro_rules! square_map {
     }};
 }
 
-pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+pub const NEIGHBOR_MAP: BitboardMapping = square_map!(square => {
     let mut res = BitBoard::EMPTY;
     let coord = square.to_icoord();
     for_each_direction!(dir => {
@@ -44,7 +46,7 @@ pub const NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
     res
 });
 
-pub const INCLUSIVE_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+pub const INCLUSIVE_NEIGHBOR_MAP: BitboardMapping = square_map!(square => {
     let coord = square.to_icoord();
     let mut res = BitBoard::as_mask(square);
     for_each_direction!(dir => {
@@ -56,7 +58,7 @@ pub const INCLUSIVE_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square =
     res
 });
 
-pub const WRAPPING_NEIGHBOR_MAP: [BitBoard; NUM_SQUARES] = square_map!(square => {
+pub const WRAPPING_NEIGHBOR_MAP: BitboardMapping = square_map!(square => {
     let coord = square.to_icoord();
     let mut res = BitBoard::EMPTY;
     for_each_direction!(dir => {
@@ -93,7 +95,7 @@ pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
     .bit_not()
     .bit_and(BitBoard::MAIN_SECTION_MASK);
 
-pub fn apply_mapping_to_mask(mask: BitBoard, mapping: &[BitBoard; NUM_SQUARES]) -> BitBoard {
+pub fn apply_mapping_to_mask(mask: BitBoard, mapping: &BitboardMapping) -> BitBoard {
     mask.into_iter()
         .fold(BitBoard::EMPTY, |accum: BitBoard, s: Square| {
             accum | mapping[s as usize]

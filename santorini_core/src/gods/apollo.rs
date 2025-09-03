@@ -1,6 +1,6 @@
 use crate::{
     add_scored_move,
-    bitboard::{BitBoard, NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     build_god_power_movers, build_parse_flags,
     gods::{
@@ -10,6 +10,7 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        harpies::slide_position,
     },
     player::Player,
     square::Square,
@@ -18,12 +19,10 @@ use crate::{
 
 use super::PartialAction;
 
-// from(5)|to(5)|build(5)|win(1)
 pub const APOLLO_MOVE_FROM_POSITION_OFFSET: usize = 0;
 pub const APOLLO_MOVE_TO_POSITION_OFFSET: usize = APOLLO_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
 pub const APOLLO_BUILD_POSITION_OFFSET: usize = APOLLO_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const APOLLO_DID_SWAP_OFFSET: usize = APOLLO_BUILD_POSITION_OFFSET + POSITION_WIDTH;
-pub const APOLLO_DID_SWAP_MASK: MoveData = 1 << APOLLO_DID_SWAP_OFFSET;
+pub const APOLLO_SWAP_MOVE_OFFSET: usize = APOLLO_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ApolloMove(pub MoveData);
@@ -45,12 +44,13 @@ impl ApolloMove {
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
-        did_swap: bool,
+        swap_from_square: Option<Square>,
     ) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << APOLLO_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << APOLLO_MOVE_TO_POSITION_OFFSET)
             | ((build_position as MoveData) << APOLLO_BUILD_POSITION_OFFSET)
-            | ((did_swap as MoveData) << APOLLO_DID_SWAP_OFFSET);
+            | ((swap_from_square.map_or(25 as MoveData, |s| s as MoveData))
+                << APOLLO_SWAP_MOVE_OFFSET);
 
         Self(data)
     }
@@ -58,11 +58,12 @@ impl ApolloMove {
     pub fn new_apollo_winning_move(
         move_from_position: Square,
         move_to_position: Square,
-        did_swap: bool,
+        swap_from_square: Option<Square>,
     ) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << APOLLO_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << APOLLO_MOVE_TO_POSITION_OFFSET)
-            | ((did_swap as MoveData) << APOLLO_DID_SWAP_OFFSET)
+            | ((swap_from_square.map_or(25 as MoveData, |s| s as MoveData))
+                << APOLLO_SWAP_MOVE_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -83,8 +84,13 @@ impl ApolloMove {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
-    pub fn did_swap(self) -> bool {
-        self.0 & APOLLO_DID_SWAP_MASK != 0
+    pub fn swap_from_square(self) -> Option<Square> {
+        let value = (self.0 >> APOLLO_SWAP_MOVE_OFFSET) as u8 & LOWER_POSITION_MASK;
+        if value == 25 {
+            None
+        } else {
+            Some(Square::from(value))
+        }
     }
 
     pub fn get_is_winning(&self) -> bool {
@@ -105,7 +111,7 @@ impl std::fmt::Debug for ApolloMove {
 
         if is_win {
             write!(f, "{}>{}#", move_from, move_to)
-        } else if self.did_swap() {
+        } else if self.swap_from_square().is_some() {
             write!(f, "{}<>{}^{}", move_from, move_to, build)
         } else {
             write!(f, "{}>{}^{}", move_from, move_to, build)
@@ -117,8 +123,11 @@ impl GodMove for ApolloMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
         let mut res = vec![PartialAction::SelectWorker(self.move_from_position())];
 
-        if self.did_swap() {
-            res.push(PartialAction::MoveWorkerWithSwap(self.move_to_position()));
+        if let Some(swap_square) = self.swap_from_square() {
+            res.push(PartialAction::MoveWorkerWithSwap(
+                self.move_to_position(),
+                swap_square,
+            ));
         } else {
             res.push(PartialAction::MoveWorker(self.move_to_position()));
         }
@@ -131,11 +140,15 @@ impl GodMove for ApolloMove {
     }
 
     fn make_move(self, board: &mut BoardState) {
-        let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        let from_mask = BitBoard::as_mask(self.move_from_position());
+        let to_mask = BitBoard::as_mask(self.move_to_position());
+        board.worker_xor(board.current_player, from_mask | to_mask);
 
-        if self.did_swap() {
-            board.worker_xor(!board.current_player, worker_move_mask);
+        if let Some(swap_from_square) = self.swap_from_square() {
+            board.worker_xor(
+                !board.current_player,
+                from_mask | BitBoard::as_mask(swap_from_square),
+            );
         }
 
         if self.get_is_winning() {
@@ -167,7 +180,7 @@ impl GodMove for ApolloMove {
         let mut res = 4 * fu + from_height;
         res = res * 100 + 4 * tu + to_height;
         res = res * 100 + 4 * bu + build_height;
-        res = res * 2 + self.did_swap() as usize;
+        res = res * 2 + self.swap_from_square().is_some() as usize;
 
         res
     }
@@ -201,46 +214,45 @@ fn apollo_move_gen<const F: MoveGenFlags>(
        win_mask:  win_mask,
        build_mask: build_mask,
        is_against_hypnus: is_against_hypnus,
-       is_against_harpies: _is_against_harpies,
+       is_against_harpies: is_against_harpies,
        own_workers:  own_workers,
        oppo_workers:  oppo_workers,
        result:  result,
-       all_workers_mask:  all_workers_mask,
+       all_workers_mask:  _all_workers_mask,
        is_mate_only:  is_mate_only,
        acting_workers:  acting_workers,
        checkable_worker_positions_mask:  checkable_worker_positions_mask,
     );
 
-    for moving_worker_start_pos in acting_workers.into_iter() {
-        let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
-        let worker_starting_height = board.get_height(moving_worker_start_pos);
+    for worker_start_pos in acting_workers.into_iter() {
+        let worker_start_mask = BitBoard::as_mask(worker_start_pos);
+        let worker_start_height = board.get_height(worker_start_pos);
 
-        let other_own_workers = own_workers ^ moving_worker_start_mask;
+        let other_own_workers = own_workers ^ worker_start_mask;
         let other_threatening_workers = other_own_workers & checkable_worker_positions_mask;
 
-        let unblocked_from_final_moves = !(domes & other_own_workers);
+        let other_threatening_neighbors =
+            apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
 
-        let mut other_threatening_neighbors = BitBoard::EMPTY;
-        for other_pos in other_threatening_workers {
-            other_threatening_neighbors |= NEIGHBOR_MAP[other_pos as usize];
-        }
-
-        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
-            & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
+        let mut worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
+            & !(board.height_map[board.get_worker_climb_height(player, worker_start_height)]
                 | own_workers);
 
-        if is_mate_only || worker_starting_height == 2 {
+        if is_mate_only || worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & exactly_level_3 & win_mask;
             worker_moves ^= moves_to_level_3;
 
-            for moving_worker_end_pos in moves_to_level_3.into_iter() {
-                let is_swap =
-                    (BitBoard::as_mask(moving_worker_end_pos) & oppo_workers).is_not_empty();
+            for worker_end_pos in moves_to_level_3.into_iter() {
+                let swap_square = if (BitBoard::as_mask(worker_end_pos) & oppo_workers).is_empty() {
+                    None
+                } else {
+                    Some(worker_end_pos)
+                };
                 let winning_move = ScoredMove::new_winning_move(
                     ApolloMove::new_apollo_winning_move(
-                        moving_worker_start_pos,
-                        moving_worker_end_pos,
-                        is_swap,
+                        worker_start_pos,
+                        worker_end_pos,
+                        swap_square,
                     )
                     .into(),
                 );
@@ -255,30 +267,43 @@ fn apollo_move_gen<const F: MoveGenFlags>(
             continue;
         }
 
-        let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let blocked_squares_minus_opponent_workers = non_selected_workers | domes;
+        for initial_worker_end_pos in worker_moves.into_iter() {
+            let mut worker_end_pos = initial_worker_end_pos;
+            let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
 
-        for moving_worker_end_pos in worker_moves.into_iter() {
-            let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-            let not_own_workers = !(other_own_workers | moving_worker_end_mask);
-            let worker_end_height = board.get_height(moving_worker_end_pos);
-            let is_improving = worker_end_height > worker_starting_height;
-
+            let is_swap = (BitBoard::as_mask(worker_end_pos) & oppo_workers).is_not_empty();
             let mut final_other_workers = oppo_workers;
             let mut final_build_mask = build_mask;
-            let is_swap = (BitBoard::as_mask(moving_worker_end_pos) & oppo_workers).is_not_empty();
-            if is_swap {
-                final_other_workers ^= moving_worker_end_mask | moving_worker_start_mask;
-                final_build_mask = other_god.get_build_mask(final_other_workers) | exactly_level_3;
-            }
-            let buildable_squares = !(blocked_squares_minus_opponent_workers | final_other_workers);
+            let mut swap_square = None;
 
-            let end_neighbors = NEIGHBOR_MAP[moving_worker_end_pos as usize];
-            let mut worker_builds = end_neighbors & buildable_squares & final_build_mask;
+            let mut swap_mask = BitBoard::EMPTY;
+            if is_swap {
+                final_other_workers ^= worker_end_mask | worker_start_mask;
+                final_build_mask = other_god.get_build_mask(final_other_workers) | exactly_level_3;
+                swap_square = Some(worker_end_pos);
+                swap_mask = BitBoard::as_mask(worker_end_pos);
+            }
+
+            if is_against_harpies {
+                worker_end_pos = slide_position(&board, worker_start_pos, worker_end_pos);
+                worker_end_mask = BitBoard::as_mask(worker_end_pos);
+            }
+
+            let worker_end_height = board.get_height(worker_end_pos);
+            let is_improving = worker_end_height > worker_start_height;
+            let is_now_lvl_2 = (worker_end_height == 2) as usize;
+
+            let self_blockers = domes | other_own_workers | worker_end_mask;
+            let unblocked_squares_for_builds = !(self_blockers | final_other_workers);
+            let unblocked_squares_for_checks = !self_blockers;
+
+            let end_neighbors = NEIGHBOR_MAP[worker_end_pos as usize];
+            let mut worker_builds = end_neighbors & unblocked_squares_for_builds & final_build_mask;
 
             if is_interact_with_key_squares {
-                if ((moving_worker_start_mask & BitBoard::CONDITIONAL_MASK[is_swap as usize]
-                    | moving_worker_end_mask)
+                if ((worker_start_mask & BitBoard::CONDITIONAL_MASK[is_swap as usize]
+                    | worker_end_mask
+                    | swap_mask)
                     & key_squares)
                     .is_empty()
                 {
@@ -286,29 +311,29 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            let is_now_lvl_2 = (worker_end_height == 2) as usize;
             let reach_board = if is_against_hypnus
                 && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
             {
                 BitBoard::EMPTY
             } else {
-                other_threatening_neighbors
-                    | (end_neighbors & BitBoard::CONDITIONAL_MASK[is_now_lvl_2])
+                (other_threatening_neighbors
+                    | (end_neighbors & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                    & unblocked_squares_for_checks
+                    & win_mask
             };
 
             for worker_build_pos in worker_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                 let new_action = ApolloMove::new_apollo_move(
-                    moving_worker_start_pos,
-                    moving_worker_end_pos,
+                    worker_start_pos,
+                    worker_end_pos,
                     worker_build_pos,
-                    is_swap,
+                    swap_square,
                 );
                 let is_check = {
                     let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask) & not_own_workers;
-                    let check_board =
-                        reach_board & final_level_3 & win_mask & unblocked_from_final_moves;
+                        | (exactly_level_3 & !worker_build_mask);
+                    let check_board = reach_board & final_level_3;
                     check_board.is_not_empty()
                 };
 

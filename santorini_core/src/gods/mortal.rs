@@ -1,17 +1,16 @@
 use crate::{
     add_scored_move,
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::BoardState,
     build_god_power_movers, build_power_move_generator,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+            NULL_MOVE_DATA, POSITION_WIDTH,
         },
         god_power,
     },
-    player::Player,
     square::Square,
 };
 
@@ -54,7 +53,7 @@ impl GodMove for MortalMove {
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
-        self.move_mask()
+        BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
@@ -123,7 +122,7 @@ impl MortalMove {
     }
 
     pub fn move_mask(self) -> BitBoard {
-        BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
+        BitBoard::as_mask(self.move_from_position()) ^ BitBoard::as_mask(self.move_to_position())
     }
 
     pub fn get_is_winning(&self) -> bool {

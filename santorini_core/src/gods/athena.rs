@@ -1,17 +1,16 @@
 use crate::{
     add_scored_move, after_move_power_generator,
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::BoardState,
     build_building_masks, build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+            NULL_MOVE_DATA, POSITION_WIDTH,
         },
         god_power,
     },
-    player::Player,
     square::Square,
 };
 
@@ -191,6 +190,7 @@ after_move_power_generator!(
     win_mask: win_mask,
     build_mask: build_mask,
     worker_start_pos: worker_start_pos,
+    worker_start_mask: worker_start_mask,
     worker_end_pos: worker_end_pos,
     worker_end_mask: worker_end_mask,
     worker_end_height: worker_end_height,
