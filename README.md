@@ -2,9 +2,11 @@
 
 Santorini AI is a game engine for the board game Santorini, built using negamax search over a NNUE evaluation.  
 It has a full implementation of Mortal & Simple God powers, with more powers under development.
+
 Play against the AI on the web [here](https://jpricey.github.io/god-game/)  
-Download and run the native analysis engine [here](https://github.com/JPricey/santorini-ai/releases)  
+OR, check out the analysis engine, runnable as a native app:
 ![screenshot](./data/screenshot.png)
+[Download here](https://github.com/JPricey/santorini-ai/releases)  
 
 Or, run the UCI-like process, and build your own UI ontop of Santorini AI.
 
