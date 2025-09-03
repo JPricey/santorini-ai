@@ -14,7 +14,7 @@ use santorini_core::{
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction, WIP_GODS},
     player::Player,
-    search::BestSearchResult,
+    search::{BestSearchResult, WINNING_SCORE, WINNING_SCORE_BUFFER},
     square::Square,
     utils::sigmoid,
 };
@@ -820,9 +820,15 @@ impl eframe::App for MyApp {
                                 let rows = self.engine_thinking.lock().engine_messages.clone();
                                 for row in rows.iter().rev() {
                                     let (msg, dur) = row;
+                                    let score_str = match msg.score {
+                                        x @ WINNING_SCORE_BUFFER.. => format!("Win in {}", WINNING_SCORE - x),
+                                        x if x < -WINNING_SCORE_BUFFER => format!("Loss in {}", WINNING_SCORE + x),
+                                        x => format!("{}", x),
+                                    };
+
                                     ui.label(format!("{}", msg.depth));
                                     ui.label(msg.action_str.to_owned());
-                                    ui.label(format!("{}", msg.score));
+                                    ui.label(score_str);
                                     ui.label(format!("{:.2}", dur.as_secs_f32()));
                                     ui.label(format!("{}", msg.nodes_visited));
                                     ui.label(format!("{:?}", msg.trigger));
