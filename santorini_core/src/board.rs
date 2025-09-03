@@ -15,10 +15,7 @@ use crate::{
         compute_hash_from_scratch_for_board,
     },
     matchup::{self, BANNED_MATCHUPS, Matchup},
-    placement::{
-        get_placement_actions,
-        get_starting_placements_count,
-    },
+    placement::{get_placement_actions, get_starting_placements_count},
     player::Player,
     square::Square,
 };
@@ -110,6 +107,10 @@ impl FullGameState {
     pub fn set_matchup(&mut self, matchup: &Matchup) {
         self.gods = matchup.get_gods();
         self.recalculate_internals();
+    }
+
+    pub fn get_matchup(&self) -> Matchup {
+        Matchup::new_arr([self.gods[0].god_name, self.gods[1].god_name])
     }
 
     pub fn flip_current_player(&mut self) {
