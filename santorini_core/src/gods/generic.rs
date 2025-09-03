@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     bitboard::BitBoard,
-    board::BoardState,
+    board::{BoardState, FullGameState},
     gods::{FullAction, PartialAction},
     square::Square,
 };
@@ -49,7 +49,6 @@ pub const FULL_HEIGHT_MASK: u8 = (1 << FULL_HEIGHT_WIDTH) - 1;
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
 pub const MOVE_DATA_MAIN_SECTION: MoveData = MOVE_IS_CHECK_MASK - 1;
-
 
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct GenericMove(pub MoveData);
@@ -206,6 +205,12 @@ impl WorkerPlacement {
         } else {
             BitBoard::as_mask(self.placement_1()) | BitBoard::as_mask(self.placement_2())
         }
+    }
+
+    pub fn make_on_clone(self, state: &FullGameState) -> FullGameState {
+        let mut result = state.clone();
+        self.make_move(&mut result.board);
+        result
     }
 }
 

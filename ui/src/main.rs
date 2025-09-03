@@ -784,7 +784,7 @@ impl eframe::App for MyApp {
             .show(ctx, |ui| {
                 self.may_arrow_shortcuts = true;
 
-                ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 16.0);
+                ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 12.0);
                 let available_size = ui.available_size();
 
                 let scroll_area_height = available_size.y / 2.0;
@@ -845,24 +845,24 @@ impl eframe::App for MyApp {
                 ui.horizontal(|ui| {
                     if shortcut_button(
                         ui,
-                        "Redo Turn",
-                        "Undo any actions taken this turn.",
-                        SHORTCUT_REDO_TURN,
-                    )
-                    .clicked()
-                    {
-                        self.clear_actions();
-                    }
-
-                    if shortcut_button(
-                        ui,
-                        "Engine Move",
+                        "Do Engine Move",
                         "Play the engine move.",
                         SHORTCUT_ENGINE_MOVE,
                     )
                     .clicked()
                     {
                         self.try_engine_move();
+                    }
+
+                    if shortcut_button(
+                        ui,
+                        "Restart Turn",
+                        "Undo any actions taken this turn.",
+                        SHORTCUT_REDO_TURN,
+                    )
+                    .clicked()
+                    {
+                        self.clear_actions();
                     }
 
                     if shortcut_button(ui, "Back", "Go back a turn", SHORTCUT_STATE_BACKWARD)

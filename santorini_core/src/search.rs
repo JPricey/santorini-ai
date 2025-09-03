@@ -9,7 +9,10 @@ use crate::{
     gods::generic::{GenericMove, GodMove, KILLER_MATCH_SCORE, MoveScore, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
-    placement::{get_starting_placements_count, get_unique_placements, get_unique_placements_3},
+    placement::{
+        get_placement_actions, get_starting_placements_count, 
+        
+    },
     player::Player,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
@@ -576,12 +579,7 @@ where
     let alpha_orig = alpha;
     let mut should_stop = false;
 
-    let active_god = state.get_active_god();
-    let mut placements = match active_god.num_workers {
-        2 => get_unique_placements(&state),
-        3 => get_unique_placements_3(&state),
-        _ => unreachable!("Unknown worker count"),
-    };
+    let mut placements = get_placement_actions::<true>(&state);
     let mut best_action = placements[0];
 
     let tt_entry = search_context.tt.fetch(&state, ply);
@@ -598,8 +596,7 @@ where
     search_state.search_stack[ply].eval = -WINNING_SCORE_BUFFER;
     for action in placements {
         search_state.search_stack[ply].move_hash = hash_u64(action.get_history_idx(&state.board));
-        let mut child_state = state.clone();
-        action.make_move(&mut child_state.board);
+        let child_state = action.make_on_clone(state);
 
         let score = -match child_state.board.current_player {
             Player::One => _start_inner_search::<T, NT::Next>(
@@ -836,7 +833,10 @@ where
     NT: NodeType,
 {
     if let Err(err) = state.validation_err() {
-        panic!("Invalid state encountered during search: {:?}\nState: {:?}", err, state);
+        panic!(
+            "Invalid state encountered during search: {:?}\nState: {:?}",
+            err, state
+        );
     }
     // debug_assert!(state.validation_err().is_ok());
 

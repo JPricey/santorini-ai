@@ -133,3 +133,20 @@ pub fn get_unique_placements_3(state: &FullGameState) -> Vec<WorkerPlacement> {
 
     res
 }
+
+pub fn get_placement_actions<const IS_UNIQUE: bool>(state: &FullGameState) -> Vec<WorkerPlacement> {
+    let active_god = state.get_active_god();
+    if IS_UNIQUE {
+        match active_god.num_workers {
+            2 => get_unique_placements(&state),
+            3 => get_unique_placements_3(&state),
+            _ => unreachable!("Unknown worker count"),
+        }
+    } else {
+        match active_god.num_workers {
+            2 => get_all_placements(&state.board),
+            3 => get_all_placements_3(&state.board),
+            _ => unreachable!("Unknown worker count"),
+        }
+    }
+}

@@ -2,7 +2,9 @@ use clap::Parser;
 use rand::distr::Alphanumeric;
 use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::{Rng, rng};
-use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
+use santorini_core::gods::{ALL_GODS_BY_ID, GodName, WIP_GODS};
+use santorini_core::matchup::{Matchup, MatchupSelector};
+use santorini_core::placement::get_placement_actions;
 use santorini_core::player::Player;
 use santorini_core::search::{Hueristic, SearchContext, WINNING_SCORE_BUFFER, negamax_search};
 use santorini_core::search_terminators::{
@@ -19,10 +21,10 @@ use std::time::{Duration, Instant};
 use santorini_core::board::FullGameState;
 
 type DatagenStaticSearchTerminator = OrSearchTerminator<
-    StaticNodesVisitedSearchTerminator<200_000>,
+    StaticNodesVisitedSearchTerminator<100_000>,
     AndSearchTerminator<
         StaticMaxDepthSearchTerminator<8>,
-        StaticNodesVisitedSearchTerminator<50_000>,
+        StaticNodesVisitedSearchTerminator<20_000>,
     >,
 >;
 
@@ -65,6 +67,23 @@ fn worker_thread() {
     }
 }
 
+fn get_matchups_list() -> Vec<Matchup> {
+    let mut gods_to_always_generate: Vec<GodName> = WIP_GODS.iter().cloned().collect();
+    gods_to_always_generate.push(GodName::Hephaestus);
+
+    let matchup_selector = MatchupSelector::default()
+        .with_exact_gods_for_player(Player::One, gods_to_always_generate)
+        .with_can_swap_option(true)
+        .with_can_mirror_option(true)
+        .clone();
+
+    let mut res = matchup_selector.get_all();
+    res.push(Matchup::new(GodName::Athena, GodName::Atlas));
+    res.push(Matchup::new(GodName::Atlas, GodName::Athena));
+
+    res
+}
+
 fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
     let mut tt = TranspositionTable::new();
     let mut rng = rng();
@@ -72,14 +91,33 @@ fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = _get_new_datafile_name(&mut rng);
     let mut data_file = std::fs::File::create(file_path).expect("Failed to create error log file");
 
+    let matchups = get_matchups_list();
+    // for m in &matchups {
+    //     eprintln!("Including matchup: {}", m);
+    // }
+
     for _ in 0..GAMES_PER_FILE {
+        let mut matchup;
+        loop {
+            matchup = matchups.choose(&mut rng).unwrap().clone();
+            if matchup.gods.contains(&GodName::Mortal) && matchup.gods[0] != matchup.gods[1] {
+                if rng.random_bool(0.5) {
+                    break;
+                } else {
+                    // 50% chance to reroll mortal vs god matchups
+                }
+            } else {
+                break;
+            }
+        }
         let now = Instant::now();
-        let game_history = generate_one(&mut tt, &mut rng)?;
+        let game_history = generate_one(matchup, &mut tt, &mut rng)?;
 
         eprintln!(
-            "Done single gen. Created {} examples in {:.4}s",
+            "Done single gen. Created {} examples in {:.4}s for {}",
             game_history.len(),
-            now.elapsed().as_secs_f32()
+            now.elapsed().as_secs_f32(),
+            matchup,
         );
 
         for game_turn in game_history {
@@ -197,24 +235,28 @@ fn playout_subgame(
 }
 
 fn generate_one(
+    matchup: Matchup,
     tt: &mut TranspositionTable,
     rng: &mut impl Rng,
 ) -> Result<Vec<SingleState>, Box<dyn std::error::Error>> {
-    let mut current_state = _get_board_with_random_placements(rng);
-    _randomize_gods(&mut current_state, rng);
+    let mut current_state = FullGameState::new_for_matchup(&matchup);
     let mut move_count = 0;
 
+    for _ in 0..2 {
+        let placement_actions = get_placement_actions::<true>(&current_state);
+        let action = placement_actions.choose(rng).unwrap();
+        current_state = action.make_on_clone(&current_state);
+    }
+
+    eprintln!("Random starting state: {:?}", current_state);
+
     let rand = rng.random_range(0.0..1.0);
-    let num_random_moves = if rand < 0.05 {
-        0
-    } else if rand < 0.15 {
-        1
-    } else if rand < 0.4 {
-        2
-    } else if rand < 0.7 {
-        3
-    } else {
-        4
+    let num_random_moves = match rand {
+        ..0.01 => 2,
+        ..0.1 => 3,
+        ..0.3 => 4,
+        ..0.6 => 5,
+        _ => 6,
     };
 
     for _ in 0..num_random_moves {
@@ -268,6 +310,6 @@ pub fn main() {
     }
 }
 
-// cargo run -p datagen --release
-// For specific threadcount (default is to use num_cpus):
-// cargo run -p datagen --release -- -j 8
+// cargo run -p datagen -r
+// Specific threadcount:
+// cargo run -p datagen -r -- -j 8

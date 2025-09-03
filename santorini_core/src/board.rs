@@ -15,7 +15,10 @@ use crate::{
         compute_hash_from_scratch_for_board,
     },
     matchup::{self, BANNED_MATCHUPS, Matchup},
-    placement::{get_all_placements, get_all_placements_3, get_starting_placements_count},
+    placement::{
+        get_placement_actions,
+        get_starting_placements_count,
+    },
     player::Player,
     square::Square,
 };
@@ -131,21 +134,13 @@ impl FullGameState {
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
         let placement_mode = get_starting_placements_count(&self.board).unwrap();
         if placement_mode > 0 {
-            let active_god = self.get_active_god();
-            let placement_actions = match active_god.num_workers {
-                2 => get_all_placements(&self.board),
-                3 => get_all_placements_3(&self.board),
-                _ => unreachable!("Unknown number of workers"),
-            };
+            let placement_actions = get_placement_actions::<false>(self);
             let mut res: Vec<GameStateWithAction> = Vec::new();
 
             for p in placement_actions {
                 for series in p.move_to_actions(&self.board) {
-                    let mut new_board = self.board.clone();
-                    p.make_move(&mut new_board);
-
-                    let board_state_w_action = BoardStateWithAction::new(new_board, series);
-
+                    let new_state = p.make_on_clone(self);
+                    let board_state_w_action = BoardStateWithAction::new(new_state.board, series);
                     res.push(GameStateWithAction::new(
                         board_state_w_action,
                         self.gods[0].god_name,
