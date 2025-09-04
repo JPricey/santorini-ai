@@ -26,7 +26,8 @@ def count_total_lines_in_dir(dir_path):
     return total
 
 def pull(ip, port):
-    print(f"Trying to pull from {ip}:{port}")
+    start_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{start_time}] Trying to pull from {ip}:{port}")
     remote_path = "/root/santorini/game_data/*"
     local_path = DEST_PATH
 
@@ -51,7 +52,8 @@ def pull_all_once():
     for (ip, port) in remotes:
         pull(ip, port)
 
-    print('Total lines:', count_total_lines_in_dir(DEST_PATH))
+    end_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{end_time}] Total lines:", count_total_lines_in_dir(DEST_PATH))
 
 def main():
     # pull_all_once()
