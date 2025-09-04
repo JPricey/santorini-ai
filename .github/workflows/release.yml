@@ -60,11 +60,6 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
-      - name: Install nightly rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
@@ -132,11 +127,6 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
-      - name: Install nightly rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest
@@ -194,11 +184,6 @@ jobs:
         with:
           name: cargo-dist-cache
           path: ~/.cargo/bin/
-      - name: Install nightly rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
       - run: chmod +x ~/.cargo/bin/dist
       # Get all the local artifacts for the global tasks to use (for e.g. checksums)
       - name: Fetch local artifacts
@@ -244,11 +229,6 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
-      - name: Install nightly rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
       - name: Install cached dist
         uses: actions/download-artifact@v4
         with:
