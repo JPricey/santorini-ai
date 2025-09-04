@@ -1,9 +1,11 @@
 use std::ops::Not;
 
+use serde::{Deserialize, Serialize};
+
 use crate::transmute_enum_masked;
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Player {
     One,
     Two,

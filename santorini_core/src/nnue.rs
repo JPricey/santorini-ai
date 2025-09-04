@@ -8,7 +8,11 @@ use std::{
 use arrayvec::ArrayVec;
 
 use crate::{
-    bitboard::BitBoard, board::{BoardState, FullGameState}, gods::GodName, player::Player, search::Hueristic,
+    bitboard::BitBoard,
+    board::{BoardState, FullGameState},
+    gods::GodName,
+    player::Player,
+    search::Hueristic,
 };
 
 pub const QA: i32 = 255;
@@ -50,8 +54,8 @@ pub struct Network {
 
 const BOARD_FEATURES: usize = 125;
 const SIDE_WORKER_FEATURES: usize = 25 * 4;
-const NNUE_GOD_COUNT: usize = 11;
-// pub const NNUE_GOD_COUNT: usize = 17;
+// const NNUE_GOD_COUNT: usize = 11;
+const NNUE_GOD_COUNT: usize = 17;
 const PER_SIDE_FEATURES: usize = NNUE_GOD_COUNT + SIDE_WORKER_FEATURES;
 
 const ACTIVE_PLAYER_OFFSET: usize = BOARD_FEATURES;
@@ -74,8 +78,11 @@ struct FeatureSet {
     pub worker_features: ArrayVec<u16, 6>,
 }
 
-pub static MODEL: Network =
-    unsafe { mem::transmute(*include_bytes!("../.././models/gods-labeled-3.bin")) };
+pub static MODEL: Network = unsafe {
+    mem::transmute(*include_bytes!(
+        "../.././models/new_gods_batch_2025-09-04_1024.bin"
+    ))
+};
 
 impl Accumulator {
     pub fn new() -> Self {
@@ -344,7 +351,11 @@ impl LabeledAccumulator {
     }
 
     pub fn replace_from_state(&mut self, state: &FullGameState) {
-        self.replace_features(build_feature_set(&state.board, state.gods[0].model_god_name, state.gods[1].model_god_name))
+        self.replace_features(build_feature_set(
+            &state.board,
+            state.gods[0].model_god_name,
+            state.gods[1].model_god_name,
+        ))
     }
 
     pub fn replace_from_board(&mut self, board: &BoardState, god1: GodName, god2: GodName) {

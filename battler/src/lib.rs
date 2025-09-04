@@ -1,19 +1,23 @@
 use std::process::{Child, ChildStdin, Command, Stdio};
 
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 
 use santorini_core::board::FullGameState;
+use santorini_core::fen::game_state_to_fen;
+use santorini_core::gods::GodName;
+use santorini_core::player::Player;
+use santorini_core::search::BestMoveTrigger;
+use santorini_core::utils::timestamp_string;
 use serde::{Deserialize, Serialize};
 
-use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use santorini_core::uci_types::EngineOutput;
+use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
 
 const CORPUS_FILE_PATH: &str = "data/corpus.yaml";
-
 pub const BINARY_DIRECTORY: &str = "all_versions";
 
 fn _true_value() -> bool {
@@ -60,8 +64,14 @@ pub struct EngineSubprocess {
     pub receiver: Receiver<String>,
 }
 
-pub fn prepare_subprocess(log_path: &Path, engine_path: &Path) -> EngineSubprocess {
+pub fn prepare_subprocess(log_path: &PathBuf, engine_path: &PathBuf) -> EngineSubprocess {
+    let log_dir = PathBuf::from("logs");
+    std::fs::create_dir_all(&log_dir).unwrap();
+    let log_path = log_dir.join(log_path);
+
     let stderr_file = std::fs::File::create(log_path).expect("Failed to create error log file");
+
+    eprintln!("Spawning: {}", engine_path.display());
 
     let mut child = Command::new(engine_path)
         // .env("RUST_BACKTRACE", "full")
@@ -126,5 +136,152 @@ pub fn prepare_subprocess(log_path: &Path, engine_path: &Path) -> EngineSubproce
         child,
         stdin,
         receiver: child_msg_rx,
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BattleResult {
+    pub god1: GodName,
+    pub engine1: String,
+    pub god2: GodName,
+    pub engine2: String,
+
+    pub winning_player: Player,
+    pub moves_made: usize,
+}
+
+impl BattleResult {
+    pub fn get_pretty_description(&self) -> String {
+        let winner_str = match self.winning_player {
+            Player::One => format!("Won by player 1 ({} {}) after {} moves", self.god1, self.engine1, self.moves_made),
+            Player::Two => format!("Won by player 2 ({} {}) after {} moves", self.god2, self.engine2, self.moves_made),
+        };
+
+        format!("{:?} ({}) v {:?} ({}) - {winner_str}", self.god1, self.engine1, self.god2, self.engine2)
+    }
+}
+
+pub fn do_battle<'a>(
+    start_state: &FullGameState,
+    c1: &'a mut EngineSubprocess,
+    c2: &'a mut EngineSubprocess,
+    per_turn_duration: Duration,
+    is_printing: bool,
+) -> BattleResult {
+    let mut moves_made = 0;
+    let mut current_state = start_state.clone();
+
+    if is_printing {
+        start_state.print_to_console();
+        println!();
+    }
+
+    loop {
+        let (engine, other) = match current_state.board.current_player {
+            Player::One => (&mut *c1, &mut *c2),
+            Player::Two => (&mut *c2, &mut *c1),
+        };
+
+        let state_string = game_state_to_fen(&current_state);
+        if is_printing {
+            eprintln!(
+                "{}: setting position {}",
+                timestamp_string(),
+                engine.engine_name
+            );
+        }
+        writeln!(engine.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
+        writeln!(other.stdin, "set_position {}", state_string).expect("Failed to write to stdin");
+
+        let started_at = Instant::now();
+        let end_at = started_at + per_turn_duration;
+        let mut saved_best_move: Option<BestMoveOutput> = None;
+
+        loop {
+            let now = Instant::now();
+            if now >= end_at {
+                break;
+            }
+
+            let timeout = end_at - now;
+            match engine.receiver.recv_timeout(timeout) {
+                Ok(msg) => {
+                    let parsed_msg: EngineOutput = serde_json::from_str(&msg).unwrap();
+                    match parsed_msg {
+                        EngineOutput::BestMove(best_move) => {
+                            if best_move.start_state != current_state {
+                                // println!("Message for wrong state");
+                                continue;
+                            }
+                            saved_best_move = Some(best_move.clone());
+                            match best_move.trigger {
+                                BestMoveTrigger::StopFlag => {
+                                    break;
+                                }
+                                BestMoveTrigger::EndOfLine => {
+                                    if is_printing {
+                                        println!("Mate found, ending early");
+                                    }
+                                    break;
+                                }
+                                BestMoveTrigger::Improvement | BestMoveTrigger::Saved => (),
+                            }
+                        }
+                        _ => {
+                            eprintln!("Unexpected message: {:?}", parsed_msg);
+                        }
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    // eprintln!("timeout reached");
+                    break;
+                }
+                Err(e) => {
+                    panic!("Error receiving message: {:?}", e);
+                }
+            }
+        }
+
+        // eprintln!("{}: stopping {}", timestamp_string(), engine.engine_name);
+        // writeln!(engine.stdin, "stop").expect("Failed to write to stdin");
+
+        moves_made += 1;
+
+        let saved_best_move = saved_best_move.expect("Expected engine to output at least 1 move");
+
+        current_state = saved_best_move.next_state.clone();
+
+        let current_god = saved_best_move.start_state.get_active_god();
+
+        if is_printing {
+            println!(
+                "({}) Made move for Player {:?} [{:?}]: {:?} | depth: {} score: {}, visited: {:?} secs: {:.04}",
+                engine.engine_name,
+                saved_best_move.start_state.board.current_player,
+                current_god.god_name,
+                saved_best_move.meta.actions,
+                saved_best_move.meta.calculated_depth,
+                saved_best_move.meta.score,
+                saved_best_move.meta.nodes_visited,
+                started_at.elapsed().as_secs_f32()
+            );
+            current_state.print_to_console();
+            println!();
+        }
+
+        let winner = current_state.board.get_winner();
+        if let Some(winner) = winner {
+            writeln!(c1.stdin, "stop").expect("Failed to write to stdin");
+            writeln!(c2.stdin, "stop").expect("Failed to write to stdin");
+
+            return BattleResult {
+                god1: current_state.gods[0].god_name,
+                engine1: c1.engine_name.clone(),
+                god2: current_state.gods[1].god_name,
+                engine2: c2.engine_name.clone(),
+                winning_player: winner,
+                moves_made,
+            };
+        }
     }
 }

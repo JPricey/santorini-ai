@@ -97,6 +97,10 @@ impl Matchup {
     pub const fn get_gods(&self) -> [StaticGod; 2] {
         [self.gods[0].to_power(), self.gods[1].to_power()]
     }
+
+    pub fn is_mirror(&self) -> bool {
+        self.gods[0] == self.gods[1]
+    }
 }
 
 #[derive(Clone, Debug)]

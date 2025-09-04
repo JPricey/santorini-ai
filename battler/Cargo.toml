@@ -14,3 +14,5 @@ chrono = "0.4.41"
 clap = {workspace=true}
 serde_yaml = {workspace=true}
 rand = {workspace=true}
+csv = "1.3.1"
+num_cpus = {workspace=true}

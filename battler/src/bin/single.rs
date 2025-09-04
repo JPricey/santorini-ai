@@ -328,10 +328,7 @@ fn main() {
             }
         },
         None => {
-            let mut state = FullGameState::new_basic_state_mortals();
-            state.gods = [conf1.god.to_power(), conf2.god.to_power()];
-
-            state
+            FullGameState::new_empty_state(conf1.god, conf2.god)
         }
     };
 
