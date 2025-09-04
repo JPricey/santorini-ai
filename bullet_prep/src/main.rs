@@ -357,7 +357,7 @@ fn filter_atlas_vs_athena() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn real_main() -> Result<(), Box<dyn std::error::Error>> {
-    let is_delete = false;
+    let is_delete = true;
 
     let input_path = PathBuf::from("raw_data");
     let temp_path = PathBuf::from("temp_data");
@@ -366,10 +366,10 @@ fn real_main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Step 1: Processing raw data files...");
     process_raw_data_files(input_path, temp_path.clone(), is_delete)?;
 
-    println!("\nStep 2: Consolidating temporary files...");
+    println!("Step 2: Consolidating temporary files...");
     consolidate_temp_files(temp_path, output_path, is_delete)?;
 
-    println!("\nData preparation complete!");
+    println!("Data preparation complete!");
     Ok(())
 }
 

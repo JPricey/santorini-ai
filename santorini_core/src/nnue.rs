@@ -50,7 +50,8 @@ pub struct Network {
 
 const BOARD_FEATURES: usize = 125;
 const SIDE_WORKER_FEATURES: usize = 25 * 4;
-pub const NNUE_GOD_COUNT: usize = 11;
+const NNUE_GOD_COUNT: usize = 11;
+// pub const NNUE_GOD_COUNT: usize = 17;
 const PER_SIDE_FEATURES: usize = NNUE_GOD_COUNT + SIDE_WORKER_FEATURES;
 
 const ACTIVE_PLAYER_OFFSET: usize = BOARD_FEATURES;

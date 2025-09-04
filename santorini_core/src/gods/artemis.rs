@@ -533,8 +533,6 @@ pub const fn build_artemis() -> GodPower {
 }
 #[cfg(test)]
 mod tests {
-    use std::os::linux::net;
-
     use crate::{board::FullGameState, gods::GodName, player::Player};
 
     #[test]
