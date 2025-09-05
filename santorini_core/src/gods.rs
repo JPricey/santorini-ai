@@ -69,14 +69,9 @@ pub enum GodName {
     Harpies = 16,
 }
 
-counted_array!(pub const WIP_GODS: [GodName; _] = [
-    GodName::Urania,
-    GodName::Graeae,
-    GodName::Hera,
-    GodName::Limus,
-    GodName::Hypnus,
-    GodName::Harpies,
-]);
+pub const WIP_GODS: [GodName; 0] = [];
+
+// counted_array!(pub const WIP_GODS: [GodName; _] = [ ]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {

@@ -24,6 +24,7 @@
     justify-content: center;
     align-items: flex-start;
     background: #f7f9fc;
+    overflow-y: scroll;
 }
 
 .menu-player-section {

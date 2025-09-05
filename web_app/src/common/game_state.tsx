@@ -13,6 +13,12 @@ export const God = {
     Demeter: 'demeter',
     Apollo: 'apollo',
     Prometheus: 'prometheus',
+    Urania: 'urania',
+    Graeae: 'graeae',
+    Hera: 'hera',
+    Limus: 'limus',
+    Hypnus: 'hypnus',
+    Harpies: 'harpies',
 } as const;
 export type GodType = typeof God[keyof typeof God];
 

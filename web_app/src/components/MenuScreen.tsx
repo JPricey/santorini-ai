@@ -90,19 +90,7 @@ export function MenuScreen(props: MenuScreenProps) {
         return (
             <div className="menu-screen-container">
                 <div className="menu-screen-content">
-                    <div className="menu-screen-player-options">
-                        <div className="menu-player-section">
-                            <h3>Player One</h3>
-                            <GodPicker value={p1God} onChange={setP1God} isHuman={isP1Human} onToggleHuman={setP1Human} />
-                        </div>
-                        <div className="menu-player-section">
-                            <h3>Player Two</h3>
-                            <GodPicker value={p2God} onChange={setP2God} isHuman={isP2Human} onToggleHuman={setP2Human} />
-                        </div>
-                    </div>
-
-                    <AiSpeedPicker aiSpeed={aiSpeed} setAiSpeed={setAiSpeed} />
-
+                    <div style={{height: '10px'}} />
                     <button
                         style={{
                             padding: "0.8rem 2rem",
@@ -119,6 +107,20 @@ export function MenuScreen(props: MenuScreenProps) {
                     >
                         Start Game
                     </button>
+
+                    <AiSpeedPicker aiSpeed={aiSpeed} setAiSpeed={setAiSpeed} />
+
+                    <div className="menu-screen-player-options">
+                        <div className="menu-player-section">
+                            <h3>Player One</h3>
+                            <GodPicker value={p1God} onChange={setP1God} isHuman={isP1Human} onToggleHuman={setP1Human} />
+                        </div>
+                        <div className="menu-player-section">
+                            <h3>Player Two</h3>
+                            <GodPicker value={p2God} onChange={setP2God} isHuman={isP2Human} onToggleHuman={setP2Human} />
+                        </div>
+                    </div>
+
                 </div>
             </div>
         );

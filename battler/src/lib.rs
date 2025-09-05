@@ -1,6 +1,6 @@
 use std::process::{Child, ChildStdin, Command, Stdio};
 
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TrySendError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 
 use csv::Writer;

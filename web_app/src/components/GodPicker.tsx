@@ -12,16 +12,6 @@ type GodPickerProps = {
 export function GodPicker({ value, onChange, isHuman, onToggleHuman }: GodPickerProps) {
     return (
         <div className="god-picker-list">
-            {Object.values(God).map(god => (
-                <button
-                    key={god}
-                    onClick={() => onChange(god)}
-                    className={`god-picker-button${god === value ? " selected" : ""}`}
-                >
-                    {capitalizeFirstLetter(god)}
-                </button>
-            ))}
-
             <div className="god-picker-ai-mode-container">
                 <span style={{ fontWeight: isHuman ? 'bold' : 'normal' }}>Human</span>
                 <label style={{ position: 'relative', display: 'inline-block', width: 48, height: 24, margin: '0 8px' }}>
@@ -64,6 +54,18 @@ export function GodPicker({ value, onChange, isHuman, onToggleHuman }: GodPicker
                 </label>
                 <span style={{ fontWeight: !isHuman ? 'bold' : 'normal' }}>AI</span>
             </div>
+
+            {Object.values(God).map(god => (
+                <button
+                    key={god}
+                    onClick={() => onChange(god)}
+                    className={`god-picker-button${god === value ? " selected" : ""}`}
+                >
+                    {capitalizeFirstLetter(god)}
+                </button>
+            ))}
+
+            <div style={{height: '10px'}} />
         </div>
     );
 }
