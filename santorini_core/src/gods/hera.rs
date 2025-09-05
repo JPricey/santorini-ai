@@ -15,6 +15,5 @@ pub const fn build_hera() -> GodPower {
         16962623483081936195,
         6551432319336663185,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_win_mask(MIDDLE_SPACES_MASK)
 }

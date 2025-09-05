@@ -153,6 +153,5 @@ pub const fn build_graeae() -> GodPower {
         3621759432554562343,
         8641066751388211347,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_num_workers(3)
 }

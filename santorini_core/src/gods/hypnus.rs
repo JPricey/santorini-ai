@@ -43,6 +43,5 @@ pub const fn build_hypnus() -> GodPower {
         15915408769625054955,
         4326272341964757690,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_moveable_worker_filter(hypnus_moveable_worker_filter)
 }

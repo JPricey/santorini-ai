@@ -1,21 +1,12 @@
 use std::fmt::Debug;
-use std::io::Write;
 use std::path::PathBuf;
-use std::sync::mpsc::RecvTimeoutError;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use battler::{
-    BINARY_DIRECTORY, EngineSubprocess, create_log_dir, do_battle, prepare_subprocess, read_corpus,
-};
+use battler::{BINARY_DIRECTORY, create_log_dir, do_battle, prepare_subprocess, read_corpus};
 use chrono::Utc;
 use clap::Parser;
-use santorini_core::board::FullGameState;
-use santorini_core::fen::game_state_to_fen;
 use santorini_core::gods::GodName;
 use santorini_core::player::Player;
-use santorini_core::search::BestMoveTrigger;
-use santorini_core::uci_types::{BestMoveOutput, EngineOutput};
-use santorini_core::utils::timestamp_string;
 
 const DEFAULT_DURATION_SECS: f32 = 1.0;
 

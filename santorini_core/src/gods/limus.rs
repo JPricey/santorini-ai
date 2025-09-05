@@ -19,6 +19,5 @@ pub const fn build_limus() -> GodPower {
         16891272677587276158,
         7282884513832450650,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_build_mask_fn(_limus_build_mask)
 }

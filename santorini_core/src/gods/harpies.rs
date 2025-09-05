@@ -228,7 +228,6 @@ pub const fn build_harpies() -> GodPower {
         10276148328807193798,
         10430305106761659855,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }
 
 #[cfg(test)]

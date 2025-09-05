@@ -1,17 +1,20 @@
 use std::process::{Child, ChildStdin, Command, Stdio};
 
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TrySendError};
+use std::sync::{Arc, Mutex};
 
+use csv::Writer;
 use santorini_core::board::FullGameState;
 use santorini_core::fen::game_state_to_fen;
 use santorini_core::gods::GodName;
+use santorini_core::matchup::Matchup;
 use santorini_core::player::Player;
 use santorini_core::search::BestMoveTrigger;
 use santorini_core::utils::timestamp_string;
 use serde::{Deserialize, Serialize};
 
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -91,7 +94,10 @@ pub fn prepare_subprocess(log_path: &PathBuf, engine_path: &PathBuf) -> EngineSu
         for line in reader.lines() {
             match line {
                 Ok(line) => {
-                    child_msg_tx.send(line).unwrap();
+                    if let Err(err) = child_msg_tx.send(line.clone()) {
+                        eprintln!("Error sending line: {} {}", line, err);
+                        break;
+                    }
                 }
                 Err(e) => {
                     eprintln!("Error reading line: {}", e);
@@ -153,12 +159,30 @@ pub struct BattleResult {
 impl BattleResult {
     pub fn get_pretty_description(&self) -> String {
         let winner_str = match self.winning_player {
-            Player::One => format!("Won by player 1 ({} {}) after {} moves", self.god1, self.engine1, self.moves_made),
-            Player::Two => format!("Won by player 2 ({} {}) after {} moves", self.god2, self.engine2, self.moves_made),
+            Player::One => format!(
+                "Won by player 1 ({} {}) after {} moves",
+                self.god1, self.engine1, self.moves_made
+            ),
+            Player::Two => format!(
+                "Won by player 2 ({} {}) after {} moves",
+                self.god2, self.engine2, self.moves_made
+            ),
         };
 
-        format!("{:?} ({}) v {:?} ({}) - {winner_str}", self.god1, self.engine1, self.god2, self.engine2)
+        format!(
+            "{:?} ({}) v {:?} ({}) - {winner_str}",
+            self.god1, self.engine1, self.god2, self.engine2
+        )
     }
+}
+
+pub fn write_results_to_csv(results: &[BattleResult], path: &PathBuf) -> std::io::Result<()> {
+    let mut wtr = Writer::from_path(path)?;
+    for result in results {
+        wtr.serialize(result)?;
+    }
+    wtr.flush()?;
+    Ok(())
 }
 
 pub fn do_battle<'a>(
@@ -284,4 +308,70 @@ pub fn do_battle<'a>(
             };
         }
     }
+}
+
+pub fn battling_worker_thread<const RUN_BOTH_SIDES: bool>(
+    worker_idx: String,
+    matchups_queue: Arc<Mutex<Vec<Matchup>>>,
+    engine1: &PathBuf,
+    engine2: &PathBuf,
+    duration: Duration,
+    result_channel: mpsc::Sender<WorkerMessage>,
+) {
+    let now_str = timestamp_string();
+    let mut c1 = prepare_subprocess(
+        &PathBuf::from(format!(
+            "compare-{worker_idx}-{}-{}.log",
+            now_str,
+            engine1.display()
+        )),
+        &PathBuf::new().join(BINARY_DIRECTORY).join(engine1),
+    );
+    let mut c2 = prepare_subprocess(
+        &PathBuf::from(format!(
+            "compare-{worker_idx}-{}-{}.log",
+            now_str,
+            engine2.display()
+        )),
+        &PathBuf::new().join(BINARY_DIRECTORY).join(engine2),
+    );
+
+    loop {
+        let matchup = {
+            let mut queue = matchups_queue.lock().unwrap();
+            queue.pop()
+        };
+
+        match matchup {
+            Some(matchup) => {
+                let start_state = FullGameState::new_for_matchup(&matchup);
+
+                if RUN_BOTH_SIDES {
+                    let result1 = do_battle(&start_state, &mut c1, &mut c2, duration, false);
+                    let result2 = do_battle(&start_state, &mut c2, &mut c1, duration, false);
+
+                    result_channel
+                        .send(WorkerMessage::BattleResultPair((result1, result2)))
+                        .unwrap();
+                } else {
+                    let result = do_battle(&start_state, &mut c1, &mut c2, duration, false);
+                    result_channel
+                        .send(WorkerMessage::BattleResult(result))
+                        .unwrap();
+                }
+            }
+            None => {
+                break;
+            }
+        }
+    }
+
+    writeln!(c1.stdin, "quit").expect("Failed to write to stdin");
+    writeln!(c2.stdin, "quit").expect("Failed to write to stdin");
+}
+
+pub enum WorkerMessage {
+    BattleResult(BattleResult),
+    BattleResultPair((BattleResult, BattleResult)),
+    Done,
 }

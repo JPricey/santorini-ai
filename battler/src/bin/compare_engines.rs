@@ -4,16 +4,15 @@ use std::{
     time::Duration,
 };
 
-use battler::{BINARY_DIRECTORY, BattleResult, do_battle, prepare_subprocess};
+use battler::{BattleResult, WorkerMessage, battling_worker_thread, write_results_to_csv};
 use clap::Parser;
-use csv::Writer;
 use santorini_core::{
-    board::FullGameState,
     matchup::{Matchup, MatchupSelector},
+    player::Player,
     utils::timestamp_string,
 };
 
-const DEFAULT_DURATION_SECS: f32 = 1.0;
+const DEFAULT_DURATION_SECS: f32 = 0.5;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -24,74 +23,6 @@ struct Args {
 
     #[arg(short = 's', long, default_value_t = DEFAULT_DURATION_SECS)]
     secs: f32,
-}
-
-fn write_results_to_csv(results: &[BattleResult], path: &PathBuf) -> std::io::Result<()> {
-    let mut wtr = Writer::from_path(path)?;
-    for result in results {
-        wtr.serialize(result)?;
-    }
-    wtr.flush()?;
-    Ok(())
-}
-
-fn battling_worker(
-    worker_idx: String,
-    matchups_queue: Arc<Mutex<Vec<Matchup>>>,
-    engine1: &PathBuf,
-    engine2: &PathBuf,
-    duration: Duration,
-    result_channel: mpsc::Sender<WorkerMessage>,
-) {
-    let now_str = timestamp_string();
-    let mut c1 = prepare_subprocess(
-        &PathBuf::from(format!(
-            "compare-{worker_idx}-{}-{}.log",
-            now_str,
-            engine1.display()
-        )),
-        &PathBuf::new().join(BINARY_DIRECTORY).join(engine1),
-    );
-    let mut c2 = prepare_subprocess(
-        &PathBuf::from(format!(
-            "compare-{worker_idx}-{}-{}.log",
-            now_str,
-            engine2.display()
-        )),
-        &PathBuf::new().join(BINARY_DIRECTORY).join(engine2),
-    );
-
-    loop {
-        let matchup = {
-            let mut queue = matchups_queue.lock().unwrap();
-            queue.pop()
-        };
-
-        match matchup {
-            Some(matchup) => {
-                let start_state = FullGameState::new_for_matchup(&matchup);
-
-                let result1 = do_battle(&start_state, &mut c1, &mut c2, duration, false);
-                let result2 = do_battle(&start_state, &mut c2, &mut c1, duration, false);
-
-                result_channel
-                    .send(WorkerMessage::BattleResult(result1))
-                    .unwrap();
-                result_channel
-                    .send(WorkerMessage::BattleResult(result2))
-                    .unwrap();
-            }
-            None => {
-                break;
-            }
-        }
-    }
-}
-
-pub enum WorkerMessage {
-    BattleResult(BattleResult),
-    BattleResultPair((BattleResult, BattleResult)),
-    Done,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -123,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let engine2 = PathBuf::from(&args.engine2);
         let duration = Duration::from_secs_f32(args.secs);
         std::thread::spawn(move || {
-            battling_worker(
+            battling_worker_thread::<true>(
                 worker_idx.to_string(),
                 matchups_queue,
                 &engine1,
@@ -157,6 +88,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             WorkerMessage::BattleResultPair((a, b)) => {
                 eprintln!("{}", a.get_pretty_description());
                 eprintln!("{}", b.get_pretty_description());
+                if a.winning_player != b.winning_player {
+                    let winning_engine = if a.winning_player == Player::One {
+                        &a.engine1
+                    } else {
+                        &a.engine2
+                    };
+                    let matchup = Matchup::new(a.god1, a.god2);
+                    eprintln!(
+                        "!!! Matchup {} won on both sides by {}",
+                        matchup, winning_engine
+                    );
+                }
                 all_results.push(a.clone());
                 all_results.push(b.clone());
                 write_results_to_csv(&all_results, &PathBuf::from("tmp/engine_cmp.csv"))?;
@@ -179,4 +122,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-// cargo run -p battler --bin fully_compare -r -- -e v101 -E v102
+// cargo run -p battler --bin compare_engines -r -- -e v101 -E v102

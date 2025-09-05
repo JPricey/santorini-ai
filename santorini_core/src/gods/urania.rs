@@ -168,5 +168,4 @@ pub const fn build_urania() -> GodPower {
         9064977946056493903,
         14574722042933820831,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }
