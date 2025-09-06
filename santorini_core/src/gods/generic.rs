@@ -261,3 +261,5 @@ impl GodMove for WorkerPlacement {
         self.0 as usize
     }
 }
+
+

@@ -1,16 +1,17 @@
 use crate::{
-    add_scored_move,
     bitboard::BitBoard,
-    board::BoardState,
-    build_god_power_movers, build_power_move_generator,
+    board::{BoardState, FullGameState},
+    build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            NULL_MOVE_DATA, POSITION_WIDTH,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        move_helpers::{build_scored_move, make_build_only_power_generator},
     },
+    player::Player,
     square::Square,
 };
 
@@ -182,60 +183,63 @@ impl GodMove for AtlasMove {
     }
 }
 
-build_power_move_generator!(
-    atlas_move_gen,
-    build_winning_move: AtlasMove::new_winning_move,
-    state: state,
-    is_include_score: is_include_score,
-    is_check: is_check,
-    is_improving: is_improving,
-    exactly_level_1: exactly_level_1,
-    exactly_level_2: exactly_level_2,
-    exactly_level_3: exactly_level_3,
-    worker_start_pos: worker_start_pos,
-    worker_end_pos: worker_end_pos,
-    all_possible_builds: all_possible_builds,
-    narrowed_builds: narrowed_builds,
-    reach_board: reach_board,
-    unblocked_squares: unblocked_squares,
-    result: result,
-    building_block: {
-        for worker_build_pos in narrowed_builds {
-            let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-            let worker_build_height = state.board.get_height(worker_build_pos);
+fn atlas_move_gen<const F: MoveGenFlags>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    make_build_only_power_generator::<F, _, _, _>(
+        state,
+        player,
+        key_squares,
+        AtlasMove::new_winning_move,
+        |context| {
+            for worker_build_pos in context.worker_next_build_state.narrowed_builds {
+                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                let worker_build_height = state.board.get_height(worker_build_pos);
 
-            {
-                let new_action = AtlasMove::new_basic_move(
-                    worker_start_pos,
-                    worker_end_pos,
-                    worker_build_pos,
-                );
-                let is_check = {
-                    let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask);
-                    let check_board = reach_board & final_level_3;
-                    check_board.is_not_empty()
-                };
-                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
-            }
+                {
+                    let new_action = AtlasMove::new_basic_move(
+                        context.worker_start_state.worker_start_pos,
+                        context.worker_end_state.worker_end_pos,
+                        worker_build_pos,
+                    );
+                    let is_check = {
+                        let final_level_3 = (context.prelude.exactly_level_2 & worker_build_mask)
+                            | (context.prelude.exactly_level_3 & !worker_build_mask);
+                        let check_board = context.reach_board & final_level_3;
+                        check_board.is_not_empty()
+                    };
 
-            if worker_build_height < 3 {
-                let new_action = AtlasMove::new_dome_build_move(
-                    worker_start_pos,
-                    worker_end_pos,
-                    worker_build_pos,
-                );
-                let is_check = {
-                    let final_level_3 = exactly_level_3 & !worker_build_mask;
-                    let check_board = reach_board & final_level_3;
-                    check_board.is_not_empty()
-                };
-                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+                    context.result.push(build_scored_move::<F, _>(
+                        new_action,
+                        is_check,
+                        context.worker_end_state.is_improving,
+                    ))
+                }
+
+                if worker_build_height < 3 {
+                    let new_action = AtlasMove::new_dome_build_move(
+                        context.worker_start_state.worker_start_pos,
+                        context.worker_end_state.worker_end_pos,
+                        worker_build_pos,
+                    );
+                    let is_check = {
+                        let final_level_3 = context.prelude.exactly_level_3 & !worker_build_mask;
+                        let check_board = context.reach_board & final_level_3;
+                        check_board.is_not_empty()
+                    };
+
+                    context.result.push(build_scored_move::<F, _>(
+                        new_action,
+                        is_check,
+                        context.worker_end_state.is_improving,
+                    ))
+                }
             }
-        }
-    },
-    extra_init: (),
-);
+        },
+    )
+}
 
 pub const fn build_atlas() -> GodPower {
     god_power(

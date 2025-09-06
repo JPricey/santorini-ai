@@ -1,8 +1,7 @@
 use crate::{
-    add_scored_move,
     bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
-    build_god_power_movers, build_parse_flags,
+    build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
@@ -11,10 +10,14 @@ use crate::{
         },
         god_power,
         harpies::slide_position,
+        move_helpers::{
+            build_scored_move, get_generator_prelude_state, get_sized_result,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            is_stop_on_mate, modify_prelude_for_checking_workers,
+        },
     },
     player::Player,
     square::Square,
-    variable_prelude,
 };
 
 use super::PartialAction;
@@ -186,68 +189,35 @@ impl GodMove for ApolloMove {
     }
 }
 
-fn apollo_move_gen<const F: MoveGenFlags>(
+pub(super) fn apollo_move_gen<const F: MoveGenFlags>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    build_parse_flags!(
-        is_mate_only,
-        is_include_score,
-        is_stop_on_mate,
-        is_interact_with_key_squares
-    );
+    let mut result = get_sized_result::<F>();
+    let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let checkable_mask = prelude.exactly_level_2;
+    modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    variable_prelude!(
-       state:  state,
-       player:  player,
-       board:  board,
-       other_player:  other_player,
-       current_player_idx:  current_player_idx,
-       other_player_idx:  other_player_idx,
-       other_god:  other_god,
-       exactly_level_0:  exactly_level_0,
-       exactly_level_1:  exactly_level_1,
-       exactly_level_2:  exactly_level_2,
-       exactly_level_3:  exactly_level_3,
-       domes:  domes,
-       win_mask:  win_mask,
-       build_mask: build_mask,
-       is_against_hypnus: is_against_hypnus,
-       is_against_harpies: is_against_harpies,
-       own_workers:  own_workers,
-       oppo_workers:  oppo_workers,
-       result:  result,
-       all_workers_mask:  _all_workers_mask,
-       is_mate_only:  is_mate_only,
-       acting_workers:  acting_workers,
-       checkable_worker_positions_mask:  checkable_worker_positions_mask,
-    );
+    for worker_start_pos in prelude.acting_workers {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-    for worker_start_pos in acting_workers.into_iter() {
-        let worker_start_mask = BitBoard::as_mask(worker_start_pos);
-        let worker_start_height = board.get_height(worker_start_pos);
+        let mut worker_moves = NEIGHBOR_MAP[worker_start_state.worker_start_pos as usize]
+            & !(prelude.board.height_map[prelude
+                .board
+                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
+                | worker_start_state.other_own_workers);
 
-        let other_own_workers = own_workers ^ worker_start_mask;
-        let other_threatening_workers = other_own_workers & checkable_worker_positions_mask;
-
-        let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
-
-        let mut worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
-            & !(board.height_map[board.get_worker_climb_height(player, worker_start_height)]
-                | own_workers);
-
-        if is_mate_only || worker_start_height == 2 {
-            let moves_to_level_3 = worker_moves & exactly_level_3 & win_mask;
-            worker_moves ^= moves_to_level_3;
+        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
 
             for worker_end_pos in moves_to_level_3.into_iter() {
-                let swap_square = if (BitBoard::as_mask(worker_end_pos) & oppo_workers).is_empty() {
-                    None
-                } else {
-                    Some(worker_end_pos)
-                };
+                let swap_square =
+                    if (BitBoard::as_mask(worker_end_pos) & prelude.oppo_workers).is_empty() {
+                        None
+                    } else {
+                        Some(worker_end_pos)
+                    };
                 let winning_move = ScoredMove::new_winning_move(
                     ApolloMove::new_apollo_winning_move(
                         worker_start_pos,
@@ -257,69 +227,78 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                     .into(),
                 );
                 result.push(winning_move);
-                if is_stop_on_mate {
+                if is_stop_on_mate::<F>() {
                     return result;
                 }
             }
+
+            worker_moves ^= moves_to_level_3;
         }
 
-        if is_mate_only {
+        if is_mate_only::<F>() {
             continue;
         }
 
-        for initial_worker_end_pos in worker_moves.into_iter() {
-            let mut worker_end_pos = initial_worker_end_pos;
+        let other_threatening_workers =
+            worker_start_state.other_own_workers & prelude.exactly_level_2;
+        let other_threatening_neighbors =
+            apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
+
+        for mut worker_end_pos in worker_moves {
             let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
 
-            let is_swap = (BitBoard::as_mask(worker_end_pos) & oppo_workers).is_not_empty();
-            let mut final_other_workers = oppo_workers;
-            let mut final_build_mask = build_mask;
+            let is_swap = (BitBoard::as_mask(worker_end_pos) & prelude.oppo_workers).is_not_empty();
+            let mut final_other_workers = prelude.oppo_workers;
+            let mut final_build_mask = prelude.build_mask;
             let mut swap_square = None;
 
             let mut swap_mask = BitBoard::EMPTY;
             if is_swap {
-                final_other_workers ^= worker_end_mask | worker_start_mask;
-                final_build_mask = other_god.get_build_mask(final_other_workers) | exactly_level_3;
+                final_other_workers ^= worker_end_mask | worker_start_state.worker_start_mask;
+                final_build_mask =
+                    prelude.other_god.get_build_mask(final_other_workers) | prelude.exactly_level_3;
                 swap_square = Some(worker_end_pos);
                 swap_mask = BitBoard::as_mask(worker_end_pos);
             }
 
-            if is_against_harpies {
-                worker_end_pos = slide_position(&board, worker_start_pos, worker_end_pos);
+            if prelude.is_against_harpies {
+                worker_end_pos = slide_position(&prelude.board, worker_start_pos, worker_end_pos);
                 worker_end_mask = BitBoard::as_mask(worker_end_pos);
             }
 
-            let worker_end_height = board.get_height(worker_end_pos);
-            let is_improving = worker_end_height > worker_start_height;
-            let is_now_lvl_2 = (worker_end_height == 2) as usize;
+            let worker_end_height = prelude.board.get_height(worker_end_pos);
+            let is_improving = worker_end_height > worker_start_state.worker_start_height;
+            let is_now_lvl_2 = (worker_end_height == 2) as u32;
 
-            let self_blockers = domes | other_own_workers | worker_end_mask;
+            let self_blockers =
+                prelude.domes | worker_start_state.other_own_workers | worker_end_mask;
             let unblocked_squares_for_builds = !(self_blockers | final_other_workers);
             let unblocked_squares_for_checks = !self_blockers;
 
             let end_neighbors = NEIGHBOR_MAP[worker_end_pos as usize];
             let mut worker_builds = end_neighbors & unblocked_squares_for_builds & final_build_mask;
 
-            if is_interact_with_key_squares {
-                if ((worker_start_mask & BitBoard::CONDITIONAL_MASK[is_swap as usize]
+            if is_interact_with_key_squares::<F>() {
+                if ((worker_start_state.worker_start_mask
+                    & BitBoard::CONDITIONAL_MASK[is_swap as usize]
                     | worker_end_mask
                     | swap_mask)
                     & key_squares)
                     .is_empty()
                 {
-                    worker_builds = worker_builds & key_squares;
+                    worker_builds &= key_squares;
                 }
             }
 
-            let reach_board = if is_against_hypnus
-                && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
+            let reach_board = if prelude.is_against_hypnus
+                && (other_threatening_workers.count_ones() + is_now_lvl_2) < 2
             {
                 BitBoard::EMPTY
             } else {
                 (other_threatening_neighbors
-                    | (end_neighbors & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                    | (end_neighbors & BitBoard::CONDITIONAL_MASK[is_now_lvl_2 as usize]))
                     & unblocked_squares_for_checks
-                    & win_mask
+                    & prelude.win_mask
             };
 
             for worker_build_pos in worker_builds {
@@ -331,13 +310,17 @@ fn apollo_move_gen<const F: MoveGenFlags>(
                     swap_square,
                 );
                 let is_check = {
-                    let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask);
+                    let final_level_3 = (prelude.exactly_level_2 & worker_build_mask)
+                        | (prelude.exactly_level_3 & !worker_build_mask);
                     let check_board = reach_board & final_level_3;
                     check_board.is_not_empty()
                 };
 
-                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    is_improving,
+                ))
             }
         }
     }

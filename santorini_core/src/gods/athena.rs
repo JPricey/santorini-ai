@@ -1,16 +1,23 @@
 use crate::{
-    add_scored_move, after_move_power_generator,
     bitboard::BitBoard,
-    board::BoardState,
-    build_building_masks, build_god_power_movers,
+    board::{BoardState, FullGameState},
+    build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            NULL_MOVE_DATA, POSITION_WIDTH,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        harpies::slide_position,
+        move_helpers::{
+            WorkerEndMoveState, build_scored_move, get_generator_prelude_state, get_sized_result,
+            get_standard_reach_board, get_worker_next_build_state_with_is_matched,
+            get_worker_next_move_state, get_worker_start_move_state, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
+        },
     },
+    player::Player,
     square::Square,
 };
 
@@ -170,89 +177,112 @@ impl GodMove for AthenaMove {
     }
 }
 
-after_move_power_generator!(
-    athena_move_gen,
-    build_winning_move: AthenaMove::new_winning_move,
-    state: state,
-    player: player,
-    board: board,
-    is_include_score: is_include_score,
-    is_interact_with_key_squares: is_interact_with_key_squares,
-    key_squares: key_squares,
-    is_against_hypnus: is_against_hypnus,
-    is_against_harpies: is_against_harpies,
-    is_check: is_check,
-    is_improving: is_improving,
-    exactly_level_1: exactly_level_1,
-    exactly_level_2: exactly_level_2,
-    exactly_level_3: exactly_level_3,
-    domes: domes,
-    win_mask: win_mask,
-    build_mask: build_mask,
-    worker_start_pos: worker_start_pos,
-    worker_start_mask: worker_start_mask,
-    worker_end_pos: worker_end_pos,
-    worker_end_mask: worker_end_mask,
-    worker_end_height: worker_end_height,
-    non_moving_workers: non_moving_workers,
-    all_possible_builds: all_possible_builds,
-    narrowed_builds: narrowed_builds,
-    reach_board: reach_board,
-    unblocked_squares: unblocked_squares,
-    other_threatening_workers: other_threatening_workers,
-    other_threatening_neighbors: other_threatening_neighbors,
-    is_now_lvl_2: is_now_lvl_2,
-    result: result,
-    extra_init: let did_not_improve_last_turn = board.get_worker_can_climb(!player),
-    move_block: {
-        let unblocked_squares = !(non_moving_workers | worker_end_mask | domes);
+pub(super) fn athena_move_gen<const F: MoveGenFlags>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    let mut result = get_sized_result::<F>();
+    let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let checkable_mask = prelude.exactly_level_2;
+    modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-        build_building_masks!(
-            worker_end_pos: worker_end_pos,
-            open_squares: unblocked_squares,
-            build_mask: build_mask,
-            is_interact_with_key_squares: is_interact_with_key_squares,
-            key_squares_expr: (!is_improving && (worker_end_mask & key_squares).is_empty()),
-            key_squares: key_squares,
+    let did_not_improve_last_turn = prelude.board.get_worker_can_climb(!player);
 
-            all_possible_builds: all_possible_builds,
-            narrowed_builds: narrowed_builds,
-            worker_plausible_next_moves: worker_plausible_next_moves,
-        );
+    for worker_start_pos in prelude.acting_workers {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
+        let mut worker_next_moves =
+            get_worker_next_move_state(&prelude, &worker_start_state, checkable_mask);
 
-        let reach_board = if is_against_hypnus
-            && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
-        {
-            BitBoard::EMPTY
-        } else {
-            (other_threatening_neighbors
-                | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
-                & win_mask
-                & unblocked_squares
-        };
-
-        for worker_build_pos in narrowed_builds {
-            let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-            let new_action = AthenaMove::new_athena_move(
+        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            let moves_to_level_3 =
+                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+            if push_winning_moves::<F, AthenaMove, _>(
+                &mut result,
                 worker_start_pos,
-                worker_end_pos,
-                worker_build_pos,
-                is_improving,
-                is_improving == did_not_improve_last_turn,
-            );
+                moves_to_level_3,
+                AthenaMove::new_winning_move,
+            ) {
+                return result;
+            }
+            worker_next_moves.worker_moves ^= moves_to_level_3;
+        }
 
-            let is_check = {
-                let final_level_3 = (exactly_level_2 & worker_build_mask)
-                    | (exactly_level_3 & !worker_build_mask);
-                let check_board =
-                    reach_board & final_level_3;
-                check_board.is_not_empty()
+        if F & super::generic::MATE_ONLY != 0 {
+            continue;
+        }
+
+        for mut worker_end_pos in worker_next_moves.worker_moves {
+            let worker_end_height;
+            let is_improving;
+            let is_improving_for_power;
+            if prelude.is_against_harpies {
+                is_improving_for_power = prelude.board.get_height(worker_end_pos)
+                    > worker_start_state.worker_start_height;
+                worker_end_pos = slide_position(
+                    prelude.board,
+                    worker_start_state.worker_start_pos,
+                    worker_end_pos,
+                );
+
+                worker_end_height = prelude.board.get_height(worker_end_pos);
+                is_improving = worker_end_height > worker_start_state.worker_start_height;
+            } else {
+                worker_end_height = prelude.board.get_height(worker_end_pos);
+                is_improving = worker_end_height > worker_start_state.worker_start_height;
+                is_improving_for_power = is_improving;
+            }
+
+            let worker_end_move_state = WorkerEndMoveState {
+                worker_end_pos,
+                worker_end_height,
+                is_improving,
+                worker_end_mask: BitBoard::as_mask(worker_end_pos),
+                is_now_lvl_2: (worker_end_height == 2) as u32,
             };
 
-            add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+            let worker_next_build_state = get_worker_next_build_state_with_is_matched::<F>(
+                &prelude,
+                &worker_start_state,
+                &worker_end_move_state,
+                is_improving_for_power
+                    || (worker_end_move_state.worker_end_mask & key_squares).is_not_empty(),
+            );
+
+            let reach_board = get_standard_reach_board::<F>(
+                &prelude,
+                &worker_next_moves,
+                &worker_end_move_state,
+                worker_next_build_state.unblocked_squares,
+            );
+
+            for worker_build_pos in worker_next_build_state.narrowed_builds {
+                let new_action = AthenaMove::new_athena_move(
+                    worker_start_pos,
+                    worker_end_move_state.worker_end_pos,
+                    worker_build_pos,
+                    is_improving_for_power,
+                    is_improving_for_power == did_not_improve_last_turn,
+                );
+                let is_check = {
+                    let final_level_3 = (prelude.exactly_level_2
+                        & BitBoard::as_mask(worker_build_pos))
+                        | (prelude.exactly_level_3 & !BitBoard::as_mask(worker_build_pos));
+                    let check_board = reach_board & final_level_3;
+                    check_board.is_not_empty()
+                };
+
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    worker_end_move_state.is_improving,
+                ))
+            }
         }
     }
-);
+
+    result
+}
 
 pub const fn build_athena() -> GodPower {
     god_power(

@@ -11,7 +11,6 @@ use santorini_core::{
     utils::SEARCH_TEST_SCENARIOS,
 };
 
-// const MAX_SECS_PER_TEST: Duration = Cur
 const TUNE_UNTIL_ABOVE_SECS: Duration = Duration::from_secs(2);
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -177,9 +176,9 @@ pub fn main() {
 // cargo run -p santorini_core --bin visit_tester --release -- -g artemis -r 7 -m 4
 // Nodes Visited: 15354454 Duration sum: 10.55
 // cargo run -p santorini_core --bin visit_tester --release -- -g hephaestus -r 0 -m 4
-// Nodes Visited: 10514231 Duration sum: 6.02
+// Nodes Visited: 10007272 Duration sum: 5.79
 // cargo run -p santorini_core --bin visit_tester --release -- -g atlas -r 6 -m 4
-// Nodes Visited: 21993972 Duration sum: 12.15
+// Nodes Visited: 28070176 Duration sum: 15.19
 // cargo run -p santorini_core --bin visit_tester --release -- -g athena -r 7 -m 4
 // Nodes Visited: 30654927 Duration sum: 16.35
 // cargo run -p santorini_core --bin visit_tester --release -- -g minotaur -r 17 -m 6

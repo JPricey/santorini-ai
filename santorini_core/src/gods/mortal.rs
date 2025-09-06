@@ -1,16 +1,22 @@
 use crate::{
-    add_scored_move,
     bitboard::BitBoard,
-    board::BoardState,
-    build_god_power_movers, build_power_move_generator,
+    board::{BoardState, FullGameState},
+    build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            NULL_MOVE_DATA, POSITION_WIDTH,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        move_helpers::{
+            build_scored_move, get_generator_prelude_state, get_sized_result,
+            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
+            get_worker_next_move_state, get_worker_start_move_state, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
+        },
     },
+    player::Player,
     square::Square,
 };
 
@@ -149,44 +155,79 @@ impl std::fmt::Debug for MortalMove {
     }
 }
 
-build_power_move_generator!(
-    mortal_move_gen,
-    build_winning_move: MortalMove::new_winning_move,
-    state: state,
-    is_include_score: is_include_score,
-    is_check: is_check,
-    is_improving: is_improving,
-    exactly_level_1: exactly_level_1,
-    exactly_level_2: exactly_level_2,
-    exactly_level_3: exactly_level_3,
-    worker_start_pos: worker_start_pos,
-    worker_end_pos: worker_end_pos,
-    all_possible_builds: all_possible_builds,
-    narrowed_builds: narrowed_builds,
-    reach_board: reach_board,
-    unblocked_squares: unblocked_squares,
-    result: result,
-    building_block: {
-        for worker_build_pos in narrowed_builds {
-            let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+pub(super) fn mortal_move_gen<const F: MoveGenFlags>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    let mut result = get_sized_result::<F>();
+    let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let checkable_mask = prelude.exactly_level_2;
+    modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-            let new_action = MortalMove::new_basic_move(
+    for worker_start_pos in prelude.acting_workers {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
+        let mut worker_next_moves =
+            get_worker_next_move_state(&prelude, &worker_start_state, checkable_mask);
+
+        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            let moves_to_level_3 =
+                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+            if push_winning_moves::<F, MortalMove, _>(
+                &mut result,
                 worker_start_pos,
-                worker_end_pos,
-                worker_build_pos,
-            );
-            let is_check = {
-                let final_level_3 = (exactly_level_2 & worker_build_mask)
-                    | (exactly_level_3 & !worker_build_mask);
-                let check_board = reach_board & final_level_3;
-                check_board.is_not_empty()
-            };
-
-            add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+                moves_to_level_3,
+                MortalMove::new_winning_move,
+            ) {
+                return result;
+            }
+            worker_next_moves.worker_moves ^= moves_to_level_3;
         }
-    },
-    extra_init: (),
-);
+
+        if is_mate_only::<F>() {
+            continue;
+        }
+
+        for worker_end_pos in worker_next_moves.worker_moves {
+            let worker_end_move_state =
+                get_worker_end_move_state::<F>(&prelude, &worker_start_state, worker_end_pos);
+            let worker_next_build_state = get_worker_next_build_state::<F>(
+                &prelude,
+                &worker_start_state,
+                &worker_end_move_state,
+            );
+            let reach_board = get_standard_reach_board::<F>(
+                &prelude,
+                &worker_next_moves,
+                &worker_end_move_state,
+                worker_next_build_state.unblocked_squares,
+            );
+
+            for worker_build_pos in worker_next_build_state.narrowed_builds {
+                let new_action = MortalMove::new_basic_move(
+                    worker_start_pos,
+                    worker_end_move_state.worker_end_pos,
+                    worker_build_pos,
+                );
+                let is_check = {
+                    let final_level_3 = (prelude.exactly_level_2
+                        & BitBoard::as_mask(worker_build_pos))
+                        | (prelude.exactly_level_3 & !BitBoard::as_mask(worker_build_pos));
+                    let check_board = reach_board & final_level_3;
+                    check_board.is_not_empty()
+                };
+
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    worker_end_move_state.is_improving,
+                ))
+            }
+        }
+    }
+
+    result
+}
 
 pub const fn build_mortal() -> GodPower {
     god_power(

@@ -30,6 +30,7 @@ pub mod mortal;
 pub mod pan;
 pub mod prometheus;
 pub mod urania;
+pub mod move_helpers;
 
 pub type StaticGod = &'static GodPower;
 

@@ -1,9 +1,20 @@
 use crate::{
-    add_scored_move, after_move_power_generator,
     bitboard::{BitBoard, NUM_SQUARES, PUSH_MAPPING, WRAPPING_NEIGHBOR_MAP},
-    board::BoardState,
-    build_building_masks, build_god_power_movers,
-    gods::{GodName, GodPower, build_god_power_actions, god_power, mortal::MortalMove},
+    board::{BoardState, FullGameState},
+    build_god_power_movers,
+    gods::{
+        GodName, GodPower, build_god_power_actions,
+        generic::{MoveGenFlags, ScoredMove},
+        god_power,
+        mortal::MortalMove,
+        move_helpers::{
+            build_scored_move, get_generator_prelude_state, get_sized_result,
+            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
+            get_worker_next_move_state, get_worker_start_move_state, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
+        },
+    },
+    player::Player,
     square::Square,
 };
 
@@ -133,92 +144,86 @@ pub fn slide_position_with_custom_worker_blocker(
 }
 
 // Same as mortal, except for custom key moves logic vs artemis
-after_move_power_generator!(
-    harpies_move_gen,
-    build_winning_move: MortalMove::new_winning_move,
-    state: state,
-    player: player,
-    board: board,
-    is_include_score: is_include_score,
-    is_interact_with_key_squares: is_interact_with_key_squares,
-    key_squares: key_squares,
-    is_against_hypnus: is_against_hypnus,
-    is_against_harpies: is_against_harpies,
-    is_check: is_check,
-    is_improving: is_improving,
-    exactly_level_1: exactly_level_1,
-    exactly_level_2: exactly_level_2,
-    exactly_level_3: exactly_level_3,
-    domes: domes,
-    win_mask: win_mask,
-    build_mask: build_mask,
-    worker_start_pos: worker_start_pos,
-    worker_start_mask: worker_start_mask,
-    worker_end_pos: worker_end_pos,
-    worker_end_mask: worker_end_mask,
-    worker_end_height: worker_end_height,
-    non_moving_workers: non_moving_workers,
-    all_possible_builds: all_possible_builds,
-    narrowed_builds: narrowed_builds,
-    reach_board: reach_board,
-    unblocked_squares: unblocked_squares,
-    other_threatening_workers: other_threatening_workers,
-    other_threatening_neighbors: other_threatening_neighbors,
-    is_now_lvl_2: is_now_lvl_2,
-    result: result,
-    extra_init: let final_key_squares = if state.gods[!player as usize].god_name == GodName::Artemis {
-        // artemis can do some crazy stuff... just try everything
+pub fn harpies_move_gen<const F: MoveGenFlags>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    // Block detection vs artemis can get pretty complicated... just try every move
+    let final_key_squares = if state.gods[!player as usize].god_name == GodName::Artemis {
         BitBoard::MAIN_SECTION_MASK
     } else {
         key_squares
-    },
-    move_block: {
-        let unblocked_squares = !(non_moving_workers | worker_end_mask | domes);
+    };
 
-        build_building_masks!(
-            worker_end_pos: worker_end_pos,
-            open_squares: unblocked_squares,
-            build_mask: build_mask,
-            is_interact_with_key_squares: is_interact_with_key_squares,
-            key_squares_expr: ((worker_end_mask | worker_start_mask) & final_key_squares).is_empty(),
-            key_squares: final_key_squares,
+    let mut result = get_sized_result::<F>();
+    let mut prelude = get_generator_prelude_state::<F>(state, player, final_key_squares);
+    let checkable_mask = prelude.exactly_level_2;
+    modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-            all_possible_builds: all_possible_builds,
-            narrowed_builds: narrowed_builds,
-            worker_plausible_next_moves: worker_plausible_next_moves,
-        );
+    for worker_start_pos in prelude.acting_workers {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
+        let mut worker_next_moves =
+            get_worker_next_move_state(&prelude, &worker_start_state, checkable_mask);
 
-        let reach_board = if is_against_hypnus
-            && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
-        {
-            BitBoard::EMPTY
-        } else {
-            (other_threatening_neighbors
-                | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
-                & win_mask
-                & unblocked_squares
-        };
-
-        for worker_build_pos in narrowed_builds {
-            let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-            let new_action = MortalMove::new_basic_move(
+        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            let moves_to_level_3 =
+                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+            if push_winning_moves::<F, MortalMove, _>(
+                &mut result,
                 worker_start_pos,
-                worker_end_pos,
-                worker_build_pos,
+                moves_to_level_3,
+                MortalMove::new_winning_move,
+            ) {
+                return result;
+            }
+            worker_next_moves.worker_moves ^= moves_to_level_3;
+        }
+
+        if is_mate_only::<F>() {
+            continue;
+        }
+
+        for worker_end_pos in worker_next_moves.worker_moves {
+            let worker_end_move_state =
+                get_worker_end_move_state::<F>(&prelude, &worker_start_state, worker_end_pos);
+            let worker_next_build_state = get_worker_next_build_state::<F>(
+                &prelude,
+                &worker_start_state,
+                &worker_end_move_state,
+            );
+            let reach_board = get_standard_reach_board::<F>(
+                &prelude,
+                &worker_next_moves,
+                &worker_end_move_state,
+                worker_next_build_state.unblocked_squares,
             );
 
-            let is_check = {
-                let final_level_3 = (exactly_level_2 & worker_build_mask)
-                    | (exactly_level_3 & !worker_build_mask);
-                let check_board =
-                    reach_board & final_level_3;
-                check_board.is_not_empty()
-            };
+            for worker_build_pos in worker_next_build_state.narrowed_builds {
+                let new_action = MortalMove::new_basic_move(
+                    worker_start_pos,
+                    worker_end_move_state.worker_end_pos,
+                    worker_build_pos,
+                );
+                let is_check = {
+                    let final_level_3 = (prelude.exactly_level_2
+                        & BitBoard::as_mask(worker_build_pos))
+                        | (prelude.exactly_level_3 & !BitBoard::as_mask(worker_build_pos));
+                    let check_board = reach_board & final_level_3;
+                    check_board.is_not_empty()
+                };
 
-            add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    worker_end_move_state.is_improving,
+                ))
+            }
         }
     }
-);
+
+    result
+}
 
 pub const fn build_harpies() -> GodPower {
     god_power(

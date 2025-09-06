@@ -1,20 +1,23 @@
 use crate::{
-    add_scored_move,
     bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
     board::{BoardState, FullGameState},
-    build_god_power_movers, build_parse_flags,
+    build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
-            GenericMove, GodMove, LOWER_POSITION_MASK, MATE_ONLY, MOVE_IS_WINNING_MASK, MoveData,
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
         harpies::slide_position,
+        move_helpers::{
+            build_scored_move, get_generator_prelude_state, get_sized_result,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            is_stop_on_mate, modify_prelude_for_checking_workers,
+        },
     },
     player::Player,
     square::Square,
-    variable_prelude,
 };
 
 use super::PartialAction;
@@ -215,114 +218,87 @@ impl GodMove for MinotaurMove {
     }
 }
 
-fn minotaur_move_gen<const F: MoveGenFlags>(
+pub(super) fn minotaur_move_gen<const F: MoveGenFlags>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    build_parse_flags!(
-        is_mate_only,
-        is_include_score,
-        is_stop_on_mate,
-        is_interact_with_key_squares
-    );
+    let mut result = get_sized_result::<F>();
+    let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let checkable_mask = prelude.exactly_level_2;
+    modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    variable_prelude!(
-       state:  state,
-       player:  player,
-       board:  board,
-       other_player:  other_player,
-       current_player_idx:  current_player_idx,
-       other_player_idx:  other_player_idx,
-       other_god:  other_god,
-       exactly_level_0:  exactly_level_0,
-       exactly_level_1:  exactly_level_1,
-       exactly_level_2:  exactly_level_2,
-       exactly_level_3:  exactly_level_3,
-       domes:  domes,
-       win_mask:  win_mask,
-       build_mask: build_mask,
-       is_against_hypnus: is_against_hypnus,
-       is_against_harpies: is_against_harpies,
-       own_workers:  own_workers,
-       oppo_workers:  oppo_workers,
-       result:  result,
-       all_workers_mask:  all_workers_mask,
-       is_mate_only:  is_mate_only,
-       acting_workers:  acting_workers,
-       checkable_worker_positions_mask:  checkable_worker_positions_mask,
-    );
-    let blocked_squares = all_workers_mask | domes;
+    let blocked_squares = prelude.all_workers_mask | prelude.domes;
 
-    for moving_worker_start_pos in acting_workers.into_iter() {
-        let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
-        let worker_starting_height = board.get_height(moving_worker_start_pos);
+    for worker_start_pos in prelude.acting_workers {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let other_own_workers = own_workers ^ moving_worker_start_mask;
+        let mut worker_moves = NEIGHBOR_MAP[worker_start_state.worker_start_pos as usize]
+            & !(prelude.board.height_map[prelude
+                .board
+                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
+                | worker_start_state.other_own_workers);
 
-        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
-            & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
-                | own_workers);
-
-        if F & MATE_ONLY != 0 || worker_starting_height == 2 {
-            let moves_to_level_3 = worker_moves & exactly_level_3 & win_mask;
-            worker_moves ^= moves_to_level_3;
+        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
 
             for worker_end_pos in moves_to_level_3.into_iter() {
                 let moving_worker_end_mask = BitBoard::as_mask(worker_end_pos);
-                if (moving_worker_end_mask & oppo_workers).is_not_empty() {
-                    if let Some(push_to) =
-                        PUSH_MAPPING[moving_worker_start_pos as usize][worker_end_pos as usize]
+                if (moving_worker_end_mask & prelude.oppo_workers).is_not_empty() {
+                    if let Some(push_to) = PUSH_MAPPING
+                        [worker_start_state.worker_start_pos as usize]
+                        [worker_end_pos as usize]
                     {
                         let push_to_mask = BitBoard::as_mask(push_to);
                         if (push_to_mask & blocked_squares).is_empty() {
                             let winning_move = ScoredMove::new_winning_move(
                                 MinotaurMove::new_minotaur_winning_push_move(
-                                    moving_worker_start_pos,
+                                    worker_start_state.worker_start_pos,
                                     worker_end_pos,
                                     push_to,
                                 )
                                 .into(),
                             );
                             result.push(winning_move);
-                            if is_stop_on_mate {
+                            if is_stop_on_mate::<F>() {
                                 return result;
                             }
                         }
                     }
                 } else {
                     let winning_move = ScoredMove::new_winning_move(
-                        MinotaurMove::new_winning_move(moving_worker_start_pos, worker_end_pos)
-                            .into(),
+                        MinotaurMove::new_winning_move(
+                            worker_start_state.worker_start_pos,
+                            worker_end_pos,
+                        )
+                        .into(),
                     );
                     result.push(winning_move);
-                    if is_stop_on_mate {
+                    if is_stop_on_mate::<F>() {
                         return result;
                     }
                 }
             }
+
+            worker_moves ^= moves_to_level_3;
         }
 
-        if is_mate_only {
+        if is_mate_only::<F>() {
             continue;
         }
 
-        let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let all_buildable_squares = !(non_selected_workers | domes);
-
-        for worker_end_pos in worker_moves.into_iter() {
-            let mut worker_end_pos = worker_end_pos;
-            let mut moving_worker_end_mask = BitBoard::as_mask(worker_end_pos);
+        for mut worker_end_pos in worker_moves {
+            let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
 
             let mut push_to_spot: Option<Square> = None;
             let mut push_to_mask = BitBoard::EMPTY;
 
-            let mut final_build_mask = build_mask;
-            let mut other_workers_post_push = oppo_workers;
+            let mut final_build_mask = prelude.build_mask;
+            let mut other_workers_post_push = prelude.oppo_workers;
 
-            if (moving_worker_end_mask & oppo_workers).is_not_empty() {
-                if let Some(push_to) =
-                    PUSH_MAPPING[moving_worker_start_pos as usize][worker_end_pos as usize]
+            if (worker_end_mask & prelude.oppo_workers).is_not_empty() {
+                if let Some(push_to) = PUSH_MAPPING[worker_start_state.worker_start_pos as usize]
+                    [worker_end_pos as usize]
                 {
                     let tmp_push_to_mask = BitBoard::as_mask(push_to);
                     if (tmp_push_to_mask & blocked_squares).is_empty() {
@@ -330,9 +306,10 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                         push_to_mask = tmp_push_to_mask;
 
                         other_workers_post_push =
-                            oppo_workers ^ push_to_mask ^ moving_worker_end_mask;
+                            prelude.oppo_workers ^ push_to_mask ^ worker_end_mask;
                         final_build_mask =
-                            other_god.get_build_mask(other_workers_post_push) | exactly_level_3;
+                            prelude.other_god.get_build_mask(other_workers_post_push)
+                                | prelude.exactly_level_3;
                     } else {
                         continue;
                     }
@@ -341,26 +318,31 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                 }
             }
 
-            if is_against_harpies && push_to_spot.is_none() {
-                worker_end_pos = slide_position(&board, moving_worker_start_pos, worker_end_pos);
-                moving_worker_end_mask = BitBoard::as_mask(worker_end_pos);
+            if prelude.is_against_harpies && push_to_spot.is_none() {
+                worker_end_pos = slide_position(
+                    &prelude.board,
+                    worker_start_state.worker_start_pos,
+                    worker_end_pos,
+                );
+                worker_end_mask = BitBoard::as_mask(worker_end_pos);
             }
 
-            let worker_end_height = board.get_height(worker_end_pos);
-            let is_improving = worker_end_height > worker_starting_height;
+            let worker_end_height = prelude.board.get_height(worker_end_pos);
+            let is_improving = worker_end_height > worker_start_state.worker_start_height;
 
             let end_neighbors = NEIGHBOR_MAP[worker_end_pos as usize];
-            let mut worker_builds = end_neighbors & all_buildable_squares & !push_to_mask;
-
+            let mut worker_builds = end_neighbors
+                & !(push_to_mask | worker_start_state.all_non_moving_workers | prelude.domes);
             worker_builds &= final_build_mask;
 
-            if is_interact_with_key_squares {
-                if ((moving_worker_end_mask | push_to_mask) & key_squares).is_empty() {
-                    worker_builds = worker_builds & key_squares;
+            if is_interact_with_key_squares::<F>() {
+                if ((worker_end_mask | push_to_mask) & key_squares).is_empty() {
+                    worker_builds &= key_squares;
                 }
             }
 
-            let free_move_spaces = !(other_own_workers | domes | moving_worker_end_mask);
+            let free_move_spaces =
+                !(worker_start_state.other_own_workers | prelude.domes | worker_end_mask);
             let not_other_pushed_workers = !other_workers_post_push;
 
             for worker_build_pos in worker_builds {
@@ -368,33 +350,34 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
 
                 let new_action = if let Some(push_to) = push_to_spot {
                     MinotaurMove::new_minotaur_push_move(
-                        moving_worker_start_pos,
+                        worker_start_state.worker_start_pos,
                         worker_end_pos,
                         worker_build_pos,
                         push_to,
                     )
                 } else {
                     MinotaurMove::new_minotaur_move(
-                        moving_worker_start_pos,
+                        worker_start_state.worker_start_pos,
                         worker_end_pos,
                         worker_build_pos,
                     )
                 };
 
                 let is_check = {
-                    let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask);
-                    let possible_dest_board = final_level_3 & win_mask & free_move_spaces;
-                    let checkable_own_workers =
-                        (other_own_workers | moving_worker_end_mask) & exactly_level_2;
+                    let final_level_3 = (prelude.exactly_level_2 & worker_build_mask)
+                        | (prelude.exactly_level_3 & !worker_build_mask);
+                    let possible_dest_board = final_level_3 & prelude.win_mask & free_move_spaces;
+                    let checkable_own_workers = (worker_start_state.other_own_workers
+                        | worker_end_mask)
+                        & prelude.exactly_level_2;
 
                     let mut is_check = false;
 
-                    if !is_against_hypnus || checkable_own_workers.count_ones() >= 2 {
-                        let blocked_for_final_push_squares = other_own_workers
-                            | moving_worker_end_mask
-                            | domes
-                            | (exactly_level_3 & worker_build_mask)
+                    if !prelude.is_against_hypnus || checkable_own_workers.count_ones() >= 2 {
+                        let blocked_for_final_push_squares = worker_start_state.other_own_workers
+                            | worker_end_mask
+                            | prelude.domes
+                            | (prelude.exactly_level_3 & worker_build_mask)
                             | other_workers_post_push;
 
                         for worker in checkable_own_workers {
@@ -425,7 +408,11 @@ fn minotaur_move_gen<const F: MoveGenFlags>(
                     is_check
                 };
 
-                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    is_improving,
+                ))
             }
         }
     }

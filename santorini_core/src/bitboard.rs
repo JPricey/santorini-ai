@@ -1,5 +1,5 @@
 use const_for::const_for;
-use std::fmt;
+use std::{fmt, ops::Mul};
 
 use crate::{direction::ICoord, square::Square, transmute_enum};
 
@@ -95,7 +95,7 @@ pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
     .bit_not()
     .bit_and(BitBoard::MAIN_SECTION_MASK);
 
-pub fn apply_mapping_to_mask(mask: BitBoard, mapping: &BitboardMapping) -> BitBoard {
+pub(crate) fn apply_mapping_to_mask(mask: BitBoard, mapping: &BitboardMapping) -> BitBoard {
     mask.into_iter()
         .fold(BitBoard::EMPTY, |accum: BitBoard, s: Square| {
             accum | mapping[s as usize]
@@ -283,5 +283,13 @@ pub struct PanicBitboard {}
 impl BitboardOps for PanicBitboard {
     fn and(self, _other: BitBoard) -> BitBoard {
         unreachable!()
+    }
+}
+
+impl Mul<u32> for BitBoard {
+    type Output = Self;
+
+    fn mul(self, rhs: u32) -> Self::Output {
+        Self(self.0 * rhs)
     }
 }

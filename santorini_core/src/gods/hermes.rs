@@ -1,8 +1,7 @@
 use crate::{
-    add_scored_move,
-    bitboard::{BitBoard, NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
-    build_building_masks, build_god_power_movers, build_parse_flags, build_push_winning_moves,
+    build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, build_god_power_actions,
         generic::{
@@ -10,10 +9,15 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        move_helpers::{
+            WorkerNextMoveState, build_scored_move, get_generator_prelude_state, get_sized_result,
+            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
+        },
     },
     player::Player,
     square::Square,
-    variable_prelude,
 };
 
 use super::PartialAction;
@@ -319,174 +323,136 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    build_parse_flags!(
-        is_mate_only,
-        is_include_score,
-        is_stop_on_mate,
-        is_interact_with_key_squares
-    );
+    let mut result = get_sized_result::<F>();
+    let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let checkable_mask = prelude.exactly_level_2;
+    modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    variable_prelude!(
-       state:  state,
-       player:  player,
-       board:  board,
-       other_player:  other_player,
-       current_player_idx:  current_player_idx,
-       other_player_idx:  other_player_idx,
-       other_god:  other_god,
-       exactly_level_0:  exactly_level_0,
-       exactly_level_1:  exactly_level_1,
-       exactly_level_2:  exactly_level_2,
-       exactly_level_3:  exactly_level_3,
-       domes:  domes,
-       win_mask:  win_mask,
-       build_mask: build_mask,
-       is_against_hypnus: is_against_hypnus,
-       is_against_harpies: _is_against_harpies,
-       own_workers:  own_workers,
-       oppo_workers:  oppo_workers,
-       result:  result,
-       all_workers_mask:  all_workers_mask,
-       is_mate_only:  is_mate_only,
-       acting_workers:  acting_workers,
-       checkable_worker_positions_mask:  checkable_worker_positions_mask,
-    );
+    for worker_start_pos in prelude.acting_workers.into_iter() {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-    for moving_worker_start_pos in acting_workers.into_iter() {
-        let moving_worker_start_mask = BitBoard::as_mask(moving_worker_start_pos);
-        let worker_starting_height = board.get_height(moving_worker_start_pos);
+        let other_threatening_workers = (worker_start_state.other_own_workers) & checkable_mask;
+        let other_threatening_neighbors =
+            apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
 
-        let mut other_threatening_neighbors = BitBoard::EMPTY;
-        let other_threatening_workers =
-            (own_workers ^ moving_worker_start_mask) & checkable_worker_positions_mask;
-        for other_pos in other_threatening_workers {
-            other_threatening_neighbors |= NEIGHBOR_MAP[other_pos as usize];
-        }
+        let mut worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
+            & !(prelude.board.height_map[prelude
+                .board
+                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
+                | prelude
+                    .board
+                    .exactly_level_n(worker_start_state.worker_start_height)
+                | prelude.all_workers_mask);
 
-        let mut worker_moves = NEIGHBOR_MAP[moving_worker_start_pos as usize]
-            & !(board.height_map[board.get_worker_climb_height(player, worker_starting_height)]
-                | all_workers_mask);
-        worker_moves &= !board.exactly_level_n(worker_starting_height);
+        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
 
-        if is_mate_only || worker_starting_height == 2 {
-            let moves_to_level_3 = worker_moves & board.height_map[2] & win_mask;
-
-            build_push_winning_moves!(
+            if push_winning_moves::<F, _, _>(
+                &mut result,
+                worker_start_pos,
                 moves_to_level_3,
-                worker_moves,
                 HermesMove::new_winning_move,
-                moving_worker_start_pos,
-                result,
-                is_stop_on_mate,
-            );
+            ) {
+                return result;
+            }
+            worker_moves ^= moves_to_level_3;
         }
 
-        if is_mate_only {
+        if is_mate_only::<F>() {
             continue;
         }
 
-        let non_selected_workers = all_workers_mask ^ moving_worker_start_mask;
-        let unblocked_squares = !(non_selected_workers | board.height_map[3]);
+        let unblocked_squares = !(worker_start_state.all_non_moving_workers | prelude.domes);
 
-        for moving_worker_end_pos in worker_moves.into_iter() {
-            let moving_worker_end_mask = BitBoard::as_mask(moving_worker_end_pos);
-            let worker_end_height = board.get_height(moving_worker_end_pos);
-            let is_improving = worker_end_height > worker_starting_height;
-
-            build_building_masks!(
-                worker_end_pos: moving_worker_end_pos,
-                open_squares: unblocked_squares,
-                build_mask: build_mask,
-                is_interact_with_key_squares: is_interact_with_key_squares,
-                key_squares_expr: (moving_worker_end_mask & key_squares).is_empty(),
-                key_squares: key_squares,
-
-                all_possible_builds: all_possible_builds,
-                narrowed_builds: narrowed_builds,
-                worker_plausible_next_moves: worker_plausible_next_moves,
+        for worker_end_pos in worker_moves.into_iter() {
+            let worker_end_move_state =
+                get_worker_end_move_state::<F>(&prelude, &worker_start_state, worker_end_pos);
+            let worker_next_build_state = get_worker_next_build_state::<F>(
+                &prelude,
+                &worker_start_state,
+                &worker_end_move_state,
+            );
+            let reach_board = get_standard_reach_board::<F>(
+                &prelude,
+                &WorkerNextMoveState {
+                    other_threatening_workers,
+                    other_threatening_neighbors,
+                    worker_moves,
+                },
+                &worker_end_move_state,
+                unblocked_squares,
             );
 
-            let is_now_lvl_2 = (worker_end_height == 2) as usize;
-            let reach_board = if is_against_hypnus
-                && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
-            {
-                BitBoard::EMPTY
-            } else {
-                (other_threatening_neighbors
-                    | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
-                    & win_mask
-            };
-
-            for worker_build_pos in narrowed_builds {
+            for worker_build_pos in worker_next_build_state.narrowed_builds {
                 let new_action = HermesMove::new_hermes_single_move(
-                    moving_worker_start_pos,
-                    moving_worker_end_pos,
+                    worker_start_pos,
+                    worker_end_move_state.worker_end_pos,
                     worker_build_pos,
                 );
 
                 let is_check = {
                     let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let final_level_3 = (exactly_level_2 & worker_build_mask)
-                        | (exactly_level_3 & !worker_build_mask);
+                    let final_level_3 = (prelude.exactly_level_2 & worker_build_mask)
+                        | (prelude.exactly_level_3 & !worker_build_mask);
                     let check_board = reach_board & final_level_3 & unblocked_squares;
                     check_board.is_not_empty()
                 };
 
-                add_scored_move!(new_action, is_include_score, is_check, is_improving, result);
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    worker_end_move_state.is_improving,
+                ))
             }
         }
     }
 
-    if is_mate_only {
+    if is_mate_only::<F>() {
         return result;
     }
 
-    let mut worker_iter = acting_workers;
+    let mut worker_iter = prelude.acting_workers;
     let f1 = worker_iter.next().unwrap();
     let m1 = BitBoard::as_mask(f1);
-    let h1 = board.get_height(f1);
-    let h1_mask = board.exactly_level_n(h1) & !oppo_workers;
+    let h1 = prelude.board.get_height(f1);
+    let h1_mask = prelude.board.exactly_level_n(h1) & !prelude.oppo_workers;
     let c1 = flood_fill(h1_mask, m1);
 
     let Some(f2) = worker_iter.next() else {
         // There's only 1 hermes worker
-        let non_selected_workers = all_workers_mask ^ m1;
-        let buildable_squares = !(non_selected_workers | domes);
+        let non_selected_workers = prelude.all_workers_mask ^ m1;
+        let buildable_squares = !(non_selected_workers | prelude.domes);
 
         for t1 in c1 {
             let worker_end_mask = BitBoard::as_mask(t1);
-            let worker_end_height = board.get_height(t1);
 
-            build_building_masks!(
-                worker_end_pos: t1,
-                open_squares: buildable_squares,
-                build_mask: build_mask,
-                is_interact_with_key_squares: is_interact_with_key_squares,
-                key_squares_expr: (worker_end_mask & key_squares).is_empty(),
-                key_squares: key_squares,
+            let all_possible_builds = NEIGHBOR_MAP[t1 as usize] & buildable_squares;
+            let mut narrowed_builds = all_possible_builds & prelude.build_mask;
+            if is_interact_with_key_squares::<F>() {
+                let is_already_matched =
+                    (worker_end_mask & prelude.key_squares).is_not_empty() as usize;
+                narrowed_builds &=
+                    [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
+            }
 
-                all_possible_builds: all_possible_builds,
-                narrowed_builds: narrowed_builds,
-                worker_plausible_next_moves: worker_plausible_next_moves,
-            );
-
+            let worker_plausible_next_moves = NEIGHBOR_MAP[t1 as usize];
             let reach_board = (worker_plausible_next_moves
-                & BitBoard::CONDITIONAL_MASK[(worker_end_height == 2) as usize])
-                & win_mask;
+                & BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize])
+                & prelude.win_mask;
 
             for worker_build_pos in narrowed_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                 let new_action = HermesMove::new_hermes_single_move(f1, t1, worker_build_pos);
 
                 let is_check = {
-                    let check_board = (exactly_level_2 & worker_build_mask
-                        | exactly_level_3 & !worker_build_mask)
+                    let check_board = (prelude.exactly_level_2 & worker_build_mask
+                        | prelude.exactly_level_3 & !worker_build_mask)
                         & reach_board
                         & buildable_squares;
                     check_board.is_not_empty()
                 };
 
-                add_scored_move!(new_action, is_include_score, is_check, false, result);
+                result.push(build_scored_move::<F, _>(new_action, is_check, false))
             }
         }
 
@@ -505,39 +471,40 @@ fn hermes_move_gen<const F: MoveGenFlags>(
         h2 = h1;
     } else {
         is_overlap = false;
-        h2 = board.get_height(f2);
-        let h2_mask = board.exactly_level_n(h2) & !oppo_workers;
+        h2 = prelude.board.get_height(f2);
+        let h2_mask = prelude.board.exactly_level_n(h2) & !prelude.oppo_workers;
 
         c2 = flood_fill(h2_mask, m2);
     }
 
-    let blocked_squares = oppo_workers | domes;
+    let blocked_squares = prelude.oppo_workers | prelude.domes;
 
     let l1 = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize];
     let l2 = BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize];
 
     for t1 in c1 {
         let t1_mask = BitBoard::as_mask(t1);
-        c2 ^= c2 & t1_mask;
+        c2 &= !t1_mask;
 
-        let from_level_2_1 = NEIGHBOR_MAP[t1 as usize] & l1;
+        let t1_ns = NEIGHBOR_MAP[t1 as usize];
+        let from_level_2_1 = t1_ns & l1;
 
         for t2 in c2 {
             let t2_mask = BitBoard::as_mask(t2);
             let both_mask = t1_mask | t2_mask;
 
-            let mut possible_builds = (NEIGHBOR_MAP[t1 as usize] | NEIGHBOR_MAP[t2 as usize])
-                & !(blocked_squares | both_mask);
-            let worker_plausible_next_moves = possible_builds & win_mask;
-            possible_builds &= build_mask;
+            let t2_ns = NEIGHBOR_MAP[t2 as usize];
+            let mut possible_builds = (t1_ns | t2_ns) & !(blocked_squares | both_mask);
+            let worker_plausible_next_moves = possible_builds & prelude.win_mask;
+            possible_builds &= prelude.build_mask;
 
-            if is_interact_with_key_squares {
+            if is_interact_with_key_squares::<F>() {
                 if (both_mask & key_squares).is_empty() {
                     possible_builds &= key_squares;
                 }
             }
 
-            let from_level_2_2 = NEIGHBOR_MAP[t2 as usize] & l2;
+            let from_level_2_2 = t2_ns & l2;
             let l2_neighbors = from_level_2_1 | from_level_2_2;
 
             for build in possible_builds {
@@ -550,12 +517,12 @@ fn hermes_move_gen<const F: MoveGenFlags>(
                 let is_check = {
                     let check_board = l2_neighbors
                         & worker_plausible_next_moves
-                        & (exactly_level_3 & !worker_build_mask
-                            | exactly_level_2 & worker_build_mask);
+                        & (prelude.exactly_level_3 & !worker_build_mask
+                            | prelude.exactly_level_2 & worker_build_mask);
                     check_board.is_not_empty()
                 };
 
-                add_scored_move!(new_action, is_include_score, is_check, false, result);
+                result.push(build_scored_move::<F, _>(new_action, is_check, false))
             }
         }
     }

@@ -9,10 +9,7 @@ use crate::{
     gods::generic::{GenericMove, GodMove, KILLER_MATCH_SCORE, MoveScore, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
-    placement::{
-        get_placement_actions, get_starting_placements_count, 
-        
-    },
+    placement::{get_placement_actions, get_starting_placements_count},
     player::Player,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
@@ -570,7 +567,10 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    debug_assert!(state.validation_err().is_ok());
+    // debug_assert!(state.validation_err().is_ok());
+    if let Err(err) = state.validation_err() {
+        panic!("{}", err);
+    }
 
     search_state.search_stack[ply].eval = -INFINITY;
     search_state.nodes_visited += 1;
