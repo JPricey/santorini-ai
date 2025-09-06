@@ -471,7 +471,7 @@ where
             // If we see a win/loss, maybe the refutation was pruned out. Keep searching a bit further
             // to confirm, but there's no need to search forever
             let win_depth = WINNING_SCORE - score.abs();
-            if depth as Hueristic > 2 * (win_depth + 1) {
+            if depth as Hueristic > 1 * (win_depth + 1) {
                 let mut best_move = search_state.best_move.clone().unwrap();
                 best_move.trigger = BestMoveTrigger::EndOfLine;
                 (search_context.new_best_move_callback)(best_move);
@@ -832,13 +832,7 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    if let Err(err) = state.validation_err() {
-        panic!(
-            "Invalid state encountered during search: {:?}\nState: {:?}",
-            err, state
-        );
-    }
-    // debug_assert!(state.validation_err().is_ok());
+    debug_assert!(state.validation_err().is_ok());
 
     let current_player_idx = state.board.current_player as usize;
     let other_player_idx = !state.board.current_player;
