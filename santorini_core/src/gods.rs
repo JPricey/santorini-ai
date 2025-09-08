@@ -12,6 +12,7 @@ use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
+pub mod aphrodite;
 pub mod apollo;
 pub mod artemis;
 pub mod athena;
@@ -27,10 +28,10 @@ pub mod hypnus;
 pub mod limus;
 pub mod minotaur;
 pub mod mortal;
+pub mod move_helpers;
 pub mod pan;
 pub mod prometheus;
 pub mod urania;
-pub mod move_helpers;
 
 pub type StaticGod = &'static GodPower;
 
@@ -68,11 +69,12 @@ pub enum GodName {
     Limus = 14,
     Hypnus = 15,
     Harpies = 16,
+    Aphrodite = 17,
 }
 
-pub const WIP_GODS: [GodName; 0] = [];
+// pub const WIP_GODS: [GodName; 0] = [];
 
-// counted_array!(pub const WIP_GODS: [GodName; _] = [ ]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Aphrodite]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -251,6 +253,8 @@ pub struct GodPower {
 
     pub num_workers: usize,
 
+    pub is_aphrodite: bool,
+
     // _modify_moves: fn(board: &BoardState, from: Square, to_mask: BitBoard, is_win: bool, is_future: bool),
     pub hash1: HashType,
     pub hash2: HashType,
@@ -400,6 +404,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     limus::build_limus(),
     hypnus::build_hypnus(),
     harpies::build_harpies(),
+    aphrodite::build_aphrodite(),
 ]);
 
 #[macro_export]
@@ -499,6 +504,8 @@ const fn god_power(
 
         win_mask: BitBoard::MAIN_SECTION_MASK,
 
+        is_aphrodite: false,
+
         hash1,
         hash2,
     }
@@ -522,6 +529,11 @@ impl GodPower {
 
     pub const fn with_build_mask_fn(mut self, build_mask_fn: BuildMaskFn) -> Self {
         self._build_mask_fn = build_mask_fn;
+        self
+    }
+
+    pub const fn with_is_aphrodite(mut self) -> Self {
+        self.is_aphrodite = true;
         self
     }
 

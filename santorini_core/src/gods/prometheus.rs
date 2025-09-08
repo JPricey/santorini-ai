@@ -11,10 +11,10 @@ use crate::{
         god_power,
         harpies::prometheus_slide,
         move_helpers::{
-            WorkerNextMoveState, build_scored_move, get_generator_prelude_state, get_sized_result,
-            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            modify_prelude_for_checking_workers, push_winning_moves,
+            WorkerNextMoveState, build_scored_move, get_basic_moves, get_generator_prelude_state,
+            get_sized_result, get_standard_reach_board, get_worker_end_move_state,
+            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
     player::Player,
@@ -248,13 +248,7 @@ pub fn prometheus_move_gen<const F: MoveGenFlags>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let worker_starting_neighbors = NEIGHBOR_MAP[worker_start_pos as usize];
-
-        let mut worker_moves = worker_starting_neighbors
-            & !(prelude.board.height_map[prelude
-                .board
-                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
-                | prelude.all_workers_mask);
+        let mut worker_moves = get_basic_moves(&prelude, &worker_start_state);
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
@@ -279,6 +273,7 @@ pub fn prometheus_move_gen<const F: MoveGenFlags>(
             apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
 
         let unblocked_squares = !(worker_start_state.all_non_moving_workers | prelude.domes);
+        let worker_starting_neighbors = NEIGHBOR_MAP[worker_start_pos as usize];
         let pre_build_locations =
             worker_starting_neighbors & unblocked_squares & prelude.build_mask;
         let pre_build_worker_moves =

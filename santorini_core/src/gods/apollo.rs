@@ -13,7 +13,7 @@ use crate::{
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_sized_result,
             get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            is_stop_on_mate, modify_prelude_for_checking_workers,
+            is_stop_on_mate, modify_prelude_for_checking_workers, restrict_moves_by_affinity_area,
         },
     },
     player::Player,
@@ -207,6 +207,11 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags>(
                 .board
                 .get_worker_climb_height(player, worker_start_state.worker_start_height)]
                 | worker_start_state.other_own_workers);
+        worker_moves = restrict_moves_by_affinity_area(
+            worker_start_state.worker_start_mask,
+            worker_moves,
+            prelude.affinity_area,
+        );
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;

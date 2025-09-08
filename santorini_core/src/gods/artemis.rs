@@ -347,19 +347,28 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
         let other_checkable_touching =
             apply_mapping_to_mask(other_checkable_workers, &INCLUSIVE_NEIGHBOR_MAP);
-        let mut valid_destinations = !(prelude.all_workers_mask | prelude.domes);
+        let valid_half_destinations = !(prelude.all_workers_mask | prelude.domes);
+        let mut valid_final_destinations =
+            if (worker_start_mask & prelude.affinity_area).is_not_empty() {
+                valid_half_destinations & prelude.affinity_area
+            } else {
+                valid_half_destinations
+            };
 
         let mut worker_1d_moves = (NEIGHBOR_MAP[worker_start_pos as usize]
             & !prelude.board.height_map[prelude
                 .board
                 .get_worker_climb_height(player, worker_start_height)]
             | worker_start_mask)
-            & valid_destinations;
+            & valid_half_destinations;
 
         if worker_start_height == 2 {
-            let wining_moves = worker_1d_moves & prelude.exactly_level_3 & prelude.win_mask;
+            let wining_moves = worker_1d_moves
+                & prelude.exactly_level_3
+                & prelude.win_mask
+                & valid_final_destinations;
             worker_1d_moves ^= wining_moves;
-            valid_destinations ^= wining_moves;
+            valid_final_destinations ^= wining_moves;
 
             for moving_worker_end_pos in wining_moves.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
@@ -375,13 +384,10 @@ fn artemis_move_gen<const F: MoveGenFlags>(
 
         if can_worker_climb {
             let at_height_2_1d = worker_1d_moves & prelude.exactly_level_2;
-            let mut winning_moves_to_level_3 = BitBoard::EMPTY;
-            for pos in at_height_2_1d {
-                winning_moves_to_level_3 |= NEIGHBOR_MAP[pos as usize];
-            }
+            let mut winning_moves_to_level_3 = apply_mapping_to_mask(at_height_2_1d, &NEIGHBOR_MAP);
             winning_moves_to_level_3 &=
-                prelude.exactly_level_3 & valid_destinations & prelude.win_mask;
-            valid_destinations ^= winning_moves_to_level_3;
+                prelude.exactly_level_3 & valid_final_destinations & prelude.win_mask;
+            valid_final_destinations ^= winning_moves_to_level_3;
 
             for moving_worker_end_pos in winning_moves_to_level_3.into_iter() {
                 let winning_move = ScoredMove::new_winning_move(
@@ -410,7 +416,7 @@ fn artemis_move_gen<const F: MoveGenFlags>(
                 worker_moves |= current_level_destinations & NEIGHBOR_MAP[end_pos as usize];
             }
         }
-        worker_moves &= valid_destinations;
+        worker_moves &= valid_final_destinations;
 
         let non_selected_workers = prelude.all_workers_mask ^ worker_start_mask;
         let buildable_squares = !(non_selected_workers | prelude.domes);

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP},
+    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     gods::{
         GodName, StaticGod,
@@ -54,6 +54,7 @@ impl ConsistencyChecker {
             self.validate_wins(&own_winning_moves);
             self.validate_build_blockers(&search_moves);
             self.validate_hypnus_moves(&search_moves);
+            self.validate_aphrodite_moves(&search_moves);
         }
 
         if self.errors.len() == 0 {
@@ -82,6 +83,58 @@ impl ConsistencyChecker {
             }
 
             seen.insert(new_state.board, action);
+        }
+    }
+
+    fn validate_aphrodite_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let current_player = self.state.board.current_player;
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
+
+        if other_god.god_name != GodName::Aphrodite {
+            return;
+        }
+
+        let old_workers = self.state.board.workers[current_player as usize];
+        let old_aphro_workers = self.state.board.workers[!current_player as usize];
+        let old_affinity_area = apply_mapping_to_mask(old_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP);
+
+        if (old_workers & old_affinity_area).is_empty() {
+            return;
+        }
+
+        for action in actions {
+            let action = action.action;
+
+            let new_state = self.state.next_state(active_god, action);
+            let new_workers = new_state.board.workers[current_player as usize];
+
+            let old_only = old_workers & !new_workers;
+            if (old_only & old_affinity_area).is_empty() {
+                continue;
+            }
+
+            let new_only = new_workers & !old_workers;
+            let new_aphro_workers = new_state.board.workers[!current_player as usize];
+            let new_affinity_area =
+                apply_mapping_to_mask(new_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP);
+
+            if old_only.count_ones() != new_only.count_ones() {
+                self.errors.push(format!(
+                    "Unexpected worker change? {} -> {:?}",
+                    active_god.stringify_move(action),
+                    new_state,
+                ));
+            }
+
+            if (old_only & old_affinity_area).count_ones()
+                > (new_only & new_affinity_area).count_ones()
+            {
+                self.errors.push(format!(
+                    "Moved a worker out of aphrodite affinity area: {} -> {:?}",
+                    active_god.stringify_move(action),
+                    new_state,
+                ));
+            }
         }
     }
 
@@ -309,6 +362,16 @@ impl ConsistencyChecker {
                 }
             }
 
+            if active_god.god_name == GodName::Aphrodite {
+                // Aphrodite can try to block by moving next to an opponent worker, as long as it's
+                // not also adjacent to some other non-worker key move.
+                // But this can false positive if another worker can pull out a win anyway
+                if (key_moves & self.state.board.workers[!current_player as usize]).count_ones() > 1
+                {
+                    continue;
+                }
+            }
+
             if other_god.god_name == GodName::Artemis {
                 // TODO: scope this down
                 // Artemis includes all neighboring 2s as part of their mask, but they aren't
@@ -408,6 +471,27 @@ impl ConsistencyChecker {
                             "Check detection failure. Artemis v Harpies missed a win that a mortal could make. Check move: {}. Mortal win: {}",
                             stringed_action,
                             GodName::Mortal.to_power().stringify_move(wins_from_mortal_check_state[0].action),
+                        ));
+                    }
+                } else if is_check_flag && other_god.god_name == GodName::Aphrodite {
+                    let mut checks_vs_mortal_state = check_state.clone();
+                    checks_vs_mortal_state.gods[!current_player as usize] =
+                        GodName::Mortal.to_power();
+
+                    let wins_against_mortal =
+                        active_god.get_winning_moves(&checks_vs_mortal_state, current_player);
+                    if wins_against_mortal.len() == 0 {
+                        let type_msg = match is_real_checker {
+                            true => "Missed real check.",
+                            false => "False positive.",
+                        };
+
+                        self.errors.push(format!(
+                            "Check detection failure. {type_msg} {i}/{}: {}. Flag: {} RealChecker: {}",
+                            search_moves.len(),
+                            stringed_action,
+                            is_check_flag,
+                            is_real_checker
                         ));
                     }
                 } else {

@@ -1,3 +1,4 @@
+use clap::Parser;
 use rand::{Rng, rng, seq::IndexedRandom};
 
 use santorini_core::{
@@ -5,6 +6,7 @@ use santorini_core::{
     consistency_checker::consistency_check,
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
     matchup::MatchupSelector,
+    player::Player,
     random_utils::{get_board_with_random_placements_worker_counters, get_random_move},
 };
 
@@ -75,10 +77,26 @@ impl GodRandomizer {
     }
 }
 
+#[derive(Debug, Parser)]
+struct FuzzerArgs {
+    #[arg(short = 'g', long, num_args=0.., value_delimiter=' ')]
+    p1_gods: Vec<GodName>,
+
+    #[arg(short = 'G', long, num_args=0.., value_delimiter=' ')]
+    p2_gods: Vec<GodName>,
+}
+
 fn main() {
     let mut rng = rng();
+    let args = FuzzerArgs::parse();
 
-    let matchup_selector = MatchupSelector::default().with_can_swap().clone();
+    let mut matchup_selector = MatchupSelector::default().with_can_swap();
+    if args.p1_gods.len() > 0 {
+        matchup_selector = matchup_selector.with_exact_gods_for_player(Player::One, &args.p1_gods);
+    }
+    if args.p2_gods.len() > 0 {
+        matchup_selector = matchup_selector.with_exact_gods_for_player(Player::Two, &args.p2_gods);
+    }
 
     loop {
         let mut matchup = matchup_selector.get();

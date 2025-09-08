@@ -10,10 +10,11 @@ use crate::{
         },
         god_power,
         move_helpers::{
-            WorkerNextMoveState, build_scored_move, get_generator_prelude_state, get_sized_result,
-            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            modify_prelude_for_checking_workers, push_winning_moves,
+            WorkerNextMoveState, build_scored_move, get_basic_moves_from_raw_data_for_hermes,
+            get_generator_prelude_state, get_sized_result, get_standard_reach_board,
+            get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
+            push_winning_moves, restrict_moves_by_affinity_area,
         },
     },
     player::Player,
@@ -335,14 +336,12 @@ fn hermes_move_gen<const F: MoveGenFlags>(
         let other_threatening_neighbors =
             apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
 
-        let mut worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
-            & !(prelude.board.height_map[prelude
-                .board
-                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
-                | prelude
-                    .board
-                    .exactly_level_n(worker_start_state.worker_start_height)
-                | prelude.all_workers_mask);
+        let mut worker_moves = get_basic_moves_from_raw_data_for_hermes(
+            &prelude,
+            worker_start_pos,
+            worker_start_state.worker_start_mask,
+            worker_start_state.worker_start_height,
+        );
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
@@ -416,9 +415,10 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     let m1 = BitBoard::as_mask(f1);
     let h1 = prelude.board.get_height(f1);
     let h1_mask = prelude.board.exactly_level_n(h1) & !prelude.oppo_workers;
-    let c1 = flood_fill(h1_mask, m1);
+    let mut c1 = flood_fill(h1_mask, m1);
 
     let Some(f2) = worker_iter.next() else {
+        c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
         // There's only 1 hermes worker
         let non_selected_workers = prelude.all_workers_mask ^ m1;
         let buildable_squares = !(non_selected_workers | prelude.domes);
@@ -467,14 +467,16 @@ fn hermes_move_gen<const F: MoveGenFlags>(
     let is_overlap;
     if (c1 & m2).is_not_empty() {
         is_overlap = true;
-        c2 = c1;
+        c2 = restrict_moves_by_affinity_area(m2, c1, prelude.affinity_area);
+        c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
         h2 = h1;
     } else {
         is_overlap = false;
         h2 = prelude.board.get_height(f2);
         let h2_mask = prelude.board.exactly_level_n(h2) & !prelude.oppo_workers;
 
-        c2 = flood_fill(h2_mask, m2);
+        c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
+        c2 = restrict_moves_by_affinity_area(m2, flood_fill(h2_mask, m2), prelude.affinity_area);
     }
 
     let blocked_squares = prelude.oppo_workers | prelude.domes;

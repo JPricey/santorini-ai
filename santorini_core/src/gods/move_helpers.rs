@@ -1,12 +1,14 @@
 use crate::{
-    bitboard::{apply_mapping_to_mask, BitBoard, NEIGHBOR_MAP},
+    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     gods::{
+        StaticGod,
         generic::{
-            GenericMove, MoveGenFlags, ScoredMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, STOP_ON_MATE
+            GenericMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags,
+            STOP_ON_MATE, ScoredMove,
         },
         harpies::slide_position,
-        hypnus::hypnus_moveable_worker_filter, StaticGod,
+        hypnus::hypnus_moveable_worker_filter,
     },
     player::Player,
     square::Square,
@@ -89,6 +91,7 @@ pub(super) struct GeneratorPreludeState<'a> {
     pub all_workers_mask: BitBoard,
     pub win_mask: BitBoard,
     pub build_mask: BitBoard,
+    pub affinity_area: BitBoard,
 
     pub is_against_hypnus: bool,
     pub is_against_harpies: bool,
@@ -117,8 +120,15 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
     let win_mask = other_god.win_mask;
 
     let build_mask = other_god.get_build_mask(oppo_workers) | exactly_level_3;
+
     let is_against_hypnus = other_god.is_hypnus();
     let is_against_harpies = other_god.is_harpies();
+    let is_against_aphrodite = other_god.is_aphrodite;
+    let affinity_area = if is_against_aphrodite {
+        apply_mapping_to_mask(oppo_workers, &INCLUSIVE_NEIGHBOR_MAP)
+    } else {
+        BitBoard::EMPTY
+    };
 
     let acting_workers = if is_against_hypnus {
         hypnus_moveable_worker_filter(&board, own_workers)
@@ -142,6 +152,8 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         all_workers_mask,
         win_mask,
         build_mask,
+        affinity_area,
+
         is_against_hypnus,
         is_against_harpies,
 
@@ -213,11 +225,7 @@ pub(super) fn get_worker_next_move_state(
     let other_threatening_workers = worker_start_state.other_own_workers & checkable_from_mask;
     let other_threatening_neighbors =
         apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
-    let worker_moves = NEIGHBOR_MAP[worker_start_state.worker_start_pos as usize]
-        & !(prelude.board.height_map[prelude
-            .board
-            .get_worker_climb_height(prelude.player, worker_start_state.worker_start_height)]
-            | prelude.all_workers_mask);
+    let worker_moves = get_basic_moves(prelude, worker_start_state);
 
     WorkerNextMoveState {
         other_threatening_workers,
@@ -420,4 +428,59 @@ pub(super) fn make_build_only_power_generator<
     }
 
     result
+}
+
+pub(super) fn restrict_moves_by_affinity_area(
+    worker_start_mask: BitBoard,
+    worker_moves: BitBoard,
+    affinity_area: BitBoard,
+) -> BitBoard {
+    if (worker_start_mask & affinity_area).is_not_empty() {
+        worker_moves & affinity_area
+    } else {
+        worker_moves
+    }
+}
+
+pub(super) fn get_basic_moves(
+    prelude: &GeneratorPreludeState,
+    worker_start_state: &WorkerStartMoveState,
+) -> BitBoard {
+    get_basic_moves_from_raw_data(
+        prelude,
+        worker_start_state.worker_start_pos,
+        worker_start_state.worker_start_mask,
+        worker_start_state.worker_start_height,
+    )
+}
+
+pub(super) fn get_basic_moves_from_raw_data(
+    prelude: &GeneratorPreludeState,
+    worker_start_pos: Square,
+    worker_start_mask: BitBoard,
+    worker_start_height: usize,
+) -> BitBoard {
+    let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
+        & !(prelude.board.height_map[prelude
+            .board
+            .get_worker_climb_height(prelude.player, worker_start_height)]
+            | prelude.all_workers_mask);
+
+    restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
+}
+
+pub(super) fn get_basic_moves_from_raw_data_for_hermes(
+    prelude: &GeneratorPreludeState,
+    worker_start_pos: Square,
+    worker_start_mask: BitBoard,
+    worker_start_height: usize,
+) -> BitBoard {
+    let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
+        & !(prelude.board.height_map[prelude
+            .board
+            .get_worker_climb_height(prelude.player, worker_start_height)]
+            | prelude.board.exactly_level_n(worker_start_height)
+            | prelude.all_workers_mask);
+
+    restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
 }

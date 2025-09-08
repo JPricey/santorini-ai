@@ -2,7 +2,7 @@ use clap::Parser;
 use rand::distr::Alphanumeric;
 use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::{Rng, rng};
-use santorini_core::gods::{ALL_GODS_BY_ID, GodName, WIP_GODS};
+use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::matchup::{Matchup, MatchupSelector};
 use santorini_core::placement::get_placement_actions;
 use santorini_core::player::Player;
@@ -68,20 +68,14 @@ fn worker_thread() {
 }
 
 fn get_matchups_list() -> Vec<Matchup> {
-    let mut gods_to_always_generate: Vec<GodName> = WIP_GODS.iter().cloned().collect();
-    gods_to_always_generate.push(GodName::Hephaestus);
+    // let mut gods_to_always_generate: Vec<GodName> = WIP_GODS.iter().cloned().collect();
+    // gods_to_always_generate.push(GodName::Hephaestus);
 
     let matchup_selector = MatchupSelector::default()
-        .with_exact_gods_for_player(Player::One, gods_to_always_generate)
         .with_can_swap_option(true)
-        .with_can_mirror_option(true)
-        .clone();
+        .with_can_mirror_option(true);
 
-    let mut res = matchup_selector.get_all();
-    res.push(Matchup::new(GodName::Athena, GodName::Atlas));
-    res.push(Matchup::new(GodName::Atlas, GodName::Athena));
-
-    res
+    matchup_selector.get_all()
 }
 
 fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {

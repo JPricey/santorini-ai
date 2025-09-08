@@ -22,6 +22,9 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         set.insert(Matchup::new(g2, g1), reason);
     };
 
+    add_matchup(GodName::Aphrodite, GodName::Urania, BannedReason::Game);
+    // add_matchup(GodName::Aphrodite, GodName::Hermes, BannedReason::Engine);
+
     // set.insert(
     //     Matchup::new(GodName::Graeae, GodName::Nemesis),
     //     BannedReason::Game,
@@ -31,10 +34,6 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
 
     // set.insert(
     //     Matchup::new(GodName::Harpies, GodName::Triton),
-    //     BannedReason::Game,
-    // );
-    // set.insert(
-    //     Matchup::new(GodName::Urania, GodName::Aphrodite),
     //     BannedReason::Game,
     // );
 
@@ -187,17 +186,17 @@ impl MatchupSelector {
         })
     }
 
-    pub fn with_exact_god_for_player(&mut self, player: Player, god_name: GodName) -> &mut Self {
+    pub fn with_exact_god_for_player(mut self, player: Player, god_name: GodName) -> Self {
         self.valid_gods[player as usize] = vec![god_name];
         self
     }
 
-    pub fn with_exact_gods_for_player(&mut self, player: Player, gods: Vec<GodName>) -> &mut Self {
-        self.valid_gods[player as usize] = gods;
+    pub fn with_exact_gods_for_player(mut self, player: Player, gods: &Vec<GodName>) -> Self {
+        self.valid_gods[player as usize] = gods.clone();
         self
     }
 
-    pub fn minus_god_for_player(&mut self, player: Player, god_name: GodName) -> &mut Self {
+    pub fn minus_god_for_player(mut self, player: Player, god_name: GodName) -> Self {
         self.valid_gods[player as usize] = self.valid_gods[player as usize]
             .clone()
             .into_iter()
@@ -206,32 +205,33 @@ impl MatchupSelector {
         self
     }
 
-    pub fn minus_god_for_both(&mut self, god_name: GodName) -> &mut Self {
-        self.minus_god_for_player(Player::One, god_name);
-        self.minus_god_for_player(Player::Two, god_name)
+    pub fn minus_god_for_both(self, god_name: GodName) -> Self {
+        self.minus_god_for_player(Player::One, god_name)
+            .minus_god_for_player(Player::Two, god_name)
     }
 
-    pub fn minus_gods_for_player(&mut self, player: Player, gods: &Vec<GodName>) -> &mut Self {
+    pub fn minus_gods_for_player(self, player: Player, gods: &Vec<GodName>) -> Self {
+        let mut res = self;
         for god in gods {
-            self.minus_god_for_player(player, *god);
+            res = res.minus_god_for_player(player, *god);
         }
-        self
+        res
     }
 
-    pub fn with_can_swap(&mut self) -> &mut Self {
+    pub fn with_can_swap(self) -> Self {
         self.with_can_swap_option(true)
     }
 
-    pub fn with_no_swap(&mut self) -> &mut Self {
+    pub fn with_no_swap(self) -> Self {
         self.with_can_swap_option(false)
     }
 
-    pub fn with_can_swap_option(&mut self, can_swap: bool) -> &mut Self {
+    pub fn with_can_swap_option(mut self, can_swap: bool) -> Self {
         self.can_swap = can_swap;
         self
     }
 
-    pub fn with_can_mirror_option(&mut self, can_mirror: bool) -> &mut Self {
+    pub fn with_can_mirror_option(mut self, can_mirror: bool) -> Self {
         self.can_mirror = can_mirror;
         self
     }

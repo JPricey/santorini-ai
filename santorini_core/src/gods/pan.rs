@@ -8,7 +8,7 @@ use crate::{
         god_power,
         mortal::MortalMove,
         move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_sized_result,
+            build_scored_move, get_basic_moves, get_generator_prelude_state, get_sized_result,
             get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
             is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
         },
@@ -29,11 +29,7 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let mut worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
-            & !(prelude.board.height_map[prelude
-                .board
-                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
-                | prelude.all_workers_mask);
+        let mut worker_moves = get_basic_moves(&prelude, &worker_start_state);
 
         if worker_start_state.worker_start_height == 2 {
             let winning_moves = worker_moves
