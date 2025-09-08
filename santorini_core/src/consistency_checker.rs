@@ -373,9 +373,30 @@ impl ConsistencyChecker {
             }
 
             if other_god.god_name == GodName::Artemis {
-                // TODO: scope this down
-                // Artemis includes all neighboring 2s as part of their mask, but they aren't
-                // nessesarily part of the path, so ignore
+                // Artemis can have multiple paths to level 3, but only the start and end are
+                // reflected in the winning move.
+                // Check that we at least made the key moves map smaller
+                // let mut blocked_key_moves = BitBoard::EMPTY;
+                // for other_win_action in post_block_oppo_wins {
+                //     blocked_key_moves |=
+                //         other_god.get_blocker_board(&blocked_state.board, other_win_action.action);
+                // }
+                // if key_moves & blocked_key_moves == key_moves {
+                //     let mut err_str =
+                //         format!("Block move didn't remove any wins: {}: ", stringed_action);
+                //     for winning_action in other_wins {
+                //         err_str.push_str(&format!(
+                //             "{} ",
+                //             other_god.stringify_move(winning_action.action)
+                //         ));
+                //     }
+                //     err_str.push_str(&format!("\nkey moves: {}", key_moves));
+                //     err_str.push_str(&format!("\nblocked key moves: {}", key_moves));
+
+                //     self.errors.push(err_str);
+                //     blocked_state.print_to_console();
+                //     return;
+                // }
                 continue;
             }
 
