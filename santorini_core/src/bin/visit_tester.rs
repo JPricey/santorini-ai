@@ -174,24 +174,24 @@ pub fn main() {
 // cargo run -p santorini_core --bin visit_tester --release -- -g pan -r 0 -m 4
 // Nodes Visited: 16075005 Duration sum: 9.13
 // cargo run -p santorini_core --bin visit_tester --release -- -g artemis -r 7 -m 4
-// Nodes Visited: 15354454 Duration sum: 10.55
+// Nodes Visited: 15086902 Duration sum: 10.26
 // cargo run -p santorini_core --bin visit_tester --release -- -g hephaestus -r 0 -m 4
-// Nodes Visited: 10007272 Duration sum: 5.79
+// Nodes Visited: 10007272 Duration sum: 5.84
 // cargo run -p santorini_core --bin visit_tester --release -- -g atlas -r 6 -m 4
 // Nodes Visited: 28070176 Duration sum: 15.19
-// cargo run -p santorini_core --bin visit_tester --release -- -g athena -r 7 -m 4
-// Nodes Visited: 30654927 Duration sum: 16.35
+// cargo run -p santorini_core --bin visit_tester --release -- -g athena -r 9 -m 4
+// Nodes Visited: 24104735 Duration sum: 12.66
 // cargo run -p santorini_core --bin visit_tester --release -- -g minotaur -r 17 -m 6
-// Nodes Visited: 33504776 Duration sum: 13.79
+// Nodes Visited: 23713367 Duration sum: 10.05
 // cargo run -p santorini_core --bin visit_tester --release -- -g demeter -r 7 -m 4
-// Nodes Visited: 13947635 Duration sum: 7.37
+// Nodes Visited: 13221753 Duration sum: 6.91
 // cargo run -p santorini_core --bin visit_tester --release -- -g apollo -r 20 -m 3
-// Nodes Visited: 11168757 Duration sum: 6.24
+// Nodes Visited: 8790571 Duration sum: 2.92
 // cargo run -p santorini_core --bin visit_tester --release -- -g hermes -r 20 -m 4
-// Nodes Visited: 3282845 Duration sum: 11.12
+// Nodes Visited: 3381567 Duration sum: 7.72
 // cargo run -p santorini_core --bin visit_tester --release -- -g prometheus -r 10 -m 4
-// Nodes Visited: 5186548 Duration sum: 5.71
+// Nodes Visited: 6219756 Duration sum: 4.37
 // cargo run -p santorini_core --bin visit_tester --release -- -g urania -r 8 -m 4
-// Nodes Visited: 1180074 Duration sum: 1.08
+// Nodes Visited: 1785751 Duration sum: 1.08
 // cargo run -p santorini_core --bin visit_tester --release -- -g graeae -r 6 -m 4
-// Nodes Visited: 1778873 Duration sum: 1.39
+// Nodes Visited: 3121324 Duration sum: 1.55
