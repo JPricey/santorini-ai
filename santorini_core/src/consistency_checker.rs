@@ -55,6 +55,7 @@ impl ConsistencyChecker {
             self.validate_build_blockers(&search_moves);
             self.validate_hypnus_moves(&search_moves);
             self.validate_aphrodite_moves(&search_moves);
+            self.validate_persephone_moves(&search_moves);
         }
 
         if self.errors.len() == 0 {
@@ -83,6 +84,114 @@ impl ConsistencyChecker {
             }
 
             seen.insert(new_state.board, action);
+        }
+    }
+
+    fn validate_persephone_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let current_player = self.state.board.current_player;
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
+
+        if other_god.god_name != GodName::Persephone {
+            return;
+        }
+
+        let old_workers = self.state.board.workers[current_player as usize];
+
+        let mut increase_move = None;
+        let mut non_increase_move = None;
+
+        for action in actions {
+            let action = action.action;
+
+            let new_state = self.state.next_state(active_god, action);
+            let new_workers = new_state.board.workers[current_player as usize];
+
+            let old_only = old_workers & !new_workers;
+            let new_only = new_workers & !old_workers;
+
+            let mut did_any_increase = false;
+
+            // Check if artemis could have made an improvement at any point on their turn
+            if active_god.god_name == GodName::Artemis {
+                assert_eq!(old_only.count_ones(), 1);
+                assert_eq!(new_only.count_ones(), 1);
+
+                let old_sq = old_only.lsb();
+                let new_sq = new_only.lsb();
+
+                let old_height = self.state.board.get_height(old_sq);
+                let new_height = self.state.board.get_height(new_sq);
+
+                if new_height > old_height {
+                    did_any_increase = true;
+                }
+
+                let mut shared_neighbors =
+                    NEIGHBOR_MAP[old_sq as usize] & NEIGHBOR_MAP[new_sq as usize];
+                shared_neighbors &= !(self.state.board.workers[0]
+                    | self.state.board.workers[1]
+                    | self.state.board.height_map[3]);
+
+                for sq in shared_neighbors {
+                    let sq_height = self.state.board.get_height(sq);
+                    if sq_height == old_height + 1
+                        || sq_height <= old_height && new_height == sq_height + 1
+                    {
+                        did_any_increase = true;
+                    }
+                }
+            } else {
+                let mut old_heights = Vec::new();
+                let mut new_heights = Vec::new();
+                for old_pos in old_only {
+                    old_heights.push(self.state.board.get_height(old_pos));
+                }
+                for new_pos in new_only {
+                    new_heights.push(new_state.board.get_height(new_pos));
+                }
+
+                if old_heights.len() != new_heights.len() {
+                    self.errors.push(format!(
+                    "different number of workers in persephone change that we don't know how to handl {} -> {:?}",
+                    active_god.stringify_move(action),
+                    new_state,
+                ));
+                    continue;
+                }
+                old_heights.sort();
+                new_heights.sort();
+
+                for (old_h, new_h) in old_heights.iter().zip(new_heights) {
+                    if new_h > *old_h {
+                        did_any_increase = true;
+                        break;
+                    }
+                }
+            }
+
+            if did_any_increase {
+                increase_move = Some(action);
+                if non_increase_move.is_some() {
+                    break;
+                }
+            } else {
+                non_increase_move = Some(action);
+                if increase_move.is_some() {
+                    break;
+                }
+            }
+        }
+
+        if let Some(inc) = increase_move
+            && let Some(non_inc) = non_increase_move
+        {
+            let inc_str = active_god.stringify_move(inc);
+            let non_inc_str = active_god.stringify_move(non_inc);
+
+            self.errors.push(format!(
+                "Vs Persephone, has some moves to increase height({}) and some non({}): {:?}",
+                inc_str, non_inc_str, self.state
+            ));
         }
     }
 
@@ -376,6 +485,7 @@ impl ConsistencyChecker {
                 // Artemis can have multiple paths to level 3, but only the start and end are
                 // reflected in the winning move.
                 // Check that we at least made the key moves map smaller
+                // TODO: try this again sometime
                 // let mut blocked_key_moves = BitBoard::EMPTY;
                 // for other_win_action in post_block_oppo_wins {
                 //     blocked_key_moves |=
@@ -431,6 +541,13 @@ impl ConsistencyChecker {
             let new_state = self.state.next_state(active_god, action);
             let new_oppo_wins = other_god.get_winning_moves(&new_state, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
+                if active_god.god_name == GodName::Persephone && other_god.god_name == GodName::Pan
+                {
+                    if new_oppo_wins.len() > 0 {
+                        continue;
+                    }
+                }
+
                 let mut error_str = format!(
                     "Missed blocking action: {}. {}\n",
                     stringed_action, key_moves

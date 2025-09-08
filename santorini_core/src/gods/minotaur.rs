@@ -11,11 +11,13 @@ use crate::{
         god_power,
         harpies::slide_position,
         move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_sized_result,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            is_stop_on_mate, modify_prelude_for_checking_workers, restrict_moves_by_affinity_area,
+            build_scored_move, get_basic_moves_from_raw_data_with_custom_blockers,
+            get_generator_prelude_state, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, is_stop_on_mate,
+            modify_prelude_for_checking_workers,
         },
     },
+    persephone_check_result,
     player::Player,
     square::Square,
 };
@@ -218,12 +220,13 @@ impl GodMove for MinotaurMove {
     }
 }
 
-pub(super) fn minotaur_move_gen<const F: MoveGenFlags>(
+pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let mut result = get_sized_result::<F>();
+    let mut result = persephone_check_result!(minotaur_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
@@ -233,16 +236,12 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let mut worker_moves = NEIGHBOR_MAP[worker_start_state.worker_start_pos as usize]
-            & !(prelude.board.height_map[prelude
-                .board
-                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
-                | worker_start_state.other_own_workers);
-
-        worker_moves = restrict_moves_by_affinity_area(
+        let mut worker_moves = get_basic_moves_from_raw_data_with_custom_blockers::<MUST_CLIMB>(
+            &prelude,
+            worker_start_state.worker_start_pos,
             worker_start_state.worker_start_mask,
-            worker_moves,
-            prelude.affinity_area,
+            worker_start_state.worker_start_height,
+            worker_start_state.other_own_workers,
         );
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {

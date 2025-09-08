@@ -30,6 +30,7 @@ pub mod minotaur;
 pub mod mortal;
 pub mod move_helpers;
 pub mod pan;
+pub mod persephone;
 pub mod prometheus;
 pub mod urania;
 
@@ -70,11 +71,12 @@ pub enum GodName {
     Hypnus = 15,
     Harpies = 16,
     Aphrodite = 17,
+    Persephone = 18,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
 
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Aphrodite]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Aphrodite, GodName::Persephone]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -254,6 +256,7 @@ pub struct GodPower {
     pub num_workers: usize,
 
     pub is_aphrodite: bool,
+    pub is_persephone: bool,
 
     // _modify_moves: fn(board: &BoardState, from: Square, to_mask: BitBoard, is_win: bool, is_future: bool),
     pub hash1: HashType,
@@ -405,6 +408,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     hypnus::build_hypnus(),
     harpies::build_harpies(),
     aphrodite::build_aphrodite(),
+    persephone::build_persephone(),
 ]);
 
 #[macro_export]
@@ -414,23 +418,26 @@ macro_rules! build_god_power_movers {
     ) => {{
         {
             crate::gods::GodPowerMoveFns {
-                _get_all_moves: $move_gen::<0>,
+                _get_all_moves: $move_gen::<0, false>,
                 _get_moves_for_search: $move_gen::<
                     { crate::gods::generic::STOP_ON_MATE | crate::gods::generic::INCLUDE_SCORE },
+                    false,
                 >,
-                _get_wins: $move_gen::<{ crate::gods::generic::MATE_ONLY }>,
+                _get_wins: $move_gen::<{ crate::gods::generic::MATE_ONLY }, false>,
                 _get_scored_win_blockers: $move_gen::<
                     {
                         crate::gods::generic::STOP_ON_MATE
                             | crate::gods::generic::INTERACT_WITH_KEY_SQUARES
                             | crate::gods::generic::INCLUDE_SCORE
                     },
+                    false,
                 >,
                 _get_unscored_win_blockers: $move_gen::<
                     {
                         crate::gods::generic::STOP_ON_MATE
                             | crate::gods::generic::INTERACT_WITH_KEY_SQUARES
                     },
+                    false,
                 >,
             }
         }
@@ -505,6 +512,7 @@ const fn god_power(
         win_mask: BitBoard::MAIN_SECTION_MASK,
 
         is_aphrodite: false,
+        is_persephone: false,
 
         hash1,
         hash2,
@@ -534,6 +542,11 @@ impl GodPower {
 
     pub const fn with_is_aphrodite(mut self) -> Self {
         self.is_aphrodite = true;
+        self
+    }
+
+    pub const fn with_is_persephone(mut self) -> Self {
+        self.is_persephone = true;
         self
     }
 

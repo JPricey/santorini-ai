@@ -12,11 +12,12 @@ use crate::{
         harpies::prometheus_slide,
         move_helpers::{
             WorkerNextMoveState, build_scored_move, get_basic_moves, get_generator_prelude_state,
-            get_sized_result, get_standard_reach_board, get_worker_end_move_state,
-            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
-            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
+            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
+    persephone_check_result,
     player::Player,
     square::Square,
 };
@@ -235,12 +236,12 @@ impl GodMove for PrometheusMove {
     }
 }
 
-pub fn prometheus_move_gen<const F: MoveGenFlags>(
+pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let mut result = get_sized_result::<F>();
+    let mut result = persephone_check_result!(prometheus_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
@@ -248,7 +249,7 @@ pub fn prometheus_move_gen<const F: MoveGenFlags>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let mut worker_moves = get_basic_moves(&prelude, &worker_start_state);
+        let mut worker_moves = get_basic_moves::<MUST_CLIMB>(&prelude, &worker_start_state);
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
@@ -276,102 +277,108 @@ pub fn prometheus_move_gen<const F: MoveGenFlags>(
         let worker_starting_neighbors = NEIGHBOR_MAP[worker_start_pos as usize];
         let pre_build_locations =
             worker_starting_neighbors & unblocked_squares & prelude.build_mask;
-        let pre_build_worker_moves =
-            worker_moves & !prelude.board.height_map[worker_start_state.worker_start_height];
-        let moveable_ontop_of_prebuild = if worker_start_state.worker_start_height == 0 {
-            BitBoard::EMPTY
-        } else {
-            pre_build_worker_moves
-                & !prelude.board.height_map[worker_start_state.worker_start_height - 1]
-        };
 
-        // If we pre-build
-        for pre_build_pos in pre_build_locations {
-            let pre_build_mask = BitBoard::as_mask(pre_build_pos);
+        if !MUST_CLIMB {
+            let pre_build_worker_moves =
+                worker_moves & !prelude.board.height_map[worker_start_state.worker_start_height];
+            let moveable_ontop_of_prebuild = if worker_start_state.worker_start_height == 0 {
+                BitBoard::EMPTY
+            } else {
+                pre_build_worker_moves
+                    & !prelude.board.height_map[worker_start_state.worker_start_height - 1]
+            };
 
-            let pre_build_worker_moves = pre_build_worker_moves & !pre_build_mask
-                | pre_build_mask & moveable_ontop_of_prebuild;
+            // If we pre-build
+            for pre_build_pos in pre_build_locations {
+                let pre_build_mask = BitBoard::as_mask(pre_build_pos);
 
-            for mut worker_end_pos in pre_build_worker_moves.into_iter() {
-                let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
-                let mut worker_end_height = prelude.board.get_height(worker_end_pos)
-                    + ((worker_end_pos == pre_build_pos) as usize);
+                let pre_build_worker_moves = pre_build_worker_moves & !pre_build_mask
+                    | pre_build_mask & moveable_ontop_of_prebuild;
 
-                if prelude.is_against_harpies {
-                    worker_end_pos = prometheus_slide(
-                        &prelude.board,
-                        worker_start_pos,
-                        worker_end_pos,
-                        worker_end_height,
-                    );
-
-                    worker_end_mask = BitBoard::as_mask(worker_end_pos);
-                    worker_end_height = prelude.board.get_height(worker_end_pos)
+                for mut worker_end_pos in pre_build_worker_moves.into_iter() {
+                    let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
+                    let mut worker_end_height = prelude.board.get_height(worker_end_pos)
                         + ((worker_end_pos == pre_build_pos) as usize);
-                }
 
-                let is_now_lvl_2 = (worker_end_height == 2) as usize;
+                    if prelude.is_against_harpies {
+                        worker_end_pos = prometheus_slide(
+                            &prelude.board,
+                            worker_start_pos,
+                            worker_end_pos,
+                            worker_end_height,
+                        );
 
-                // can't use build_building_masks here due to extra logic before key squares
-                let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize] & unblocked_squares;
-                let worker_plausible_next_moves = worker_builds;
-                worker_builds &= prelude.build_mask;
-
-                let both_buildable = worker_builds & pre_build_locations;
-                worker_builds &= !(pre_build_mask & prelude.exactly_level_3);
-
-                if is_interact_with_key_squares::<F>() {
-                    if ((worker_end_mask | pre_build_mask) & key_squares).is_empty() {
-                        worker_builds &= key_squares;
-                    }
-                }
-
-                let own_final_workers = worker_start_state.other_own_workers | worker_end_mask;
-                let reach_board = if prelude.is_against_hypnus
-                    && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
-                {
-                    BitBoard::EMPTY
-                } else {
-                    (other_threatening_neighbors
-                        | (worker_plausible_next_moves & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
-                        & prelude.win_mask
-                        & !own_final_workers
-                };
-
-                for worker_build_pos in worker_builds {
-                    let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                    let is_double_build = pre_build_pos == worker_build_pos;
-
-                    let is_either_order = !is_double_build
-                        && (both_buildable | pre_build_mask | worker_build_mask) == both_buildable;
-
-                    // avoid duplicates
-                    if is_either_order && pre_build_pos > worker_build_pos {
-                        continue;
+                        worker_end_mask = BitBoard::as_mask(worker_end_pos);
+                        worker_end_height = prelude.board.get_height(worker_end_pos)
+                            + ((worker_end_pos == pre_build_pos) as usize);
                     }
 
-                    let new_action = PrometheusMove::new_pre_build_move(
-                        worker_start_pos,
-                        worker_end_pos,
-                        worker_build_pos,
-                        pre_build_pos,
-                        is_either_order,
-                    );
+                    let is_now_lvl_2 = (worker_end_height == 2) as usize;
 
-                    let is_check = {
-                        let final_level_3 = if is_double_build {
-                            prelude.exactly_level_1 & pre_build_mask
-                                | prelude.exactly_level_3 & !pre_build_mask
-                        } else {
-                            let both_build_mask = pre_build_mask | worker_build_mask;
-                            prelude.exactly_level_2 & both_build_mask
-                                | prelude.exactly_level_3 & !both_build_mask
-                        };
-                        let check_board = reach_board & final_level_3 & unblocked_squares;
-                        check_board.is_not_empty()
+                    // can't use build_building_masks here due to extra logic before key squares
+                    let mut worker_builds =
+                        NEIGHBOR_MAP[worker_end_pos as usize] & unblocked_squares;
+                    let worker_plausible_next_moves = worker_builds;
+                    worker_builds &= prelude.build_mask;
+
+                    let both_buildable = worker_builds & pre_build_locations;
+                    worker_builds &= !(pre_build_mask & prelude.exactly_level_3);
+
+                    if is_interact_with_key_squares::<F>() {
+                        if ((worker_end_mask | pre_build_mask) & key_squares).is_empty() {
+                            worker_builds &= key_squares;
+                        }
+                    }
+
+                    let own_final_workers = worker_start_state.other_own_workers | worker_end_mask;
+                    let reach_board = if prelude.is_against_hypnus
+                        && (other_threatening_workers.count_ones() as usize + is_now_lvl_2) < 2
+                    {
+                        BitBoard::EMPTY
+                    } else {
+                        (other_threatening_neighbors
+                            | (worker_plausible_next_moves
+                                & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
+                            & prelude.win_mask
+                            & !own_final_workers
                     };
 
-                    result.push(build_scored_move::<F, _>(new_action, is_check, false))
+                    for worker_build_pos in worker_builds {
+                        let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                        let is_double_build = pre_build_pos == worker_build_pos;
+
+                        let is_either_order = !is_double_build
+                            && (both_buildable | pre_build_mask | worker_build_mask)
+                                == both_buildable;
+
+                        // avoid duplicates
+                        if is_either_order && pre_build_pos > worker_build_pos {
+                            continue;
+                        }
+
+                        let new_action = PrometheusMove::new_pre_build_move(
+                            worker_start_pos,
+                            worker_end_pos,
+                            worker_build_pos,
+                            pre_build_pos,
+                            is_either_order,
+                        );
+
+                        let is_check = {
+                            let final_level_3 = if is_double_build {
+                                prelude.exactly_level_1 & pre_build_mask
+                                    | prelude.exactly_level_3 & !pre_build_mask
+                            } else {
+                                let both_build_mask = pre_build_mask | worker_build_mask;
+                                prelude.exactly_level_2 & both_build_mask
+                                    | prelude.exactly_level_3 & !both_build_mask
+                            };
+                            let check_board = reach_board & final_level_3 & unblocked_squares;
+                            check_board.is_not_empty()
+                        };
+
+                        result.push(build_scored_move::<F, _>(new_action, is_check, false))
+                    }
                 }
             }
         }

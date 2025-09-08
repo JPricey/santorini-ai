@@ -11,6 +11,7 @@ use crate::{
         god_power,
         move_helpers::{build_scored_move, make_build_only_power_generator},
     },
+    persephone_check_result,
     player::Player,
     square::Square,
 };
@@ -182,12 +183,14 @@ impl std::fmt::Debug for HephMove {
     }
 }
 
-fn hephaestus_move_gen<const F: MoveGenFlags>(
+fn hephaestus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    make_build_only_power_generator::<F, _, _, _>(
+    persephone_check_result!(hephaestus_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+
+    make_build_only_power_generator::<F, MUST_CLIMB, _, _, _>(
         state,
         player,
         key_squares,

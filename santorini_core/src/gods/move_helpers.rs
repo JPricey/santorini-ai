@@ -217,7 +217,7 @@ pub(super) fn get_worker_start_move_state(
     }
 }
 
-pub(super) fn get_worker_next_move_state(
+pub(super) fn get_worker_next_move_state<const MUST_CLIMB: bool>(
     prelude: &GeneratorPreludeState,
     worker_start_state: &WorkerStartMoveState,
     checkable_from_mask: BitBoard,
@@ -225,7 +225,7 @@ pub(super) fn get_worker_next_move_state(
     let other_threatening_workers = worker_start_state.other_own_workers & checkable_from_mask;
     let other_threatening_neighbors =
         apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
-    let worker_moves = get_basic_moves(prelude, worker_start_state);
+    let worker_moves = get_basic_moves::<MUST_CLIMB>(prelude, worker_start_state);
 
     WorkerNextMoveState {
         other_threatening_workers,
@@ -361,6 +361,7 @@ pub(super) struct AfterMovePowerGeneratorContext<'a> {
 
 pub(super) fn make_build_only_power_generator<
     const F: MoveGenFlags,
+    const MUST_CLIMB: bool,
     A: Into<GenericMove>,
     WinningMoveFn: Fn(Square, Square) -> A,
     BuildGeneratorFn: Fn(&mut AfterMovePowerGeneratorContext),
@@ -379,7 +380,7 @@ pub(super) fn make_build_only_power_generator<
     for worker_start_pos in acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
-            get_worker_next_move_state(&prelude, &worker_start_state, checkable_mask);
+            get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 =
@@ -442,11 +443,11 @@ pub(super) fn restrict_moves_by_affinity_area(
     }
 }
 
-pub(super) fn get_basic_moves(
+pub(super) fn get_basic_moves<const MUST_CLIMB: bool>(
     prelude: &GeneratorPreludeState,
     worker_start_state: &WorkerStartMoveState,
 ) -> BitBoard {
-    get_basic_moves_from_raw_data(
+    get_basic_moves_from_raw_data::<MUST_CLIMB>(
         prelude,
         worker_start_state.worker_start_pos,
         worker_start_state.worker_start_mask,
@@ -454,27 +455,65 @@ pub(super) fn get_basic_moves(
     )
 }
 
-pub(super) fn get_basic_moves_from_raw_data(
+pub(super) fn get_basic_moves_from_raw_data<const MUST_CLIMB: bool>(
     prelude: &GeneratorPreludeState,
     worker_start_pos: Square,
     worker_start_mask: BitBoard,
     worker_start_height: usize,
 ) -> BitBoard {
-    let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
-        & !(prelude.board.height_map[prelude
-            .board
-            .get_worker_climb_height(prelude.player, worker_start_height)]
-            | prelude.all_workers_mask);
-
-    restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
+    get_basic_moves_from_raw_data_with_custom_blockers::<MUST_CLIMB>(
+        prelude,
+        worker_start_pos,
+        worker_start_mask,
+        worker_start_height,
+        prelude.all_workers_mask,
+    )
 }
 
-pub(super) fn get_basic_moves_from_raw_data_for_hermes(
+pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIMB: bool>(
+    prelude: &GeneratorPreludeState,
+    worker_start_pos: Square,
+    worker_start_mask: BitBoard,
+    worker_start_height: usize,
+    blockers: BitBoard,
+) -> BitBoard {
+    if MUST_CLIMB {
+        let height_mask = match worker_start_height {
+            0 => prelude.exactly_level_1,
+            1 => prelude.exactly_level_2,
+            2 => prelude.exactly_level_3,
+            3 => return BitBoard::EMPTY,
+            _ => unreachable!(),
+        };
+
+        let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize] & height_mask & !blockers;
+        worker_moves
+    } else {
+        let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
+            & !(prelude.board.height_map[prelude
+                .board
+                .get_worker_climb_height(prelude.player, worker_start_height)]
+                | blockers);
+
+        restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
+    }
+}
+
+pub(super) fn get_basic_moves_from_raw_data_for_hermes<const MUST_CLIMB: bool>(
     prelude: &GeneratorPreludeState,
     worker_start_pos: Square,
     worker_start_mask: BitBoard,
     worker_start_height: usize,
 ) -> BitBoard {
+    if MUST_CLIMB {
+        return get_basic_moves_from_raw_data::<true>(
+            prelude,
+            worker_start_pos,
+            worker_start_mask,
+            worker_start_height,
+        );
+    }
+
     let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
         & !(prelude.board.height_map[prelude
             .board
@@ -483,4 +522,25 @@ pub(super) fn get_basic_moves_from_raw_data_for_hermes(
             | prelude.all_workers_mask);
 
     restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
+}
+
+#[macro_export]
+macro_rules! persephone_check_result {
+    (
+        $move_gen:ident,
+        state: $state:ident,
+        player: $player:ident,
+        key_squares: $key_squares:ident,
+        MUST_CLIMB: $MUST_CLIMB:ident
+    ) => {
+        if $state.gods[!$player as usize].is_persephone && !MUST_CLIMB {
+            let result = $move_gen::<F, true>($state, $player, $key_squares);
+            if result.len() > 0 {
+                return result;
+            }
+            result
+        } else {
+            $crate::gods::move_helpers::get_sized_result::<F>()
+        }
+    };
 }

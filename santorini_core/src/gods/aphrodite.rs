@@ -1,28 +1,21 @@
 use crate::{
-    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
-    board::FullGameState,
-    build_god_power_movers,
-    gods::{
-        GodName, GodPower, build_god_power_actions,
-        generic::{MoveGenFlags, ScoredMove},
-        god_power,
-        mortal::MortalMove,
-        move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_sized_result,
+    bitboard::{apply_mapping_to_mask, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP}, board::FullGameState, build_god_power_movers, gods::{
+        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, move_helpers::{
+            build_scored_move, get_generator_prelude_state, 
             get_standard_reach_board, get_worker_end_move_state, get_worker_next_move_state,
             get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
             modify_prelude_for_checking_workers, push_winning_moves,
-        },
-    },
-    player::Player,
+        }, GodName, GodPower
+    }, persephone_check_result, player::Player
 };
 
-pub(super) fn aphrodite_move_gen<const F: MoveGenFlags>(
+pub(super) fn aphrodite_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let mut result = get_sized_result::<F>();
+    let mut result = persephone_check_result!(aphrodite_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
@@ -30,7 +23,7 @@ pub(super) fn aphrodite_move_gen<const F: MoveGenFlags>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
-            get_worker_next_move_state(&prelude, &worker_start_state, checkable_mask);
+            get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 =
@@ -117,8 +110,8 @@ pub const fn build_aphrodite() -> GodPower {
         GodName::Aphrodite,
         build_god_power_movers!(aphrodite_move_gen),
         build_god_power_actions::<MortalMove>(),
-        16891272677587276158,
-        7282884513832450650,
+        2716361401804657736,
+        2419339499129334119,
     )
     .with_is_aphrodite()
     .with_nnue_god_name(GodName::Mortal)

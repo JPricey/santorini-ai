@@ -1,3 +1,4 @@
+
 use crate::{
     bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
@@ -13,9 +14,11 @@ use crate::{
         hypnus::hypnus_moveable_worker_filter,
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_sized_result,
-            is_interact_with_key_squares, is_mate_only, is_stop_on_mate,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            is_stop_on_mate,
         },
     },
+    persephone_check_result,
     player::Player,
     square::Square,
 };
@@ -164,7 +167,7 @@ impl std::fmt::Debug for ArtemisMove {
     }
 }
 
-fn artemis_move_gen_vs_harpies<const F: MoveGenFlags>(
+fn artemis_move_gen_vs_harpies<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
@@ -315,16 +318,165 @@ fn artemis_move_gen_vs_harpies<const F: MoveGenFlags>(
     return result;
 }
 
-fn artemis_move_gen<const F: MoveGenFlags>(
+fn artemis_vs_persephone<const F: MoveGenFlags>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    if state.gods[!player as usize].is_harpies() {
-        return artemis_move_gen_vs_harpies::<F>(state, player, key_squares);
+    let mut result = get_sized_result::<F>();
+    let prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+
+    let checkable_worker_positions = prelude.board.at_least_level_1();
+    let mut acting_workers = prelude.own_workers;
+
+    if is_mate_only::<F>() {
+        acting_workers &= checkable_worker_positions;
+    }
+    let not_other_workers = !prelude.oppo_workers;
+    let open_squares_for_move = !(prelude.all_workers_mask | prelude.domes);
+
+    for worker_start_pos in acting_workers.into_iter() {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
+        let open_squares_for_build = !(worker_start_state.all_non_moving_workers | prelude.domes);
+        let other_checkable_workers =
+            worker_start_state.other_own_workers & checkable_worker_positions;
+        let other_checkable_touching =
+            apply_mapping_to_mask(other_checkable_workers, &INCLUSIVE_NEIGHBOR_MAP);
+
+        let all_worker_1d_moves = NEIGHBOR_MAP[worker_start_pos as usize]
+            & open_squares_for_move
+            & !state.board.height_map[3.min(worker_start_state.worker_start_height + 1)];
+
+        let mut worker_1d_improvers =
+            all_worker_1d_moves & state.board.height_map[worker_start_state.worker_start_height];
+        let worker_1d_non_improvers = all_worker_1d_moves ^ worker_1d_improvers;
+
+        if worker_start_state.worker_start_height == 2 {
+            for moving_worker_end_pos in worker_1d_improvers.into_iter() {
+                let winning_move = ScoredMove::new_winning_move(
+                    ArtemisMove::new_artemis_winning_move(worker_start_pos, moving_worker_end_pos)
+                        .into(),
+                );
+                result.push(winning_move);
+                if is_stop_on_mate::<F>() {
+                    return result;
+                }
+            }
+            worker_1d_improvers = BitBoard::EMPTY;
+        }
+
+        let improvers_dest_mask =
+            !state.board.height_map[3.min(worker_start_state.worker_start_height + 2)];
+        let mut final_squares = worker_1d_improvers;
+        for pos in worker_1d_improvers {
+            final_squares |= NEIGHBOR_MAP[pos as usize];
+        }
+        final_squares &= improvers_dest_mask;
+
+        final_squares |= apply_mapping_to_mask(
+            worker_1d_non_improvers & prelude.exactly_level_2,
+            &NEIGHBOR_MAP,
+        ) & prelude.exactly_level_3;
+
+        final_squares |= apply_mapping_to_mask(
+            worker_1d_non_improvers & prelude.exactly_level_0,
+            &NEIGHBOR_MAP,
+        ) & prelude.exactly_level_1;
+        final_squares |= apply_mapping_to_mask(
+            worker_1d_non_improvers & prelude.exactly_level_1,
+            &NEIGHBOR_MAP,
+        ) & prelude.exactly_level_2;
+
+        final_squares &= open_squares_for_move;
+
+        let winners = final_squares & prelude.exactly_level_3;
+        for moving_worker_end_pos in winners.into_iter() {
+            let winning_move = ScoredMove::new_winning_move(
+                ArtemisMove::new_artemis_winning_move(worker_start_pos, moving_worker_end_pos)
+                    .into(),
+            );
+            result.push(winning_move);
+            if is_stop_on_mate::<F>() {
+                return result;
+            }
+        }
+
+        if is_mate_only::<F>() {
+            continue;
+        }
+        final_squares ^= winners;
+
+        for worker_end_pos in final_squares.into_iter() {
+            let worker_end_mask = BitBoard::as_mask(worker_end_pos);
+            let worker_end_height = prelude.board.get_height(worker_end_pos);
+            let is_improving = worker_end_height > worker_start_state.worker_start_height;
+
+            let all_possible_builds =
+                NEIGHBOR_MAP[worker_end_pos as usize] & open_squares_for_build;
+            let mut narrowed_builds = all_possible_builds;
+            if is_interact_with_key_squares::<F>() {
+                let is_already_matched =
+                    (worker_end_mask & prelude.key_squares).is_not_empty() as usize;
+                narrowed_builds &=
+                    [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
+            }
+
+            let mut own_touching = BitBoard::EMPTY;
+            if worker_end_height >= 1 {
+                own_touching |= INCLUSIVE_NEIGHBOR_MAP[worker_end_pos as usize];
+            }
+
+            let final_touching = other_checkable_touching | own_touching;
+
+            for worker_build_pos in narrowed_builds {
+                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
+                let final_l3 = ((prelude.exactly_level_3 & !worker_build_mask)
+                    | (prelude.exactly_level_2 & worker_build_mask))
+                    & not_other_workers
+                    & prelude.win_mask;
+
+                let is_check = final_touching.is_not_empty() && final_l3.is_not_empty() && {
+                    let final_l2 = ((prelude.exactly_level_2 & !worker_build_mask)
+                        | (prelude.exactly_level_1 & worker_build_mask))
+                        & not_other_workers;
+
+                    let final_touching_checks = apply_mapping_to_mask(final_l3, &NEIGHBOR_MAP);
+                    (final_touching & final_touching_checks & final_l2).is_not_empty()
+                };
+
+                let new_action = ArtemisMove::new_artemis_move(
+                    worker_start_pos,
+                    worker_end_pos,
+                    worker_build_pos,
+                );
+
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    is_improving,
+                ));
+            }
+        }
     }
 
-    let mut result = get_sized_result::<F>();
+    result
+}
+
+fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    if MUST_CLIMB {
+        return artemis_vs_persephone::<F>(state, player, key_squares);
+    }
+
+    if state.gods[!player as usize].is_harpies() {
+        return artemis_move_gen_vs_harpies::<F, MUST_CLIMB>(state, player, key_squares);
+    }
+
+    let mut result = persephone_check_result!(artemis_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+
     let prelude = get_generator_prelude_state::<F>(state, player, key_squares);
 
     let checkable_worker_positions = prelude.board.at_least_level_1();

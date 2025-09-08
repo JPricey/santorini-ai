@@ -9,20 +9,39 @@ use crate::{
         harpies::urania_slide,
         mortal::MortalMove,
         move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_sized_result,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
+            GeneratorPreludeState, WorkerStartMoveState, build_scored_move,
+            get_generator_prelude_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
+    persephone_check_result,
     player::Player,
 };
 
-pub fn urania_move_gen<const F: MoveGenFlags>(
+fn get_must_climb_worker_moves(
+    prelude: &GeneratorPreludeState,
+    worker_start_state: &WorkerStartMoveState,
+) -> BitBoard {
+    let height_mask = match worker_start_state.worker_start_height {
+        0 => prelude.exactly_level_1,
+        1 => prelude.exactly_level_2,
+        2 => prelude.exactly_level_3,
+        3 => return BitBoard::EMPTY,
+        _ => unreachable!(),
+    };
+
+    WRAPPING_NEIGHBOR_MAP[worker_start_state.worker_start_pos as usize]
+        & height_mask
+        & !prelude.all_workers_mask
+}
+
+fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let mut result = get_sized_result::<F>();
+    let mut result = persephone_check_result!(urania_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
 
@@ -31,11 +50,15 @@ pub fn urania_move_gen<const F: MoveGenFlags>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let mut worker_moves = WRAPPING_NEIGHBOR_MAP[worker_start_pos as usize]
-            & !(prelude.board.height_map[prelude
-                .board
-                .get_worker_climb_height(player, worker_start_state.worker_start_height)]
-                | prelude.all_workers_mask);
+        let mut worker_moves = if MUST_CLIMB {
+            get_must_climb_worker_moves(&prelude, &worker_start_state)
+        } else {
+            WRAPPING_NEIGHBOR_MAP[worker_start_pos as usize]
+                & !(prelude.board.height_map[prelude
+                    .board
+                    .get_worker_climb_height(player, worker_start_state.worker_start_height)]
+                    | prelude.all_workers_mask)
+        };
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;

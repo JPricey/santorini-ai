@@ -1,18 +1,9 @@
 use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, FullGameState},
-    build_god_power_movers,
-    gods::{
-        FullAction, GodName, GodPower, build_god_power_actions,
-        generic::{
-            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
-        },
-        god_power,
-        move_helpers::{build_scored_move, make_build_only_power_generator},
-    },
-    player::Player,
-    square::Square,
+    bitboard::BitBoard, board::{BoardState, FullGameState}, build_god_power_movers, gods::{
+        build_god_power_actions, generic::{
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
+        }, god_power, move_helpers::{build_scored_move, make_build_only_power_generator}, FullAction, GodName, GodPower
+    }, persephone_check_result, player::Player, square::Square
 };
 
 use super::PartialAction;
@@ -204,12 +195,14 @@ impl GodMove for DemeterMove {
     }
 }
 
-fn demeter_move_gen<const F: MoveGenFlags>(
+fn demeter_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    make_build_only_power_generator::<F, _, _, _>(
+    persephone_check_result!(demeter_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+
+    make_build_only_power_generator::<F, MUST_CLIMB, _, _, _>(
         state,
         player,
         key_squares,
