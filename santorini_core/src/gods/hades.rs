@@ -11,8 +11,8 @@ pub const fn build_hades() -> GodPower {
         GodName::Hades,
         build_god_power_movers!(mortal_move_gen),
         build_god_power_actions::<MortalMove>(),
-        15915408769625054955,
-        4326272341964757690,
+        3909168555047842639,
+        3956786047127225345,
     )
     .with_is_preventing_down()
 }

@@ -131,7 +131,7 @@ mod tests {
     use crate::{
         consistency_checker::ConsistencyChecker,
         fen::parse_fen,
-        search::{SearchContext, negamax_search},
+        search::{SearchContext, WINNING_SCORE_BUFFER, negamax_search},
         search_terminators::DynamicMaxDepthSearchTerminator,
         transposition_table::TranspositionTable,
     };
@@ -157,7 +157,7 @@ mod tests {
             terminator: DynamicMaxDepthSearchTerminator::new(2),
         };
         let search_state = negamax_search(&mut search_context, state);
-
-        eprintln!("search_state: {:?}", search_state)
+        // Persephone is winning from here
+        assert!(search_state.best_move.unwrap().score > WINNING_SCORE_BUFFER);
     }
 }
