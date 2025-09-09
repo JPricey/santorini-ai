@@ -20,6 +20,7 @@ pub mod atlas;
 pub mod demeter;
 pub mod generic;
 pub mod graeae;
+pub mod hades;
 pub mod harpies;
 pub mod hephaestus;
 pub mod hera;
@@ -72,6 +73,7 @@ pub enum GodName {
     Harpies = 16,
     Aphrodite = 17,
     Persephone = 18,
+    Hades = 19,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -161,40 +163,6 @@ pub type NextStatesOnlyFn = GenericNextStatesFn<BoardState>;
 pub type NextStatesInteractiveFn = GenericNextStatesFn<BoardStateWithAction>;
 pub type HasWinFn = fn(&BoardState, Player) -> bool;
 
-#[derive(Clone, Debug)]
-pub struct StateOnlyMapper {}
-impl ResultsMapper<BoardState> for StateOnlyMapper {
-    fn new() -> Self {
-        StateOnlyMapper {}
-    }
-
-    fn add_action(&mut self, _partial_action: PartialAction) {}
-
-    fn map_result(&self, state: BoardState) -> BoardState {
-        state
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FullChoiceMapper {
-    partial_actions: Vec<PartialAction>,
-}
-impl ResultsMapper<BoardStateWithAction> for FullChoiceMapper {
-    fn new() -> Self {
-        FullChoiceMapper {
-            partial_actions: Vec::new(),
-        }
-    }
-
-    fn add_action(&mut self, partial_action: PartialAction) {
-        self.partial_actions.push(partial_action);
-    }
-
-    fn map_result(&self, state: BoardState) -> BoardStateWithAction {
-        BoardStateWithAction::new(state, self.partial_actions.clone())
-    }
-}
-
 pub type MoveModifierFn =
     fn(board: &BoardState, me: Player, other: Player, from: Square, tos: BitBoard) -> BitBoard;
 
@@ -257,6 +225,7 @@ pub struct GodPower {
 
     pub is_aphrodite: bool,
     pub is_persephone: bool,
+    pub is_preventing_down: bool,
 
     // _modify_moves: fn(board: &BoardState, from: Square, to_mask: BitBoard, is_win: bool, is_future: bool),
     pub hash1: HashType,
@@ -409,6 +378,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     harpies::build_harpies(),
     aphrodite::build_aphrodite(),
     persephone::build_persephone(),
+    hades::build_hades(),
 ]);
 
 #[macro_export]
@@ -513,6 +483,7 @@ const fn god_power(
 
         is_aphrodite: false,
         is_persephone: false,
+        is_preventing_down: false,
 
         hash1,
         hash2,
@@ -547,6 +518,11 @@ impl GodPower {
 
     pub const fn with_is_persephone(mut self) -> Self {
         self.is_persephone = true;
+        self
+    }
+
+    pub const fn with_is_preventing_down(mut self) -> Self {
+        self.is_preventing_down = true;
         self
     }
 

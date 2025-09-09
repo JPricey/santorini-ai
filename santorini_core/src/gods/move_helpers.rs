@@ -95,6 +95,7 @@ pub(super) struct GeneratorPreludeState<'a> {
 
     pub is_against_hypnus: bool,
     pub is_against_harpies: bool,
+    pub is_down_prevented: bool,
 
     pub acting_workers: BitBoard,
 }
@@ -124,6 +125,7 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
     let is_against_hypnus = other_god.is_hypnus();
     let is_against_harpies = other_god.is_harpies();
     let is_against_aphrodite = other_god.is_aphrodite;
+
     let affinity_area = if is_against_aphrodite {
         apply_mapping_to_mask(oppo_workers, &INCLUSIVE_NEIGHBOR_MAP)
     } else {
@@ -135,6 +137,8 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
     } else {
         own_workers
     };
+
+    let is_down_prevented = other_god.is_preventing_down;
 
     GeneratorPreludeState {
         board,
@@ -156,6 +160,7 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
 
         is_against_hypnus,
         is_against_harpies,
+        is_down_prevented,
 
         acting_workers,
     }
@@ -489,10 +494,17 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIM
         let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize] & height_mask & !blockers;
         worker_moves
     } else {
+        let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
+            !prelude.board.height_map[worker_start_height - 1]
+        } else {
+            BitBoard::EMPTY
+        };
+
         let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
             & !(prelude.board.height_map[prelude
                 .board
                 .get_worker_climb_height(prelude.player, worker_start_height)]
+                | down_mask
                 | blockers);
 
         restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)

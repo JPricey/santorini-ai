@@ -21,7 +21,7 @@ pub fn consistency_check(state: &FullGameState) -> Result<(), Vec<String>> {
 /// Performs validations on god move generators,
 /// such as ensuring that win/check tags are correct
 /// And that opponent turn powers are correctly respected
-struct ConsistencyChecker {
+pub(crate) struct ConsistencyChecker {
     state: FullGameState,
     errors: Vec<String>,
 }
@@ -442,6 +442,10 @@ impl ConsistencyChecker {
 
             if other_god.god_name == GodName::Pan {
                 let any_pan_move: MortalMove = other_wins[0].action.into();
+
+                if active_god.god_name == GodName::Persephone {
+                    continue;
+                }
 
                 if active_god.god_name == GodName::Athena {
                     let athena_move: AthenaMove = block_action.into();

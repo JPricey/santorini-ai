@@ -9,9 +9,9 @@ use crate::{
         mortal::{MortalMove, mortal_move_gen},
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_standard_reach_board,
-            get_worker_end_move_state, get_worker_next_move_state,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            modify_prelude_for_checking_workers, push_winning_moves,
+            get_worker_end_move_state, get_worker_next_move_state, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
+            push_winning_moves,
         },
     },
     persephone_check_result,
@@ -69,9 +69,11 @@ fn persephone_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 & unblocked_squares
                 & prelude.build_mask;
             let mut narrowed_builds = all_possible_builds;
+
             if is_interact_with_key_squares::<F>() {
                 let is_already_matched = (worker_end_move_state.worker_end_mask
-                    & prelude.key_squares)
+                    & prelude.key_squares
+                    | vs_pan_key_builds & worker_start_state.worker_start_mask)
                     .is_not_empty() as usize;
                 narrowed_builds &= [
                     prelude.key_squares | vs_pan_key_builds,
@@ -122,4 +124,40 @@ pub const fn build_persephone() -> GodPower {
     )
     .with_is_persephone()
     .with_nnue_god_name(GodName::Mortal)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        consistency_checker::ConsistencyChecker,
+        fen::parse_fen,
+        search::{SearchContext, negamax_search},
+        search_terminators::DynamicMaxDepthSearchTerminator,
+        transposition_table::TranspositionTable,
+    };
+
+    #[test]
+    fn test_persephone_pan_blocker() {
+        let state = parse_fen("0000200000300000200001000/1/persephone:A1,B1/pan:E5,C1").unwrap();
+
+        let mut checker = ConsistencyChecker::new(&state);
+        checker.perform_all_validations().expect("Failed check");
+    }
+
+    #[test]
+    fn test_full_playout_persephone_pan_blocker() {
+        let state = parse_fen("0000200000300000200001000/1/persephone:A1,B1/pan:E5,C1").unwrap();
+
+        let mut checker = ConsistencyChecker::new(&state);
+        checker.perform_all_validations().expect("Failed check");
+        let mut tt = TranspositionTable::new();
+        let mut search_context = SearchContext {
+            tt: &mut tt,
+            new_best_move_callback: Box::new(move |_new_best_move| {}),
+            terminator: DynamicMaxDepthSearchTerminator::new(5),
+        };
+        let search_state = negamax_search(&mut search_context, state);
+
+        eprintln!("search_state: {:?}", search_state)
+    }
 }
