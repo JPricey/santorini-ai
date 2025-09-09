@@ -53,10 +53,18 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let mut worker_moves = if MUST_CLIMB {
             get_must_climb_worker_moves(&prelude, &worker_start_state)
         } else {
+            let down_mask =
+                if prelude.is_down_prevented && worker_start_state.worker_start_height > 0 {
+                    !prelude.board.height_map[worker_start_state.worker_start_height - 1]
+                } else {
+                    BitBoard::EMPTY
+                };
+
             WRAPPING_NEIGHBOR_MAP[worker_start_pos as usize]
                 & !(prelude.board.height_map[prelude
                     .board
                     .get_worker_climb_height(player, worker_start_state.worker_start_height)]
+                    | down_mask
                     | prelude.all_workers_mask)
         };
 

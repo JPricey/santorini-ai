@@ -65,6 +65,7 @@ impl ConsistencyChecker {
             self.validate_hypnus_moves(&search_moves);
             self.validate_aphrodite_moves(&search_moves);
             self.validate_persephone_moves(&search_moves);
+            self.validate_hades_moves(&search_moves);
         }
 
         if self.errors.len() == 0 {
@@ -150,6 +151,58 @@ impl ConsistencyChecker {
             }
 
             seen.insert(new_state.board, action);
+        }
+    }
+
+    fn validate_hades_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let current_player = self.state.board.current_player;
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
+
+        if other_god.god_name != GodName::Hades {
+            return;
+        }
+
+        let old_workers = self.state.board.workers[current_player as usize];
+
+        for action in actions {
+            let action = action.action;
+
+            let new_state = self.state.next_state(active_god, action);
+            let new_workers = new_state.board.workers[current_player as usize];
+
+            let old_only = old_workers & !new_workers;
+            let new_only = new_workers & !old_workers;
+
+            let mut old_heights = Vec::new();
+            let mut new_heights = Vec::new();
+            for old_pos in old_only {
+                old_heights.push(self.state.board.get_height(old_pos));
+            }
+            for new_pos in new_only {
+                new_heights.push(new_state.board.get_height(new_pos));
+            }
+
+            if old_heights.len() != new_heights.len() {
+                self.errors.push(format!(
+                    "different number of workers in persephone change that we don't know how to handle {} -> {:?}",
+                    active_god.stringify_move(action),
+                    new_state,
+                ));
+                continue;
+            }
+            old_heights.sort();
+            new_heights.sort();
+
+            for (old_h, new_h) in old_heights.iter().zip(new_heights) {
+                if new_h < *old_h {
+                    self.errors.push(format!(
+                        "Decreased height against hades: {} -> {:?}",
+                        active_god.stringify_move(action),
+                        new_state,
+                    ));
+                    return;
+                }
+            }
         }
     }
 

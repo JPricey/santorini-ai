@@ -526,11 +526,18 @@ pub(super) fn get_basic_moves_from_raw_data_for_hermes<const MUST_CLIMB: bool>(
         );
     }
 
+    let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
+        !prelude.board.height_map[worker_start_height - 1]
+    } else {
+        BitBoard::EMPTY
+    };
+
     let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
         & !(prelude.board.height_map[prelude
             .board
             .get_worker_climb_height(prelude.player, worker_start_height)]
             | prelude.board.exactly_level_n(worker_start_height)
+            | down_mask
             | prelude.all_workers_mask);
 
     restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)

@@ -1,4 +1,3 @@
-
 use crate::{
     bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
@@ -507,10 +506,16 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 valid_half_destinations
             };
 
+        let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
+            !prelude.board.height_map[worker_start_height - 1]
+        } else {
+            BitBoard::EMPTY
+        };
         let mut worker_1d_moves = (NEIGHBOR_MAP[worker_start_pos as usize]
-            & !prelude.board.height_map[prelude
+            & !(prelude.board.height_map[prelude
                 .board
                 .get_worker_climb_height(player, worker_start_height)]
+                | down_mask)
             | worker_start_mask)
             & valid_half_destinations;
 
@@ -559,15 +564,32 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
         let mut worker_moves = worker_1d_moves;
         let h_delta = can_worker_climb as usize;
-        for h in [0, 1, 2, 3] {
-            let current_level_workers = worker_1d_moves & !prelude.board.height_map[h];
-            worker_1d_moves ^= current_level_workers;
-            let current_level_destinations = !prelude.board.height_map[3.min(h + h_delta)];
 
-            for end_pos in current_level_workers {
-                worker_moves |= current_level_destinations & NEIGHBOR_MAP[end_pos as usize];
+        if prelude.is_down_prevented {
+            worker_moves |=
+                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_0, &NEIGHBOR_MAP)
+                    & (prelude.exactly_level_0 | prelude.exactly_level_1);
+            worker_moves |=
+                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_1, &NEIGHBOR_MAP)
+                    & (prelude.exactly_level_1 | prelude.exactly_level_2);
+            // Don't need to count level 2->3, since we already checked for wins
+            worker_moves |=
+                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_2, &NEIGHBOR_MAP)
+                    & (prelude.exactly_level_2);
+            // Don't need to check for moves from lvl 3, since we are against hades and that can't
+            // happen
+        } else {
+            for h in [0, 1, 2, 3] {
+                let current_level_workers = worker_1d_moves & !prelude.board.height_map[h];
+                worker_1d_moves ^= current_level_workers;
+                let current_level_destinations = !prelude.board.height_map[3.min(h + h_delta)];
+
+                for end_pos in current_level_workers {
+                    worker_moves |= current_level_destinations & NEIGHBOR_MAP[end_pos as usize];
+                }
             }
         }
+
         worker_moves &= valid_final_destinations;
 
         let non_selected_workers = prelude.all_workers_mask ^ worker_start_mask;

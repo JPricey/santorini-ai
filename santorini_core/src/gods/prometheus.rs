@@ -279,13 +279,26 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_starting_neighbors & unblocked_squares & prelude.build_mask;
 
         if !MUST_CLIMB {
+            // Can't go up
             let pre_build_worker_moves =
                 worker_moves & !prelude.board.height_map[worker_start_state.worker_start_height];
+
             let moveable_ontop_of_prebuild = if worker_start_state.worker_start_height == 0 {
                 BitBoard::EMPTY
             } else {
-                pre_build_worker_moves
-                    & !prelude.board.height_map[worker_start_state.worker_start_height - 1]
+                // can't go even, if we prebuilt there
+                let mut moveable_ontop_of_prebuild = pre_build_worker_moves
+                    & !prelude.board.height_map[worker_start_state.worker_start_height - 1];
+                if prelude.is_down_prevented {
+                    // If down is allowed, then add back downwards open moves
+                    match worker_start_state.worker_start_height {
+                        1 => moveable_ontop_of_prebuild |= prelude.exactly_level_0 & !prelude.all_workers_mask,
+                        2 => moveable_ontop_of_prebuild |= prelude.exactly_level_1 & !prelude.all_workers_mask,
+                        3 => moveable_ontop_of_prebuild |= prelude.exactly_level_2 & !prelude.all_workers_mask,
+                        _ => (),
+                    }
+                }
+                moveable_ontop_of_prebuild
             };
 
             // If we pre-build
