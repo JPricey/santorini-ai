@@ -278,6 +278,10 @@ impl GodPower {
             .collect()
     }
 
+    pub(crate) fn get_all_moves(&self, state: &FullGameState, player: Player) -> Vec<ScoredMove> {
+        (self._get_all_moves)(state, player, BitBoard::EMPTY)
+    }
+
     pub fn get_all_next_states(&self, state: &FullGameState) -> Vec<BoardState> {
         let board = &state.board;
         (self._get_all_moves)(state, board.current_player, BitBoard::EMPTY)

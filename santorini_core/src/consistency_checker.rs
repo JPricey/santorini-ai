@@ -48,11 +48,20 @@ impl ConsistencyChecker {
 
             let own_winning_moves = active_god.get_winning_moves(&self.state, current_player);
 
+            let all_moves = active_god.get_all_moves(&self.state, current_player);
+
             self.opponent_check_blockers(&other_wins, &search_moves);
             self.self_check_validations(&search_moves);
             self.validate_non_duplicates(&search_moves);
             self.validate_wins(&own_winning_moves);
             self.validate_build_blockers(&search_moves);
+
+            // self.validate_search_moves_subset_all_moves(
+            //     &all_moves,
+            //     &search_moves,
+            //     &own_winning_moves,
+            // );
+
             self.validate_hypnus_moves(&search_moves);
             self.validate_aphrodite_moves(&search_moves);
             self.validate_persephone_moves(&search_moves);
@@ -62,6 +71,63 @@ impl ConsistencyChecker {
             Ok(())
         } else {
             Err(std::mem::take(&mut self.errors))
+        }
+    }
+
+    fn validate_search_moves_subset_all_moves(
+        &mut self,
+        all_moves: &Vec<ScoredMove>,
+        search_moves: &Vec<ScoredMove>,
+        own_winning_moves: &Vec<ScoredMove>,
+    ) {
+        let mut all_move_map = HashMap::<u32, bool>::new();
+        for action in all_moves {
+            let key = action.action.0 & MOVE_DATA_MAIN_SECTION;
+            all_move_map.insert(key, action.get_is_winning());
+        }
+
+        for action in search_moves {
+            let key = action.action.0 & MOVE_DATA_MAIN_SECTION;
+            if !all_move_map.contains_key(&key) {
+                self.errors.push(format!(
+                    "Search move not in all moves: {} -> {:?}",
+                    self.state.get_active_god().stringify_move(action.action),
+                    self.state
+                        .next_state(self.state.get_active_god(), action.action)
+                ));
+            } else {
+                let was_winning = all_move_map[&key];
+                if was_winning != action.get_is_winning() {
+                    self.errors.push(format!(
+                        "Search move win flag mismatch from all moves: {}. AllMovesWin: {} SearchMovesWin: {}",
+                        self.state
+                            .get_active_god()
+                            .stringify_move(action.action),
+                        was_winning,
+                        action.get_is_winning()
+                    ));
+                }
+            }
+        }
+
+        for action in own_winning_moves {
+            let key = action.action.0 & MOVE_DATA_MAIN_SECTION;
+            if !all_move_map.contains_key(&key) {
+                self.errors.push(format!(
+                    "Winning move not in all moves: {} -> {:?}",
+                    self.state.get_active_god().stringify_move(action.action),
+                    self.state
+                        .next_state(self.state.get_active_god(), action.action)
+                ));
+            } else {
+                let was_winning = all_move_map[&key];
+                if !was_winning {
+                    self.errors.push(format!(
+                        "Winning move not marked as winning in all moves: {}",
+                        self.state.get_active_god().stringify_move(action.action),
+                    ));
+                }
+            }
         }
     }
 
@@ -152,7 +218,7 @@ impl ConsistencyChecker {
 
                 if old_heights.len() != new_heights.len() {
                     self.errors.push(format!(
-                    "different number of workers in persephone change that we don't know how to handl {} -> {:?}",
+                    "different number of workers in persephone change that we don't know how to handle {} -> {:?}",
                     active_god.stringify_move(action),
                     new_state,
                 ));

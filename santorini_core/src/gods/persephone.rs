@@ -154,7 +154,7 @@ mod tests {
         let mut search_context = SearchContext {
             tt: &mut tt,
             new_best_move_callback: Box::new(move |_new_best_move| {}),
-            terminator: DynamicMaxDepthSearchTerminator::new(5),
+            terminator: DynamicMaxDepthSearchTerminator::new(2),
         };
         let search_state = negamax_search(&mut search_context, state);
 
