@@ -1164,7 +1164,7 @@ where
                 next_depth,
                 -beta,
                 -alpha,
-                false,
+                !is_cut_node,
             )
         } else {
             let mut reduction = 0;

@@ -56,11 +56,11 @@ impl ConsistencyChecker {
             self.validate_wins(&own_winning_moves);
             self.validate_build_blockers(&search_moves);
 
-            // self.validate_search_moves_subset_all_moves(
-            //     &all_moves,
-            //     &search_moves,
-            //     &own_winning_moves,
-            // );
+            self.validate_search_moves_subset_all_moves(
+                &all_moves,
+                &search_moves,
+                &own_winning_moves,
+            );
 
             self.validate_hypnus_moves(&search_moves);
             self.validate_aphrodite_moves(&search_moves);
@@ -755,6 +755,13 @@ impl ConsistencyChecker {
                             is_real_checker
                         ));
                     }
+                } else if is_check_flag
+                    && active_god.god_name == GodName::Pan
+                    && other_god.god_name == GodName::Persephone
+                {
+                    // Persephone can force pan to go up, preventing his downfall win con
+                    // Doesn't seem worth trying to account for
+                    continue;
                 } else {
                     let type_msg = match is_real_checker {
                         true => "Missed real check.",

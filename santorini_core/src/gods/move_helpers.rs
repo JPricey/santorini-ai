@@ -557,6 +557,17 @@ macro_rules! persephone_check_result {
             if result.len() > 0 {
                 return result;
             }
+
+            // Maybe we couldn't climb because of the other restrictions (must mate, must block)
+            // Try again without the restriction. If we can find anything, return the empty result
+            // Otherwise, we'll fall back to not climbing
+            if F & $crate::gods::generic::ANY_MOVE_FILTER > 0 {
+                let unrestricted = $move_gen::<0, true>($state, $player, $key_squares);
+                if unrestricted.len() > 0 {
+                    return result;
+                }
+            }
+
             result
         } else {
             $crate::gods::move_helpers::get_sized_result::<F>()

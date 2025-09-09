@@ -15,6 +15,8 @@ pub const MATE_ONLY: MoveGenFlags = 1 << 2;
 pub const INCLUDE_SCORE: MoveGenFlags = 1 << 3;
 pub const INTERACT_WITH_KEY_SQUARES: MoveGenFlags = 1 << 4;
 
+pub const ANY_MOVE_FILTER: MoveGenFlags = MATE_ONLY | INTERACT_WITH_KEY_SQUARES;
+
 pub const NON_IMPROVER_SENTINEL_SCORE: MoveScore = MoveScore::MIN + 1;
 pub const IMPROVER_SENTINEL_SCORE: MoveScore = NON_IMPROVER_SENTINEL_SCORE + 1;
 pub const CHECK_SENTINEL_SCORE: MoveScore = IMPROVER_SENTINEL_SCORE + 1;
