@@ -597,6 +597,12 @@ impl ConsistencyChecker {
                     continue;
                 }
 
+                if active_god.god_name == GodName::Morpheus {
+                    // morpheus can triple build into 0's, allowing pan to make the same move to
+                    // win
+                    continue;
+                }
+
                 if active_god.god_name == GodName::Athena {
                     let athena_move: AthenaMove = block_action.into();
                     let did_pan_fall = self

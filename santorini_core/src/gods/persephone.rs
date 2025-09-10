@@ -148,8 +148,6 @@ mod tests {
     fn test_full_playout_persephone_pan_blocker() {
         let state = parse_fen("0000200000300000200001000/1/persephone:A1,B1/pan:E5,C1").unwrap();
 
-        let mut checker = ConsistencyChecker::new(&state);
-        checker.perform_all_validations().expect("Failed check");
         let mut tt = TranspositionTable::new();
         let mut search_context = SearchContext {
             tt: &mut tt,

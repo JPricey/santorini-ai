@@ -14,5 +14,6 @@ pub const fn build_hades() -> GodPower {
         3909168555047842639,
         3956786047127225345,
     )
+    .with_nnue_god_name(GodName::Mortal)
     .with_is_preventing_down()
 }

@@ -28,6 +28,7 @@ pub(crate) mod hermes;
 pub(crate) mod hypnus;
 pub(crate) mod limus;
 pub(crate) mod minotaur;
+pub(crate) mod morpheus;
 pub(crate) mod mortal;
 pub(crate) mod move_helpers;
 pub(crate) mod pan;
@@ -74,10 +75,11 @@ pub enum GodName {
     Aphrodite = 17,
     Persephone = 18,
     Hades = 19,
+    Morpheus = 20,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Aphrodite, GodName::Persephone, GodName::Hades]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Aphrodite, GodName::Persephone, GodName::Hades, GodName::Morpheus]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -137,7 +139,7 @@ impl BoardStateWithAction {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GameStateWithAction {
     pub state: FullGameState,
     pub actions: FullAction,
@@ -418,6 +420,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     aphrodite::build_aphrodite(),
     persephone::build_persephone(),
     hades::build_hades(),
+    morpheus::build_morpheus(),
 ]);
 
 #[macro_export]
