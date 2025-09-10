@@ -1,9 +1,19 @@
 use crate::{
-    bitboard::BitBoard, board::{BoardState, FullGameState}, build_god_power_movers, gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, move_helpers::{build_scored_move, make_build_only_power_generator}, FullAction, GodName, GodPower
-    }, persephone_check_result, player::Player, square::Square
+    bitboard::BitBoard,
+    board::{BoardState, FullGameState},
+    build_god_power_movers,
+    gods::{
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        move_helpers::{build_scored_move, make_build_only_power_generator},
+    },
+    persephone_check_result,
+    player::Player,
+    square::Square,
 };
 
 use super::PartialAction;
@@ -167,31 +177,12 @@ impl GodMove for DemeterMove {
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
-        let from = self.move_from_position();
-        let to = self.move_to_position();
-        let build = self.build_position();
-
-        let from_height = board.get_height(from);
-        let to_height = board.get_height(to);
-        let build_height = board.get_height(build);
-
-        let fu = from as usize;
-        let tu = to as usize;
-        let bu = build as usize;
-
-        let mut res = 4 * fu + from_height;
-        res = res * 100 + 4 * tu + to_height;
-        res = res * 100 + 4 * bu + build_height;
-        res = res * 101
-            + if let Some(second_build) = self.second_build_position() {
-                let second_build_height = board.get_height(second_build);
-                let su = second_build as usize;
-                4 * su + second_build_height + 1
-            } else {
-                0
-            };
-
-        res
+        let mut helper = HistoryIdxHelper::new();
+        helper.add_square_with_height(board, self.move_from_position());
+        helper.add_square_with_height(board, self.move_to_position());
+        helper.add_square_with_height(board, self.build_position());
+        helper.add_maybe_square_with_height(board, self.second_build_position());
+        helper.get()
     }
 }
 

@@ -10,7 +10,7 @@ use crate::{
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     placement::{get_placement_actions, get_starting_placements_count},
-    player::{self, Player},
+    player::Player,
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
     utils::{hash_u64, timestamp_string},

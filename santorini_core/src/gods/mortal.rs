@@ -3,17 +3,17 @@ use crate::{
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
         move_helpers::{
-            build_scored_move, get_generator_prelude_state, 
-            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
-            get_worker_next_move_state, get_worker_start_move_state, is_mate_only,
-            modify_prelude_for_checking_workers, push_winning_moves,
+            build_scored_move, get_generator_prelude_state, get_standard_reach_board,
+            get_worker_end_move_state, get_worker_next_build_state, get_worker_next_move_state,
+            get_worker_start_move_state, is_mate_only, modify_prelude_for_checking_workers,
+            push_winning_moves,
         },
     },
     persephone_check_result,
@@ -64,23 +64,11 @@ impl GodMove for MortalMove {
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
-        let from = self.move_from_position();
-        let to = self.move_to_position();
-        let build = self.build_position();
-
-        let from_height = board.get_height(from);
-        let to_height = board.get_height(to);
-        let build_height = board.get_height(build);
-
-        let fu = from as usize;
-        let tu = to as usize;
-        let bu = build as usize;
-
-        let mut res = 4 * fu + from_height;
-        res = res * 100 + 4 * tu + to_height;
-        res = res * 100 + 4 * bu + build_height;
-
-        res
+        let mut helper = HistoryIdxHelper::new();
+        helper.add_square_with_height(board, self.move_from_position());
+        helper.add_square_with_height(board, self.move_to_position());
+        helper.add_square_with_height(board, self.build_position());
+        helper.get()
     }
 }
 

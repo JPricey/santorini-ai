@@ -1,21 +1,15 @@
 use crate::{
-    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{apply_mapping_to_mask, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, PartialAction, build_god_power_actions,
-        generic::{
-            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
-        },
-        god_power,
-        harpies::slide_position_with_custom_worker_blocker,
-        hypnus::hypnus_moveable_worker_filter,
-        move_helpers::{
+        build_god_power_actions, generic::{
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
+        }, god_power, harpies::slide_position_with_custom_worker_blocker, hypnus::hypnus_moveable_worker_filter, move_helpers::{
             build_scored_move, get_generator_prelude_state, get_sized_result,
             get_worker_climb_height_raw, get_worker_start_move_state, is_interact_with_key_squares,
             is_mate_only, is_stop_on_mate,
-        },
+        }, FullAction, GodName, GodPower, HistoryIdxHelper, PartialAction
     },
     persephone_check_result,
     player::Player,
@@ -72,23 +66,11 @@ impl GodMove for ArtemisMove {
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
-        let from = self.move_from_position();
-        let to = self.move_to_position();
-        let build = self.build_position();
-
-        let from_height = board.get_height(from);
-        let to_height = board.get_height(to);
-        let build_height = board.get_height(build);
-
-        let fu = from as usize;
-        let tu = to as usize;
-        let bu = build as usize;
-
-        let mut res = 4 * fu + from_height;
-        res = res * 100 + 4 * tu + to_height;
-        res = res * 100 + 4 * bu + build_height;
-
-        res
+        let mut helper = HistoryIdxHelper::new();
+        helper.add_square_with_height(board, self.move_from_position());
+        helper.add_square_with_height(board, self.move_to_position());
+        helper.add_square_with_height(board, self.build_position());
+        helper.get()
     }
 }
 

@@ -3,7 +3,7 @@ use crate::{
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
@@ -163,24 +163,12 @@ impl GodMove for AtlasMove {
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
-        let from = self.move_from_position();
-        let to = self.move_to_position();
-        let build = self.build_position();
-
-        let from_height = board.get_height(from);
-        let to_height = board.get_height(to);
-        let build_height = board.get_height(build);
-
-        let fu = from as usize;
-        let tu = to as usize;
-        let bu = build as usize;
-
-        let mut res = 4 * fu + from_height;
-        res = res * 100 + 4 * tu + to_height;
-        res = res * 100 + 4 * bu + build_height;
-        res = res * 2 + self.is_dome_build() as usize;
-
-        res
+        let mut helper = HistoryIdxHelper::new();
+        helper.add_square_with_height(board, self.move_from_position());
+        helper.add_square_with_height(board, self.move_to_position());
+        helper.add_square_with_height(board, self.build_position());
+        helper.add_bool(self.is_dome_build());
+        helper.get()
     }
 }
 

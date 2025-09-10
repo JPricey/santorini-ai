@@ -155,15 +155,8 @@ impl GameStateWithAction {
     }
 }
 
-pub type PlayerAdvantageFn = fn(&BoardState, Player) -> Hueristic;
-pub type GenericNextStatesFn<T> = fn(&BoardState, Player) -> Vec<T>;
-pub type NextStateWithScoresFn = GenericNextStatesFn<StateWithScore>;
-pub type NextStatesOnlyFn = GenericNextStatesFn<BoardState>;
-pub type NextStatesInteractiveFn = GenericNextStatesFn<BoardStateWithAction>;
-pub type HasWinFn = fn(&BoardState, Player) -> bool;
-
-pub type ParseGodDataFn = fn(&str) -> Result<GodData, String>;
-pub type StringifyGodDataFn = fn(GodData) -> Option<String>;
+pub(super) type ParseGodDataFn = fn(&str) -> Result<GodData, String>;
+pub(super) type StringifyGodDataFn = fn(GodData) -> Option<String>;
 fn _default_parse_god_data(fen: &str) -> Result<GodData, String> {
     match fen {
         "" => Ok(0),
@@ -175,13 +168,10 @@ fn _default_stringify_god_data(_data: GodData) -> Option<String> {
     None
 }
 
-pub type MoveModifierFn =
-    fn(board: &BoardState, me: Player, other: Player, from: Square, tos: BitBoard) -> BitBoard;
-
-pub type MoveGeneratorFn =
+pub(super) type MoveGeneratorFn =
     fn(board: &FullGameState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>;
 
-pub struct GodPowerMoveFns {
+pub(super) struct GodPowerMoveFns {
     _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
     _get_unscored_win_blockers: MoveGeneratorFn,
@@ -189,7 +179,7 @@ pub struct GodPowerMoveFns {
     _get_moves_for_search: MoveGeneratorFn,
 }
 
-pub struct GodPowerActionFns {
+pub(super) struct GodPowerActionFns {
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
     _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 
@@ -199,22 +189,22 @@ pub struct GodPowerActionFns {
     _stringify_move: fn(action: GenericMove) -> String,
 }
 
-pub type BuildMaskFn = fn(oppo_workers: BitBoard) -> BitBoard;
+pub(super) type BuildMaskFn = fn(oppo_workers: BitBoard) -> BitBoard;
 fn _default_build_mask(_oppo_workers: BitBoard) -> BitBoard {
     BitBoard::MAIN_SECTION_MASK
 }
 
-pub type MovableWorkerFilter = fn(board: &BoardState, workers: BitBoard) -> BitBoard;
+pub(super) type MovableWorkerFilter = fn(board: &BoardState, workers: BitBoard) -> BitBoard;
 fn _default_moveable_worker_filter(_board: &BoardState, workers: BitBoard) -> BitBoard {
     workers
 }
 
-pub type CanOpponentClimbFn = fn(&BoardState, Player) -> bool;
+pub(super) type CanOpponentClimbFn = fn(&BoardState, Player) -> bool;
 fn _default_can_opponent_climb(_board: &BoardState, _player: Player) -> bool {
     true
 }
 
-pub type MakePassingMoveFn = fn(&mut BoardState);
+pub(super) type MakePassingMoveFn = fn(&mut BoardState);
 fn _default_passing_move(_board: &mut BoardState) {
     // Noop
 }
@@ -370,19 +360,19 @@ impl GodPower {
         (self._get_actions_for_move)(board, action)
     }
 
-    pub fn get_history_hash(&self, board: &BoardState, action: GenericMove) -> usize {
+    pub(super) fn get_history_hash(&self, board: &BoardState, action: GenericMove) -> usize {
         (self._get_history_hash)(board, action)
     }
 
-    pub fn can_opponent_climb(&self, board: &BoardState, player: Player) -> bool {
+    pub(super) fn can_opponent_climb(&self, board: &BoardState, player: Player) -> bool {
         (self._can_opponent_climb_fn)(board, player)
     }
 
-    pub fn parse_god_data(&self, fen: &str) -> Result<GodData, String> {
+    pub(super) fn parse_god_data(&self, fen: &str) -> Result<GodData, String> {
         (self._parse_god_data)(fen)
     }
 
-    pub fn stringify_god_data(&self, god_data: GodData) -> Option<String> {
+    pub(super) fn stringify_god_data(&self, god_data: GodData) -> Option<String> {
         (self._stringify_god_data)(god_data)
     }
 }
@@ -463,7 +453,7 @@ macro_rules! build_god_power_movers {
     }};
 }
 
-pub const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
+pub(crate) const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
     fn _stringify_move<T: GodMove>(action: GenericMove) -> String {
         let action: T = action.into();
         format!("{:?}", action)
@@ -596,7 +586,10 @@ impl GodPower {
         self
     }
 
-    pub(super) const fn with_make_passing_move_fn(mut self, make_passing_move: MakePassingMoveFn) -> Self {
+    pub(super) const fn with_make_passing_move_fn(
+        mut self,
+        make_passing_move: MakePassingMoveFn,
+    ) -> Self {
         self._make_passing_move = make_passing_move;
         self
     }
@@ -612,6 +605,45 @@ impl GodPower {
     ) -> Self {
         self._stringify_god_data = stringify_god_data;
         self
+    }
+}
+
+#[derive(Debug, Default)]
+pub(super) struct HistoryIdxHelper(usize);
+
+impl HistoryIdxHelper {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn add_value(&mut self, current_value: usize, max_value: usize) {
+        self.0 = self.0 * max_value + current_value;
+    }
+
+    pub(crate) fn add_square_with_height(&mut self, board: &BoardState, square: Square) {
+        let height = board.get_height(square);
+        self.add_value((square as usize) * 4 + height, 100);
+    }
+
+    pub(crate) fn add_maybe_square_with_height(
+        &mut self,
+        board: &BoardState,
+        square: Option<Square>,
+    ) {
+        if let Some(square) = square {
+            let height = board.get_height(square);
+            self.add_value((square as usize) * 4 + height + 1, 101);
+        } else {
+            self.0 *= 101
+        }
+    }
+
+    pub(crate) fn add_bool(&mut self, value: bool) {
+        self.add_value(value as usize, 2);
+    }
+
+    pub(crate) fn get(&self) -> usize {
+        self.0
     }
 }
 

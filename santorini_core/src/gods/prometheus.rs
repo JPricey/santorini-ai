@@ -3,7 +3,7 @@ use crate::{
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
@@ -208,31 +208,12 @@ impl GodMove for PrometheusMove {
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
-        let from = self.move_from_position();
-        let to = self.move_to_position();
-        let build = self.build_position();
-
-        let from_height = board.get_height(from);
-        let to_height = board.get_height(to);
-        let build_height = board.get_height(build);
-
-        let fu = from as usize;
-        let tu = to as usize;
-        let bu = build as usize;
-
-        let mut res = 4 * fu + from_height;
-        res = res * 100 + 4 * tu + to_height;
-        res = res * 100 + 4 * bu + build_height;
-        res = res * 101
-            + if let Some(second_build) = self.pre_build_position() {
-                let second_build_height = board.get_height(second_build);
-                let su = second_build as usize;
-                4 * su + second_build_height + 1
-            } else {
-                0
-            };
-
-        res
+        let mut helper = HistoryIdxHelper::new();
+        helper.add_square_with_height(board, self.move_from_position());
+        helper.add_square_with_height(board, self.move_to_position());
+        helper.add_square_with_height(board, self.build_position());
+        helper.add_maybe_square_with_height(board, self.pre_build_position());
+        helper.get()
     }
 }
 
@@ -292,9 +273,18 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 if prelude.is_down_prevented {
                     // If down is allowed, then add back downwards open moves
                     match worker_start_state.worker_start_height {
-                        1 => moveable_ontop_of_prebuild |= prelude.exactly_level_0 & !prelude.all_workers_mask,
-                        2 => moveable_ontop_of_prebuild |= prelude.exactly_level_1 & !prelude.all_workers_mask,
-                        3 => moveable_ontop_of_prebuild |= prelude.exactly_level_2 & !prelude.all_workers_mask,
+                        1 => {
+                            moveable_ontop_of_prebuild |=
+                                prelude.exactly_level_0 & !prelude.all_workers_mask
+                        }
+                        2 => {
+                            moveable_ontop_of_prebuild |=
+                                prelude.exactly_level_1 & !prelude.all_workers_mask
+                        }
+                        3 => {
+                            moveable_ontop_of_prebuild |=
+                                prelude.exactly_level_2 & !prelude.all_workers_mask
+                        }
                         _ => (),
                     }
                 }
