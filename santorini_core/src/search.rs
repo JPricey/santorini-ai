@@ -10,7 +10,7 @@ use crate::{
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     placement::{get_placement_actions, get_starting_placements_count},
-    player::Player,
+    player::{self, Player},
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
     utils::{hash_u64, timestamp_string},
@@ -918,16 +918,8 @@ where
     }
 
     let key_squares = if is_in_check {
-        let other_is_blocked = !state.board.get_worker_can_climb(other_player_idx);
-
-        let mut state_clone = state.clone();
-        state_clone
-            .board
-            .flip_worker_can_climb(other_player_idx, other_is_blocked);
-        let other_wins = other_god.get_winning_moves(&state_clone, other_player_idx);
-        state_clone
-            .board
-            .flip_worker_can_climb(other_player_idx, other_is_blocked);
+        let passed_state = state.next_state_passing(active_god);
+        let other_wins = other_god.get_winning_moves(&passed_state, other_player_idx);
 
         if other_wins.len() == 0 {
             // TODO: fix all these?
@@ -1068,14 +1060,14 @@ where
             const NULL_MOVE_HASH: usize = 2140012677;
             #[cfg(target_pointer_width = "64")]
             const NULL_MOVE_HASH: usize = 71369690056371976;
-            search_state.search_stack[ply].move_hash = hash_u64(NULL_MOVE_HASH);
+            search_state.search_stack[ply].move_hash = NULL_MOVE_HASH;
 
-            let mut state_clone = state.clone();
-            state_clone.board.flip_current_player();
+            let null_move_child_state = state.next_state_passing(active_god);
+
             let null_value = -_inner_search::<T, OffPV>(
                 search_context,
                 search_state,
-                &state_clone,
+                &null_move_child_state,
                 nnue_acc,
                 false,
                 ply + 1,

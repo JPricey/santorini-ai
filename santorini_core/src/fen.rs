@@ -1,8 +1,10 @@
 use std::str::FromStr;
 
+use regex::Regex;
+
 use crate::{
     bitboard::{BitBoard, NUM_SQUARES},
-    board::{BoardState, FullGameState},
+    board::{BoardState, FullGameState, GodData},
     gods::{ALL_GODS_BY_ID, GodName},
     player::Player,
     square::Square,
@@ -14,11 +16,15 @@ fn player_section_string(state: &FullGameState, player: Player) -> String {
         result += "#";
     }
 
-    if !state.board.get_worker_can_climb(player) {
-        result += "-";
-    }
+    let god = state.get_god_for_player(player);
+    result += god.god_name.into();
 
-    result += state.get_god_for_player(player).god_name.into();
+    let god_data = state.board.god_data[player as usize];
+    if let Some(god_data_str) = god.stringify_god_data(god_data) {
+        result += "[";
+        result += &god_data_str;
+        result += "]";
+    }
 
     let position_strings = state
         .board
@@ -63,36 +69,49 @@ struct CharacterFen {
     god: GodName,
     worker_locations: Vec<Square>,
     is_won: bool,
-    is_movement_blocked: bool,
+    god_data: GodData,
+    is_up_limited: bool,
 }
 
 const CHARACTER_FEN_WARNING: &str =
-    "Player details must be in the format: /god_name:<worker_id_1>,...[#(if won)]/";
+    "Player details must be in the format: /[#(if won)]god_name[optional_datas]:<worker_id_1>,.../";
 
 fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
     if s.len() == 0 {
         return Err(CHARACTER_FEN_WARNING.to_owned());
     }
 
-    let is_won = s.contains("#");
-    let s = s.replace("#", "");
-
-    let is_movement_blocked = s.contains("-");
-    let s = s.replace("-", "");
-
     let colon_splits: Vec<_> = s.split(":").collect();
     if colon_splits.len() > 2 {
         return Err(CHARACTER_FEN_WARNING.to_owned());
     }
 
-    let (god, worker_split) = if colon_splits.len() == 1 {
-        let god_name = GodName::from_str(colon_splits[0])
-            .map_err(|e| format!("Failed to parse god name {}: {}", colon_splits[0], e))?;
-        (god_name, "")
+    let re = Regex::new(r"([^\[]*)(\[(.*)\])?").map_err(|e| format!("{}", e))?;
+    let god_name_captures = re.captures(colon_splits[0]).ok_or_else(|| {
+        format!(
+            "Failed to parse god name from section: {}. {}",
+            colon_splits[0], CHARACTER_FEN_WARNING
+        )
+    })?;
+    let god_string = god_name_captures.get(1).unwrap().as_str().to_owned();
+    let is_won = god_string.contains("#");
+    let is_up_limited = god_string.contains("-");
+    let god_string = god_string.replace("#", "");
+    let god_string = god_string.replace("-", "");
+
+    let god = GodName::from_str(god_string.as_str())
+        .map_err(|e| format!("Failed to parse god name {}: {}", god_string.as_str(), e))?;
+
+    let god_data: GodData = if let Some(data_capture) = god_name_captures.get(3) {
+        god.to_power().parse_god_data(data_capture.as_str())?
     } else {
-        let god_name = GodName::from_str(colon_splits[0])
-            .map_err(|e| format!("Failed to parse god name {}: {}", colon_splits[0], e))?;
-        (god_name, colon_splits[1])
+        0
+    };
+
+    let worker_split = if colon_splits.len() == 1 {
+        ""
+    } else {
+        colon_splits[1]
     };
 
     let mut worker_locations: Vec<Square> = Vec::new();
@@ -108,7 +127,8 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
         god,
         worker_locations,
         is_won,
-        is_movement_blocked,
+        god_data,
+        is_up_limited,
     })
 }
 
@@ -149,8 +169,15 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     };
     result.current_player = current_player;
 
-    let p1_section = parse_character_section(sections[2])?;
-    let p2_section = parse_character_section(sections[3])?;
+    let mut p1_section = parse_character_section(sections[2])?;
+    let mut p2_section = parse_character_section(sections[3])?;
+
+    if p1_section.is_up_limited && p2_section.god == GodName::Athena {
+        p2_section.god_data = 1;
+    }
+    if p2_section.is_up_limited && p1_section.god == GodName::Athena {
+        p1_section.god_data = 1;
+    }
 
     if p1_section.is_won && p2_section.is_won {
         return Err("Cannot have both players won".to_owned());
@@ -169,8 +196,12 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
         result.set_winner(Player::Two);
     }
 
-    result.flip_worker_can_climb(Player::One, p1_section.is_movement_blocked);
-    result.flip_worker_can_climb(Player::Two, p2_section.is_movement_blocked);
+    result.god_data[0] = p1_section.god_data;
+    result.god_data[1] = p2_section.god_data;
+
+    // TODO
+    // result.flip_worker_can_climb(Player::One, p1_section.is_movement_blocked);
+    // result.flip_worker_can_climb(Player::Two, p2_section.is_movement_blocked);
 
     let mut full_result = FullGameState {
         board: result,
@@ -191,6 +222,16 @@ mod tests {
     use crate::random_utils::GameStateFuzzer;
 
     use super::*;
+
+    #[test]
+    fn test_fen_athena_backcompat() {
+        let res = parse_fen("0000000000000000000000000/1/-mortal:B3,D3/athena:C2,C4");
+        assert!(res.is_ok());
+        assert_eq!(
+            game_state_to_fen(&res.unwrap()),
+            "0000000000000000000000000/1/mortal:B3,D3/athena[^]:C4,C2"
+        )
+    }
 
     #[test]
     fn test_fen_basic() {
@@ -220,6 +261,20 @@ mod tests {
     fn test_fen_placement_out_of_order() {
         let res = parse_fen("0000000000000000000000000/1/mortal/mortal:A1,B2");
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_fen_datas() {
+        let res = parse_fen("0000000000000000000000000/1/athena[^]:B3,D3/mortal:C2,C4");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().board.god_data[0], 1);
+    }
+
+    #[test]
+    fn test_fen_winner() {
+        let res = parse_fen("0000000000000000000000000/1/#athena:B3,D3/mortal:C2,C4");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().get_winner(), Some(Player::One));
     }
 
     #[test]

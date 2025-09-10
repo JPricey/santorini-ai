@@ -68,7 +68,7 @@ export function playerToPrettyColorString(player: PlayerType): string {
     }
 }
 
-export function playertoString(player: PlayerType): string {
+export function playerToString(player: PlayerType): string {
     switch (player) {
         case Player.One:
             return 'One';
@@ -88,6 +88,7 @@ export type PlayerGameState = {
     god: string,
     workers: Array<SquareType>,
     isWin: boolean,
+    otherAttributes: string,
 };
 
 export type GameState = {

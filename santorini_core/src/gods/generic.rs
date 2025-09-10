@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::{BoardState, FullGameState, GodData},
     gods::{FullAction, PartialAction},
     square::Square,
 };
@@ -51,6 +51,10 @@ pub const FULL_HEIGHT_MASK: u8 = (1 << FULL_HEIGHT_WIDTH) - 1;
 pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
 pub const MOVE_DATA_MAIN_SECTION: MoveData = MOVE_IS_CHECK_MASK - 1;
+
+pub(crate) fn get_default_parse_data_err(data: &str) -> Result<GodData, String> {
+    Err(format!("Could not parse god data: {}", data))
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct GenericMove(pub MoveData);

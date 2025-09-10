@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getPlayerOnSquare, Player, type GameState, type SquareType } from '../common/game_state';
+import { getPlayerOnSquare, playerToString, Player, type GameState, type SquareType, type PlayerType, type PlayerGameState } from '../common/game_state';
 import './GameGridCanvas.css';
 import { describeActionType, PlayerActionTypes, type PlayerAction, type PlayerActionType } from '../common/api';
 import { intersectionMatchType } from '../common/action_selector';
@@ -107,7 +107,7 @@ const HEIGHT_WIDTH_PROPORTIONS = [
 ];
 
 const X_ORIG = SINGLE_SIDE_EDGE_BUFFER * 1.3;
-const Y_ORIG = SINGLE_SIDE_EDGE_BUFFER + GAME_BOARD_REAL_WIDTH * sinDeg(ISO_ROTATE_ANGLE);
+const Y_ORIG = SINGLE_SIDE_EDGE_BUFFER * 2.0 + GAME_BOARD_REAL_WIDTH * sinDeg(ISO_ROTATE_ANGLE);
 
 function transformPoint(x: number, y: number) {
     const nx = x * COS_ROTATE + y * SIN_ROTATE;
@@ -158,6 +158,8 @@ const LEGEND_LINE_SPACING = 22;
 const LEGEND_BOX_SIZE = 18;
 const LEGEND_BOX_DELTA = -LEGEND_TEXT_SIZE * 0.85;
 
+const EXTRA_INFO_TEXT_SIZE = 16;
+
 function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBoardProps) {
     if (width === 0 || height === 0) {
         return null;
@@ -204,6 +206,25 @@ function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBo
             validActionTypes.push(action.type);
         }
     }
+
+    function specialPlayerText(player: PlayerGameState): string | null {
+        if (player.otherAttributes === "^") {
+            return "Athena is prevenenting upwards movement."
+        }
+
+        return null;
+    }
+    function specialPlayerTextFull(player: PlayerType): string {
+        const innerText = specialPlayerText(gameState.players[player]);
+        if (innerText) {
+            return `Player ${playerToString(player)}: ${innerText}`;
+        }
+
+        return '';
+    }
+    let p1SpecialText = specialPlayerTextFull(Player.One);
+    let p2SpecialText = specialPlayerTextFull(Player.Two);
+
     return (
         <svg style={{ height: '100%', width: '100%' }}>
             <defs>
@@ -223,8 +244,24 @@ function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBo
                 <polygon points={underPolyString} />
             </g>
 
+            {p1SpecialText === "" ? null :
+                <g key='p1SpecialText' transform={`translate(${c(30)},${c(30)})`}>
+                    <text fontSize={c(EXTRA_INFO_TEXT_SIZE)}>
+                        {p1SpecialText}
+                    </text>
+                </g>
+            }
+
+            {p2SpecialText === "" ? null :
+                <g key='p1SpecialText' transform={`translate(${c(600)},${c(30)})`}>
+                    <text fontSize={c(EXTRA_INFO_TEXT_SIZE)}>
+                        {p2SpecialText}
+                    </text>
+                </g>
+            }
+
             {validActionTypes.length === 0 ? null :
-                <g key='legend' transform={`translate(${c(30)},${c(50)})`}>
+                <g key='legend' transform={`translate(${c(30)},${c(120)})`}>
                     <text fontSize={c(LEGEND_TEXT_SIZE)} fontWeight='bold'>
                         Take an action:
                     </text>

@@ -1,7 +1,7 @@
 use super::search::Hueristic;
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::{BoardState, FullGameState, GodData},
     gods::generic::{GenericMove, GodMove, ScoredMove},
     hashing::HashType,
     player::Player,
@@ -12,28 +12,28 @@ use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
-pub mod aphrodite;
-pub mod apollo;
-pub mod artemis;
-pub mod athena;
-pub mod atlas;
-pub mod demeter;
+pub(crate) mod aphrodite;
+pub(crate) mod apollo;
+pub(crate) mod artemis;
+pub(crate) mod athena;
+pub(crate) mod atlas;
+pub(crate) mod demeter;
 pub mod generic;
-pub mod graeae;
-pub mod hades;
-pub mod harpies;
-pub mod hephaestus;
-pub mod hera;
-pub mod hermes;
-pub mod hypnus;
-pub mod limus;
-pub mod minotaur;
-pub mod mortal;
-pub mod move_helpers;
-pub mod pan;
-pub mod persephone;
-pub mod prometheus;
-pub mod urania;
+pub(crate) mod graeae;
+pub(crate) mod hades;
+pub(crate) mod harpies;
+pub(crate) mod hephaestus;
+pub(crate) mod hera;
+pub(crate) mod hermes;
+pub(crate) mod hypnus;
+pub(crate) mod limus;
+pub(crate) mod minotaur;
+pub(crate) mod mortal;
+pub(crate) mod move_helpers;
+pub(crate) mod pan;
+pub(crate) mod persephone;
+pub(crate) mod prometheus;
+pub(crate) mod urania;
 
 pub type StaticGod = &'static GodPower;
 
@@ -162,11 +162,25 @@ pub type NextStatesOnlyFn = GenericNextStatesFn<BoardState>;
 pub type NextStatesInteractiveFn = GenericNextStatesFn<BoardStateWithAction>;
 pub type HasWinFn = fn(&BoardState, Player) -> bool;
 
+pub type ParseGodDataFn = fn(&str) -> Result<GodData, String>;
+pub type StringifyGodDataFn = fn(GodData) -> Option<String>;
+fn _default_parse_god_data(fen: &str) -> Result<GodData, String> {
+    match fen {
+        "" => Ok(0),
+        _ => Err(format!("Unknown god data format: {}", fen)),
+    }
+}
+
+fn _default_stringify_god_data(_data: GodData) -> Option<String> {
+    None
+}
+
 pub type MoveModifierFn =
     fn(board: &BoardState, me: Player, other: Player, from: Square, tos: BitBoard) -> BitBoard;
 
 pub type MoveGeneratorFn =
     fn(board: &FullGameState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>;
+
 pub struct GodPowerMoveFns {
     _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
@@ -195,6 +209,16 @@ fn _default_moveable_worker_filter(_board: &BoardState, workers: BitBoard) -> Bi
     workers
 }
 
+pub type CanOpponentClimbFn = fn(&BoardState, Player) -> bool;
+fn _default_can_opponent_climb(_board: &BoardState, _player: Player) -> bool {
+    true
+}
+
+pub type MakePassingMoveFn = fn(&mut BoardState);
+fn _default_passing_move(_board: &mut BoardState) {
+    // Noop
+}
+
 pub struct GodPower {
     pub god_name: GodName,
     pub model_god_name: GodName,
@@ -209,6 +233,7 @@ pub struct GodPower {
     // God specific move blockers
     _build_mask_fn: BuildMaskFn,
     _moveable_worker_filter_fn: MovableWorkerFilter,
+    _can_opponent_climb_fn: CanOpponentClimbFn,
     pub win_mask: BitBoard,
 
     // Action Fns
@@ -216,9 +241,13 @@ pub struct GodPower {
     _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 
     _make_move: fn(board: &mut BoardState, action: GenericMove),
+    _make_passing_move: MakePassingMoveFn,
 
     _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
     _stringify_move: fn(action: GenericMove) -> String,
+
+    _parse_god_data: ParseGodDataFn,
+    _stringify_god_data: StringifyGodDataFn,
 
     pub num_workers: usize,
 
@@ -328,6 +357,11 @@ impl GodPower {
         board.flip_current_player();
     }
 
+    pub fn make_passing_move(&self, board: &mut BoardState) {
+        (self._make_passing_move)(board);
+        board.flip_current_player();
+    }
+
     pub fn stringify_move(&self, action: GenericMove) -> String {
         (self._stringify_move)(action)
     }
@@ -338,6 +372,18 @@ impl GodPower {
 
     pub fn get_history_hash(&self, board: &BoardState, action: GenericMove) -> usize {
         (self._get_history_hash)(board, action)
+    }
+
+    pub fn can_opponent_climb(&self, board: &BoardState, player: Player) -> bool {
+        (self._can_opponent_climb_fn)(board, player)
+    }
+
+    pub fn parse_god_data(&self, fen: &str) -> Result<GodData, String> {
+        (self._parse_god_data)(fen)
+    }
+
+    pub fn stringify_god_data(&self, god_data: GodData) -> Option<String> {
+        (self._stringify_god_data)(god_data)
     }
 }
 
@@ -473,12 +519,17 @@ const fn god_power(
 
         _build_mask_fn: _default_build_mask,
         _moveable_worker_filter_fn: _default_moveable_worker_filter,
+        _can_opponent_climb_fn: _default_can_opponent_climb,
+        _make_passing_move: _default_passing_move,
 
         _get_blocker_board: actions._get_blocker_board,
         _get_actions_for_move: actions._get_actions_for_move,
         _make_move: actions._make_move,
         _stringify_move: actions._stringify_move,
         _get_history_hash: actions._get_history_hash,
+
+        _parse_god_data: _default_parse_god_data,
+        _stringify_god_data: _default_stringify_god_data,
 
         num_workers: 2,
 
@@ -494,46 +545,72 @@ const fn god_power(
 }
 
 impl GodPower {
-    pub const fn with_nnue_god_name(mut self, name: GodName) -> Self {
+    pub(super) const fn with_nnue_god_name(mut self, name: GodName) -> Self {
         self.model_god_name = name;
         self
     }
 
-    pub const fn with_num_workers(mut self, num_workers: usize) -> Self {
+    pub(super) const fn with_num_workers(mut self, num_workers: usize) -> Self {
         self.num_workers = num_workers;
         self
     }
 
-    pub const fn with_win_mask(mut self, win_mask: BitBoard) -> Self {
+    pub(super) const fn with_win_mask(mut self, win_mask: BitBoard) -> Self {
         self.win_mask = win_mask;
         self
     }
 
-    pub const fn with_build_mask_fn(mut self, build_mask_fn: BuildMaskFn) -> Self {
+    pub(super) const fn with_build_mask_fn(mut self, build_mask_fn: BuildMaskFn) -> Self {
         self._build_mask_fn = build_mask_fn;
         self
     }
 
-    pub const fn with_is_aphrodite(mut self) -> Self {
+    pub(super) const fn with_is_aphrodite(mut self) -> Self {
         self.is_aphrodite = true;
         self
     }
 
-    pub const fn with_is_persephone(mut self) -> Self {
+    pub(super) const fn with_is_persephone(mut self) -> Self {
         self.is_persephone = true;
         self
     }
 
-    pub const fn with_is_preventing_down(mut self) -> Self {
+    pub(super) const fn with_is_preventing_down(mut self) -> Self {
         self.is_preventing_down = true;
         self
     }
 
-    pub const fn with_moveable_worker_filter(
+    pub(super) const fn with_moveable_worker_filter(
         mut self,
         moveable_worker_filter_fn: MovableWorkerFilter,
     ) -> Self {
         self._moveable_worker_filter_fn = moveable_worker_filter_fn;
+        self
+    }
+
+    pub(super) const fn with_can_opponent_climb_fn(
+        mut self,
+        can_opponent_climb_fn: CanOpponentClimbFn,
+    ) -> Self {
+        self._can_opponent_climb_fn = can_opponent_climb_fn;
+        self
+    }
+
+    pub(super) const fn with_make_passing_move_fn(mut self, make_passing_move: MakePassingMoveFn) -> Self {
+        self._make_passing_move = make_passing_move;
+        self
+    }
+
+    pub(super) const fn with_parse_god_data_fn(mut self, parse_god_data: ParseGodDataFn) -> Self {
+        self._parse_god_data = parse_god_data;
+        self
+    }
+
+    pub(super) const fn with_stringify_god_data_fn(
+        mut self,
+        stringify_god_data: StringifyGodDataFn,
+    ) -> Self {
+        self._stringify_god_data = stringify_god_data;
         self
     }
 }

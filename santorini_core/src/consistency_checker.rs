@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::{
     bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
+    fen::{game_state_to_fen, parse_fen},
     gods::{
         GodName, StaticGod,
         athena::AthenaMove,
@@ -10,6 +11,7 @@ use crate::{
         harpies::slide_position,
         mortal::MortalMove,
     },
+    hashing::compute_hash_from_scratch,
     player::Player,
 };
 
@@ -47,9 +49,10 @@ impl ConsistencyChecker {
             self.check_wins_on_end_only("SearchMoves", &search_moves);
 
             let own_winning_moves = active_god.get_winning_moves(&self.state, current_player);
-
             let all_moves = active_god.get_all_moves(&self.state, current_player);
 
+            self.validate_fen();
+            self.validate_hash();
             self.opponent_check_blockers(&other_wins, &search_moves);
             self.self_check_validations(&search_moves);
             self.validate_non_duplicates(&search_moves);
@@ -72,6 +75,34 @@ impl ConsistencyChecker {
             Ok(())
         } else {
             Err(std::mem::take(&mut self.errors))
+        }
+    }
+
+    fn validate_fen(&mut self) {
+        let fen = game_state_to_fen(&self.state);
+        match parse_fen(&fen) {
+            Ok(parsed_state) => {
+                if parsed_state != self.state {
+                    self.errors.push(format!(
+                        "FEN round trip mismatch. fen: {} Parsed: {:?} Original: {:?}",
+                        fen, parsed_state, self.state
+                    ));
+                }
+            }
+            Err(err) => {
+                self.errors
+                    .push(format!("FEN parse error: {}. fen: {}", err, fen));
+            }
+        }
+    }
+
+    fn validate_hash(&mut self) {
+        let computed_hash = compute_hash_from_scratch(&self.state);
+        if self.state.board.hash != computed_hash {
+            self.errors.push(format!(
+                "Hash mismatch. Expected: {} Computed: {}",
+                self.state.board.hash, computed_hash
+            ));
         }
     }
 
@@ -714,8 +745,7 @@ impl ConsistencyChecker {
             }
 
             let mut check_state = self.state.next_state(active_god, action.action);
-            check_state.flip_current_player();
-            check_state.board.unset_worker_can_climb();
+            other_god.make_passing_move(&mut check_state.board);
             let wins_from_check_state = active_god.get_winning_moves(&check_state, current_player);
             let is_real_checker = wins_from_check_state.len() > 0;
 
@@ -843,7 +873,8 @@ impl ConsistencyChecker {
         let is_pan_falling_win =
             active_god.god_name == GodName::Pan && new_height <= old_height - 2;
 
-        if !state.board.get_worker_can_climb(current_player) && !is_pan_falling_win {
+        let can_climb = other_god.can_opponent_climb(&state.board, !current_player);
+        if !can_climb && !is_pan_falling_win {
             self.errors.push(format!(
                 "Win when blocked by athena: {}. {:?} -> {:?}",
                 stringed_action, state, won_state,

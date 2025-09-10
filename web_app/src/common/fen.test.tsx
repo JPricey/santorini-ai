@@ -24,3 +24,12 @@ test('parseFen', () => {
 
     expect(resultValue.players[1].isWin).toBe(true);
 });
+
+test('parseAthenaFen', () => {
+    const result = parseFen('00000 11111 00000 00000 00000/1/mortal:A1,B2/athena[^]:C3,C4');
+    expect(result.ok).toBe(true);
+    const resultValue = result.val as GameState;
+
+    expect(resultValue.players[1].god).toBe("athena");
+    expect(resultValue.players[1].otherAttributes).toBe("^");
+});

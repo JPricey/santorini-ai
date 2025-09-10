@@ -10,8 +10,9 @@ use crate::{
         mortal::MortalMove,
         move_helpers::{
             GeneratorPreludeState, WorkerStartMoveState, build_scored_move,
-            get_generator_prelude_state, get_worker_start_move_state, is_interact_with_key_squares,
-            is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
+            get_generator_prelude_state, get_worker_climb_height, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, is_stop_on_mate,
+            modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
     persephone_check_result,
@@ -60,12 +61,9 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     BitBoard::EMPTY
                 };
 
+            let climb_height = get_worker_climb_height(&prelude, &worker_start_state);
             WRAPPING_NEIGHBOR_MAP[worker_start_pos as usize]
-                & !(prelude.board.height_map[prelude
-                    .board
-                    .get_worker_climb_height(player, worker_start_state.worker_start_height)]
-                    | down_mask
-                    | prelude.all_workers_mask)
+                & !(prelude.board.height_map[climb_height] | down_mask | prelude.all_workers_mask)
         };
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {

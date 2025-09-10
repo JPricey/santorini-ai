@@ -11,8 +11,8 @@ use crate::{
         generic::{GenericMove, GodMove},
     },
     hashing::{
-        HashType, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO, ZORBRIST_WORKER_RANDOMS,
-        compute_hash_from_scratch_for_board,
+        HashType, ZOBRIST_DATA_RANDOMS, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO,
+        ZORBRIST_WORKER_RANDOMS, compute_hash_from_scratch_for_board,
     },
     matchup::{self, BANNED_MATCHUPS, Matchup},
     placement::{get_placement_actions, get_starting_placements_count},
@@ -22,7 +22,7 @@ use crate::{
 
 use serde::{Deserialize, Serialize};
 
-pub const NUM_LEVELS: usize = 4;
+pub(crate) type GodData = u32;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullGameState {
@@ -123,6 +123,12 @@ impl FullGameState {
         result
     }
 
+    pub fn next_state_passing(&self, god: StaticGod) -> FullGameState {
+        let mut result = self.clone();
+        god.make_passing_move(&mut result.board);
+        result
+    }
+
     pub fn get_next_states(&self) -> Vec<FullGameState> {
         let active_god = self.get_active_god();
         let board_states_with_action_list = active_god.get_all_next_states(&self);
@@ -215,23 +221,12 @@ impl FullGameState {
     }
 }
 
-pub const WINNER_SIGNAL_HEIGHT_BOARD_INDEX: usize = 0;
-pub const WINNER_MASK_OFFSET: usize = 30;
-pub const IS_WINNER_MASK: BitBoard = BitBoard(0b11 << WINNER_MASK_OFFSET);
-pub const P1_WINNER: BitBoard = BitBoard(0b01 << WINNER_MASK_OFFSET);
-pub const P2_WINNER: BitBoard = BitBoard(0b10 << WINNER_MASK_OFFSET);
-pub const ANTI_WINNER_MASK: BitBoard = BitBoard(!(0b11 << WINNER_MASK_OFFSET));
-pub const WINNER_LOOKUP: [Option<Player>; 3] = [None, Some(Player::One), Some(Player::Two)];
+pub(crate) const WINNER_MASK_OFFSET: usize = 30;
+pub(crate) const P1_WINNER: BitBoard = BitBoard(0b01 << WINNER_MASK_OFFSET);
+pub(crate) const P2_WINNER: BitBoard = BitBoard(0b10 << WINNER_MASK_OFFSET);
+pub(crate) const WINNER_LOOKUP: [Option<Player>; 3] = [None, Some(Player::One), Some(Player::Two)];
 
-pub const PLAYER_TO_WINNER_LOOKUP: [BitBoard; 2] = [P1_WINNER, P2_WINNER];
-
-pub const HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX: usize = 1;
-pub const HEIGHT_RESTRICTION_BASE_OFFSET: usize = 30;
-pub const HEIGHT_RESTRICTION_P1_MASK: BitBoard = P1_WINNER;
-pub const HEIGHT_RESTRICTION_P2_MASK: BitBoard = P2_WINNER;
-pub const HEIGHT_RESTRICTION_MASK_BY_PLAYER: [BitBoard; 2] =
-    [HEIGHT_RESTRICTION_P1_MASK, HEIGHT_RESTRICTION_P2_MASK];
-pub const HEIGHT_RESTRICTION_SECTION_MASK: BitBoard = BitBoard(0b11 << 30);
+pub(crate) const PLAYER_TO_WINNER_LOOKUP: [BitBoard; 2] = [P1_WINNER, P2_WINNER];
 
 /*
  * Bitmap of each level:
@@ -266,6 +261,7 @@ pub struct BoardState {
     // height_map[L - 1][s] represents if square s is GTE L
     pub height_map: [BitBoard; 4],
     pub workers: [BitBoard; 2],
+    pub god_data: [u32; 2],
 
     pub hash: HashType,
     height_lookup: [u8; 25],
@@ -335,29 +331,6 @@ impl BoardState {
 
         self.height_map[0] ^= PLAYER_TO_WINNER_LOOKUP[player as usize];
         self.hash ^= ZORBRIST_HEIGHT_RANDOMS[0][player_bit];
-    }
-
-    pub fn get_worker_can_climb(&self, player: Player) -> bool {
-        (self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX]
-            & HEIGHT_RESTRICTION_MASK_BY_PLAYER[player as usize])
-            .is_empty()
-    }
-
-    pub fn flip_worker_can_climb(&mut self, player: Player, bit: bool) {
-        if bit {
-            let idx = HEIGHT_RESTRICTION_BASE_OFFSET + (player as usize);
-            self.height_map[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX] ^= BitBoard(1 << idx);
-            self.hash ^= ZORBRIST_HEIGHT_RANDOMS[HEIGHT_RESTRICTION_HEIGHT_BOARD_INDEX][idx];
-        }
-    }
-
-    pub fn unset_worker_can_climb(&mut self) {
-        self.flip_worker_can_climb(Player::One, !self.get_worker_can_climb(Player::One));
-        self.flip_worker_can_climb(Player::Two, !self.get_worker_can_climb(Player::Two));
-    }
-
-    pub fn get_worker_climb_height(&self, player: Player, current_height: usize) -> usize {
-        3.min(current_height + self.get_worker_can_climb(player) as usize)
     }
 
     pub fn exactly_level_0(&self) -> BitBoard {
@@ -473,6 +446,16 @@ impl BoardState {
         self.height_lookup[build_position as usize] = final_height as u8;
     }
 
+    pub fn set_god_data(&mut self, player: Player, data: GodData) {
+        let old_data = self.god_data[player as usize];
+        self.god_data[player as usize] = data;
+
+        let delta = old_data ^ data;
+        for square in BitBoard(delta) {
+            self.hash ^= ZOBRIST_DATA_RANDOMS[player as usize][square as usize];
+        }
+    }
+
     pub fn print_for_debugging(&self) {
         for h in 0..4 {
             eprintln!("{h}: {}", self.height_map[h]);
@@ -565,6 +548,21 @@ impl BoardState {
 
         self._validate_player(Player::One, gods[0])?;
         self._validate_player(Player::Two, gods[1])?;
+
+        for h in 1..4 {
+            if (self.height_map[h] & BitBoard::OFF_SECTION_MASK).is_not_empty() {
+                return Err(format!(
+                    "Unexpected bits in height map upper section: {}",
+                    h
+                ));
+            }
+        }
+
+        for p in 0..2 {
+            if (self.workers[p] & BitBoard::OFF_SECTION_MASK).is_not_empty() {
+                return Err(format!("Unexpected bits in workers for player {}", p + 1));
+            }
+        }
 
         for h in 1..4 {
             let height = self.height_map[h] & BitBoard::MAIN_SECTION_MASK;

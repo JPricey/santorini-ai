@@ -24,23 +24,21 @@ use crate::{
 
 use super::PartialAction;
 
-pub const HERMES_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const HERMES_MOVE_TO_POSITION_OFFSET: usize = HERMES_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
-pub const HERMES_BUILD_POSITION_OFFSET: usize = HERMES_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const HERMES_MOVE2_FROM_POSITION_OFFSET: usize = HERMES_BUILD_POSITION_OFFSET + POSITION_WIDTH;
-pub const HERMES_MOVE2_TO_POSITION_OFFSET: usize =
-    HERMES_MOVE2_FROM_POSITION_OFFSET + POSITION_WIDTH;
+const HERMES_MOVE_FROM_POSITION_OFFSET: usize = 0;
+const HERMES_MOVE_TO_POSITION_OFFSET: usize = HERMES_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
+const HERMES_BUILD_POSITION_OFFSET: usize = HERMES_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const HERMES_MOVE2_FROM_POSITION_OFFSET: usize = HERMES_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const HERMES_MOVE2_TO_POSITION_OFFSET: usize = HERMES_MOVE2_FROM_POSITION_OFFSET + POSITION_WIDTH;
 
-pub const HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_OFFSET: usize =
+const HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_OFFSET: usize =
     HERMES_MOVE2_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_MASK: MoveData =
+const HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_MASK: MoveData =
     1 << HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_OFFSET;
 
-pub const HERMES_NOT_DOING_SPECIAL_MOVE_VALUE: MoveData = 25 << HERMES_MOVE2_FROM_POSITION_OFFSET;
-pub const HERMES_NO_MOVE_MASK: BitBoard = BitBoard::as_mask_u8(0);
+const HERMES_NOT_DOING_SPECIAL_MOVE_VALUE: MoveData = 25 << HERMES_MOVE2_FROM_POSITION_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct HermesMove(pub MoveData);
+struct HermesMove(MoveData);
 
 impl Into<GenericMove> for HermesMove {
     fn into(self) -> GenericMove {
@@ -55,14 +53,7 @@ impl From<GenericMove> for HermesMove {
 }
 
 impl HermesMove {
-    pub fn new_hermes_no_move(build_position: Square) -> Self {
-        let data: MoveData = ((build_position as MoveData) << HERMES_BUILD_POSITION_OFFSET)
-            | HERMES_NOT_DOING_SPECIAL_MOVE_VALUE;
-
-        Self(data)
-    }
-
-    pub fn new_hermes_single_move(
+    fn new_hermes_single_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -75,7 +66,7 @@ impl HermesMove {
         Self(data)
     }
 
-    pub fn new_hermes_double_move(
+    fn new_hermes_double_move(
         move_from_position: Square,
         move_to_position: Square,
         move_from2_position: Square,
@@ -93,7 +84,7 @@ impl HermesMove {
         Self(data)
     }
 
-    pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+    fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << HERMES_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << HERMES_MOVE_TO_POSITION_OFFSET)
             | HERMES_NOT_DOING_SPECIAL_MOVE_VALUE
@@ -101,19 +92,19 @@ impl HermesMove {
         Self(data)
     }
 
-    pub fn move_from_position(&self) -> Square {
+    fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
-    pub fn move_to_position(&self) -> Square {
+    fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn build_position(self) -> Square {
+    fn build_position(self) -> Square {
         Square::from((self.0 >> HERMES_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn move_from_position2(&self) -> Option<Square> {
+    fn move_from_position2(&self) -> Option<Square> {
         let value = (self.0 >> HERMES_MOVE2_FROM_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
         if value == 25 {
             None
@@ -123,15 +114,15 @@ impl HermesMove {
     }
 
     // WARNING: only returns usable values when move_from_position2 has returned a value
-    pub fn move_to_position2(self) -> Square {
+    fn move_to_position2(self) -> Square {
         Square::from((self.0 >> HERMES_MOVE2_TO_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn are_double_moves_overlapping(self) -> bool {
+    fn are_double_moves_overlapping(self) -> bool {
         self.0 & HERMES_ARE_DOUBLE_MOVES_OVERLAPPING_MASK != 0
     }
 
-    pub fn move_mask(self) -> BitBoard {
+    fn move_mask(self) -> BitBoard {
         if let Some(move2) = self.move_from_position2() {
             BitBoard::as_mask(self.move_from_position())
                 ^ BitBoard::as_mask(self.move_to_position())
@@ -143,7 +134,7 @@ impl HermesMove {
         }
     }
 
-    pub fn get_is_winning(&self) -> bool {
+    fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }
@@ -534,7 +525,7 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     result
 }
 
-pub const fn build_hermes() -> GodPower {
+pub(super) const fn build_hermes() -> GodPower {
     god_power(
         GodName::Hermes,
         build_god_power_movers!(hermes_move_gen),

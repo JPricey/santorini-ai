@@ -1,17 +1,17 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, build_god_power_actions,
+        FullAction, GodName, GodPower, athena, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove, get_default_parse_data_err,
         },
         god_power,
         harpies::slide_position,
         move_helpers::{
-            WorkerEndMoveState, build_scored_move, get_generator_prelude_state, 
+            WorkerEndMoveState, build_scored_move, get_generator_prelude_state,
             get_standard_reach_board, get_worker_next_build_state_with_is_matched,
             get_worker_next_move_state, get_worker_start_move_state, is_mate_only,
             modify_prelude_for_checking_workers, push_winning_moves,
@@ -24,17 +24,15 @@ use crate::{
 
 use super::PartialAction;
 
-pub const ATHENA_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const ATHENA_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const ATHENA_BUILD_POSITION_OFFSET: usize = ATHENA_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const ATHENA_DID_IMPROVE_OFFSET: usize = ATHENA_BUILD_POSITION_OFFSET + POSITION_WIDTH;
-pub const ATHENA_DID_IMPROVE_CHANGE_OFFSET: usize = ATHENA_DID_IMPROVE_OFFSET + 1;
+const ATHENA_MOVE_FROM_POSITION_OFFSET: usize = 0;
+const ATHENA_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+const ATHENA_BUILD_POSITION_OFFSET: usize = ATHENA_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const ATHENA_DID_IMPROVE_OFFSET: usize = ATHENA_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
-pub const ATHENA_DID_IMPROVE_MASK: MoveData = 1 << ATHENA_DID_IMPROVE_OFFSET;
-pub const ATHENA_DID_IMPROVE_CHANGE_MASK: MoveData = 1 << ATHENA_DID_IMPROVE_CHANGE_OFFSET;
+const ATHENA_DID_IMPROVE_MASK: MoveData = 1 << ATHENA_DID_IMPROVE_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct AthenaMove(pub MoveData);
+pub(crate) struct AthenaMove(pub MoveData);
 
 impl Into<GenericMove> for AthenaMove {
     fn into(self) -> GenericMove {
@@ -54,13 +52,11 @@ impl AthenaMove {
         move_to_position: Square,
         build_position: Square,
         did_climb: bool,
-        did_climb_change: bool,
     ) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << ATHENA_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << ATHENA_MOVE_TO_POSITION_OFFSET)
             | ((build_position as MoveData) << ATHENA_BUILD_POSITION_OFFSET)
-            | ((did_climb) as MoveData) << ATHENA_DID_IMPROVE_OFFSET
-            | ((did_climb_change) as MoveData) << ATHENA_DID_IMPROVE_CHANGE_OFFSET;
+            | ((did_climb) as MoveData) << ATHENA_DID_IMPROVE_OFFSET;
 
         Self(data)
     }
@@ -94,10 +90,6 @@ impl AthenaMove {
 
     pub fn get_did_climb(&self) -> bool {
         (self.0 & ATHENA_DID_IMPROVE_MASK) != 0
-    }
-
-    pub fn get_did_climb_change(&self) -> bool {
-        (self.0 & ATHENA_DID_IMPROVE_CHANGE_MASK) != 0
     }
 }
 
@@ -150,7 +142,8 @@ impl GodMove for AthenaMove {
 
         let build_position = self.build_position();
         board.build_up(build_position);
-        board.flip_worker_can_climb(!board.current_player, self.get_did_climb_change())
+
+        board.set_god_data(board.current_player, self.get_did_climb() as GodData);
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
@@ -188,8 +181,6 @@ pub(super) fn athena_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
-
-    let did_not_improve_last_turn = prelude.board.get_worker_can_climb(!player);
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -264,7 +255,6 @@ pub(super) fn athena_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     worker_end_move_state.worker_end_pos,
                     worker_build_pos,
                     is_improving_for_power,
-                    is_improving_for_power == did_not_improve_last_turn,
                 );
                 let is_check = {
                     let final_level_3 = (prelude.exactly_level_2
@@ -286,6 +276,29 @@ pub(super) fn athena_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     result
 }
 
+fn athena_passing_move(board: &mut BoardState) {
+    board.set_god_data(board.current_player, 0);
+}
+
+fn can_opponent_climb(board: &BoardState, player: Player) -> bool {
+    board.god_data[player as usize] == 0
+}
+
+fn parse_god_data(data: &str) -> Result<GodData, String> {
+    match data {
+        "^" => Ok(1),
+        "" => Ok(0),
+        _ => get_default_parse_data_err(data),
+    }
+}
+
+fn stringify_god_data(data: GodData) -> Option<String> {
+    match data {
+        0 => None,
+        _ => Some("^".to_owned()),
+    }
+}
+
 pub const fn build_athena() -> GodPower {
     god_power(
         GodName::Athena,
@@ -294,4 +307,8 @@ pub const fn build_athena() -> GodPower {
         1867170053174999423,
         15381411414297507361,
     )
+    .with_make_passing_move_fn(athena_passing_move)
+    .with_can_opponent_climb_fn(can_opponent_climb)
+    .with_parse_god_data_fn(parse_god_data)
+    .with_stringify_god_data_fn(stringify_god_data)
 }

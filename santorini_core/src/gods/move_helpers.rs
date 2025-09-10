@@ -75,7 +75,6 @@ pub(super) fn get_sized_result<const F: MoveGenFlags>() -> Vec<ScoredMove> {
 
 pub(super) struct GeneratorPreludeState<'a> {
     pub board: &'a BoardState,
-    pub player: Player,
     pub key_squares: BitBoard,
     pub other_god: StaticGod,
 
@@ -84,6 +83,8 @@ pub(super) struct GeneratorPreludeState<'a> {
     pub exactly_level_2: BitBoard,
     pub exactly_level_3: BitBoard,
     pub domes: BitBoard,
+
+    pub can_climb: bool,
 
     pub own_workers: BitBoard,
     pub oppo_workers: BitBoard,
@@ -138,11 +139,12 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         own_workers
     };
 
+    let can_climb = other_god.can_opponent_climb(board, !player);
+
     let is_down_prevented = other_god.is_preventing_down;
 
     GeneratorPreludeState {
         board,
-        player,
         key_squares,
         other_god,
 
@@ -151,6 +153,9 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         exactly_level_2,
         exactly_level_3,
         domes,
+
+        can_climb,
+
         own_workers,
         oppo_workers,
         all_workers_mask,
@@ -436,6 +441,17 @@ pub(super) fn make_build_only_power_generator<
     result
 }
 
+pub(super) fn get_worker_climb_height(
+    prelude: &GeneratorPreludeState,
+    worker_start_state: &WorkerStartMoveState,
+) -> usize {
+    get_worker_climb_height_raw(worker_start_state.worker_start_height, prelude.can_climb)
+}
+
+pub(super) fn get_worker_climb_height_raw(worker_start_height: usize, can_climb: bool) -> usize {
+    3.min(worker_start_height + can_climb as usize)
+}
+
 pub(super) fn restrict_moves_by_affinity_area(
     worker_start_mask: BitBoard,
     worker_moves: BitBoard,
@@ -500,12 +516,9 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIM
             BitBoard::EMPTY
         };
 
+        let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
         let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
-            & !(prelude.board.height_map[prelude
-                .board
-                .get_worker_climb_height(prelude.player, worker_start_height)]
-                | down_mask
-                | blockers);
+            & !(prelude.board.height_map[climb_height] | down_mask | blockers);
 
         restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
     }
@@ -532,10 +545,9 @@ pub(super) fn get_basic_moves_from_raw_data_for_hermes<const MUST_CLIMB: bool>(
         BitBoard::EMPTY
     };
 
+    let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
     let worker_moves = NEIGHBOR_MAP[worker_start_pos as usize]
-        & !(prelude.board.height_map[prelude
-            .board
-            .get_worker_climb_height(prelude.player, worker_start_height)]
+        & !(prelude.board.height_map[climb_height]
             | prelude.board.exactly_level_n(worker_start_height)
             | down_mask
             | prelude.all_workers_mask);

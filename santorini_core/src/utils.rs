@@ -43,7 +43,7 @@ pub fn timestamp_string() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
 }
 
-pub fn hash_u64(mut x: usize) -> usize {
+pub const fn hash_u64(mut x: usize) -> usize {
     #[cfg(target_pointer_width = "64")]
     const C1: usize = 0xbf58476d1ce4e5b9;
     #[cfg(target_pointer_width = "64")]

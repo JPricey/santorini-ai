@@ -168,7 +168,8 @@ fn process_raw_data_files(
             };
             let god1 = god1.god_name as u8;
             let god2 = god2.god_name as u8;
-            let is_athena_block = state.board.get_worker_can_climb(state.board.current_player);
+            // let is_athena_block = state.board.get_worker_can_climb(state.board.current_player);
+            let is_athena_block = false;
             let result = if winner == state.board.current_player {
                 1
             } else {

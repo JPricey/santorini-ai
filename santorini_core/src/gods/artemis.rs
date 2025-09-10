@@ -13,8 +13,8 @@ use crate::{
         hypnus::hypnus_moveable_worker_filter,
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_sized_result,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            is_stop_on_mate,
+            get_worker_climb_height_raw, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, is_stop_on_mate,
         },
     },
     persephone_check_result,
@@ -488,7 +488,6 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     }
 
     let not_other_workers = !prelude.oppo_workers;
-    let can_worker_climb = prelude.board.get_worker_can_climb(player);
 
     for worker_start_pos in acting_workers.into_iter() {
         let worker_start_mask = BitBoard::as_mask(worker_start_pos);
@@ -512,9 +511,8 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             BitBoard::EMPTY
         };
         let mut worker_1d_moves = (NEIGHBOR_MAP[worker_start_pos as usize]
-            & !(prelude.board.height_map[prelude
-                .board
-                .get_worker_climb_height(player, worker_start_height)]
+            & !(prelude.board.height_map
+                [get_worker_climb_height_raw(worker_start_height, prelude.can_climb)]
                 | down_mask)
             | worker_start_mask)
             & valid_half_destinations;
@@ -539,7 +537,7 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
         }
 
-        if can_worker_climb {
+        if prelude.can_climb {
             let at_height_2_1d = worker_1d_moves & prelude.exactly_level_2;
             let mut winning_moves_to_level_3 = apply_mapping_to_mask(at_height_2_1d, &NEIGHBOR_MAP);
             winning_moves_to_level_3 &=
@@ -563,7 +561,7 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         }
 
         let mut worker_moves = worker_1d_moves;
-        let h_delta = can_worker_climb as usize;
+        let h_delta = prelude.can_climb as usize;
 
         if prelude.is_down_prevented {
             worker_moves |=

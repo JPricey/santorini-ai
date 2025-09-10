@@ -1,8 +1,11 @@
-use crate::board::{BoardState, FullGameState};
+use crate::{
+    bitboard::BitBoard,
+    board::{BoardState, FullGameState},
+};
 
-pub type HashType = u64;
+pub(crate) type HashType = u64;
 
-pub const ZORBRIST_HEIGHT_RANDOMS: [[HashType; 32]; 4] = [
+pub(crate) const ZORBRIST_HEIGHT_RANDOMS: [[HashType; 32]; 4] = [
     [
         6085914211561695364,
         2559176765352864341,
@@ -141,7 +144,7 @@ pub const ZORBRIST_HEIGHT_RANDOMS: [[HashType; 32]; 4] = [
     ],
 ];
 
-pub const ZORBRIST_WORKER_RANDOMS: [[HashType; 32]; 2] = [
+pub(crate) const ZORBRIST_WORKER_RANDOMS: [[HashType; 32]; 2] = [
     [
         3908243075560612309,
         16133310227149639150,
@@ -212,17 +215,89 @@ pub const ZORBRIST_WORKER_RANDOMS: [[HashType; 32]; 2] = [
     ],
 ];
 
-pub const ZORBRIST_PLAYER_TWO: HashType = 9379755890162401779;
+pub(crate) const ZOBRIST_DATA_RANDOMS: [[HashType; 32]; 2] = [
+    [
+        11535555303080891210,
+        4669952551950478030,
+        2909756560645161515,
+        14442889577486767651,
+        382271170611528812,
+        673502173508263488,
+        10045958038619179151,
+        5059215803169883173,
+        438810694811119342,
+        15337784731769550510,
+        1027010761767458265,
+        15265049647436932760,
+        18341492111471390920,
+        6568039934546562577,
+        4727295990874870453,
+        11771655525826657454,
+        1595898416828270652,
+        15187726227090546729,
+        8199589321097021111,
+        12073772865989227145,
+        3915877750251670118,
+        14709983702135757182,
+        4839745141710326999,
+        228479744281837182,
+        12847135176371387615,
+        10856913653600485656,
+        14940603667874447291,
+        4795841507032307887,
+        6109761788495461891,
+        14636897886471331920,
+        3842038182171460361,
+        8212832692724860001,
+    ],
+    [
+        14015453613755278818,
+        93645383156650241,
+        7990265418826836360,
+        15999036989307801311,
+        13125386004937513303,
+        4779401101910904129,
+        3784632657601320136,
+        9978502837588503385,
+        14790527697792688882,
+        1539187596334261655,
+        17712101276042796156,
+        8464694055374109841,
+        5928859437294908917,
+        959229765248386330,
+        13397818890879494915,
+        12211604811679681738,
+        14426768025980351047,
+        421671732910787103,
+        15309741157062662735,
+        5775561614183311601,
+        17823597644182357004,
+        16887140460093539765,
+        9489676493311040635,
+        9615741034316247462,
+        13879574270920929749,
+        2281798212792925758,
+        11884767725286388123,
+        7953593205986650033,
+        1975528747965727255,
+        14931189485164055192,
+        2117497922435648823,
+        15868575883743614813,
+    ],
+];
 
-pub const ZORBRIST_ACTIVE_PLAYER: [HashType; 2] = [0, ZORBRIST_PLAYER_TWO];
+pub(crate) const ZORBRIST_PLAYER_TWO: HashType = 9379755890162401779;
 
-// pub const ZORBRIST_BASE: HashType = 5538181279516183068;
+pub(crate) const ZORBRIST_ACTIVE_PLAYER: [HashType; 2] = [0, ZORBRIST_PLAYER_TWO];
 
-pub fn compute_hash_from_scratch(state: &FullGameState) -> HashType {
+pub(crate) fn compute_hash_from_scratch(state: &FullGameState) -> HashType {
     compute_hash_from_scratch_for_board(&state.board, state.base_hash())
 }
 
-pub fn compute_hash_from_scratch_for_board(board: &BoardState, base_hash: HashType) -> HashType {
+pub(crate) fn compute_hash_from_scratch_for_board(
+    board: &BoardState,
+    base_hash: HashType,
+) -> HashType {
     let mut result = base_hash;
 
     for h in 0..4 {
@@ -237,6 +312,12 @@ pub fn compute_hash_from_scratch_for_board(board: &BoardState, base_hash: HashTy
     for w in 0..2 {
         for square in board.workers[w] {
             result ^= ZORBRIST_WORKER_RANDOMS[w][square as usize];
+        }
+    }
+
+    for w in 0..2 {
+        for square in BitBoard(board.god_data[w]) {
+            result ^= ZOBRIST_DATA_RANDOMS[w][square as usize];
         }
     }
 

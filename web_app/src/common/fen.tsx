@@ -31,19 +31,40 @@ function _parsePlayer(player: string): Result<PlayerType, string> {
 
 }
 
+type GodNameSection = {
+    godName: string,
+    optionalSection: string,
+};
+
+function _parseGodNameSection(godSection: string): Result<GodNameSection, string> {
+    const regex = /([^\[]*)(\[(.*)\])?/;
+    const match = godSection.match(regex);
+    if (!match) {
+        return Err(`Invalid god section in fen string: ${godSection}`);
+    }
+    const godName = match[1].trim();
+    const optionalSection = match[3] ? match[3].trim() : '';
+    return Ok({
+        godName: godName,
+        optionalSection: optionalSection,
+    });
+}
+
 function _parsePlayerSection(playerSection: string): Result<PlayerGameState, string> {
     const isWin = playerSection.includes("#");
     playerSection = playerSection.replaceAll('#', '');
-
-    // TODO: track this somehow?
-    playerSection = playerSection.replaceAll('-', '');
 
     const parts = playerSection.split(':');
     if (parts.length > 2) {
         return Err('Invalid player section in fen string: too many colons');
     }
 
-    const god = parts[0];
+    const godSection = _parseGodNameSection(parts[0]);
+    if (godSection.err) {
+        return godSection;
+    }
+
+    const god = godSection.val.godName;
     const workers: Array<SquareType> = [];
     if (parts.length === 2) {
         const workerStrings = parts[1].split(',');
@@ -63,6 +84,7 @@ function _parsePlayerSection(playerSection: string): Result<PlayerGameState, str
         god: god,
         workers: workers,
         isWin: isWin,
+        otherAttributes: godSection.val.optionalSection,
     });
 }
 
