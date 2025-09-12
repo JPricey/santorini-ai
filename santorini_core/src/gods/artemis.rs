@@ -1,15 +1,25 @@
 use crate::{
-    bitboard::{apply_mapping_to_mask, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP},
+    bitboard::{
+        BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP,
+        WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask,
+    },
     board::{BoardState, FullGameState},
     build_god_power_movers,
+    direction::direction_idx_to_reverse,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, harpies::slide_position_with_custom_worker_blocker, hypnus::hypnus_moveable_worker_filter, move_helpers::{
+        FullAction, GodName, GodPower, HistoryIdxHelper, PartialAction, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        harpies::slide_position_with_custom_worker_blocker,
+        hypnus::hypnus_moveable_worker_filter,
+        move_helpers::{
             build_scored_move, get_generator_prelude_state, get_sized_result,
             get_worker_climb_height_raw, get_worker_start_move_state, is_interact_with_key_squares,
             is_mate_only, is_stop_on_mate,
-        }, FullAction, GodName, GodPower, HistoryIdxHelper, PartialAction
+        },
     },
     persephone_check_result,
     player::Player,
@@ -471,6 +481,10 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let not_other_workers = !prelude.oppo_workers;
 
+    let neighbor_map_ref = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+    let inclusive_neighbor_map = &WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP[prelude.wind_idx];
+    let reverse_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[direction_idx_to_reverse(prelude.wind_idx)];
+
     for worker_start_pos in acting_workers.into_iter() {
         let worker_start_mask = BitBoard::as_mask(worker_start_pos);
         let worker_start_height = prelude.board.get_height(worker_start_pos);
@@ -478,7 +492,7 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_checkable_workers = other_own_workers & checkable_worker_positions;
 
         let other_checkable_touching =
-            apply_mapping_to_mask(other_checkable_workers, &INCLUSIVE_NEIGHBOR_MAP);
+            apply_mapping_to_mask(other_checkable_workers, &inclusive_neighbor_map);
         let valid_half_destinations = !(prelude.all_workers_mask | prelude.domes);
         let mut valid_final_destinations =
             if (worker_start_mask & prelude.affinity_area).is_not_empty() {
@@ -492,7 +506,7 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         } else {
             BitBoard::EMPTY
         };
-        let mut worker_1d_moves = (NEIGHBOR_MAP[worker_start_pos as usize]
+        let mut worker_1d_moves = (neighbor_map_ref[worker_start_pos as usize]
             & !(prelude.board.height_map
                 [get_worker_climb_height_raw(worker_start_height, prelude.can_climb)]
                 | down_mask)
@@ -521,7 +535,8 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
         if prelude.can_climb {
             let at_height_2_1d = worker_1d_moves & prelude.exactly_level_2;
-            let mut winning_moves_to_level_3 = apply_mapping_to_mask(at_height_2_1d, &NEIGHBOR_MAP);
+            let mut winning_moves_to_level_3 =
+                apply_mapping_to_mask(at_height_2_1d, &neighbor_map_ref);
             winning_moves_to_level_3 &=
                 prelude.exactly_level_3 & valid_final_destinations & prelude.win_mask;
             valid_final_destinations ^= winning_moves_to_level_3;
@@ -547,14 +562,14 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
         if prelude.is_down_prevented {
             worker_moves |=
-                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_0, &NEIGHBOR_MAP)
+                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_0, &neighbor_map_ref)
                     & (prelude.exactly_level_0 | prelude.exactly_level_1);
             worker_moves |=
-                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_1, &NEIGHBOR_MAP)
+                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_1, &neighbor_map_ref)
                     & (prelude.exactly_level_1 | prelude.exactly_level_2);
             // Don't need to count level 2->3, since we already checked for wins
             worker_moves |=
-                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_2, &NEIGHBOR_MAP)
+                apply_mapping_to_mask(worker_1d_moves & prelude.exactly_level_2, &neighbor_map_ref)
                     & (prelude.exactly_level_2);
             // Don't need to check for moves from lvl 3, since we are against hades and that can't
             // happen
@@ -565,7 +580,7 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 let current_level_destinations = !prelude.board.height_map[3.min(h + h_delta)];
 
                 for end_pos in current_level_workers {
-                    worker_moves |= current_level_destinations & NEIGHBOR_MAP[end_pos as usize];
+                    worker_moves |= current_level_destinations & neighbor_map_ref[end_pos as usize];
                 }
             }
         }
@@ -592,7 +607,7 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let mut own_touching = BitBoard::EMPTY;
             if worker_end_height >= 1 {
-                own_touching |= INCLUSIVE_NEIGHBOR_MAP[worker_end_pos as usize];
+                own_touching |= inclusive_neighbor_map[worker_end_pos as usize];
             }
 
             let mut final_touching = other_checkable_touching | own_touching;
@@ -628,7 +643,8 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                         | (prelude.exactly_level_1 & worker_build_mask))
                         & not_other_workers;
 
-                    let final_touching_checks = apply_mapping_to_mask(final_l3, &NEIGHBOR_MAP);
+                    let final_touching_checks =
+                        apply_mapping_to_mask(final_l3, &reverse_neighbor_map);
                     (final_touching & final_touching_checks & final_l2).is_not_empty()
                 };
 

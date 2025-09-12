@@ -1,11 +1,20 @@
 use crate::{
-    bitboard::{apply_mapping_to_mask, BitBoard, NEIGHBOR_MAP}, board::FullGameState, build_god_power_movers, gods::{
-        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, move_helpers::{
-            build_scored_move, get_basic_moves, get_generator_prelude_state, 
+    bitboard::{BitBoard, WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask},
+    board::FullGameState,
+    build_god_power_movers,
+    gods::{
+        GodName, GodPower, build_god_power_actions,
+        generic::{MoveGenFlags, ScoredMove},
+        god_power,
+        mortal::MortalMove,
+        move_helpers::{
+            build_scored_move, get_basic_moves, get_generator_prelude_state,
             get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
             is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
-        }, GodName, GodPower
-    }, persephone_check_result, player::Player
+        },
+    },
+    persephone_check_result,
+    player::Player,
 };
 
 pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
@@ -18,6 +27,7 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2 | prelude.exactly_level_3;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
+    let wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -60,10 +70,10 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         }
 
         let other_lvl_2_workers = worker_start_state.other_own_workers & prelude.exactly_level_2;
-        let neighbor_2 = apply_mapping_to_mask(other_lvl_2_workers, &NEIGHBOR_MAP);
+        let neighbor_2 = apply_mapping_to_mask(other_lvl_2_workers, wind_neighbor_map);
         let neighbor_3 = apply_mapping_to_mask(
             worker_start_state.other_own_workers & prelude.exactly_level_3,
-            &NEIGHBOR_MAP,
+            wind_neighbor_map,
         );
 
         for worker_end_pos in worker_moves {
@@ -78,7 +88,7 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let mut reach_2 = neighbor_2;
             let mut reach_3 = neighbor_3;
 
-            let next_turn_moves = NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize]
+            let next_turn_moves = wind_neighbor_map[worker_end_move_state.worker_end_pos as usize]
                 & worker_next_build_state.unblocked_squares;
 
             // dont worry about reach 3 vs hypnus because it's not possible to get up there

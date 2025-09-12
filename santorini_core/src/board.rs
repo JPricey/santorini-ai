@@ -79,25 +79,25 @@ impl TryFrom<&String> for FullGameState {
 }
 
 impl FullGameState {
-    pub fn new(board_state: BoardState, p1_god: StaticGod, p2_god: StaticGod) -> Self {
-        let mut res = FullGameState {
-            gods: [p1_god, p2_god],
-            board: board_state,
-        };
+    pub fn new(board: BoardState, gods: [StaticGod; 2]) -> Self {
+        let mut res = FullGameState { gods, board };
         res.recalculate_internals();
         res
     }
 
     pub fn new_for_matchup(matchup: &Matchup) -> Self {
-        FullGameState::new(BoardState::default(), matchup.god_1(), matchup.god_2())
+        FullGameState::new(BoardState::default(), [matchup.god_1(), matchup.god_2()])
     }
 
     pub fn new_empty_state(p1: GodName, p2: GodName) -> Self {
-        FullGameState::new(BoardState::default(), p1.to_power(), p2.to_power())
+        FullGameState::new(BoardState::default(), [p1.to_power(), p2.to_power()])
     }
 
     pub fn new_basic_state(p1: GodName, p2: GodName) -> Self {
-        FullGameState::new(BoardState::new_basic_state(), p1.to_power(), p2.to_power())
+        FullGameState::new(
+            BoardState::new_basic_state(),
+            [p1.to_power(), p2.to_power()],
+        )
     }
 
     pub fn new_basic_state_mortals() -> Self {
@@ -134,7 +134,7 @@ impl FullGameState {
         let board_states_with_action_list = active_god.get_all_next_states(&self);
         board_states_with_action_list
             .into_iter()
-            .map(|e| FullGameState::new(e, self.gods[0], self.gods[1]))
+            .map(|e| FullGameState::new(e, self.gods))
             .collect()
     }
 
@@ -272,6 +272,7 @@ impl PartialEq for BoardState {
         self.current_player == other.current_player
             && self.height_map == other.height_map
             && self.workers == other.workers
+            && self.god_data == other.god_data
     }
 }
 
@@ -655,8 +656,7 @@ impl BoardState {
     pub fn as_basic_game_state(&self) -> FullGameState {
         FullGameState::new(
             self.clone(),
-            GodName::Mortal.to_power(),
-            GodName::Mortal.to_power(),
+            [GodName::Mortal.to_power(), GodName::Mortal.to_power()],
         )
     }
 

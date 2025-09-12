@@ -1335,7 +1335,7 @@ where
         if state.board.height_map[0].count_ones() <= 1 {
             for base in state.board.get_all_permutations::<false>(state.base_hash()) {
                 search_context.tt.conditionally_insert(
-                    &FullGameState::new(base, state.gods[0], state.gods[1]),
+                    &FullGameState::new(base, state.gods),
                     GenericMove::NULL_MOVE,
                     remaining_depth as u8,
                     tt_score_type,

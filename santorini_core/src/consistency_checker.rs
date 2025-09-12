@@ -690,6 +690,8 @@ impl ConsistencyChecker {
             return;
         }
 
+        let mut did_output_key_moves = false;
+
         // Test that we didn't miss any blockers
         for action in search_moves {
             let action = action.action;
@@ -708,10 +710,13 @@ impl ConsistencyChecker {
                     }
                 }
 
-                let mut error_str = format!(
-                    "Missed blocking action: {}. {}\n",
-                    stringed_action, key_moves
-                );
+                let mut error_str = format!("Missed blocking action: {}", stringed_action,);
+
+                if !did_output_key_moves {
+                    error_str += &format!("Key moves board:{}\n", key_moves);
+                    did_output_key_moves = true;
+                }
+
                 error_str += "Old Wins: ";
                 for old in other_wins {
                     error_str += &format!("{}, ", other_god.stringify_move(old.action));

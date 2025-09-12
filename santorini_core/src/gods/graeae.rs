@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP}, board::FullGameState, build_god_power_movers, gods::{
+    bitboard::{BitBoard, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP}, board::FullGameState, build_god_power_movers, gods::{
         build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, move_helpers::{
             build_scored_move, get_basic_moves, get_generator_prelude_state,
             get_worker_end_move_state, get_worker_start_move_state, is_interact_with_key_squares,
@@ -18,16 +18,17 @@ pub fn graeae_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
+    let wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut other_threatening_neighbors = BitBoard::EMPTY;
-        let mut other_all_neighbors = BitBoard::EMPTY;
+        let mut neighbors_for_builds = BitBoard::EMPTY;
 
         for other_pos in worker_start_state.other_own_workers {
-            other_all_neighbors |= NEIGHBOR_MAP[other_pos as usize];
+            neighbors_for_builds |= NEIGHBOR_MAP[other_pos as usize];
             if prelude.board.get_height(other_pos) == 2 {
-                other_threatening_neighbors |= NEIGHBOR_MAP[other_pos as usize];
+                other_threatening_neighbors |= wind_neighbor_map[other_pos as usize];
             }
         }
 
@@ -57,9 +58,9 @@ pub fn graeae_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let open_squares = !(worker_start_state.all_non_moving_workers
                 | prelude.domes
                 | worker_end_move_state.worker_end_mask);
-            let mut worker_builds = other_all_neighbors & open_squares;
+            let mut worker_builds = neighbors_for_builds & open_squares;
             let worker_plausible_next_moves =
-                NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize] & open_squares;
+                wind_neighbor_map[worker_end_move_state.worker_end_pos as usize] & open_squares;
             worker_builds &= prelude.build_mask;
 
             if is_interact_with_key_squares::<F>() {

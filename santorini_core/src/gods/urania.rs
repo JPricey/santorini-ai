@@ -1,5 +1,7 @@
 use crate::{
-    bitboard::{BitBoard, WRAPPING_NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{
+        BitBoard, WIND_AWARE_WRAPPING_NEIGHBOR_MAP, WRAPPING_NEIGHBOR_MAP, apply_mapping_to_mask,
+    },
     board::FullGameState,
     build_god_power_movers,
     gods::{
@@ -47,6 +49,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
 
     let mut null_build_blocker = BitBoard::MAIN_SECTION_MASK;
+    let wind_aware_neighbors = &WIND_AWARE_WRAPPING_NEIGHBOR_MAP[prelude.wind_idx];
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -62,7 +65,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 };
 
             let climb_height = get_worker_climb_height(&prelude, &worker_start_state);
-            WRAPPING_NEIGHBOR_MAP[worker_start_pos as usize]
+            wind_aware_neighbors[worker_start_pos as usize]
                 & !(prelude.board.height_map[climb_height] | down_mask | prelude.all_workers_mask)
         };
 
@@ -86,7 +89,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_workers =
             worker_start_state.other_own_workers & prelude.exactly_level_2;
         let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &WRAPPING_NEIGHBOR_MAP);
+            apply_mapping_to_mask(other_threatening_workers, &wind_aware_neighbors);
 
         let buildable_squares = !(worker_start_state.all_non_moving_workers | prelude.domes);
         let mut already_seen = BitBoard::EMPTY;
@@ -117,7 +120,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let mut worker_builds =
                 WRAPPING_NEIGHBOR_MAP[worker_end_pos as usize] & buildable_squares;
-            let worker_plausible_next_moves = worker_builds;
+            let worker_plausible_next_moves = wind_aware_neighbors[worker_end_pos as usize] & buildable_squares;
             worker_builds &= prelude.build_mask;
 
             if is_interact_with_key_squares::<F>() {

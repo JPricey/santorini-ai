@@ -1,7 +1,11 @@
 use const_for::const_for;
 use std::{fmt, ops::Mul};
 
-use crate::{direction::ICoord, square::Square, transmute_enum};
+use crate::{
+    direction::{Direction, ICoord},
+    square::Square,
+    transmute_enum,
+};
 
 pub const BOARD_WIDTH: usize = 5;
 pub const NUM_SQUARES: usize = BOARD_WIDTH * BOARD_WIDTH;
@@ -87,6 +91,103 @@ pub const PUSH_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
             }
         });
     });
+    result
+};
+
+pub const DIRECTION_MAPPING: [[Option<Square>; NUM_SQUARES]; 8] = {
+    let mut result = [[None; NUM_SQUARES]; 8];
+
+    const_for!(direction_idx in 0..8 => {
+        let direction = Direction::from_u8(direction_idx as u8);
+        const_for!(from in 0..25 => {
+            let from_square: Square = transmute_enum!(from as u8);
+            let from_coord = from_square.to_icoord();
+            let delta = direction.to_icoord();
+            let to_coord = from_coord.add(delta);
+            if let Some(to_square) = to_coord.to_square() {
+                result[direction_idx][from as usize] = Some(to_square);
+            }
+        });
+    });
+
+    result
+};
+
+pub const WRAPPING_DIRECTION_MAPPING: [[Square; NUM_SQUARES]; 8] = {
+    let mut result = [[Square::A1; NUM_SQUARES]; 8];
+
+    const_for!(direction_idx in 0..8 => {
+        let direction = Direction::from_u8(direction_idx as u8);
+        const_for!(from in 0..25 => {
+            let from_square: Square = transmute_enum!(from as u8);
+            let from_coord = from_square.to_icoord();
+            let delta = direction.to_icoord();
+            let to_coord = from_coord.add(delta).wrap_in_bounds();
+            result[direction_idx][from as usize] = to_coord.to_square().unwrap();
+        });
+    });
+
+    result
+};
+
+pub const WIND_AWARE_NEIGHBOR_MAP: [BitboardMapping; 9] = {
+    let mut result = [[BitBoard::EMPTY; NUM_SQUARES]; 9];
+
+    result[0] = NEIGHBOR_MAP;
+
+    const_for!(direction_idx in 0..8 => {
+        const_for!(square_idx in 0..25 => {
+            if let Some(wind_square) = DIRECTION_MAPPING[direction_idx][square_idx] {
+                result[direction_idx + 1][square_idx] = NEIGHBOR_MAP[square_idx].bit_and(BitBoard::as_mask(wind_square).bit_not());
+            } else {
+                result[direction_idx + 1][square_idx] = NEIGHBOR_MAP[square_idx]
+            }
+        });
+    });
+
+    result
+};
+
+pub const WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP: [BitboardMapping; 9] = {
+    let mut result = [[BitBoard::EMPTY; NUM_SQUARES]; 9];
+
+    result[0] = INCLUSIVE_NEIGHBOR_MAP;
+
+    const_for!(direction_idx in 0..8 => {
+        const_for!(square_idx in 0..25 => {
+            if let Some(wind_square) = DIRECTION_MAPPING[direction_idx][square_idx] {
+                result[direction_idx + 1][square_idx] = INCLUSIVE_NEIGHBOR_MAP[square_idx].bit_and(BitBoard::as_mask(wind_square).bit_not());
+            } else {
+                result[direction_idx + 1][square_idx] = INCLUSIVE_NEIGHBOR_MAP[square_idx]
+            }
+        });
+    });
+
+    result
+};
+
+pub const WIND_AWARE_WRAPPING_NEIGHBOR_MAP: [BitboardMapping; 9] = {
+    let mut result = [[BitBoard::EMPTY; NUM_SQUARES]; 9];
+
+    result[0] = WRAPPING_NEIGHBOR_MAP;
+
+    const_for!(direction_idx in 0..8 => {
+        result[direction_idx + 1] = square_map!(square => {
+            let coord = square.to_icoord();
+            let mut res = BitBoard::EMPTY;
+            for_each_direction!(dir => {
+                if dir as usize != direction_idx {
+                    let mut new_coord = coord.add(dir.to_icoord()).add(ICoord::new(5, 5));
+                    new_coord.col %= 5;
+                    new_coord.row %= 5;
+
+                    res = res.bit_or(BitBoard::as_mask(new_coord.to_square().unwrap()));
+                }
+            });
+            res
+        });
+    });
+
     result
 };
 

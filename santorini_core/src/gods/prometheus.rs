@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{BitBoard, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -227,6 +227,8 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
+    let neighbor_moves_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
@@ -252,12 +254,11 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_workers =
             (worker_start_state.other_own_workers) & prelude.exactly_level_2;
         let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
+            apply_mapping_to_mask(other_threatening_workers, &neighbor_moves_map);
 
         let unblocked_squares = !(worker_start_state.all_non_moving_workers | prelude.domes);
-        let worker_starting_neighbors = NEIGHBOR_MAP[worker_start_pos as usize];
         let pre_build_locations =
-            worker_starting_neighbors & unblocked_squares & prelude.build_mask;
+            NEIGHBOR_MAP[worker_start_pos as usize] & unblocked_squares & prelude.build_mask;
 
         if !MUST_CLIMB {
             // Can't go up
@@ -321,7 +322,8 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     // can't use build_building_masks here due to extra logic before key squares
                     let mut worker_builds =
                         NEIGHBOR_MAP[worker_end_pos as usize] & unblocked_squares;
-                    let worker_plausible_next_moves = worker_builds;
+                    let worker_plausible_next_moves =
+                        neighbor_moves_map[worker_end_pos as usize] & unblocked_squares;
                     worker_builds &= prelude.build_mask;
 
                     let both_buildable = worker_builds & pre_build_locations;

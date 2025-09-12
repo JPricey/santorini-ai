@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{BitBoard, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -189,6 +189,8 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
+    let neighbor_moves_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
@@ -234,7 +236,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_workers =
             worker_start_state.other_own_workers & prelude.exactly_level_2;
         let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
+            apply_mapping_to_mask(other_threatening_workers, &neighbor_moves_map);
 
         for mut worker_end_pos in worker_moves {
             let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
@@ -267,8 +269,9 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let unblocked_squares_for_builds = !(self_blockers | final_other_workers);
             let unblocked_squares_for_checks = !self_blockers;
 
-            let end_neighbors = NEIGHBOR_MAP[worker_end_pos as usize];
-            let mut worker_builds = end_neighbors & unblocked_squares_for_builds & final_build_mask;
+            let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize]
+                & unblocked_squares_for_builds
+                & final_build_mask;
 
             if is_interact_with_key_squares::<F>() {
                 if ((worker_start_state.worker_start_mask
@@ -288,7 +291,8 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 BitBoard::EMPTY
             } else {
                 (other_threatening_neighbors
-                    | (end_neighbors & BitBoard::CONDITIONAL_MASK[is_now_lvl_2 as usize]))
+                    | (neighbor_moves_map[worker_end_pos as usize]
+                        & BitBoard::CONDITIONAL_MASK[is_now_lvl_2 as usize]))
                     & unblocked_squares_for_checks
                     & prelude.win_mask
             };

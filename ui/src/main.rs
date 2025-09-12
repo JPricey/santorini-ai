@@ -10,6 +10,7 @@ use eframe::{
 use santorini_core::{
     bitboard::BitBoard,
     board::FullGameState,
+    direction::maybe_wind_direction_to_square,
     engine::EngineThreadWrapper,
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction, WIP_GODS},
@@ -94,7 +95,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         | PartialAction::MoveWorkerWithPush(x, _)
         | PartialAction::Build(x)
         | PartialAction::Dome(x) => Some(*x),
-
+        PartialAction::SetWindDirection(d) => Some(maybe_wind_direction_to_square(*d)),
         PartialAction::NoMoves | PartialAction::EndTurn => None,
     }
 }
@@ -110,6 +111,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::EndTurn => egui::Color32::WHITE,
         PartialAction::NoMoves => egui::Color32::BLACK,
+        PartialAction::SetWindDirection(_) => egui::Color32::BLUE,
     }
 }
 
@@ -124,6 +126,7 @@ fn partial_action_label(action: &PartialAction) -> &str {
         PartialAction::Dome(_) => "Add Dome",
         PartialAction::EndTurn => "End Turn",
         PartialAction::NoMoves => "Pass",
+        PartialAction::SetWindDirection(_) => "Set Wind Direction",
     }
 }
 
@@ -174,7 +177,9 @@ fn game_state_with_partial_actions(
             PartialAction::Dome(square) => {
                 board.dome_up(square);
             }
-            PartialAction::NoMoves | PartialAction::EndTurn => (),
+            PartialAction::NoMoves
+            | PartialAction::EndTurn
+            | PartialAction::SetWindDirection(_) => (),
         }
     }
 

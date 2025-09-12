@@ -1,7 +1,25 @@
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString, IntoStaticStr};
+
 use crate::{square::Square, transmute_enum};
 
 #[repr(u8)]
-#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    Display,
+    Serialize,
+    Deserialize,
+    EnumString,
+    IntoStaticStr,
+    PartialOrd,
+    Ord,
+)]
+#[strum(serialize_all = "lowercase")]
 pub enum Direction {
     NW,
     N,
@@ -68,9 +86,16 @@ impl ICoord {
             row: self.row - other.row,
         }
     }
+
+    pub const fn wrap_in_bounds(self) -> Self {
+        Self {
+            col: (self.col % 5 + 5) % 5,
+            row: (self.row % 5 + 5) % 5,
+        }
+    }
 }
 
-fn directionm_to_delta(direction: Direction) -> i32 {
+fn _direction_to_delta(direction: Direction) -> i32 {
     match direction {
         Direction::NW => -6,
         Direction::N => -5,
@@ -99,9 +124,36 @@ pub fn squares_to_direction(start: Square, end: Square) -> Direction {
     }
 }
 
-pub fn offset_square_by_dir(square: Square, direction: Direction) -> Square {
-    let delta = directionm_to_delta(direction);
+pub fn direction_to_ui_square(direction: Direction) -> Square {
+    match direction {
+        Direction::NW => Square::A5,
+        Direction::N => Square::C5,
+        Direction::NE => Square::E5,
+        Direction::E => Square::E3,
+        Direction::SE => Square::E1,
+        Direction::S => Square::C1,
+        Direction::SW => Square::A1,
+        Direction::W => Square::A3,
+    }
+}
+
+pub fn maybe_wind_direction_to_square(direction: Option<Direction>) -> Square {
+    direction.map_or(Square::C3, direction_to_ui_square)
+}
+
+pub(crate) fn _offset_square_by_dir(square: Square, direction: Direction) -> Square {
+    let delta = _direction_to_delta(direction);
     let new_square = square as i32 + delta;
     debug_assert!(new_square >= 0 && new_square < 25);
     Square::from(new_square as u8)
+}
+
+// Where 0 is nothing, 1-8 is a direction index
+pub(crate) fn direction_idx_to_reverse(direction_idx: usize) -> usize {
+    match direction_idx {
+        0 => 0,
+        1..=4 => direction_idx + 4,
+        5..=8 => direction_idx - 4,
+        9.. => unreachable!(),
+    }
 }

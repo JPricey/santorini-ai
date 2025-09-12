@@ -96,7 +96,7 @@ impl GameStateFuzzer {
 
 impl Default for GameStateFuzzer {
     fn default() -> Self {
-        Self::new(10_000)
+        Self::new(1_000)
     }
 }
 

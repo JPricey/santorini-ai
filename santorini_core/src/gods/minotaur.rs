@@ -1,16 +1,20 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
+    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, harpies::slide_position, move_helpers::{
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        harpies::slide_position,
+        move_helpers::{
             build_scored_move, get_basic_moves_from_raw_data_with_custom_blockers,
-            get_generator_prelude_state, get_worker_start_move_state,
-            is_interact_with_key_squares, is_mate_only, is_stop_on_mate,
-            modify_prelude_for_checking_workers,
-        }, FullAction, GodName, GodPower, HistoryIdxHelper
+            get_generator_prelude_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers,
+        },
     },
     persephone_check_result,
     player::Player,
@@ -213,6 +217,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
+    let wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
 
     let blocked_squares = prelude.all_workers_mask | prelude.domes;
 
@@ -318,8 +323,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let worker_end_height = prelude.board.get_height(worker_end_pos);
             let is_improving = worker_end_height > worker_start_state.worker_start_height;
 
-            let end_neighbors = NEIGHBOR_MAP[worker_end_pos as usize];
-            let mut worker_builds = end_neighbors
+            let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize]
                 & !(push_to_mask | worker_start_state.all_non_moving_workers | prelude.domes);
             worker_builds &= final_build_mask;
 
@@ -369,7 +373,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                             | other_workers_post_push;
 
                         for worker in checkable_own_workers {
-                            let ns = NEIGHBOR_MAP[worker as usize] & possible_dest_board;
+                            let ns = wind_neighbor_map[worker as usize] & possible_dest_board;
                             if (ns & not_other_pushed_workers).is_not_empty() {
                                 is_check = true;
                                 break;

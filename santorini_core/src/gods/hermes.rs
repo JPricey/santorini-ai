@@ -1,5 +1,7 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{
+        BitBoard, BitboardMapping, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask,
+    },
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -291,7 +293,11 @@ impl GodMove for HermesMove {
     }
 }
 
-fn flood_fill(walkable_squares: BitBoard, origin: BitBoard) -> BitBoard {
+fn flood_fill(
+    walkable_squares: BitBoard,
+    origin: BitBoard,
+    neighbor_map: &BitboardMapping,
+) -> BitBoard {
     let mut result = origin;
     let mut queue = origin;
 
@@ -303,7 +309,7 @@ fn flood_fill(walkable_squares: BitBoard, origin: BitBoard) -> BitBoard {
         let square = queue.lsb();
         queue.0 &= queue.0 - 1;
 
-        let new = NEIGHBOR_MAP[square as usize] & walkable_squares & !result;
+        let new = neighbor_map[square as usize] & walkable_squares & !result;
         queue |= new;
         result |= new;
     }
@@ -322,12 +328,14 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
+    let wind_neighbor_ref = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+
     for worker_start_pos in prelude.acting_workers.into_iter() {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
         let other_threatening_workers = (worker_start_state.other_own_workers) & checkable_mask;
         let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
+            apply_mapping_to_mask(other_threatening_workers, &wind_neighbor_ref);
 
         let mut worker_moves = get_basic_moves_from_raw_data_for_hermes::<MUST_CLIMB>(
             &prelude,
@@ -408,7 +416,7 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let m1 = BitBoard::as_mask(f1);
     let h1 = prelude.board.get_height(f1);
     let h1_mask = prelude.board.exactly_level_n(h1) & !prelude.oppo_workers;
-    let mut c1 = flood_fill(h1_mask, m1);
+    let mut c1 = flood_fill(h1_mask, m1, &wind_neighbor_ref);
 
     let Some(f2) = worker_iter.next() else {
         c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
@@ -428,7 +436,7 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
             }
 
-            let worker_plausible_next_moves = NEIGHBOR_MAP[t1 as usize];
+            let worker_plausible_next_moves = wind_neighbor_ref[t1 as usize];
             let reach_board = (worker_plausible_next_moves
                 & BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize])
                 & prelude.win_mask;
@@ -469,7 +477,11 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let h2_mask = prelude.board.exactly_level_n(h2) & !prelude.oppo_workers;
 
         c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
-        c2 = restrict_moves_by_affinity_area(m2, flood_fill(h2_mask, m2), prelude.affinity_area);
+        c2 = restrict_moves_by_affinity_area(
+            m2,
+            flood_fill(h2_mask, m2, &wind_neighbor_ref),
+            prelude.affinity_area,
+        );
     }
 
     let blocked_squares = prelude.oppo_workers | prelude.domes;
@@ -481,14 +493,14 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let t1_mask = BitBoard::as_mask(t1);
         c2 &= !t1_mask;
 
-        let t1_ns = NEIGHBOR_MAP[t1 as usize];
+        let t1_ns = wind_neighbor_ref[t1 as usize];
         let from_level_2_1 = t1_ns & l1;
 
         for t2 in c2 {
             let t2_mask = BitBoard::as_mask(t2);
             let both_mask = t1_mask | t2_mask;
 
-            let t2_ns = NEIGHBOR_MAP[t2 as usize];
+            let t2_ns = wind_neighbor_ref[t2 as usize];
             let mut possible_builds = (t1_ns | t2_ns) & !(blocked_squares | both_mask);
             let worker_plausible_next_moves = possible_builds & prelude.win_mask;
             possible_builds &= prelude.build_mask;

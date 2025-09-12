@@ -2,6 +2,7 @@ use super::search::Hueristic;
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState, GodData},
+    direction::Direction,
     gods::generic::{GenericMove, GodMove, ScoredMove},
     hashing::HashType,
     player::Player,
@@ -12,6 +13,7 @@ use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
+pub(crate) mod aeolus;
 pub(crate) mod aphrodite;
 pub(crate) mod apollo;
 pub(crate) mod artemis;
@@ -76,6 +78,7 @@ pub enum GodName {
     Persephone = 18,
     Hades = 19,
     Morpheus = 20,
+    Aeolus = 21,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -118,6 +121,7 @@ pub enum PartialAction {
     MoveWorkerWithPush(Square, Square),
     Build(Square),
     Dome(Square),
+    SetWindDirection(Option<Direction>),
     NoMoves,
     EndTurn,
 }
@@ -168,6 +172,11 @@ fn _default_parse_god_data(fen: &str) -> Result<GodData, String> {
 
 fn _default_stringify_god_data(_data: GodData) -> Option<String> {
     None
+}
+
+pub(super) type GetWindIdxFn = fn(&BoardState, Player) -> usize;
+fn _default_get_wind_idx(_board: &BoardState, _player: Player) -> usize {
+    0
 }
 
 pub(super) type MoveGeneratorFn =
@@ -247,6 +256,8 @@ pub struct GodPower {
     pub is_persephone: bool,
     pub is_preventing_down: bool,
 
+    _get_wind_idx: GetWindIdxFn,
+
     // _modify_moves: fn(board: &BoardState, from: Square, to_mask: BitBoard, is_win: bool, is_future: bool),
     pub hash1: HashType,
     pub hash2: HashType,
@@ -268,6 +279,10 @@ impl GodPower {
 
     pub fn is_harpies(&self) -> bool {
         self.god_name == GodName::Harpies
+    }
+
+    pub fn get_wind_idx(&self, board: &BoardState, player: Player) -> usize {
+        (self._get_wind_idx)(board, player)
     }
 
     pub fn get_next_states_interactive(&self, state: &FullGameState) -> Vec<BoardStateWithAction> {
@@ -421,6 +436,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     persephone::build_persephone(),
     hades::build_hades(),
     morpheus::build_morpheus(),
+    aeolus::build_aeolus(),
 ]);
 
 #[macro_export]
@@ -531,6 +547,7 @@ const fn god_power(
         is_aphrodite: false,
         is_persephone: false,
         is_preventing_down: false,
+        _get_wind_idx: _default_get_wind_idx,
 
         hash1,
         hash2,
@@ -607,6 +624,11 @@ impl GodPower {
         stringify_god_data: StringifyGodDataFn,
     ) -> Self {
         self._stringify_god_data = stringify_god_data;
+        self
+    }
+
+    pub(super) const fn with_get_wind_idx_fn(mut self, get_wind_idx_fn: GetWindIdxFn) -> Self {
+        self._get_wind_idx = get_wind_idx_fn;
         self
     }
 }
