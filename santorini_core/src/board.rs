@@ -483,6 +483,17 @@ impl BoardState {
     }
 
     fn playable_err(&self, gods: [StaticGod; 2]) -> Result<(), String> {
+        let starting_placements = get_starting_placements_count(self)?;
+        if starting_placements == 1 {
+            if self.current_player != Player::Two {
+                return Err("Should be player twos turn to place".to_owned());
+            }
+        } else if starting_placements == 2 {
+            if self.current_player != Player::One {
+                return Err("Should be player ones turn to place".to_owned());
+            }
+        }
+
         let matchup = Matchup::new(gods[0].god_name, gods[1].god_name);
         if let Some(reason) = BANNED_MATCHUPS.get(&matchup) {
             let err_str = match reason {
@@ -536,17 +547,6 @@ impl BoardState {
     }
 
     fn representation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
-        let starting_placements = get_starting_placements_count(self)?;
-        if starting_placements == 1 {
-            if self.current_player != Player::Two {
-                return Err("Should be player twos turn to place".to_owned());
-            }
-        } else if starting_placements == 2 {
-            if self.current_player != Player::One {
-                return Err("Should be player ones turn to place".to_owned());
-            }
-        }
-
         self._validate_player(Player::One, gods[0])?;
         self._validate_player(Player::Two, gods[1])?;
 
