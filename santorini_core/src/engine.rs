@@ -1,8 +1,8 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::{channel, Receiver, Sender},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{Receiver, Sender, channel},
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -10,11 +10,10 @@ use std::{
 
 use crate::{
     board::FullGameState,
-    search::{negamax_search, BestSearchResult, SearchContext},
+    search::{BestSearchResult, SearchContext, negamax_search},
     search_terminators::{
-        AndSearchTerminator, OrSearchTerminator,
-        StaticMaxDepthSearchTerminator, StaticNodesVisitedSearchTerminator,
-        StopFlagSearchTerminator,
+        AndSearchTerminator, OrSearchTerminator, StaticMaxDepthSearchTerminator,
+        StaticNodesVisitedSearchTerminator, StopFlagSearchTerminator,
     },
     transposition_table::TranspositionTable,
 };
@@ -31,6 +30,7 @@ pub enum EngineThreadState {
 #[derive(Clone)]
 pub enum EngineThreadMessage {
     Compute(EngineThreadExecution),
+    End,
 }
 
 #[derive(Clone)]
@@ -130,6 +130,9 @@ impl EngineThreadWrapper {
 
                     request.stop_flag.store(true, Ordering::Relaxed);
                 }
+                EngineThreadMessage::End => {
+                    break;
+                }
             }
         }
     }
@@ -204,6 +207,7 @@ impl EngineThreadWrapper {
 
     pub fn end(&mut self) {
         self.is_ending = true;
+        self.request_sender.send(EngineThreadMessage::End).unwrap();
         let _ = self.stop();
         self.thread.take().map(JoinHandle::join).unwrap().unwrap();
     }

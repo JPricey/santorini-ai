@@ -43,6 +43,7 @@ def main():
     matchups = read_matchups("tmp/all_matchups.csv")
     non_mirrors = [m for m in matchups if m.gods[0] != m.gods[1]]
     gods_by_wins = Counter(m.winning_god for m in non_mirrors)
+    gods_by_losses = Counter(m.losing_god for m in non_mirrors)
     matchups_with_gods = defaultdict(int)
 
     longest_games = list(sorted(matchups, key = lambda x: -x.moves))
@@ -55,7 +56,12 @@ def main():
 
     print('Most wins:')
     for (k, v) in gods_by_wins.most_common():
-        print(k, v)
+        print(k, v, "/", gods_by_losses[k])
+
+    print("Aeolus losses")
+    for m in non_mirrors:
+        if m.losing_god == "Aeolus":
+            print(m)
 
     print("Apollos losses")
     for m in non_mirrors:

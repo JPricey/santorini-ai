@@ -194,8 +194,8 @@ impl MatchupSelector {
         self
     }
 
-    pub fn with_exact_gods_for_player(mut self, player: Player, gods: &Vec<GodName>) -> Self {
-        self.valid_gods[player as usize] = gods.clone();
+    pub fn with_exact_gods_for_player(mut self, player: Player, gods: &[GodName]) -> Self {
+        self.valid_gods[player as usize] = gods.iter().cloned().collect();
         self
     }
 
