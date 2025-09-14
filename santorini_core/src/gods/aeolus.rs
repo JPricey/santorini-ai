@@ -379,6 +379,13 @@ fn stringify_god_data(data: GodData) -> Option<String> {
     Some(Direction::from_u8(data as u8 - 1).to_string())
 }
 
+fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<String> {
+    let god_data = board.god_data[player as usize];
+    let wind_direction_str =
+        stringify_god_data(god_data).map_or("None".to_string(), |w| w.to_uppercase());
+    Some(format!("Preventing: {}", wind_direction_str))
+}
+
 fn get_wind_idx(board: &BoardState, player: Player) -> usize {
     board.god_data[player as usize] as usize
 }
@@ -395,6 +402,7 @@ pub const fn build_aeolus() -> GodPower {
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_get_wind_idx_fn(get_wind_idx)
+    .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)
 }
 
 #[cfg(test)]

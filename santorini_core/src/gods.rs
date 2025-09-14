@@ -173,6 +173,10 @@ fn _default_parse_god_data(fen: &str) -> Result<GodData, String> {
 fn _default_stringify_god_data(_data: GodData) -> Option<String> {
     None
 }
+pub(super) type PrettyStringifyGodDataFn = fn(&BoardState, Player) -> Option<String>;
+fn _default_pretty_stringify_god_data(_board: &BoardState, _player: Player) -> Option<String> {
+    None
+}
 
 pub(super) type GetWindIdxFn = fn(&BoardState, Player) -> usize;
 fn _default_get_wind_idx(_board: &BoardState, _player: Player) -> usize {
@@ -249,6 +253,8 @@ pub struct GodPower {
 
     _parse_god_data: ParseGodDataFn,
     _stringify_god_data: StringifyGodDataFn,
+
+    _pretty_stringify_god_data: PrettyStringifyGodDataFn,
 
     pub num_workers: usize,
 
@@ -391,6 +397,10 @@ impl GodPower {
 
     pub(super) fn stringify_god_data(&self, god_data: GodData) -> Option<String> {
         (self._stringify_god_data)(god_data)
+    }
+
+    pub fn pretty_stringify_god_data(&self, board: &BoardState, player: Player) -> Option<String> {
+        (self._pretty_stringify_god_data)(board, player)
     }
 }
 
@@ -540,6 +550,8 @@ const fn god_power(
         _parse_god_data: _default_parse_god_data,
         _stringify_god_data: _default_stringify_god_data,
 
+        _pretty_stringify_god_data: _default_pretty_stringify_god_data,
+
         num_workers: 2,
 
         win_mask: BitBoard::MAIN_SECTION_MASK,
@@ -624,6 +636,14 @@ impl GodPower {
         stringify_god_data: StringifyGodDataFn,
     ) -> Self {
         self._stringify_god_data = stringify_god_data;
+        self
+    }
+
+    pub(super) const fn with_pretty_stringify_god_data_fn(
+        mut self,
+        stringify_god_data: PrettyStringifyGodDataFn,
+    ) -> Self {
+        self._pretty_stringify_god_data = stringify_god_data;
         self
     }
 

@@ -3,11 +3,19 @@ use crate::{
     board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
     gods::{
-        build_god_power_actions, generic::{
-            get_default_parse_data_err, GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, harpies::slide_position, move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_standard_reach_board, get_worker_next_build_state_with_is_matched, get_worker_next_move_state, get_worker_start_move_state, is_mate_only, modify_prelude_for_checking_workers, push_winning_moves, WorkerEndMoveState
-        }, FullAction, GodName, GodPower, HistoryIdxHelper
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove, get_default_parse_data_err,
+        },
+        god_power,
+        harpies::slide_position,
+        move_helpers::{
+            WorkerEndMoveState, build_scored_move, get_generator_prelude_state,
+            get_standard_reach_board, get_worker_next_build_state_with_is_matched,
+            get_worker_next_move_state, get_worker_start_move_state, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
+        },
     },
     persephone_check_result,
     player::Player,
@@ -279,6 +287,17 @@ fn stringify_god_data(data: GodData) -> Option<String> {
     }
 }
 
+fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<String> {
+    if board.current_player == player {
+        return None;
+    }
+    let god_data = board.god_data[player as usize];
+    match god_data {
+        0 => None,
+        _ => Some("Preventing Upwards Moves".to_owned()),
+    }
+}
+
 pub const fn build_athena() -> GodPower {
     god_power(
         GodName::Athena,
@@ -291,4 +310,5 @@ pub const fn build_athena() -> GodPower {
     .with_can_opponent_climb_fn(can_opponent_climb)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
+    .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)
 }

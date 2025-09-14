@@ -4,7 +4,10 @@ use std::{
 };
 
 use eframe::{
-    egui::{self, Color32, Key, Modifiers, Rangef, Response, Stroke, Ui, UiBuilder, mutex::Mutex},
+    egui::{
+        self, Color32, Key, Label, Modifiers, Rangef, Response, RichText, Stroke, Ui, UiBuilder,
+        mutex::Mutex,
+    },
     epaint::EllipseShape,
 };
 use santorini_core::{
@@ -25,7 +28,7 @@ fn main() -> Result<(), eframe::Error> {
         viewport: egui::ViewportBuilder::default()
             .with_title("Santorini Analysis Engine")
             .with_inner_size([1280.0, 800.0])
-            .with_min_inner_size([300.0, 220.0])
+            .with_min_inner_size([600.0, 220.0])
             .with_icon(
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/dome.png")[..])
                     .unwrap(),
@@ -111,7 +114,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::EndTurn => egui::Color32::WHITE,
         PartialAction::NoMoves => egui::Color32::BLACK,
-        PartialAction::SetWindDirection(_) => egui::Color32::BLUE,
+        PartialAction::SetWindDirection(_) => egui::Color32::PURPLE,
     }
 }
 
@@ -781,6 +784,42 @@ impl<'a> egui::Widget for EvalBar<'a> {
     }
 }
 
+struct PlayerInfo<'a> {
+    player: Player,
+    state: &'a FullGameState,
+}
+
+impl<'a> egui::Widget for PlayerInfo<'a> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        ui.set_min_height(60.0);
+
+        let mut header_text = format!(
+            "Player {:?} - {:?}",
+            self.player, self.state.gods[self.player as usize].god_name
+        );
+
+        if let Some(winner) = self.state.get_winner() {
+            if winner == self.player {
+                header_text += " (Winner!)";
+            }
+        } else if self.state.board.current_player == self.player {
+            header_text += " (To Play)";
+        }
+        let resp = ui.heading(header_text);
+
+        let god = self.state.gods[self.player as usize];
+        if let Some(text) = god.pretty_stringify_god_data(&self.state.board, self.player) {
+            ui.label(text);
+        }
+
+        if god.god_name == GodName::Morpheus {
+            ui.add(Label::new(RichText::new("* Multiple Morpheus builds must start in the NW corner and progress clockwise").italics()));
+        }
+
+        resp
+    }
+}
+
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::SidePanel::right("right_panel")
@@ -793,21 +832,6 @@ impl eframe::App for MyApp {
                 let available_size = ui.available_size();
 
                 let scroll_area_height = available_size.y / 2.0;
-
-                let matchup_text = format!(
-                    "{:?} v {:?}",
-                    self.state.gods[0].god_name, self.state.gods[1].god_name
-                );
-
-                let heading_text = if let Some(winner) = self.state.get_winner() {
-                    format!("Player {:?} Wins - {matchup_text}", winner)
-                } else {
-                    format!(
-                        "Player {:?} to Play - {matchup_text}",
-                        self.state.board.current_player
-                    )
-                };
-                ui.heading(heading_text);
 
                 ui.scope_builder(UiBuilder::new(), |ui| {
                     ui.set_min_height(scroll_area_height);
@@ -972,6 +996,22 @@ impl eframe::App for MyApp {
                 }
             });
 
+        egui::TopBottomPanel::bottom("character_panel").show(ctx, |ui| {
+            ui.columns(2, |columns| {
+                let p1 = PlayerInfo {
+                    player: Player::One,
+                    state: &self.state,
+                };
+                columns[0].add(p1);
+
+                let p2 = PlayerInfo {
+                    player: Player::Two,
+                    state: &self.state,
+                };
+                columns[1].add(p2);
+            });
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             ctx.options_mut(|options| {
                 let central_panel_size = ui.available_size();
@@ -991,7 +1031,7 @@ impl eframe::App for MyApp {
                 ui.horizontal(|ui| {
                     ui.set_height(total_size.y);
                     ui.scope_builder(UiBuilder::new(), |ui| {
-                        ui.set_width(game_grid_size.x);
+                        ui.set_width(game_grid_size.x.max(1.0));
                         let game_grid = GameGrid { app: self };
                         ui.add(game_grid);
                     });

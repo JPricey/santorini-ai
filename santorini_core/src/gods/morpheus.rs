@@ -590,6 +590,18 @@ fn stringify_god_data(data: GodData) -> Option<String> {
     }
 }
 
+fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<String> {
+    if board.workers[player as usize].is_empty() {
+        return None;
+    }
+
+    let mut god_data = board.god_data[player as usize];
+    if board.current_player == player {
+        god_data += 1;
+    }
+    Some(format!("Builds: {god_data}"))
+}
+
 pub const fn build_morpheus() -> GodPower {
     god_power(
         GodName::Morpheus,
@@ -601,6 +613,7 @@ pub const fn build_morpheus() -> GodPower {
     .with_nnue_god_name(GodName::Mortal)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
+    .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)
 }
 
 #[cfg(test)]

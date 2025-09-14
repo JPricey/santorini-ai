@@ -1,12 +1,21 @@
 use crate::{
-    bitboard::{apply_mapping_to_mask, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP}, board::FullGameState, build_god_power_movers, gods::{
-        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, move_helpers::{
-            build_scored_move, get_generator_prelude_state, 
-            get_standard_reach_board, get_worker_end_move_state, get_worker_next_move_state,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            modify_prelude_for_checking_workers, push_winning_moves,
-        }, GodName, GodPower
-    }, persephone_check_result, player::Player
+    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
+    board::FullGameState,
+    build_god_power_movers,
+    gods::{
+        GodName, GodPower, build_god_power_actions,
+        generic::{MoveGenFlags, ScoredMove},
+        god_power,
+        mortal::MortalMove,
+        move_helpers::{
+            build_scored_move, get_generator_prelude_state, get_standard_reach_board,
+            get_worker_end_move_state, get_worker_next_move_state, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
+            push_winning_moves,
+        },
+    },
+    persephone_check_result,
+    player::Player,
 };
 
 pub(super) fn aphrodite_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
