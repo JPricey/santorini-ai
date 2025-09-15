@@ -264,7 +264,7 @@ pub struct BoardState {
     pub god_data: [u32; 2],
 
     pub hash: HashType,
-    height_lookup: [u8; 25],
+    pub height_lookup: [u8; 25],
 }
 
 impl PartialEq for BoardState {

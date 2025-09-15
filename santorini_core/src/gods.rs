@@ -27,6 +27,7 @@ pub(crate) mod harpies;
 pub(crate) mod hephaestus;
 pub(crate) mod hera;
 pub(crate) mod hermes;
+pub(crate) mod hestia;
 pub(crate) mod hypnus;
 pub(crate) mod limus;
 pub(crate) mod minotaur;
@@ -79,10 +80,18 @@ pub enum GodName {
     Hades = 19,
     Morpheus = 20,
     Aeolus = 21,
+    Hestia = 22,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Aphrodite, GodName::Persephone, GodName::Hades, GodName::Morpheus, GodName::Aeolus]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [
+    GodName::Aphrodite,
+    GodName::Persephone,
+    GodName::Hades,
+    GodName::Morpheus,
+    GodName::Aeolus,
+    GodName::Hestia,
+]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -447,6 +456,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     hades::build_hades(),
     morpheus::build_morpheus(),
     aeolus::build_aeolus(),
+    hestia::build_hestia(),
 ]);
 
 #[macro_export]
