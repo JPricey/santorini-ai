@@ -5,15 +5,15 @@ use std::{
 
 use eframe::{
     egui::{
-        self, Color32, Key, Label, Modifiers, Rangef, Response, RichText, Stroke, Ui, UiBuilder,
-        mutex::Mutex,
+        self, Color32, Direction, Key, Label, Modifiers, Rangef, Response, RichText, Stroke, Ui,
+        UiBuilder, mutex::Mutex,
     },
     epaint::EllipseShape,
 };
 use santorini_core::{
     bitboard::BitBoard,
     board::FullGameState,
-    direction::maybe_wind_direction_to_square,
+    direction::maybe_wind_direction_to_ui_square,
     engine::EngineThreadWrapper,
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction, WIP_GODS},
@@ -98,7 +98,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         | PartialAction::MoveWorkerWithPush(x, _)
         | PartialAction::Build(x)
         | PartialAction::Dome(x) => Some(*x),
-        PartialAction::SetWindDirection(d) => Some(maybe_wind_direction_to_square(*d)),
+        PartialAction::SetWindDirection(d) => Some(maybe_wind_direction_to_ui_square(*d)),
         PartialAction::NoMoves | PartialAction::EndTurn => None,
     }
 }
@@ -114,22 +114,28 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::EndTurn => egui::Color32::WHITE,
         PartialAction::NoMoves => egui::Color32::BLACK,
-        PartialAction::SetWindDirection(_) => egui::Color32::PURPLE,
+        PartialAction::SetWindDirection(maybe_direction) => match maybe_direction {
+            None => egui::Color32::GRAY,
+            _ => egui::Color32::MAGENTA,
+        },
     }
 }
 
-fn partial_action_label(action: &PartialAction) -> &str {
+fn partial_action_label(action: &PartialAction) -> String {
     match action {
-        PartialAction::PlaceWorker(_) => "Place Worker",
-        PartialAction::SelectWorker(_) => "Select Worker",
-        PartialAction::MoveWorker(_) => "Move Worker",
-        PartialAction::MoveWorkerWithSwap(..) => "Move Worker (Swap)",
-        PartialAction::MoveWorkerWithPush(..) => "Move Worker (Push)",
-        PartialAction::Build(_) => "Build",
-        PartialAction::Dome(_) => "Add Dome",
-        PartialAction::EndTurn => "End Turn",
-        PartialAction::NoMoves => "Pass",
-        PartialAction::SetWindDirection(_) => "Set Wind Direction",
+        PartialAction::PlaceWorker(_) => "Place Worker".to_string(),
+        PartialAction::SelectWorker(_) => "Select Worker".to_string(),
+        PartialAction::MoveWorker(_) => "Move Worker".to_string(),
+        PartialAction::MoveWorkerWithSwap(..) => "Move Worker (Swap)".to_string(),
+        PartialAction::MoveWorkerWithPush(..) => "Move Worker (Push)".to_string(),
+        PartialAction::Build(_) => "Build".to_string(),
+        PartialAction::Dome(_) => "Add Dome".to_string(),
+        PartialAction::EndTurn => "End Turn".to_string(),
+        PartialAction::NoMoves => "Pass".to_string(),
+        PartialAction::SetWindDirection(maybe_direction) => match maybe_direction {
+            None => "No Wind Direction".to_string(),
+            Some(direction) => format!("Prevent Movements: {:?}", direction),
+        },
     }
 }
 
@@ -813,7 +819,12 @@ impl<'a> egui::Widget for PlayerInfo<'a> {
         }
 
         if god.god_name == GodName::Morpheus {
-            ui.add(Label::new(RichText::new("* Multiple Morpheus builds must start in the NW corner and progress clockwise").italics()));
+            ui.add(Label::new(
+                RichText::new(
+                    "* Multiple Morpheus builds must start in the NW corner and progress clockwise",
+                )
+                .italics(),
+            ));
         }
 
         resp

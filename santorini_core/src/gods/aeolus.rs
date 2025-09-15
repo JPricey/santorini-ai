@@ -1,25 +1,26 @@
 use crate::{
     bitboard::{
-        BitBoard, DIRECTION_MAPPING, WIND_AWARE_NEIGHBOR_MAP, WRAPPING_DIRECTION_MAPPING,
-        apply_mapping_to_mask,
+        apply_mapping_to_mask, BitBoard, DIRECTION_MAPPING, WIND_AWARE_NEIGHBOR_MAP,
+        WRAPPING_DIRECTION_MAPPING,
     },
     board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
-    direction::{Direction, direction_idx_to_reverse},
+    direction::{direction_idx_to_reverse, Direction},
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        build_god_power_actions,
         generic::{
-            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK,
+            MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH,
         },
         god_power,
         move_helpers::{
-            GeneratorPreludeState, WorkerNextMoveState, build_scored_move, get_basic_moves,
-            get_generator_prelude_state, get_standard_reach_board_with_custom_wind,
-            get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
-            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
-            push_winning_moves,
+            build_scored_move, get_basic_moves, get_generator_prelude_state,
+            get_standard_reach_board_with_custom_wind, get_worker_end_move_state,
+            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
+            GeneratorPreludeState, WorkerNextMoveState,
         },
+        FullAction, GodName, GodPower, HistoryIdxHelper,
     },
     persephone_check_result,
     player::Player,
@@ -410,7 +411,7 @@ mod tests {
     use crate::{
         fen::parse_fen,
         gods::ALL_GODS_BY_ID,
-        matchup::{Matchup, is_matchup_banned},
+        matchup::{is_matchup_banned, Matchup},
     };
 
     use super::*;

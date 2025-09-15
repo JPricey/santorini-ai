@@ -48,6 +48,11 @@ impl Direction {
     pub const fn from_u8(val: u8) -> Self {
         transmute_enum!(val)
     }
+
+    pub const fn opposite(self) -> Self {
+        let val = self as u8;
+        Self::from_u8((val + 4) % 8)
+    }
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
@@ -137,8 +142,8 @@ pub fn direction_to_ui_square(direction: Direction) -> Square {
     }
 }
 
-pub fn maybe_wind_direction_to_square(direction: Option<Direction>) -> Square {
-    direction.map_or(Square::C3, direction_to_ui_square)
+pub fn maybe_wind_direction_to_ui_square(direction: Option<Direction>) -> Square {
+    direction.map_or(Square::C3, |d| direction_to_ui_square(d.opposite()))
 }
 
 pub(crate) fn _offset_square_by_dir(square: Square, direction: Direction) -> Square {
