@@ -64,7 +64,7 @@ fn persephone_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let unblocked_squares = !(worker_start_state.all_non_moving_workers
                 | worker_end_move_state.worker_end_mask
-                | prelude.domes);
+                | prelude.domes_and_frozen);
             let all_possible_builds = NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize]
                 & unblocked_squares
                 & prelude.build_mask;

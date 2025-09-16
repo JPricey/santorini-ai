@@ -27,11 +27,11 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         .minus_god_for_both(GodName::Mortal)
         .with_can_mirror_option(true)
         .with_can_swap()
-        .with_exact_gods_for_player(
-            santorini_core::player::Player::One,
-            &santorini_core::gods::WIP_GODS,
-        )
-        // .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Aphrodite])
+        // .with_exact_gods_for_player(
+        //     santorini_core::player::Player::One,
+        //     &santorini_core::gods::WIP_GODS,
+        // )
+        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Europa])
         .get_all();
 
     // for m in &all_matchups {

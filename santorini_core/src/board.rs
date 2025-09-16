@@ -138,6 +138,17 @@ impl FullGameState {
             .collect()
     }
 
+    pub fn get_frozen_squares(&self) -> (BitBoard, BitBoard) {
+        fn _frozen_squares(state: &FullGameState, player: Player) -> BitBoard {
+            state.gods[player as usize].get_frozen_mask(&state.board, player)
+        }
+
+        (
+            _frozen_squares(self, Player::One),
+            _frozen_squares(self, Player::Two),
+        )
+    }
+
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
         let placement_mode = get_starting_placements_count(&self.board).unwrap();
         if placement_mode > 0 {

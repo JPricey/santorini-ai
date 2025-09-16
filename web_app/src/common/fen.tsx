@@ -1,4 +1,4 @@
-import { type GameState, Player, type PlayerGameState, type PlayerType, squareStrToSquare, type SquareType } from "./game_state";
+import { type GameState, Player, type PlayerGameState, type PlayerType, Square, squareStrToSquare, type SquareType } from "./game_state";
 import { Result, Ok, Err } from "ts-results";
 
 function _parseHeights(heightString: string): Result<Array<number>, string> {
@@ -34,6 +34,7 @@ function _parsePlayer(player: string): Result<PlayerType, string> {
 type GodNameSection = {
     godName: string,
     optionalSection: string,
+    tokens: Array<SquareType>,
 };
 
 function _parseGodNameSection(godSection: string): Result<GodNameSection, string> {
@@ -44,9 +45,17 @@ function _parseGodNameSection(godSection: string): Result<GodNameSection, string
     }
     const godName = match[1].trim();
     const optionalSection = match[3] ? match[3].trim() : '';
+    const tokens: Array<SquareType> = [];
+    if (godName == 'europa') {
+        if (Square.hasOwnProperty(optionalSection)) {
+            tokens.push(Square[optionalSection as keyof typeof Square]);
+        }
+    }
+
     return Ok({
         godName: godName,
         optionalSection: optionalSection,
+        tokens: tokens,
     });
 }
 
@@ -83,6 +92,7 @@ function _parsePlayerSection(playerSection: string): Result<PlayerGameState, str
     return Ok({
         god: god,
         workers: workers,
+        tokens: godSection.val.tokens,
         isWin: isWin,
         otherAttributes: godSection.val.optionalSection,
     });

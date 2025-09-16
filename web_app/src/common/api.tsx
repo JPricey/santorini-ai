@@ -21,6 +21,7 @@ export const PlayerActionTypes = {
     MoveWorkerWithSwap: 'move_worker_with_swap',
     MoveWorkerWithPush: 'move_worker_with_push',
     SetWindDirection: 'set_wind_direction',
+    SetTalusPosition: 'set_talus_position',
     Build: 'build',
     Dome: 'dome',
     EndTurn: 'end_turn',
@@ -36,6 +37,7 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.MoveWorkerWithSwap; value: [string, string] }
     | { type: typeof PlayerActionTypes.Build; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
+    | { type: typeof PlayerActionTypes.SetTalusPosition; value: string }
     | { type: typeof PlayerActionTypes.SetWindDirection; value: DirectionType | null }
     | { type: typeof PlayerActionTypes.EndTurn }
     | { type: typeof PlayerActionTypes.NoMoves };
@@ -68,6 +70,8 @@ export function describeActionType(actionType: PlayerActionType): string {
             return `Build`;
         case PlayerActionTypes.Dome:
             return `Dome`;
+        case PlayerActionTypes.SetTalusPosition:
+            return `Place Talus`;
         case PlayerActionTypes.EndTurn:
             return `End Turn`;
         case PlayerActionTypes.NoMoves:
@@ -87,6 +91,7 @@ export function describeAction(action: PlayerAction): string {
         case PlayerActionTypes.MoveWorkerWithSwap:
         case PlayerActionTypes.Build:
         case PlayerActionTypes.Dome:
+        case PlayerActionTypes.SetTalusPosition:
             return `${describeActionType(action.type)} (${action.value})`;
         case PlayerActionTypes.MoveWorkerWithPush:
             return `${describeActionType(action.type)} (${action.value[0]}>${action.value[1]}})`;
@@ -196,6 +201,13 @@ export function gameStateWithActions(gameState: GameState, partialActions: Array
                 if (buildSquare.ok) {
                     const squareIdx = buildSquare.val;
                     result.heights[squareIdx] = 4;
+                }
+                break;
+            }
+            case PlayerActionTypes.SetTalusPosition: {
+                const tokenSquare = squareStrToSquare(action.value);
+                if (tokenSquare.ok) {
+                    result.players[currentPlayerIdx].tokens = [tokenSquare.val];
                 }
                 break;
             }

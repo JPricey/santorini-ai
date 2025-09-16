@@ -35,7 +35,7 @@ fn get_must_climb_worker_moves(
 
     WRAPPING_NEIGHBOR_MAP[worker_start_state.worker_start_pos as usize]
         & height_mask
-        & !prelude.all_workers_mask
+        & !prelude.all_workers_and_frozen_mask
 }
 
 fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
@@ -66,7 +66,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let climb_height = get_worker_climb_height(&prelude, &worker_start_state);
             wind_aware_neighbors[worker_start_pos as usize]
-                & !(prelude.board.height_map[climb_height] | down_mask | prelude.all_workers_mask)
+                & !(prelude.board.height_map[climb_height] | down_mask | prelude.all_workers_and_frozen_mask)
         };
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
@@ -91,7 +91,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_neighbors =
             apply_mapping_to_mask(other_threatening_workers, &wind_aware_neighbors);
 
-        let buildable_squares = !(worker_start_state.all_non_moving_workers | prelude.domes);
+        let buildable_squares = !(worker_start_state.all_non_moving_workers | prelude.domes_and_frozen);
         let mut already_seen = BitBoard::EMPTY;
 
         for mut worker_end_pos in worker_moves {

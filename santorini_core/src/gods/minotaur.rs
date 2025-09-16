@@ -219,7 +219,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
     let wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
 
-    let blocked_squares = prelude.all_workers_mask | prelude.domes;
+    let blocked_squares = prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen;
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -229,7 +229,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_start_state.worker_start_pos,
             worker_start_state.worker_start_mask,
             worker_start_state.worker_start_height,
-            worker_start_state.other_own_workers,
+            worker_start_state.other_own_workers | prelude.domes_and_frozen,
         );
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
@@ -313,7 +313,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             if prelude.is_against_harpies && push_to_spot.is_none() {
                 worker_end_pos = slide_position(
-                    &prelude.board,
+                    &prelude,
                     worker_start_state.worker_start_pos,
                     worker_end_pos,
                 );
@@ -324,7 +324,9 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let is_improving = worker_end_height > worker_start_state.worker_start_height;
 
             let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize]
-                & !(push_to_mask | worker_start_state.all_non_moving_workers | prelude.domes);
+                & !(push_to_mask
+                    | worker_start_state.all_non_moving_workers
+                    | prelude.domes_and_frozen);
             worker_builds &= final_build_mask;
 
             if is_interact_with_key_squares::<F>() {
@@ -333,8 +335,9 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 }
             }
 
-            let free_move_spaces =
-                !(worker_start_state.other_own_workers | prelude.domes | worker_end_mask);
+            let free_move_spaces = !(worker_start_state.other_own_workers
+                | prelude.domes_and_frozen
+                | worker_end_mask);
             let not_other_pushed_workers = !other_workers_post_push;
 
             for worker_build_pos in worker_builds {
@@ -368,7 +371,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     if !prelude.is_against_hypnus || checkable_own_workers.count_ones() >= 2 {
                         let blocked_for_final_push_squares = worker_start_state.other_own_workers
                             | worker_end_mask
-                            | prelude.domes
+                            | prelude.domes_and_frozen
                             | (prelude.exactly_level_3 & worker_build_mask)
                             | other_workers_post_push;
 

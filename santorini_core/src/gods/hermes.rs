@@ -362,7 +362,8 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             continue;
         }
 
-        let unblocked_squares = !(worker_start_state.all_non_moving_workers | prelude.domes);
+        let unblocked_squares =
+            !(worker_start_state.all_non_moving_workers | prelude.domes_and_frozen);
 
         for worker_end_pos in worker_moves.into_iter() {
             let worker_end_move_state =
@@ -415,14 +416,15 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let f1 = worker_iter.next().unwrap();
     let m1 = BitBoard::as_mask(f1);
     let h1 = prelude.board.get_height(f1);
-    let h1_mask = prelude.board.exactly_level_n(h1) & !prelude.oppo_workers;
+    let h1_mask =
+        prelude.board.exactly_level_n(h1) & !(prelude.oppo_workers | prelude.domes_and_frozen);
     let mut c1 = flood_fill(h1_mask, m1, &wind_neighbor_ref);
 
     let Some(f2) = worker_iter.next() else {
         c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
         // There's only 1 hermes worker
-        let non_selected_workers = prelude.all_workers_mask ^ m1;
-        let buildable_squares = !(non_selected_workers | prelude.domes);
+        let non_selected_workers = prelude.all_workers_and_frozen_mask ^ m1;
+        let buildable_squares = !(non_selected_workers | prelude.domes_and_frozen);
 
         for t1 in c1 {
             let worker_end_mask = BitBoard::as_mask(t1);
@@ -474,7 +476,8 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     } else {
         is_overlap = false;
         h2 = prelude.board.get_height(f2);
-        let h2_mask = prelude.board.exactly_level_n(h2) & !prelude.oppo_workers;
+        let h2_mask =
+            prelude.board.exactly_level_n(h2) & !(prelude.oppo_workers | prelude.domes_and_frozen);
 
         c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
         c2 = restrict_moves_by_affinity_area(
@@ -484,7 +487,7 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         );
     }
 
-    let blocked_squares = prelude.oppo_workers | prelude.domes;
+    let blocked_squares = prelude.oppo_workers | prelude.domes_and_frozen;
 
     let l1 = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize];
     let l2 = BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize];

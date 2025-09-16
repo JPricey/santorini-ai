@@ -256,7 +256,8 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_neighbors =
             apply_mapping_to_mask(other_threatening_workers, &neighbor_moves_map);
 
-        let unblocked_squares = !(worker_start_state.all_non_moving_workers | prelude.domes);
+        let unblocked_squares =
+            !(worker_start_state.all_non_moving_workers | prelude.domes_and_frozen);
         let pre_build_locations =
             NEIGHBOR_MAP[worker_start_pos as usize] & unblocked_squares & prelude.build_mask;
 
@@ -276,15 +277,15 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     match worker_start_state.worker_start_height {
                         1 => {
                             moveable_ontop_of_prebuild |=
-                                prelude.exactly_level_0 & !prelude.all_workers_mask
+                                prelude.exactly_level_0 & !prelude.all_workers_and_frozen_mask
                         }
                         2 => {
                             moveable_ontop_of_prebuild |=
-                                prelude.exactly_level_1 & !prelude.all_workers_mask
+                                prelude.exactly_level_1 & !prelude.all_workers_and_frozen_mask
                         }
                         3 => {
                             moveable_ontop_of_prebuild |=
-                                prelude.exactly_level_2 & !prelude.all_workers_mask
+                                prelude.exactly_level_2 & !prelude.all_workers_and_frozen_mask
                         }
                         _ => (),
                     }
@@ -306,7 +307,7 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
                     if prelude.is_against_harpies {
                         worker_end_pos = prometheus_slide(
-                            &prelude.board,
+                            &prelude,
                             worker_start_pos,
                             worker_end_pos,
                             worker_end_height,

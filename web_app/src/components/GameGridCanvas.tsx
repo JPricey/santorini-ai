@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { getPlayerOnSquare, playerToString, Player, type GameState, type SquareType, type PlayerType } from '../common/game_state';
+import { getPlayerOnSquare, playerToString, Player, type GameState, type SquareType, type PlayerType, getTokenOnSquare } from '../common/game_state';
 import './GameGridCanvas.css';
 import { describeActionType, PlayerActionTypes, type PlayerAction, type PlayerActionType } from '../common/api';
 import { intersectionMatchType } from '../common/action_selector';
@@ -148,6 +148,7 @@ function actionToFill(actionType: PlayerActionType): string {
         case PlayerActionTypes.Build:
             return 'red'
         case PlayerActionTypes.Dome:
+        case PlayerActionTypes.SetTalusPosition:
             return 'purple'
         case PlayerActionTypes.EndTurn:
             return 'white'
@@ -308,6 +309,7 @@ function SvgBoard({ gameState, fen, width, height, onClick, availableActions }: 
                     const topMidY = squareMidY - cyHeightDelta;
 
                     const player = getPlayerOnSquare(gameState, square);
+                    const token = getTokenOnSquare(gameState, square);
                     const action = getActionMatch(square);
                     let actionPathSizePct = 0.9;
                     if (squareHeight > 0) {
@@ -330,6 +332,26 @@ function SvgBoard({ gameState, fen, width, height, onClick, availableActions }: 
                                 rx={ovalRadiusX}
                                 ry={ovalRadiusY}
                                 fill={player === Player.One ? "url(#player1Gradient)" : "url(#player2Gradient)"}
+                                strokeWidth={c(3)}
+                            />
+                        );
+                    }
+
+                    function tokenTriangle() {
+                        if (token === null) {
+                            return null;
+                        }
+                        const ovalRadiusX = c(SQUARE_RENDERED_BOUND_X * 0.2);
+                        const ovalRadiusY = c(SQUARE_RENDERED_BOUND_Y * 0.15);
+                        const ovalCenterX = squareMidX;
+                        const ovalCenterY = topMidY - ovalRadiusY * 0.4;
+                        return (
+                            <ellipse
+                                cx={ovalCenterX}
+                                cy={ovalCenterY}
+                                rx={ovalRadiusX}
+                                ry={ovalRadiusY}
+                                fill={token === Player.One ? "url(#player1Gradient)" : "url(#player2Gradient)"}
                                 strokeWidth={c(3)}
                             />
                         );
@@ -366,6 +388,7 @@ function SvgBoard({ gameState, fen, width, height, onClick, availableActions }: 
                                     <polygon key='action' points={actionPath} fill={actionToFill(action)} className='action-selection' />
                             }
                             {workerEllipse()}
+                            {tokenTriangle()}
                         </g>
                     );
                 })

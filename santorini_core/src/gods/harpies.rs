@@ -8,10 +8,10 @@ use crate::{
         god_power,
         mortal::MortalMove,
         move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_standard_reach_board,
-            get_worker_end_move_state, get_worker_next_build_state, get_worker_next_move_state,
-            get_worker_start_move_state, is_mate_only, modify_prelude_for_checking_workers,
-            push_winning_moves,
+            GeneratorPreludeState, build_scored_move, get_generator_prelude_state,
+            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
+            get_worker_next_move_state, get_worker_start_move_state, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
     persephone_check_result,
@@ -81,42 +81,47 @@ pub fn urania_slide(board: &BoardState, from: Square, to: Square, workers: BitBo
     slide_position_with_custom_worker_blocker(board, to, next_spot, workers)
 }
 
-pub fn prometheus_slide(board: &BoardState, from: Square, to: Square, to_height: usize) -> Square {
+pub(crate) fn prometheus_slide(
+    prelude: &GeneratorPreludeState,
+    from: Square,
+    to: Square,
+    to_height: usize,
+) -> Square {
     let Some(next_spot) = MAY_WRAP_FROM_PUSH_MAPPING[from as usize][to as usize] else {
         return to;
     };
 
-    let next_height = board.get_height(next_spot);
+    let next_height = prelude.board.get_height(next_spot);
     if next_height > to_height {
         return to;
     }
 
     let next_mask = BitBoard::as_mask(next_spot);
-    if ((board.workers[0] | board.workers[1]) & next_mask).is_not_empty() {
+    if ((prelude.all_workers_and_frozen_mask) & next_mask).is_not_empty() {
         return to;
     }
 
-    slide_position(board, to, next_spot)
+    slide_position(prelude, to, next_spot)
 }
 
-pub fn slide_position(board: &BoardState, from: Square, to: Square) -> Square {
+pub(crate) fn slide_position(prelude: &GeneratorPreludeState, from: Square, to: Square) -> Square {
     let Some(next_spot) = PUSH_MAPPING[from as usize][to as usize] else {
         return to;
     };
 
-    let to_height = board.get_height(to);
-    let next_height = board.get_height(next_spot);
+    let to_height = prelude.board.get_height(to);
+    let next_height = prelude.board.get_height(next_spot);
 
     if next_height > to_height {
         return to;
     }
 
     let next_mask = BitBoard::as_mask(next_spot);
-    if ((board.workers[0] | board.workers[1]) & next_mask).is_not_empty() {
+    if ((prelude.all_workers_and_frozen_mask) & next_mask).is_not_empty() {
         return to;
     }
 
-    slide_position(board, to, next_spot)
+    slide_position(prelude, to, next_spot)
 }
 
 pub fn slide_position_with_custom_worker_blocker(

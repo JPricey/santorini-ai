@@ -199,7 +199,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_start_state.worker_start_pos,
             worker_start_state.worker_start_mask,
             worker_start_state.worker_start_height,
-            worker_start_state.other_own_workers,
+            worker_start_state.other_own_workers | prelude.domes_and_frozen,
         );
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
@@ -256,7 +256,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
 
             if prelude.is_against_harpies {
-                worker_end_pos = slide_position(&prelude.board, worker_start_pos, worker_end_pos);
+                worker_end_pos = slide_position(&prelude, worker_start_pos, worker_end_pos);
                 worker_end_mask = BitBoard::as_mask(worker_end_pos);
             }
 
@@ -265,7 +265,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let is_now_lvl_2 = (worker_end_height == 2) as u32;
 
             let self_blockers =
-                prelude.domes | worker_start_state.other_own_workers | worker_end_mask;
+                prelude.domes_and_frozen | worker_start_state.other_own_workers | worker_end_mask;
             let unblocked_squares_for_builds = !(self_blockers | final_other_workers);
             let unblocked_squares_for_checks = !self_blockers;
 

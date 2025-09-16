@@ -37,13 +37,22 @@ def read_matchups(csv_path):
     return matchups
 
 def get_all_gods(data):
-    pass
+    p1 = {m.gods[0] for m in data}
+    p2 = {m.gods[1] for m in data}
+    return list(sorted(p1.union(p2)))
+
+def fill_counter(counter, all_gods):
+    for g in all_gods:
+        counter[g] += 0
+    return counter
 
 def main():
     matchups = read_matchups("tmp/all_matchups.csv")
+    all_gods = get_all_gods(matchups)
+    print(all_gods)
     non_mirrors = [m for m in matchups if m.gods[0] != m.gods[1]]
-    gods_by_wins = Counter(m.winning_god for m in non_mirrors)
-    gods_by_losses = Counter(m.losing_god for m in non_mirrors)
+    gods_by_wins = fill_counter(Counter(m.winning_god for m in non_mirrors), all_gods)
+    gods_by_losses = fill_counter(Counter(m.losing_god for m in non_mirrors), all_gods)
     matchups_with_gods = defaultdict(int)
 
     longest_games = list(sorted(matchups, key = lambda x: -x.moves))

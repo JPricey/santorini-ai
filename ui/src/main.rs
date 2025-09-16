@@ -5,8 +5,8 @@ use std::{
 
 use eframe::{
     egui::{
-        self, Color32, Direction, Key, Label, Modifiers, Rangef, Response, RichText, Stroke, Ui,
-        UiBuilder, mutex::Mutex,
+        self, Color32, Key, Label, Modifiers, Rangef, Response, RichText, Stroke, Ui, UiBuilder,
+        mutex::Mutex,
     },
     epaint::EllipseShape,
 };
@@ -97,6 +97,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         | PartialAction::MoveWorkerWithSwap(x, _)
         | PartialAction::MoveWorkerWithPush(x, _)
         | PartialAction::Build(x)
+        | PartialAction::SetTalusPosition(x)
         | PartialAction::Dome(x) => Some(*x),
         PartialAction::SetWindDirection(d) => Some(maybe_wind_direction_to_ui_square(*d)),
         PartialAction::NoMoves | PartialAction::EndTurn => None,
@@ -112,6 +113,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         | PartialAction::MoveWorkerWithPush(_, _) => egui::Color32::DARK_GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
+        PartialAction::SetTalusPosition(_) => egui::Color32::PURPLE,
         PartialAction::EndTurn => egui::Color32::WHITE,
         PartialAction::NoMoves => egui::Color32::BLACK,
         PartialAction::SetWindDirection(maybe_direction) => match maybe_direction {
@@ -130,6 +132,7 @@ fn partial_action_label(action: &PartialAction) -> String {
         PartialAction::MoveWorkerWithPush(..) => "Move Worker (Push)".to_string(),
         PartialAction::Build(_) => "Build".to_string(),
         PartialAction::Dome(_) => "Add Dome".to_string(),
+        PartialAction::SetTalusPosition(_) => "Place Talus".to_string(),
         PartialAction::EndTurn => "End Turn".to_string(),
         PartialAction::NoMoves => "Pass".to_string(),
         PartialAction::SetWindDirection(maybe_direction) => match maybe_direction {
@@ -188,6 +191,7 @@ fn game_state_with_partial_actions(
             }
             PartialAction::NoMoves
             | PartialAction::EndTurn
+            | PartialAction::SetTalusPosition(_)
             | PartialAction::SetWindDirection(_) => (),
         }
     }
@@ -483,6 +487,8 @@ impl<'a> egui::Widget for GameGrid<'a> {
         let render_state =
             game_state_with_partial_actions(&self.app.state, &self.app.current_actions);
 
+        let (p1_tokens, p2_tokens) = self.app.state.get_frozen_squares();
+
         for r in 0..5 {
             for c in 0..5 {
                 let square = Square::from_col_row(c, r);
@@ -492,8 +498,17 @@ impl<'a> egui::Widget for GameGrid<'a> {
                     None
                 };
 
+                let token = if p1_tokens.contains_square(square) {
+                    Some(Player::One)
+                } else if p2_tokens.contains_square(square) {
+                    Some(Player::Two)
+                } else {
+                    None
+                };
+
                 let square_space = SquareSpace {
                     worker: render_state.board.get_worker_at(square),
+                    token,
                     height: render_state.board.get_height(square),
                     dim: bound_dim,
                     ui_action: ui_action.clone(),
@@ -599,8 +614,16 @@ impl<'a> egui::Widget for GameGrid<'a> {
 struct SquareSpace {
     dim: f32,
     worker: Option<Player>,
+    token: Option<Player>,
     height: usize,
     ui_action: Option<PartialAction>,
+}
+
+fn unit_color(player: Player) -> egui::Color32 {
+    match player {
+        Player::One => egui::Color32::LIGHT_GRAY,
+        Player::Two => egui::Color32::from_rgb(23, 23, 23),
+    }
 }
 
 impl egui::Widget for SquareSpace {
@@ -673,17 +696,42 @@ impl egui::Widget for SquareSpace {
             + height * 0.02
             + box_bot_offset;
         let circle_center = egui::pos2(rect.center().x, rect.min.y + height - circle_h);
+
         if let Some(player) = self.worker {
-            let circle_color = match player {
-                Player::One => egui::Color32::LIGHT_GRAY,
-                Player::Two => egui::Color32::from_rgb(23, 23, 23),
-            };
             painter.circle(
                 circle_center,
                 player_rad,
-                circle_color,
+                unit_color(player),
                 Stroke::new(width / 128.0, egui::Color32::BLACK),
             );
+        }
+
+        if let Some(player) = self.token {
+            let token_side_len = player_rad * 2.0;
+            let triangle_base_x = match player {
+                Player::One => rect.min.x + rect.width() * (1.0 / 3.0),
+                Player::Two => rect.min.x + rect.width() * (2.0 / 3.0),
+            };
+            let triangle_base_y = circle_center.y + token_side_len * 0.5;
+            let mut points = Vec::with_capacity(3);
+            points.push(egui::pos2(
+                triangle_base_x - token_side_len / 2.0,
+                triangle_base_y,
+            ));
+            points.push(egui::pos2(
+                triangle_base_x + token_side_len / 2.0,
+                triangle_base_y,
+            ));
+            points.push(egui::pos2(
+                triangle_base_x,
+                triangle_base_y - token_side_len * 0.866,
+            ));
+
+            painter.add(egui::Shape::convex_polygon(
+                points,
+                unit_color(player),
+                Stroke::new(width / 168.0, egui::Color32::BLACK),
+            ));
         }
 
         painter.set_opacity(0.4);

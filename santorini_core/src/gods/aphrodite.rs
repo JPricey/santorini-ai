@@ -58,7 +58,7 @@ pub(super) fn aphrodite_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let unblocked_squares = !(worker_start_state.all_non_moving_workers
                 | worker_end_move_state.worker_end_mask
-                | prelude.domes);
+                | prelude.domes_and_frozen);
 
             let reach_board = get_standard_reach_board::<F>(
                 &prelude,

@@ -20,6 +20,7 @@ pub(crate) mod artemis;
 pub(crate) mod athena;
 pub(crate) mod atlas;
 pub(crate) mod demeter;
+pub(crate) mod europa;
 pub mod generic;
 pub(crate) mod graeae;
 pub(crate) mod hades;
@@ -81,6 +82,7 @@ pub enum GodName {
     Morpheus = 20,
     Aeolus = 21,
     Hestia = 22,
+    Europa = 23,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -91,6 +93,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Morpheus,
     GodName::Aeolus,
     GodName::Hestia,
+    GodName::Europa,
 ]);
 
 impl GodName {
@@ -130,6 +133,7 @@ pub enum PartialAction {
     MoveWorkerWithPush(Square, Square),
     Build(Square),
     Dome(Square),
+    SetTalusPosition(Square),
     SetWindDirection(Option<Direction>),
     NoMoves,
     EndTurn,
@@ -233,6 +237,11 @@ fn _default_passing_move(_board: &mut BoardState) {
     // Noop
 }
 
+pub(super) type GetFrozenMask = fn(&BoardState, Player) -> BitBoard;
+fn _default_get_frozen_mask(_board: &BoardState, _player: Player) -> BitBoard {
+    BitBoard::EMPTY
+}
+
 pub struct GodPower {
     pub god_name: GodName,
     pub model_god_name: GodName,
@@ -248,6 +257,7 @@ pub struct GodPower {
     _build_mask_fn: BuildMaskFn,
     _moveable_worker_filter_fn: MovableWorkerFilter,
     _can_opponent_climb_fn: CanOpponentClimbFn,
+    _get_frozen_mask: GetFrozenMask,
     pub win_mask: BitBoard,
 
     // Action Fns
@@ -400,6 +410,10 @@ impl GodPower {
         (self._can_opponent_climb_fn)(board, player)
     }
 
+    pub(super) fn get_frozen_mask(&self, board: &BoardState, player: Player) -> BitBoard {
+        (self._get_frozen_mask)(board, player)
+    }
+
     pub(super) fn parse_god_data(&self, fen: &str) -> Result<GodData, String> {
         (self._parse_god_data)(fen)
     }
@@ -457,6 +471,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     morpheus::build_morpheus(),
     aeolus::build_aeolus(),
     hestia::build_hestia(),
+    europa::build_europa(),
 ]);
 
 #[macro_export]
@@ -549,6 +564,7 @@ const fn god_power(
         _build_mask_fn: _default_build_mask,
         _moveable_worker_filter_fn: _default_moveable_worker_filter,
         _can_opponent_climb_fn: _default_can_opponent_climb,
+        _get_frozen_mask: _default_get_frozen_mask,
         _make_passing_move: _default_passing_move,
 
         _get_blocker_board: actions._get_blocker_board,
@@ -659,6 +675,14 @@ impl GodPower {
 
     pub(super) const fn with_get_wind_idx_fn(mut self, get_wind_idx_fn: GetWindIdxFn) -> Self {
         self._get_wind_idx = get_wind_idx_fn;
+        self
+    }
+
+    pub(super) const fn with_get_frozen_mask_fn(
+        mut self,
+        get_frozen_mask_fn: GetFrozenMask,
+    ) -> Self {
+        self._get_frozen_mask = get_frozen_mask_fn;
         self
     }
 }

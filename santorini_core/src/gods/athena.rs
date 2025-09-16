@@ -201,7 +201,7 @@ pub(super) fn athena_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 is_improving_for_power = prelude.board.get_height(worker_end_pos)
                     > worker_start_state.worker_start_height;
                 worker_end_pos = slide_position(
-                    prelude.board,
+                    &prelude,
                     worker_start_state.worker_start_pos,
                     worker_end_pos,
                 );

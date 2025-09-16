@@ -56,7 +56,7 @@ pub fn graeae_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 get_worker_end_move_state::<F>(&prelude, &worker_start_state, worker_end_pos);
 
             let open_squares = !(worker_start_state.all_non_moving_workers
-                | prelude.domes
+                | prelude.domes_and_frozen
                 | worker_end_move_state.worker_end_mask);
             let mut worker_builds = neighbors_for_builds & open_squares;
             let worker_plausible_next_moves =

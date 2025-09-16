@@ -478,6 +478,20 @@ fn build_feature_set(board: &BoardState, god1: GodName, god2: GodName) -> Featur
 
 #[cfg(test)]
 mod tests {
+    use crate::{gods::ALL_GODS_BY_ID, nnue::NNUE_GOD_COUNT};
+
+    #[test]
+    fn test_nnue_id_is_valid() {
+        for god_power in ALL_GODS_BY_ID.iter() {
+            assert!(
+                (god_power.model_god_name as usize) < NNUE_GOD_COUNT,
+                "God {:?} has an invalid nnue id {:?}",
+                god_power.god_name,
+                god_power.model_god_name
+            );
+        }
+    }
+
     // #[test]
     // fn test_incremental_updates() {
     //     let game_iter = RandomSingleGameStateGenerator::default();

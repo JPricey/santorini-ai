@@ -89,7 +89,7 @@ export function MenuScreen(props: MenuScreenProps) {
     const [isGameRunning, setGameIsRunning] = useState<boolean>(false);
     const [fen, setFen] = useState<string>('');
     const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
-    const [isSecretCompleted, setSecretCompleted] = useState(false);
+    const [isSecretCompleted, setSecretCompleted] = useState(true);
 
     const godOptions = useMemo(() => {
         if (isSecretCompleted) {
@@ -132,7 +132,7 @@ export function MenuScreen(props: MenuScreenProps) {
         return (
             <div className="menu-screen-container">
                 <div className="menu-screen-content">
-                    <div style={{height: '10px'}} />
+                    <div style={{ height: '10px' }} />
                     <button
                         className="menu-start-btn"
                         onClick={startGame}

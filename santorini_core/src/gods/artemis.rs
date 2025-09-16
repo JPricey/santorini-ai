@@ -186,8 +186,8 @@ fn artemis_move_gen_vs_harpies<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_workers = other_own_workers & prelude.exactly_level_2;
         let other_threatening_neighbors =
             apply_mapping_to_mask(other_threatening_workers, &NEIGHBOR_MAP);
-        let non_selected_workers = prelude.all_workers_mask ^ worker_start_mask;
-        let open_squares = !(non_selected_workers | prelude.domes);
+        let non_selected_workers = prelude.all_workers_and_frozen_mask ^ worker_start_mask;
+        let open_squares = !(non_selected_workers | prelude.domes_and_frozen);
 
         let mut worker_1d_moves = NEIGHBOR_MAP[worker_start_pos as usize]
             & !prelude.board.height_map[3.min(worker_start_height + 1)]
@@ -324,11 +324,12 @@ fn artemis_vs_persephone<const F: MoveGenFlags>(
         acting_workers &= checkable_worker_positions;
     }
     let not_other_workers = !prelude.oppo_workers;
-    let open_squares_for_move = !(prelude.all_workers_mask | prelude.domes);
+    let open_squares_for_move = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
 
     for worker_start_pos in acting_workers.into_iter() {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
-        let open_squares_for_build = !(worker_start_state.all_non_moving_workers | prelude.domes);
+        let open_squares_for_build =
+            !(worker_start_state.all_non_moving_workers | prelude.domes_and_frozen);
         let other_checkable_workers =
             worker_start_state.other_own_workers & checkable_worker_positions;
         let other_checkable_touching =
@@ -484,16 +485,17 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let neighbor_map_ref = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
     let inclusive_neighbor_map = &WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP[prelude.wind_idx];
     let reverse_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[direction_idx_to_reverse(prelude.wind_idx)];
-
     for worker_start_pos in acting_workers.into_iter() {
         let worker_start_mask = BitBoard::as_mask(worker_start_pos);
         let worker_start_height = prelude.board.get_height(worker_start_pos);
+
         let other_own_workers = prelude.own_workers ^ worker_start_mask;
         let other_checkable_workers = other_own_workers & checkable_worker_positions;
 
         let other_checkable_touching =
             apply_mapping_to_mask(other_checkable_workers, &inclusive_neighbor_map);
-        let valid_half_destinations = !(prelude.all_workers_mask | prelude.domes);
+        let valid_half_destinations =
+            !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
         let mut valid_final_destinations =
             if (worker_start_mask & prelude.affinity_area).is_not_empty() {
                 valid_half_destinations & prelude.affinity_area
@@ -587,8 +589,8 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
         worker_moves &= valid_final_destinations;
 
-        let non_selected_workers = prelude.all_workers_mask ^ worker_start_mask;
-        let buildable_squares = !(non_selected_workers | prelude.domes);
+        let non_selected_workers = prelude.all_workers_and_frozen_mask ^ worker_start_mask;
+        let buildable_squares = !(non_selected_workers | prelude.domes_and_frozen);
         for worker_end_pos in worker_moves.into_iter() {
             let worker_end_mask = BitBoard::as_mask(worker_end_pos);
             let worker_end_height = prelude.board.get_height(worker_end_pos);
@@ -610,7 +612,8 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 own_touching |= inclusive_neighbor_map[worker_end_pos as usize];
             }
 
-            let mut final_touching = other_checkable_touching | own_touching;
+            let mut final_touching =
+                (other_checkable_touching | own_touching) & !prelude.domes_and_frozen;
             if prelude.is_against_hypnus {
                 // Against hypnus, don't worry about other workers being on level 3 already
                 let has_other_lvl_2 =
@@ -633,7 +636,8 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             for worker_build_pos in narrowed_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                let final_l3 = ((prelude.exactly_level_3 & !worker_build_mask)
+                let final_l3 = ((prelude.exactly_level_3
+                    & !(worker_build_mask | prelude.domes_and_frozen))
                     | (prelude.exactly_level_2 & worker_build_mask))
                     & not_any_workers
                     & prelude.win_mask;

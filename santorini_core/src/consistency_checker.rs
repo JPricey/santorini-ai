@@ -8,7 +8,7 @@ use crate::{
         GodName, StaticGod,
         athena::AthenaMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
-        harpies::slide_position,
+        harpies::slide_position_with_custom_worker_blocker,
         mortal::MortalMove,
     },
     hashing::compute_hash_from_scratch,
@@ -69,6 +69,7 @@ impl ConsistencyChecker {
             self.validate_aphrodite_moves(&search_moves);
             self.validate_persephone_moves(&search_moves);
             self.validate_hades_moves(&search_moves);
+            self.validate_frozen_moves(&search_moves);
         }
 
         if self.errors.len() == 0 {
@@ -182,6 +183,47 @@ impl ConsistencyChecker {
             }
 
             seen.insert(new_state.board, action);
+        }
+    }
+
+    fn validate_frozen_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let current_player = self.state.board.current_player;
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let other_frozens = other_god.get_frozen_mask(&self.state.board, !current_player);
+
+        if other_frozens.is_empty() {
+            return;
+        }
+
+        for action in actions {
+            let action = action.action;
+
+            let new_state = self.state.next_state(active_god, action);
+            let new_workers = new_state.board.workers[current_player as usize];
+
+            if (new_workers & other_frozens).is_not_empty() {
+                self.errors.push(format!(
+                    "Moved a worker into a frozen space: {} -> {:?}\n Frozen: {}",
+                    active_god.stringify_move(action),
+                    new_state,
+                    other_frozens
+                ));
+                return;
+            }
+
+            for frozen_sq in other_frozens {
+                let old_height = self.state.board.get_height(frozen_sq);
+                let new_height = new_state.board.get_height(frozen_sq);
+                if new_height != old_height {
+                    self.errors.push(format!(
+                        "Changed height of a frozen space: {} -> {:?}\n Frozen: {}",
+                        active_god.stringify_move(action),
+                        new_state,
+                        other_frozens
+                    ));
+                    return;
+                }
+            }
         }
     }
 
@@ -924,7 +966,12 @@ impl ConsistencyChecker {
             if other_god.god_name == GodName::Harpies {
                 let mut matched = false;
                 for n in old_n {
-                    let slide_n = slide_position(&state.board, old_pos, n);
+                    let slide_n = slide_position_with_custom_worker_blocker(
+                        &state.board,
+                        old_pos,
+                        n,
+                        state.board.workers[0] | state.board.workers[1],
+                    );
                     if state.board.get_height(slide_n) == 2 {
                         let final_n = NEIGHBOR_MAP[slide_n as usize];
 

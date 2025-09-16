@@ -340,6 +340,10 @@ impl BitBoard {
         res
     }
 
+    pub fn contains_square(self, square: Square) -> bool {
+        (self & BitBoard::as_mask(square)).is_not_empty()
+    }
+
     // const bit operations, since the trait is non-const
     pub const fn bit_and(self, other: Self) -> Self {
         Self(self.0 & other.0)

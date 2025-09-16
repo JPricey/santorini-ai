@@ -38,6 +38,7 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
         case PlayerActionTypes.MoveWorker:
         case PlayerActionTypes.Build:
         case PlayerActionTypes.Dome:
+        case PlayerActionTypes.SetTalusPosition:
             return action.value === squareStr ? action.type : null;
         case PlayerActionTypes.MoveWorkerWithPush:
         case PlayerActionTypes.MoveWorkerWithSwap:

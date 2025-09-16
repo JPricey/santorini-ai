@@ -10,7 +10,7 @@ use crate::{
             GenericMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags,
             STOP_ON_MATE, ScoredMove,
         },
-        harpies::slide_position,
+        harpies::{slide_position, slide_position_with_custom_worker_blocker},
         hypnus::hypnus_moveable_worker_filter,
     },
     player::Player,
@@ -76,7 +76,7 @@ pub(super) fn get_sized_result<const F: MoveGenFlags>() -> Vec<ScoredMove> {
     Vec::with_capacity(capacity)
 }
 
-pub(super) struct GeneratorPreludeState<'a> {
+pub(crate) struct GeneratorPreludeState<'a> {
     pub board: &'a BoardState,
     pub key_squares: BitBoard,
     pub other_god: StaticGod,
@@ -85,7 +85,7 @@ pub(super) struct GeneratorPreludeState<'a> {
     pub exactly_level_1: BitBoard,
     pub exactly_level_2: BitBoard,
     pub exactly_level_3: BitBoard,
-    pub domes: BitBoard,
+    pub domes_and_frozen: BitBoard,
 
     pub wind_idx: usize,
 
@@ -94,7 +94,7 @@ pub(super) struct GeneratorPreludeState<'a> {
     pub own_workers: BitBoard,
     pub oppo_workers: BitBoard,
 
-    pub all_workers_mask: BitBoard,
+    pub all_workers_and_frozen_mask: BitBoard,
     pub win_mask: BitBoard,
     pub build_mask: BitBoard,
     pub affinity_area: BitBoard,
@@ -119,6 +119,7 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
     let exactly_level_2 = board.exactly_level_2();
     let exactly_level_3 = board.exactly_level_3();
     let domes = board.at_least_level_4();
+    let frozen = other_god.get_frozen_mask(&board, !player);
 
     let own_workers = board.workers[player as usize] & BitBoard::MAIN_SECTION_MASK;
     let oppo_workers = board.workers[!player as usize] & BitBoard::MAIN_SECTION_MASK;
@@ -158,7 +159,7 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         exactly_level_1,
         exactly_level_2,
         exactly_level_3,
-        domes,
+        domes_and_frozen: domes | frozen,
 
         wind_idx,
 
@@ -166,7 +167,7 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
 
         own_workers,
         oppo_workers,
-        all_workers_mask,
+        all_workers_and_frozen_mask: all_workers_mask | frozen,
         win_mask,
         build_mask,
         affinity_area,
@@ -268,10 +269,36 @@ pub(super) fn get_worker_end_move_state<const F: MoveGenFlags>(
     mut worker_end_pos: Square,
 ) -> WorkerEndMoveState {
     if prelude.is_against_harpies {
-        worker_end_pos = slide_position(
+        worker_end_pos =
+            slide_position(prelude, worker_start_state.worker_start_pos, worker_end_pos);
+    }
+
+    let worker_end_mask = BitBoard::as_mask(worker_end_pos);
+    let worker_end_height = prelude.board.get_height(worker_end_pos);
+    let is_improving = worker_end_height > worker_start_state.worker_start_height;
+    let is_now_lvl_2 = (worker_end_height == 2) as u32;
+
+    WorkerEndMoveState {
+        worker_end_pos,
+        worker_end_mask,
+        worker_end_height,
+        is_improving,
+        is_now_lvl_2,
+    }
+}
+
+pub(super) fn get_worker_end_move_state_with_custom_worker_helper<const F: MoveGenFlags>(
+    prelude: &GeneratorPreludeState,
+    worker_start_state: &WorkerStartMoveState,
+    mut worker_end_pos: Square,
+    blocker: BitBoard,
+) -> WorkerEndMoveState {
+    if prelude.is_against_harpies {
+        worker_end_pos = slide_position_with_custom_worker_blocker(
             prelude.board,
             worker_start_state.worker_start_pos,
             worker_end_pos,
+            blocker,
         );
     }
 
@@ -356,7 +383,7 @@ pub(super) fn get_worker_next_build_state_with_is_matched<const F: MoveGenFlags>
 ) -> WorkerNextBuildState {
     let unblocked_squares = !(worker_start_state.all_non_moving_workers
         | worker_end_move_state.worker_end_mask
-        | prelude.domes);
+        | prelude.domes_and_frozen);
     let all_possible_builds = NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize]
         & unblocked_squares
         & prelude.build_mask;
@@ -380,7 +407,7 @@ pub(super) fn get_worker_next_build_state<const F: MoveGenFlags>(
 ) -> WorkerNextBuildState {
     let unblocked_squares = !(worker_start_state.all_non_moving_workers
         | worker_end_move_state.worker_end_mask
-        | prelude.domes);
+        | prelude.domes_and_frozen);
     let all_possible_builds = NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize]
         & unblocked_squares
         & prelude.build_mask;
@@ -429,7 +456,6 @@ pub(super) fn make_build_only_power_generator<
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
             get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
-
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 =
                 worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
@@ -525,7 +551,7 @@ pub(super) fn get_basic_moves_from_raw_data<const MUST_CLIMB: bool>(
         worker_start_pos,
         worker_start_mask,
         worker_start_height,
-        prelude.all_workers_mask,
+        prelude.all_workers_and_frozen_mask,
     )
 }
 
@@ -590,7 +616,7 @@ pub(super) fn get_basic_moves_from_raw_data_for_hermes<const MUST_CLIMB: bool>(
         & !(prelude.board.height_map[climb_height]
             | prelude.board.exactly_level_n(worker_start_height)
             | down_mask
-            | prelude.all_workers_mask);
+            | prelude.all_workers_and_frozen_mask);
 
     restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
 }

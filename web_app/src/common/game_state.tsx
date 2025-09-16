@@ -25,6 +25,7 @@ export const God = {
     Morpheus: 'morpheus',
     Aeolus: 'aeolus',
     Hestia: 'hestia',
+    Europa: 'europa',
 } as const;
 export type GodType = typeof God[keyof typeof God];
 
@@ -114,6 +115,7 @@ export type Coord = {
 export type PlayerGameState = {
     god: string,
     workers: Array<SquareType>,
+    tokens: Array<SquareType>,
     isWin: boolean,
     otherAttributes: string,
 };
@@ -143,6 +145,16 @@ export function getPlayerOnSquare(gameState: GameState, square: SquareType): Pla
         return Player.One;
     }
     if (gameState.players[1].workers.includes(square)) {
+        return Player.Two;
+    }
+    return null;
+}
+
+export function getTokenOnSquare(gameState: GameState, square: SquareType): PlayerType | null {
+    if (gameState.players[0].tokens.includes(square)) {
+        return Player.One;
+    }
+    if (gameState.players[1].tokens.includes(square)) {
         return Player.Two;
     }
     return null;
