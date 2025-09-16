@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { GodPicker } from "./GodPicker";
-import { God, type GodType } from "../common/game_state";
+import { God, type GodType, WIP_GODS } from "../common/game_state";
 import { FullGamePlayer, type AiConfig } from "./FullGamePlayer";
 import type { AiWorker } from "../ai/ai_worker";
 import { assertUnreachable } from "../common/utils";
 import './MenuScreen.css';
+import { getBannedMatchups } from '../common/api'
 
 export type MenuScreenProps = {
     aiWorker?: AiWorker,
@@ -30,24 +31,49 @@ export function getAiSpeedDuration(aiSpeed: AiSpeedType): number {
     }
 }
 
+const SECRET_CLICK_ORDER = [
+    AiSpeed.Long,
+    AiSpeed.Medium,
+    AiSpeed.Long,
+    AiSpeed.Medium,
+    AiSpeed.Short,
+] as const;
 type AiSpeedPickerProps = {
     aiSpeed: AiSpeedType,
     setAiSpeed: (aiSpeed: AiSpeedType) => void;
+    setSecretCompleted?: () => void;
 };
-function AiSpeedPicker({ aiSpeed, setAiSpeed }: AiSpeedPickerProps) {
+function AiSpeedPicker({ aiSpeed, setAiSpeed, setSecretCompleted }: AiSpeedPickerProps) {
+    const [clickChainIdx, setClickChainIdx] = useState(0);
+
+    function onPressed(aiSpeed: AiSpeedType) {
+        if (clickChainIdx < SECRET_CLICK_ORDER.length) {
+            if (aiSpeed === SECRET_CLICK_ORDER[clickChainIdx]) {
+                setClickChainIdx(clickChainIdx + 1);
+                if (clickChainIdx + 1 >= SECRET_CLICK_ORDER.length) {
+                    setSecretCompleted?.();
+                }
+            } else {
+                setClickChainIdx(0);
+            }
+
+        }
+        setAiSpeed(aiSpeed);
+    }
+
     return (
         <div className="ai-speed-picker">
             <label style={{ marginRight: 16 }}>AI Thinking Time:</label>
             <label style={{ marginRight: 12 }} className="option">
-                <input type="radio" name="ai-time" checked={aiSpeed === AiSpeed.Short} onChange={() => setAiSpeed(AiSpeed.Short)} />
+                <input type="radio" name="ai-time" checked={aiSpeed === AiSpeed.Short} onChange={() => onPressed(AiSpeed.Short)} />
                 Short
             </label>
             <label style={{ marginRight: 1 }} className="option">
-                <input type="radio" name="ai-time" checked={aiSpeed === AiSpeed.Medium} onChange={() => setAiSpeed(AiSpeed.Medium)} />
+                <input type="radio" name="ai-time" checked={aiSpeed === AiSpeed.Medium} onChange={() => onPressed(AiSpeed.Medium)} />
                 Medium
             </label>
             <label className="option">
-                <input type="radio" name="ai-time" checked={aiSpeed === AiSpeed.Long} onChange={() => setAiSpeed(AiSpeed.Long)} />
+                <input type="radio" name="ai-time" checked={aiSpeed === AiSpeed.Long} onChange={() => onPressed(AiSpeed.Long)} />
                 Long
             </label>
         </div>
@@ -63,6 +89,21 @@ export function MenuScreen(props: MenuScreenProps) {
     const [isGameRunning, setGameIsRunning] = useState<boolean>(false);
     const [fen, setFen] = useState<string>('');
     const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
+    const [isSecretCompleted, setSecretCompleted] = useState(false);
+
+    const godOptions = useMemo(() => {
+        if (isSecretCompleted) {
+            return Object.values(God);
+        } else {
+            return Object.values(God).filter((god) => !WIP_GODS.has(god));
+        }
+    }, [isSecretCompleted]);
+
+    const bannedMatches = useMemo(() => getBannedMatchups(), []);
+    const isMatchupBanned = useMemo(() => {
+        const matchupStr = `${p1God}|${p2God}`;
+        return bannedMatches.has(matchupStr);
+    }, [p1God, p2God, bannedMatches]);
 
     const startGame = () => {
         if (isGameRunning) {
@@ -82,6 +123,7 @@ export function MenuScreen(props: MenuScreenProps) {
         setGameIsRunning(true);
     };
 
+
     if (isGameRunning) {
         return (
             <FullGamePlayer fen={fen} aiConfig={aiConfig ?? undefined} gameIsDoneCallback={() => setGameIsRunning(false)} />
@@ -92,32 +134,25 @@ export function MenuScreen(props: MenuScreenProps) {
                 <div className="menu-screen-content">
                     <div style={{height: '10px'}} />
                     <button
-                        style={{
-                            padding: "0.8rem 2rem",
-                            fontSize: "1.2rem",
-                            background: "#2196F3",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            fontWeight: 600,
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-                        }}
+                        className="menu-start-btn"
                         onClick={startGame}
+                        disabled={isMatchupBanned}
                     >
-                        Start Game
+                        {
+                            isMatchupBanned ? "Banned Matchup" : "Start Game"
+                        }
                     </button>
 
-                    <AiSpeedPicker aiSpeed={aiSpeed} setAiSpeed={setAiSpeed} />
+                    <AiSpeedPicker aiSpeed={aiSpeed} setAiSpeed={setAiSpeed} setSecretCompleted={() => setSecretCompleted(true)} />
 
                     <div className="menu-screen-player-options">
                         <div className="menu-player-section">
                             <h3>Player One</h3>
-                            <GodPicker value={p1God} onChange={setP1God} isHuman={isP1Human} onToggleHuman={setP1Human} />
+                            <GodPicker value={p1God} options={godOptions} onChange={setP1God} isHuman={isP1Human} onToggleHuman={setP1Human} />
                         </div>
                         <div className="menu-player-section">
                             <h3>Player Two</h3>
-                            <GodPicker value={p2God} onChange={setP2God} isHuman={isP2Human} onToggleHuman={setP2Human} />
+                            <GodPicker value={p2God} options={godOptions} onChange={setP2God} isHuman={isP2Human} onToggleHuman={setP2Human} />
                         </div>
                     </div>
 

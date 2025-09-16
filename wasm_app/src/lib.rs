@@ -1,6 +1,8 @@
 use js_sys;
 use santorini_core::{
     board::FullGameState,
+    matchup::BANNED_MATCHUPS,
+    player::Player,
     search::{SearchContext, negamax_search},
     search_terminators::SearchTerminator,
     transposition_table::TranspositionTable,
@@ -159,8 +161,7 @@ pub fn _get_next_moves_interactive_result(fen: JsValue) -> Result<JsValue, Strin
             .collect(),
     });
 
-    serde_wasm_bindgen::to_value(&output)
-        .map_err(|e| e.to_string())
+    serde_wasm_bindgen::to_value(&output).map_err(|e| e.to_string())
 }
 
 #[wasm_bindgen]
@@ -169,4 +170,30 @@ pub fn get_next_moves_interactive(fen: JsValue) -> JsValue {
         Ok(result) => result,
         Err(err) => JsValue::from(err),
     }
+}
+
+#[wasm_bindgen]
+pub fn get_banned_matchups() -> JsValue {
+    let mut res: Vec<String> = Vec::new();
+    for matchup in BANNED_MATCHUPS.keys() {
+        let matchup_str = format!("{}|{}", matchup.gods[0], matchup.gods[1]);
+        res.push(matchup_str);
+    }
+
+    serde_wasm_bindgen::to_value(&res).unwrap_or_else(|e| JsValue::from_str(&format!("{:?}", e)))
+}
+
+fn _get_player_strings_inner(fen: JsValue) -> Result<JsValue, String> {
+    let state = _parse_fen_js_value(&fen)?;
+
+    let p1_string = state.gods[0].pretty_stringify_god_data(&state.board, Player::One);
+    let p2_string = state.gods[1].pretty_stringify_god_data(&state.board, Player::Two);
+
+    let res = (p1_string, p2_string);
+    serde_wasm_bindgen::to_value(&res).map_err(|e| format!("{:?}", e))
+}
+
+#[wasm_bindgen]
+pub fn get_player_strings(fen: JsValue) -> JsValue {
+    _get_player_strings_inner(fen).unwrap_or_else(|e| JsValue::from_str(&e))
 }

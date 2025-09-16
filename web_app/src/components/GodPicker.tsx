@@ -1,15 +1,16 @@
-import { God, type GodType } from "../common/game_state";
+import { type GodType } from "../common/game_state";
 import { capitalizeFirstLetter } from "../common/utils";
 import './GodPicker.css'
 
 type GodPickerProps = {
     value: GodType;
+    options: Array<GodType>,
     onChange: (god: GodType) => void;
     isHuman: boolean;
     onToggleHuman: (isHuman: boolean) => void;
 };
 
-export function GodPicker({ value, onChange, isHuman, onToggleHuman }: GodPickerProps) {
+export function GodPicker({ value, options, onChange, isHuman, onToggleHuman }: GodPickerProps) {
     return (
         <div className="god-picker-list">
             <div className="god-picker-ai-mode-container">
@@ -55,7 +56,7 @@ export function GodPicker({ value, onChange, isHuman, onToggleHuman }: GodPicker
                 <span style={{ fontWeight: !isHuman ? 'bold' : 'normal' }}>AI</span>
             </div>
 
-            {Object.values(God).map(god => (
+            {options.map(god => (
                 <button
                     key={god}
                     onClick={() => onChange(god)}

@@ -45,17 +45,24 @@
 
 
 .menu-start-btn {
+    padding: 0.8rem 2rem;
     background: #1976d2;
     color: #fff;
     border: none;
-    border-radius: 6px;
-    font-size: 1.1em;
-    font-weight: bold;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: 600;
     cursor: pointer;
 }
 
 .menu-start-btn:hover {
     background: #145ea8;
+}
+
+.menu-start-btn:disabled {
+  background: #b0b0b0;
+  color: #eee;
+  cursor: not-allowed;
 }
 
 .ai-speed-picker {

@@ -24,12 +24,12 @@ use crate::{
 
 use super::PartialAction;
 
-const ATHENA_MOVE_FROM_POSITION_OFFSET: usize = 0;
-const ATHENA_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-const ATHENA_BUILD_POSITION_OFFSET: usize = ATHENA_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-const ATHENA_DID_IMPROVE_OFFSET: usize = ATHENA_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const MOVE_FROM_POSITION_OFFSET: usize = 0;
+const MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const DID_IMPROVE_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
-const ATHENA_DID_IMPROVE_MASK: MoveData = 1 << ATHENA_DID_IMPROVE_OFFSET;
+const DID_IMPROVE_MASK: MoveData = 1 << DID_IMPROVE_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) struct AthenaMove(pub MoveData);
@@ -53,17 +53,17 @@ impl AthenaMove {
         build_position: Square,
         did_climb: bool,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << ATHENA_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << ATHENA_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << ATHENA_BUILD_POSITION_OFFSET)
-            | ((did_climb) as MoveData) << ATHENA_DID_IMPROVE_OFFSET;
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+            | ((did_climb) as MoveData) << DID_IMPROVE_OFFSET;
 
         Self(data)
     }
 
     pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << ATHENA_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << ATHENA_MOVE_TO_POSITION_OFFSET)
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -77,7 +77,7 @@ impl AthenaMove {
     }
 
     pub fn build_position(self) -> Square {
-        Square::from((self.0 >> ATHENA_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
     pub fn move_mask(self) -> BitBoard {
@@ -89,7 +89,7 @@ impl AthenaMove {
     }
 
     pub fn get_did_climb(&self) -> bool {
-        (self.0 & ATHENA_DID_IMPROVE_MASK) != 0
+        (self.0 & DID_IMPROVE_MASK) != 0
     }
 }
 
@@ -294,7 +294,7 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
     let god_data = board.god_data[player as usize];
     match god_data {
         0 => None,
-        _ => Some("Preventing Upwards Moves".to_owned()),
+        _ => Some("Preventing Upward Moves".to_owned()),
     }
 }
 

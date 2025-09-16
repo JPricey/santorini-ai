@@ -1,5 +1,5 @@
-import { get_next_moves_interactive } from "../../pkg/wasm_app";
-import { squareStrToSquare, type GameState, type SquareType } from "./game_state";
+import { get_next_moves_interactive, get_banned_matchups, get_player_strings } from "../../pkg/wasm_app";
+import { squareStrToSquare, type GameState, type SquareType, type DirectionType } from "./game_state";
 import { assertUnreachable } from "./utils";
 
 export type NextMoves = {
@@ -20,6 +20,7 @@ export const PlayerActionTypes = {
     MoveWorker: 'move_worker',
     MoveWorkerWithSwap: 'move_worker_with_swap',
     MoveWorkerWithPush: 'move_worker_with_push',
+    SetWindDirection: 'set_wind_direction',
     Build: 'build',
     Dome: 'dome',
     EndTurn: 'end_turn',
@@ -35,11 +36,20 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.MoveWorkerWithSwap; value: [string, string] }
     | { type: typeof PlayerActionTypes.Build; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
+    | { type: typeof PlayerActionTypes.SetWindDirection; value: DirectionType | null }
     | { type: typeof PlayerActionTypes.EndTurn }
     | { type: typeof PlayerActionTypes.NoMoves };
 
 export function getNextMoves(fen: string): NextMoves {
     return get_next_moves_interactive(fen);
+}
+
+export function getBannedMatchups(): Set<string> {
+    return new Set(get_banned_matchups());
+}
+
+export function getPlayerStrings(fen: string): [string | null, string | null] {
+    return get_player_strings(fen);
 }
 
 export function describeActionType(actionType: PlayerActionType): string {
@@ -62,6 +72,8 @@ export function describeActionType(actionType: PlayerActionType): string {
             return `End Turn`;
         case PlayerActionTypes.NoMoves:
             return `No Moves`;
+        case PlayerActionTypes.SetWindDirection:
+            return `Set Wind Direction`;
         default:
             return assertUnreachable(actionType);
     }
@@ -78,6 +90,8 @@ export function describeAction(action: PlayerAction): string {
             return `${describeActionType(action.type)} (${action.value})`;
         case PlayerActionTypes.MoveWorkerWithPush:
             return `${describeActionType(action.type)} (${action.value[0]}>${action.value[1]}})`;
+        case PlayerActionTypes.SetWindDirection:
+            return `${describeActionType(action.type)} (${action.value})`;
         case PlayerActionTypes.EndTurn:
         case PlayerActionTypes.NoMoves:
             return describeActionType(action.type);
@@ -187,6 +201,7 @@ export function gameStateWithActions(gameState: GameState, partialActions: Array
             }
             case PlayerActionTypes.EndTurn:
             case PlayerActionTypes.NoMoves:
+            case PlayerActionTypes.SetWindDirection:
                 break;
             default:
                 assertUnreachable(action);

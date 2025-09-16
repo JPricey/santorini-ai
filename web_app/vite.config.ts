@@ -10,6 +10,9 @@ export default defineConfig({
         VitePWA({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico'],
+            workbox: {
+                maximumFileSizeToCacheInBytes: 3 * 1024 ** 2,
+            },
             manifest: {
                 name: 'SantoriniAI',
                 short_name: 'SantoriniAI',

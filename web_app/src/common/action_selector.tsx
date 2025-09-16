@@ -1,5 +1,5 @@
 import { getNextMoves, PlayerActionTypes, type NextState, type PlayerAction, type PlayerActionType } from "./api";
-import { isGameOver, squareToSquareStr, type GameState, type SquareType } from "./game_state";
+import { isGameOver, squareToSquareStr, type GameState, type SquareType, Square, type DirectionType } from "./game_state";
 import { assertUnreachable, isListDeepContain, isListSubset } from "./utils";
 
 export type ActionSelectorNextStep = {
@@ -9,6 +9,25 @@ export type ActionSelectorNextStep = {
     isDone: false,
     options: Array<PlayerAction>,
 };
+
+const DirectionToUISquareMap = {
+    "NW": Square.E1,
+    "N": Square.C1,
+    "NE": Square.A1,
+    "E": Square.A3,
+    "SE": Square.A5,
+    "S": Square.C5,
+    "SW": Square.E5,
+    "W": Square.E3,
+} as const;
+
+function maybeDirectionToSquare(direction: DirectionType | null): SquareType {
+    if (direction === null) {
+        return Square.C3;
+    }
+
+    return DirectionToUISquareMap[direction] as SquareType;
+}
 
 export function intersectionMatchType(square: SquareType, action: PlayerAction): PlayerActionType | null {
     const squareStr = squareToSquareStr(square);
@@ -26,6 +45,8 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
         case PlayerActionTypes.EndTurn:
         case PlayerActionTypes.NoMoves:
             return null;
+        case PlayerActionTypes.SetWindDirection:
+            return maybeDirectionToSquare(action.value ?? null) === square ? action.type : null;
         default:
             assertUnreachable(action);
     }

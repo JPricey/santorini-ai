@@ -19,8 +19,23 @@ export const God = {
     Limus: 'limus',
     Hypnus: 'hypnus',
     Harpies: 'harpies',
+    Aphrodite: 'aphrodite',
+    Persephone: 'persephone',
+    Hades: 'hades',
+    Morpheus: 'morpheus',
+    Aeolus: 'aeolus',
+    Hestia: 'hestia',
 } as const;
 export type GodType = typeof God[keyof typeof God];
+
+export const WIP_GODS: Set<GodType> = new Set([
+    God.Aphrodite,
+    God.Persephone,
+    God.Hades,
+    God.Morpheus,
+    God.Aeolus,
+    God.Hestia,
+]);
 
 export const Square = {
     A5: 0,
@@ -78,6 +93,18 @@ export function playerToString(player: PlayerType): string {
             return assertUnreachable(player);
     }
 }
+
+export const Direction = {
+    NW: "NW",
+    N: "N",
+    NE: "NE",
+    E: "E",
+    SE: "SE",
+    S: "S",
+    SW: "SW",
+    W: "W",
+} as const;
+export type DirectionType = typeof Direction[keyof typeof Direction];
 
 export type Coord = {
     row: number,

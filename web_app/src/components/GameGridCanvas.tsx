@@ -1,17 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import { getPlayerOnSquare, playerToString, Player, type GameState, type SquareType, type PlayerType, type PlayerGameState } from '../common/game_state';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { getPlayerOnSquare, playerToString, Player, type GameState, type SquareType, type PlayerType } from '../common/game_state';
 import './GameGridCanvas.css';
 import { describeActionType, PlayerActionTypes, type PlayerAction, type PlayerActionType } from '../common/api';
 import { intersectionMatchType } from '../common/action_selector';
 import { assertUnreachable } from '../common/utils';
+import { getPlayerStrings } from '../common/api';
 
 export type GameGridCanvasProps = {
     gameState: GameState;
+    fen: string,
     availableActions?: Array<PlayerAction>,
     onClick?: (square: SquareType | null) => void;
 };
 
-export function GameGridCanvas({ gameState, onClick, availableActions }: GameGridCanvasProps) {
+export function GameGridCanvas({ gameState, fen, onClick, availableActions }: GameGridCanvasProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [size, setSize] = useState<{ width: number; height: number }>({
         width: 0,
@@ -44,8 +46,10 @@ export function GameGridCanvas({ gameState, onClick, availableActions }: GameGri
         };
     }, [containerRef]);
 
+
     const innerWidth = Math.min(size.width, size.height);
     const svgBoardProps = {
+        fen: fen,
         gameState: gameState,
         width: innerWidth,
         height: innerWidth,
@@ -63,6 +67,7 @@ export function GameGridCanvas({ gameState, onClick, availableActions }: GameGri
 
 type SvgBoardProps = {
     gameState: GameState;
+    fen: string;
     width: number;
     height: number;
     onClick?: (square: SquareType | null) => void;
@@ -148,6 +153,8 @@ function actionToFill(actionType: PlayerActionType): string {
             return 'white'
         case PlayerActionTypes.NoMoves:
             return 'black'
+        case PlayerActionTypes.SetWindDirection:
+            return 'cyan'
         default:
             return assertUnreachable(actionType);
     }
@@ -160,7 +167,7 @@ const LEGEND_BOX_DELTA = -LEGEND_TEXT_SIZE * 0.85;
 
 const EXTRA_INFO_TEXT_SIZE = 16;
 
-function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBoardProps) {
+function SvgBoard({ gameState, fen, width, height, onClick, availableActions }: SvgBoardProps) {
     if (width === 0 || height === 0) {
         return null;
     }
@@ -207,23 +214,24 @@ function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBo
         }
     }
 
-    function specialPlayerText(player: PlayerGameState): string | null {
-        if (player.otherAttributes === "^") {
-            return "Athena is prevenenting upwards movement."
-        }
-
-        return null;
-    }
-    function specialPlayerTextFull(player: PlayerType): string {
-        const innerText = specialPlayerText(gameState.players[player]);
+    function specialPlayerTextFull(player: PlayerType, innerText: string | null): string {
         if (innerText) {
             return `Player ${playerToString(player)}: ${innerText}`;
         }
 
         return '';
     }
-    let p1SpecialText = specialPlayerTextFull(Player.One);
-    let p2SpecialText = specialPlayerTextFull(Player.Two);
+
+    const playerStrings = useMemo(() => {
+        const playerStrings = getPlayerStrings(fen);
+        if (typeof playerStrings === 'string') {
+            return [null, null];
+        } else {
+            return playerStrings;
+        }
+    }, [fen]);
+    const p1SpecialText = specialPlayerTextFull(Player.One, playerStrings[0]);
+    const p2SpecialText = specialPlayerTextFull(Player.Two, playerStrings[1]);
 
     return (
         <svg style={{ height: '100%', width: '100%' }}>
@@ -253,7 +261,7 @@ function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBo
             }
 
             {p2SpecialText === "" ? null :
-                <g key='p1SpecialText' transform={`translate(${c(600)},${c(30)})`}>
+                <g key='p2SpecialText' transform={`translate(${c(600)},${c(30)})`}>
                     <text fontSize={c(EXTRA_INFO_TEXT_SIZE)}>
                         {p2SpecialText}
                     </text>

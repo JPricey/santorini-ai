@@ -218,7 +218,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
     return (
         <div className='game-full-container'>
             <div className='game-grid-container'>
-                <GameGridCanvas gameState={gameStateForRender} onClick={onGridClicked} availableActions={renderableActions} />
+                <GameGridCanvas fen={state.fen} gameState={gameStateForRender} onClick={onGridClicked} availableActions={renderableActions} />
             </div>
             <div className='game-side-options'>
                 {sidebar}
