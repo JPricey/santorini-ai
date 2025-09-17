@@ -116,34 +116,31 @@ impl std::fmt::Debug for AthenaMove {
 
 impl GodMove for AthenaMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+        let mut res = vec![
+            PartialAction::SelectWorker(self.move_from_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
+        ];
         if self.get_is_winning() {
-            return vec![vec![
-                PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
-            ]];
+            return vec![res];
         }
 
-        let build_position = self.build_position();
-        vec![vec![
-            PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
-            PartialAction::Build(build_position),
-        ]]
+        res.push(PartialAction::Build(self.build_position()));
+        vec![res]
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
         let build_position = self.build_position();
         board.build_up(build_position);
 
-        board.set_god_data(board.current_player, self.get_did_climb() as GodData);
+        board.set_god_data(player, self.get_did_climb() as GodData);
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {

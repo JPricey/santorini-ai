@@ -136,7 +136,7 @@ impl GodMove for EuropaMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
         ];
         if self.get_is_winning() {
             return vec![res];
@@ -150,12 +150,12 @@ impl GodMove for EuropaMove {
         vec![res]
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
@@ -163,10 +163,7 @@ impl GodMove for EuropaMove {
         board.build_up(build_position);
 
         if let Some(talus_pos) = self.talus_position() {
-            board.set_god_data(
-                board.current_player,
-                BitBoard::as_mask(talus_pos).0 as GodData,
-            );
+            board.set_god_data(player, BitBoard::as_mask(talus_pos).0 as GodData);
         }
     }
 

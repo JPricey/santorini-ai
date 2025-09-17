@@ -3,9 +3,13 @@ use crate::{
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, move_helpers::{build_scored_move, make_build_only_power_generator}, FullAction, GodName, GodPower, HistoryIdxHelper
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        move_helpers::{build_scored_move, make_build_only_power_generator},
     },
     persephone_check_result,
     player::Player,
@@ -14,12 +18,12 @@ use crate::{
 
 use super::PartialAction;
 
-pub const HEPH_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const HEPH_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const HEPH_BUILD_POSITION_OFFSET: usize = POSITION_WIDTH * 2;
-pub const HEPH_IS_DOUBLE_BUILD_POSITION_OFFSET: usize = POSITION_WIDTH * 3;
+const HEPH_MOVE_FROM_POSITION_OFFSET: usize = 0;
+const HEPH_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+const HEPH_BUILD_POSITION_OFFSET: usize = POSITION_WIDTH * 2;
+const HEPH_IS_DOUBLE_BUILD_POSITION_OFFSET: usize = POSITION_WIDTH * 3;
 
-pub const HEPH_IS_DOUBLE_BUILD_MASK: MoveData = 1 << HEPH_IS_DOUBLE_BUILD_POSITION_OFFSET;
+const HEPH_IS_DOUBLE_BUILD_MASK: MoveData = 1 << HEPH_IS_DOUBLE_BUILD_POSITION_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 struct HephMove(pub MoveData);
@@ -37,7 +41,7 @@ impl From<GenericMove> for HephMove {
 }
 
 impl HephMove {
-    pub fn new_basic_move(
+    fn new_basic_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -49,7 +53,7 @@ impl HephMove {
         Self(data)
     }
 
-    pub fn new_double_build_move(
+    fn new_double_build_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -62,34 +66,34 @@ impl HephMove {
         Self(data)
     }
 
-    pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+    fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << HEPH_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << HEPH_MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
 
-    pub fn move_from_position(&self) -> Square {
+    fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
-    pub fn move_to_position(&self) -> Square {
+    fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn build_position(self) -> Square {
+    fn build_position(self) -> Square {
         Square::from((self.0 >> HEPH_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn is_double_build(self) -> bool {
+    fn is_double_build(self) -> bool {
         self.0 & HEPH_IS_DOUBLE_BUILD_MASK != 0
     }
 
-    pub fn move_mask(self) -> BitBoard {
+    fn move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
-    pub fn get_is_winning(&self) -> bool {
+    fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }
@@ -98,7 +102,7 @@ impl GodMove for HephMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
         ];
 
         if self.get_is_winning() {
@@ -115,12 +119,12 @@ impl GodMove for HephMove {
         return vec![res];
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 

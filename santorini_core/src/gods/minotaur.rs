@@ -23,13 +23,13 @@ use crate::{
 
 use super::PartialAction;
 
-pub const MINOTAUR_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const MINOTAUR_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const MINOTAUR_BUILD_POSITION_OFFSET: usize = MINOTAUR_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const MINOTAUR_PUSH_TO_POSITION_OFFSET: usize = MINOTAUR_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const MINOTAUR_MOVE_FROM_POSITION_OFFSET: usize = 0;
+const MINOTAUR_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+const MINOTAUR_BUILD_POSITION_OFFSET: usize = MINOTAUR_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const MINOTAUR_PUSH_TO_POSITION_OFFSET: usize = MINOTAUR_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct MinotaurMove(pub MoveData);
+struct MinotaurMove(pub MoveData);
 
 impl Into<GenericMove> for MinotaurMove {
     fn into(self) -> GenericMove {
@@ -44,7 +44,7 @@ impl From<GenericMove> for MinotaurMove {
 }
 
 impl MinotaurMove {
-    pub fn new_minotaur_move(
+    fn new_minotaur_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -58,7 +58,7 @@ impl MinotaurMove {
         Self(data)
     }
 
-    pub fn new_minotaur_push_move(
+    fn new_minotaur_push_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -73,7 +73,7 @@ impl MinotaurMove {
         Self(data)
     }
 
-    pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+    fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
         let data: MoveData = ((move_from_position as MoveData)
             << MINOTAUR_MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << MINOTAUR_MOVE_TO_POSITION_OFFSET)
@@ -82,7 +82,7 @@ impl MinotaurMove {
         Self(data)
     }
 
-    pub fn new_minotaur_winning_push_move(
+    fn new_minotaur_winning_push_move(
         move_from_position: Square,
         move_to_position: Square,
         push_to_position: Square,
@@ -96,15 +96,15 @@ impl MinotaurMove {
         Self(data)
     }
 
-    pub fn move_from_position(&self) -> Square {
+    fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
-    pub fn move_to_position(&self) -> Square {
+    fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn push_to_position(&self) -> Option<Square> {
+    fn push_to_position(&self) -> Option<Square> {
         let value = (self.0 >> MINOTAUR_PUSH_TO_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
 
         if value == 25 {
@@ -114,15 +114,15 @@ impl MinotaurMove {
         }
     }
 
-    pub fn build_position(self) -> Square {
+    fn build_position(self) -> Square {
         Square::from((self.0 >> MINOTAUR_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn move_mask(self) -> BitBoard {
+    fn move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
-    pub fn get_is_winning(&self) -> bool {
+    fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }
@@ -153,12 +153,13 @@ impl GodMove for MinotaurMove {
         let mut result = vec![PartialAction::SelectWorker(self.move_from_position())];
 
         if let Some(push_to) = self.push_to_position() {
-            result.push(PartialAction::MoveWorkerWithPush(
+            result.push(PartialAction::new_move_with_displace(
+                self.move_to_position(),
                 self.move_to_position(),
                 push_to,
             ));
         } else {
-            result.push(PartialAction::MoveWorker(self.move_to_position()));
+            result.push(PartialAction::MoveWorker(self.move_to_position().into()));
         }
 
         if !self.get_is_winning() {
@@ -168,13 +169,13 @@ impl GodMove for MinotaurMove {
         return vec![result];
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let move_from = BitBoard::as_mask(self.move_from_position());
         let move_to = BitBoard::as_mask(self.move_to_position());
-        board.worker_xor(board.current_player, move_to | move_from);
+        board.worker_xor(player, move_to | move_from);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
@@ -183,7 +184,7 @@ impl GodMove for MinotaurMove {
 
         if let Some(push_to) = self.push_to_position() {
             let push_mask = BitBoard::as_mask(push_to);
-            board.worker_xor(!board.current_player, move_to | push_mask);
+            board.worker_xor(!player, move_to | push_mask);
         }
     }
 

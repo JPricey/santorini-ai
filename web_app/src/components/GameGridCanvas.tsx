@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getPlayerOnSquare, playerToString, Player, type GameState, type SquareType, type PlayerType, getTokenOnSquare } from '../common/game_state';
 import './GameGridCanvas.css';
 import { describeActionType, PlayerActionTypes, type PlayerAction, type PlayerActionType } from '../common/api';
 import { intersectionMatchType } from '../common/action_selector';
 import { assertUnreachable } from '../common/utils';
-import { getPlayerStrings } from '../common/api';
 
 export type GameGridCanvasProps = {
     gameState: GameState;
@@ -142,8 +141,6 @@ function actionToFill(actionType: PlayerActionType): string {
         case PlayerActionTypes.SelectWorker:
             return 'blue'
         case PlayerActionTypes.MoveWorker:
-        case PlayerActionTypes.MoveWorkerWithPush:
-        case PlayerActionTypes.MoveWorkerWithSwap:
             return 'green'
         case PlayerActionTypes.Build:
             return 'red'
@@ -168,7 +165,7 @@ const LEGEND_BOX_DELTA = -LEGEND_TEXT_SIZE * 0.85;
 
 const EXTRA_INFO_TEXT_SIZE = 16;
 
-function SvgBoard({ gameState, fen, width, height, onClick, availableActions }: SvgBoardProps) {
+function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBoardProps) {
     if (width === 0 || height === 0) {
         return null;
     }
@@ -223,16 +220,8 @@ function SvgBoard({ gameState, fen, width, height, onClick, availableActions }: 
         return '';
     }
 
-    const playerStrings = useMemo(() => {
-        const playerStrings = getPlayerStrings(fen);
-        if (typeof playerStrings === 'string') {
-            return [null, null];
-        } else {
-            return playerStrings;
-        }
-    }, [fen]);
-    const p1SpecialText = specialPlayerTextFull(Player.One, playerStrings[0]);
-    const p2SpecialText = specialPlayerTextFull(Player.Two, playerStrings[1]);
+    const p1SpecialText = specialPlayerTextFull(Player.One, gameState.players[0].special_text);
+    const p2SpecialText = specialPlayerTextFull(Player.Two, gameState.players[1].special_text);
 
     return (
         <svg style={{ height: '100%', width: '100%' }}>
@@ -301,7 +290,7 @@ function SvgBoard({ gameState, fen, width, height, onClick, availableActions }: 
                     const col = 4 - i % 5;
                     i = row * 5 + col;
                     const square = i as SquareType;
-                    const squareHeight = gameState.heights[i];
+                    const squareHeight = gameState.heights[row][col];
                     const [x, y] = isoRoot(row, col);
                     const squareMidX = c(SQUARE_RENDERED_BOUND_X / 2);
                     const squareMidY = c(SQUARE_REAL_WIDTH / 2 * (COS_ROTATE - SIN_ROTATE) * COS_TILT);

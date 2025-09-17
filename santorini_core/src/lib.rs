@@ -14,6 +14,7 @@ pub mod move_picker;
 pub mod nnue;
 pub mod placement;
 pub mod player;
+pub mod pretty_board;
 pub mod random_utils;
 pub mod search;
 pub mod search_terminators;

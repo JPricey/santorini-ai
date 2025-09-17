@@ -99,7 +99,7 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
     let god_string = god_string.replace("#", "");
     let god_string = god_string.replace("-", "");
 
-    let god = GodName::from_str(god_string.as_str())
+    let god = GodName::from_str(god_string.trim())
         .map_err(|e| format!("Failed to parse god name {}: {}", god_string.as_str(), e))?;
 
     let god_data: GodData = if let Some(data_capture) = god_name_captures.get(3) {
@@ -132,15 +132,12 @@ fn parse_character_section(s: &str) -> Result<CharacterFen, String> {
     })
 }
 
-pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
-    let sections: Vec<&str> = s.split('/').collect();
-    if sections.len() != 4 {
-        return Err("Input string must have exactly 4 sections separated by '/'".to_string());
+fn parse_heights(board: &mut BoardState, height_str: &str) -> Result<(), String> {
+    if height_str.trim().is_empty() {
+        return Ok(());
     }
 
-    let mut result = BoardState::default();
-
-    let heights = sections[0]
+    let heights = height_str
         .chars()
         .filter(|c| *c >= '0' && *c <= '4')
         .collect::<Vec<char>>();
@@ -152,9 +149,22 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     for (p, char) in heights.iter().enumerate() {
         let height = (*char as u8 - b'0') as usize;
         for h in 0..height {
-            result.height_map[h].0 |= 1 << p;
+            board.height_map[h].0 |= 1 << p;
         }
     }
+
+    Ok(())
+}
+
+pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
+    let sections: Vec<&str> = s.split('/').collect();
+    if sections.len() != 4 {
+        return Err("Input string must have exactly 4 sections separated by '/'".to_string());
+    }
+
+    let mut result = BoardState::default();
+
+    parse_heights(&mut result, sections[0])?;
 
     let current_player_marker = sections[1].trim();
     let current_player = match current_player_marker {

@@ -19,12 +19,12 @@ use crate::{
 use super::PartialAction;
 
 // from(5)|to(5)|build(5)|is_dome_build(1)
-pub const ATLAS_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const ATLAS_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const ATLAS_BUILD_POSITION_OFFSET: usize = ATLAS_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const ATLAS_IS_DOME_BUILD_POSITION_OFFSET: usize = ATLAS_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const MOVE_FROM_POSITION_OFFSET: usize = 0;
+const MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const IS_DOME_BUILD_POSITION_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
-pub const ATLAS_IS_DOME_BUILD_MASK: MoveData = 1 << ATLAS_IS_DOME_BUILD_POSITION_OFFSET;
+const IS_DOME_BUILD_MASK: MoveData = 1 << IS_DOME_BUILD_POSITION_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 struct AtlasMove(pub MoveData);
@@ -42,59 +42,59 @@ impl From<GenericMove> for AtlasMove {
 }
 
 impl AtlasMove {
-    pub fn new_basic_move(
+    fn new_basic_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << ATLAS_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << ATLAS_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << ATLAS_BUILD_POSITION_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET);
 
         Self(data)
     }
 
-    pub fn new_dome_build_move(
+    fn new_dome_build_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << ATLAS_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << ATLAS_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << ATLAS_BUILD_POSITION_OFFSET)
-            | ATLAS_IS_DOME_BUILD_MASK;
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+            | IS_DOME_BUILD_MASK;
 
         Self(data)
     }
 
-    pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << ATLAS_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << ATLAS_MOVE_TO_POSITION_OFFSET)
+    fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
 
-    pub fn move_from_position(&self) -> Square {
+    fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
-    pub fn move_to_position(&self) -> Square {
+    fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn build_position(self) -> Square {
-        Square::from((self.0 >> ATLAS_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+    fn build_position(self) -> Square {
+        Square::from((self.0 >> BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn is_dome_build(self) -> bool {
-        self.0 & ATLAS_IS_DOME_BUILD_MASK != 0
+    fn is_dome_build(self) -> bool {
+        self.0 & IS_DOME_BUILD_MASK != 0
     }
 
-    pub fn move_mask(self) -> BitBoard {
+    fn move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
-    pub fn get_is_winning(&self) -> bool {
+    fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }
@@ -124,7 +124,7 @@ impl GodMove for AtlasMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
         ];
 
         if self.get_is_winning() {
@@ -141,12 +141,12 @@ impl GodMove for AtlasMove {
         return vec![res];
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 

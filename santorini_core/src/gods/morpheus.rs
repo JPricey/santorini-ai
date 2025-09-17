@@ -36,7 +36,7 @@ impl GodMove for MorpheusMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
         let mut action = vec![
             PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
         ];
         if self.get_is_winning() {
             return vec![action];
@@ -82,20 +82,20 @@ impl GodMove for MorpheusMove {
         vec![action]
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
-        let old_avaiable_builds = board.god_data[board.current_player as usize];
+        let old_avaiable_builds = board.god_data[player as usize];
 
         let mut build_bits = self.0 & (1 << NUM_BITS_FOR_BUILD_SECTION) - 1;
         if build_bits.count_ones() == 0 {
-            board.set_god_data(board.current_player, old_avaiable_builds + 1);
+            board.set_god_data(player, old_avaiable_builds + 1);
             // No builds
         } else if build_bits.count_ones() == 1 {
             // single build at the direction of the bit index
@@ -156,7 +156,7 @@ impl GodMove for MorpheusMove {
                     }
                 }
             }
-            board.set_god_data(board.current_player, new_available_builds);
+            board.set_god_data(player, new_available_builds);
         }
     }
 

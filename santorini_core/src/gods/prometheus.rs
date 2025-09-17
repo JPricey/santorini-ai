@@ -24,21 +24,17 @@ use crate::{
 
 use super::PartialAction;
 
-pub const PROMETHEUS_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const PROMETHEUS_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const PROMETHEUS_BUILD_POSITION_OFFSET: usize =
-    PROMETHEUS_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const PROMETHEUS_PRE_BUILD_POSITION_OFFSET: usize =
-    PROMETHEUS_BUILD_POSITION_OFFSET + POSITION_WIDTH;
-pub const PROMETHEUS_ARE_BUILDS_INTERCHANGEABLE_OFFSET: usize =
-    PROMETHEUS_PRE_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const MOVE_FROM_POSITION_OFFSET: usize = 0;
+const MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const PRE_BUILD_POSITION_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const ARE_BUILDS_INTERCHANGEABLE_OFFSET: usize = PRE_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
-pub const PROMETHEUS_NO_PRE_BUILD_VALUE: MoveData = 25 << PROMETHEUS_PRE_BUILD_POSITION_OFFSET;
-pub const PROMETHEUS_ARE_BUILDS_INTERCHANGEABLE_VALUE: MoveData =
-    1 << PROMETHEUS_ARE_BUILDS_INTERCHANGEABLE_OFFSET;
+const NO_PRE_BUILD_VALUE: MoveData = 25 << PRE_BUILD_POSITION_OFFSET;
+const ARE_BUILDS_INTERCHANGEABLE_VALUE: MoveData = 1 << ARE_BUILDS_INTERCHANGEABLE_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct PrometheusMove(pub MoveData);
+struct PrometheusMove(pub MoveData);
 
 impl Into<GenericMove> for PrometheusMove {
     fn into(self) -> GenericMove {
@@ -58,11 +54,10 @@ impl PrometheusMove {
         move_to_position: Square,
         build_position: Square,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData)
-            << PROMETHEUS_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << PROMETHEUS_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << PROMETHEUS_BUILD_POSITION_OFFSET)
-            | PROMETHEUS_NO_PRE_BUILD_VALUE;
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+            | NO_PRE_BUILD_VALUE;
 
         Self(data)
     }
@@ -74,20 +69,18 @@ impl PrometheusMove {
         pre_build_position: Square,
         is_interchangeable: bool,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData)
-            << PROMETHEUS_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << PROMETHEUS_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << PROMETHEUS_BUILD_POSITION_OFFSET)
-            | ((pre_build_position as MoveData) << PROMETHEUS_PRE_BUILD_POSITION_OFFSET)
-            | ((is_interchangeable as MoveData) << PROMETHEUS_ARE_BUILDS_INTERCHANGEABLE_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+            | ((pre_build_position as MoveData) << PRE_BUILD_POSITION_OFFSET)
+            | ((is_interchangeable as MoveData) << ARE_BUILDS_INTERCHANGEABLE_OFFSET);
 
         Self(data)
     }
 
     pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData)
-            << PROMETHEUS_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << PROMETHEUS_MOVE_TO_POSITION_OFFSET)
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -101,11 +94,11 @@ impl PrometheusMove {
     }
 
     pub fn build_position(self) -> Square {
-        Square::from((self.0 >> PROMETHEUS_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+        Square::from((self.0 >> BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
     pub fn pre_build_position(self) -> Option<Square> {
-        let value = (self.0 >> PROMETHEUS_PRE_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+        let value = (self.0 >> PRE_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
         if value == 25 {
             None
         } else {
@@ -114,7 +107,7 @@ impl PrometheusMove {
     }
 
     pub fn are_builds_interchangeable(self) -> bool {
-        self.0 & PROMETHEUS_ARE_BUILDS_INTERCHANGEABLE_VALUE != 0
+        self.0 & ARE_BUILDS_INTERCHANGEABLE_VALUE != 0
     }
 
     pub fn move_mask(self) -> BitBoard {
@@ -152,7 +145,7 @@ impl GodMove for PrometheusMove {
         if self.get_is_winning() {
             return vec![vec![
                 PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
+                PartialAction::MoveWorker(self.move_to_position().into()),
             ]];
         }
 
@@ -162,14 +155,14 @@ impl GodMove for PrometheusMove {
             let mut res = vec![vec![
                 PartialAction::Build(pre_build_position),
                 PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
+                PartialAction::MoveWorker(self.move_to_position().into()),
                 PartialAction::Build(build_position),
             ]];
             if self.are_builds_interchangeable() {
                 res.push(vec![
                     PartialAction::Build(build_position),
                     PartialAction::SelectWorker(self.move_from_position()),
-                    PartialAction::MoveWorker(self.move_to_position()),
+                    PartialAction::MoveWorker(self.move_to_position().into()),
                     PartialAction::Build(pre_build_position),
                 ]);
             }
@@ -178,18 +171,18 @@ impl GodMove for PrometheusMove {
         } else {
             vec![vec![
                 PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
+                PartialAction::MoveWorker(self.move_to_position().into()),
                 PartialAction::Build(build_position),
             ]]
         }
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 

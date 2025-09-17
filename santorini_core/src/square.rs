@@ -45,9 +45,11 @@ impl fmt::Display for Square {
 }
 
 impl FromStr for Square {
-    type Err = &'static str;
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+
         if let Ok(pos) = s.parse::<usize>() {
             if pos < Self::COUNT {
                 return Ok(Square::from(pos));
@@ -55,7 +57,7 @@ impl FromStr for Square {
         }
 
         if s.len() != 2 {
-            return Err("Invalid square!");
+            return Err(format!("Could not parse square: '{}'", s));
         };
 
         let index = Self::STR

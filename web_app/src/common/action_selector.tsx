@@ -35,17 +35,16 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
     switch (action.type) {
         case PlayerActionTypes.PlaceWorker:
         case PlayerActionTypes.SelectWorker:
-        case PlayerActionTypes.MoveWorker:
         case PlayerActionTypes.Build:
         case PlayerActionTypes.Dome:
         case PlayerActionTypes.SetTalusPosition:
             return action.value === squareStr ? action.type : null;
-        case PlayerActionTypes.MoveWorkerWithPush:
-        case PlayerActionTypes.MoveWorkerWithSwap:
-            return action.value[0] === squareStr ? action.type : null;
+        case PlayerActionTypes.MoveWorker:
+            return action.value.dest === squareStr ? action.type : null;
         case PlayerActionTypes.EndTurn:
-        case PlayerActionTypes.NoMoves:
             return null;
+        case PlayerActionTypes.NoMoves:
+            return action.type;
         case PlayerActionTypes.SetWindDirection:
             return maybeDirectionToSquare(action.value ?? null) === square ? action.type : null;
         default:
@@ -70,12 +69,6 @@ export class ActionSelector {
         } else {
             const nextMoves = getNextMoves(fen);
             for (const nextState of nextMoves.next_states) {
-                for (const action of nextState.actions) {
-                    if (action.type === PlayerActionTypes.MoveWorkerWithPush) {
-                        console.log(action);
-                        console.log(JSON.stringify(action));
-                    }
-                }
                 nextState.actions.push({ type: 'end_turn' });
             }
             this.allOutcomes = nextMoves.next_states;

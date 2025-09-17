@@ -1,14 +1,18 @@
 use js_sys;
 use santorini_core::{
     board::FullGameState,
+    fen::parse_fen,
+    gods::PartialAction,
     matchup::BANNED_MATCHUPS,
     player::Player,
+    pretty_board::{game_state_with_partial_actions, state_to_pretty_board},
     search::{SearchContext, negamax_search},
     search_terminators::SearchTerminator,
     transposition_table::TranspositionTable,
     uci_types::{BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput},
     utils::find_action_path,
 };
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -196,4 +200,30 @@ fn _get_player_strings_inner(fen: JsValue) -> Result<JsValue, String> {
 #[wasm_bindgen]
 pub fn get_player_strings(fen: JsValue) -> JsValue {
     _get_player_strings_inner(fen).unwrap_or_else(|e| JsValue::from_str(&e))
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+struct PrettyGameStateArgs {
+    fen: String,
+    actions: Option<Vec<PartialAction>>,
+}
+
+fn _get_pretty_game_state_inner(args: JsValue) -> Result<JsValue, String> {
+    let args =
+        serde_wasm_bindgen::from_value::<PrettyGameStateArgs>(args).map_err(|e| e.to_string())?;
+
+    let mut state = parse_fen(&args.fen)?;
+
+    if let Some(actions) = args.actions {
+        state = game_state_with_partial_actions(&state, &actions);
+    };
+
+    let pretty_board = state_to_pretty_board(&state);
+
+    serde_wasm_bindgen::to_value(&pretty_board).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn get_pretty_game_state(args: JsValue) -> JsValue {
+    _get_pretty_game_state_inner(args).unwrap_or_else(|e| JsValue::from_str(&e))
 }

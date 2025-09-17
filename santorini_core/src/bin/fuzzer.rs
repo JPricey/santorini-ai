@@ -31,7 +31,6 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
         if let Some(next_state) = get_random_move(&current_state, rng) {
             current_state = next_state;
         } else {
-            // current_state.print_to_console();
             return;
         }
     }

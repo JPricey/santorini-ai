@@ -15,7 +15,7 @@ use crate::{
         ZORBRIST_WORKER_RANDOMS, compute_hash_from_scratch_for_board,
     },
     matchup::{self, BANNED_MATCHUPS, Matchup},
-    placement::{get_placement_actions, get_starting_placements_count},
+    placement::{get_placement_actions, get_starting_placement_state},
     player::Player,
     square::Square,
 };
@@ -23,11 +23,12 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 pub(crate) type GodData = u32;
+pub type GodPair = [StaticGod; 2];
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullGameState {
     pub board: BoardState,
-    pub gods: [StaticGod; 2],
+    pub gods: GodPair,
 }
 
 impl Serialize for FullGameState {
@@ -79,7 +80,7 @@ impl TryFrom<&String> for FullGameState {
 }
 
 impl FullGameState {
-    pub fn new(board: BoardState, gods: [StaticGod; 2]) -> Self {
+    pub fn new(board: BoardState, gods: GodPair) -> Self {
         let mut res = FullGameState { gods, board };
         res.recalculate_internals();
         res
@@ -150,14 +151,15 @@ impl FullGameState {
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
-        let placement_mode = get_starting_placements_count(&self.board).unwrap();
-        if placement_mode > 0 {
-            let placement_actions = get_placement_actions::<false>(self);
+        let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
+
+        if let Some(placement_mode) = placement_mode {
+            let placement_actions = get_placement_actions::<false>(self, placement_mode);
             let mut res: Vec<GameStateWithAction> = Vec::new();
 
             for p in placement_actions {
                 for series in p.move_to_actions(&self.board) {
-                    let new_state = p.make_on_clone(self);
+                    let new_state = p.make_on_clone(self, placement_mode.next_placement);
                     let board_state_w_action = BoardStateWithAction::new(new_state.board, series);
                     res.push(GameStateWithAction::new(
                         board_state_w_action,
@@ -487,21 +489,32 @@ impl BoardState {
         Ok(())
     }
 
-    fn validation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
+    fn validation_err(&self, base_hash: HashType, gods: GodPair) -> Result<(), String> {
         self.representation_err(base_hash, gods)?;
         self.playable_err(gods)?;
         Ok(())
     }
 
-    fn playable_err(&self, gods: [StaticGod; 2]) -> Result<(), String> {
-        let starting_placements = get_starting_placements_count(self)?;
-        if starting_placements == 1 {
-            if self.current_player != Player::Two {
-                return Err("Should be player twos turn to place".to_owned());
-            }
-        } else if starting_placements == 2 {
-            if self.current_player != Player::One {
-                return Err("Should be player ones turn to place".to_owned());
+    fn playable_err(&self, gods: GodPair) -> Result<(), String> {
+        // Only perform placement validations when there is no winner
+        // To handle cases where you can win by kills
+        if self.get_winner().is_none() {
+            if let Some(placement_mode) = get_starting_placement_state(self, gods)? {
+                if placement_mode.is_swapped {
+                    if self.current_player == placement_mode.next_placement {
+                        return Err(format!(
+                            "Should be player {:?}'s turn to place",
+                            !placement_mode.next_placement
+                        ));
+                    }
+                } else {
+                    if self.current_player != placement_mode.next_placement {
+                        return Err(format!(
+                            "Should be player {:?}'s turn to place",
+                            placement_mode.next_placement
+                        ));
+                    }
+                }
             }
         }
 
@@ -523,7 +536,7 @@ impl BoardState {
     fn _validate_playable_player(
         &self,
         player: Player,
-        gods: [StaticGod; 2],
+        gods: GodPair,
     ) -> Result<(), String> {
         let player_idx = player as usize;
         let (own_god, other_god) = (gods[player_idx], gods[1 - player_idx]);
@@ -557,7 +570,7 @@ impl BoardState {
         Ok(())
     }
 
-    fn representation_err(&self, base_hash: HashType, gods: [StaticGod; 2]) -> Result<(), String> {
+    fn representation_err(&self, base_hash: HashType, gods: GodPair) -> Result<(), String> {
         self._validate_player(Player::One, gods[0])?;
         self._validate_player(Player::Two, gods[1])?;
 
@@ -737,24 +750,6 @@ impl BoardState {
 
         res
     }
-
-    // Returns a canonically permuted board state
-    // WARNING: this is done somewhat inefficiently by actually constructing a list of all permutations and
-    // then finding the "smallest". We'll probably want this in the search loop at some point, but maybe not in this form.
-    // pub fn get_canonical_permutation(&self) -> Self {
-    //     self.get_all_permutations()
-    //         .into_iter()
-    //         .min_by(|a, b| {
-    //             a.height_map[0]
-    //                 .cmp(b.height_map[0])
-    //                 .then(a.height_map[1].cmp(b.height_map[1]))
-    //                 .then(a.height_map[2].cmp(b.height_map[2]))
-    //                 .then(a.height_map[3].cmp(b.height_map[3]))
-    //                 .then(a.workers[0].cmp(b.workers[0]))
-    //                 .then(a.workers[1].cmp(b.workers[1]))
-    //         })
-    //         .unwrap()
-    // }
 }
 
 pub fn get_all_permutations_for_pair(

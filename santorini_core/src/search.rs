@@ -9,8 +9,7 @@ use crate::{
     gods::generic::{GenericMove, GodMove, KILLER_MATCH_SCORE, MoveScore, WorkerPlacement},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
-    placement::{get_placement_actions, get_starting_placements_count},
-    player::Player,
+    placement::{PlacementState, get_placement_actions, get_starting_placement_state},
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
     utils::{hash_u64, timestamp_string},
@@ -368,25 +367,28 @@ where
         panic!("Should not search in an already terminal state");
     }
 
-    let starting_mode = get_starting_placements_count(&root_state.board).unwrap();
+    let starting_mode = get_starting_placement_state(&root_state.board, root_state.gods).unwrap();
 
     if let Some(tt_entry) = search_context.tt.fetch(&root_state, 0)
         && tt_entry.best_action != GenericMove::NULL_MOVE
     {
         let mut best_child_state = root_state.clone();
 
-        if starting_mode == 0 {
-            let active_god = root_state.get_active_god();
-            active_god.make_move(&mut best_child_state.board, tt_entry.best_action);
-        } else {
+        if let Some(starting_mode) = starting_mode {
             let placement: WorkerPlacement = tt_entry.best_action.into();
-            placement.make_move(&mut best_child_state.board);
+            placement.make_move(&mut best_child_state.board, starting_mode.next_placement);
+        } else {
+            let active_god = root_state.get_active_god();
+            active_god.make_move_checking_end_game_conditions(
+                &mut best_child_state.board,
+                tt_entry.best_action,
+            );
         }
 
         let new_best_move = BestSearchResult::new(
             best_child_state,
             tt_entry.best_action,
-            starting_mode != 0,
+            starting_mode.is_some(),
             tt_entry.score,
             tt_entry.search_depth as usize,
             0,
@@ -396,7 +398,7 @@ where
         (search_context.new_best_move_callback)(new_best_move);
     }
 
-    let start_depth = if starting_mode == 0 { 1 } else { 0 };
+    let start_depth = starting_mode.is_none() as usize;
 
     let mut nnue_acc = LabeledAccumulator::new_from_scratch(
         &root_state.board,
@@ -490,21 +492,20 @@ fn _root_search<T>(
 where
     T: SearchTerminator,
 {
-    let starting_mode = get_starting_placements_count(&state.board).unwrap();
-
-    if starting_mode == 0 {
-        _start_inner_search::<T, Root>(
+    if let Some(starting_mode) = get_starting_placement_state(&state.board, state.gods).unwrap() {
+        _placement_search::<T, Root>(
             search_context,
             search_state,
             state,
             nnue_acc,
+            starting_mode,
             0,
             remaining_depth,
             -INFINITY,
             INFINITY,
         )
     } else {
-        _placement_search::<T, Root>(
+        _start_inner_search::<T, Root>(
             search_context,
             search_state,
             state,
@@ -558,6 +559,7 @@ fn _placement_search<T, NT>(
     search_state: &mut SearchState,
     state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
+    placement_mode: PlacementState,
     ply: usize,
     remaining_depth: usize,
     mut alpha: Hueristic,
@@ -567,10 +569,10 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    // debug_assert!(state.validation_err().is_ok());
-    if let Err(err) = state.validation_err() {
-        panic!("{}", err);
-    }
+    debug_assert!(state.validation_err().is_ok());
+    // if let Err(err) = state.validation_err() {
+    //     panic!("{}", err);
+    // }
 
     search_state.search_stack[ply].eval = -INFINITY;
     search_state.nodes_visited += 1;
@@ -579,7 +581,7 @@ where
     let alpha_orig = alpha;
     let mut should_stop = false;
 
-    let mut placements = get_placement_actions::<true>(&state);
+    let mut placements = get_placement_actions::<true>(&state, placement_mode);
     let mut best_action = placements[0];
 
     let tt_entry = search_context.tt.fetch(&state, ply);
@@ -593,32 +595,38 @@ where
         }
     }
 
+    let next_mode = placement_mode.next();
+    let turn_switch_score_mult = [-1, 1][placement_mode.is_swapped as usize];
+
     search_state.search_stack[ply].eval = -WINNING_SCORE_BUFFER;
     for action in placements {
         search_state.search_stack[ply].move_hash = hash_u64(action.get_history_idx(&state.board));
-        let child_state = action.make_on_clone(state);
+        let child_state = action.make_on_clone(state, placement_mode.next_placement);
 
-        let score = -match child_state.board.current_player {
-            Player::One => _start_inner_search::<T, NT::Next>(
+        let score = if let Some(next_mode) = next_mode {
+            -_placement_search::<T, NT::Next>(
                 search_context,
                 search_state,
                 &child_state,
                 nnue_acc,
+                next_mode,
                 ply + 1,
                 remaining_depth,
                 -beta,
                 -alpha,
-            ),
-            Player::Two => _placement_search::<T, NT::Next>(
-                search_context,
-                search_state,
-                &child_state,
-                nnue_acc,
-                ply + 1,
-                remaining_depth,
-                -beta,
-                -alpha,
-            ),
+            )
+        } else {
+            turn_switch_score_mult
+                * _start_inner_search::<T, NT::Next>(
+                    search_context,
+                    search_state,
+                    &child_state,
+                    nnue_acc,
+                    ply + 1,
+                    remaining_depth,
+                    -beta,
+                    -alpha,
+                )
         };
 
         should_stop = search_context.should_stop(&search_state);
@@ -833,6 +841,10 @@ where
     NT: NodeType,
 {
     debug_assert!(state.validation_err().is_ok());
+    // if let Err(err) = state.validation_err() {
+    //     state.print_to_console();
+    //     panic!("{}", err);
+    // }
 
     let current_player_idx = state.board.current_player as usize;
     let other_player_idx = !state.board.current_player;
@@ -1145,6 +1157,7 @@ where
         let child_state;
         if move_idx == 1 {
             child_state = state.next_state(active_god, child_action);
+
             score = -_inner_search::<T, NT::Next>(
                 search_context,
                 search_state,

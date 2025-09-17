@@ -3356,6 +3356,7 @@ dependencies = [
  "getrandom",
  "js-sys",
  "santorini_core",
+ "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",
 ]

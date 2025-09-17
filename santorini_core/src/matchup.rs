@@ -6,6 +6,7 @@ use std::{
 use rand::{Rng, seq::IndexedRandom};
 
 use crate::{
+    board::GodPair,
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
     player::Player,
 };
@@ -23,6 +24,7 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     };
 
     add_matchup(GodName::Aeolus, GodName::Aeolus, BannedReason::Engine);
+    add_matchup(GodName::Bia, GodName::Bia, BannedReason::Engine);
 
     add_matchup(GodName::Hades, GodName::Pan, BannedReason::Game);
 
@@ -96,7 +98,7 @@ impl Matchup {
         self.gods[1].to_power()
     }
 
-    pub const fn get_gods(&self) -> [StaticGod; 2] {
+    pub const fn get_gods(&self) -> GodPair {
         [self.gods[0].to_power(), self.gods[1].to_power()]
     }
 

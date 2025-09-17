@@ -194,7 +194,7 @@ impl GodMove for HermesMove {
         if self.get_is_winning() {
             return vec![vec![
                 PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
+                PartialAction::MoveWorker(self.move_to_position().into()),
             ]];
         }
         let build_position = self.build_position();
@@ -210,28 +210,28 @@ impl GodMove for HermesMove {
             let t2 = self.move_to_position2();
             let build = PartialAction::Build(self.build_position());
 
-            res.push(vec![s(f1), m(t1), s(f2), m(t2), build]);
-            res.push(vec![s(f2), m(t2), s(f1), m(t1), build]);
+            res.push(vec![s(f1), m(t1.into()), s(f2), m(t2.into()), build]);
+            res.push(vec![s(f2), m(t2.into()), s(f1), m(t1.into()), build]);
             if f1 == t1 {
-                res.push(vec![s(f2), m(t2), build]);
+                res.push(vec![s(f2), m(t2.into()), build]);
             }
             if f2 == t2 {
-                res.push(vec![s(f1), m(t1), build]);
+                res.push(vec![s(f1), m(t1.into()), build]);
             }
             if f1 == t1 && f2 == t2 {
                 res.push(vec![build]);
             }
 
             if self.are_double_moves_overlapping() {
-                res.push(vec![s(f1), m(t2), s(f2), m(t1), build]);
-                res.push(vec![s(f2), m(t1), s(f1), m(t2), build]);
+                res.push(vec![s(f1), m(t2.into()), s(f2), m(t1.into()), build]);
+                res.push(vec![s(f2), m(t1.into()), s(f1), m(t2.into()), build]);
 
                 if f1 == t2 {
-                    res.push(vec![s(f2), m(t1), build]);
+                    res.push(vec![s(f2), m(t1.into()), build]);
                 }
 
                 if f2 == t1 {
-                    res.push(vec![s(f1), m(t2), build]);
+                    res.push(vec![s(f1), m(t2.into()), build]);
                 }
 
                 if f1 == t2 && f2 == t1 {
@@ -243,18 +243,18 @@ impl GodMove for HermesMove {
         } else {
             vec![vec![
                 PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
+                PartialAction::MoveWorker(self.move_to_position().into()),
                 PartialAction::Build(build_position),
             ]]
         }
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
@@ -413,7 +413,10 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     }
 
     let mut worker_iter = prelude.acting_workers;
-    let f1 = worker_iter.next().unwrap();
+    let Some(f1) = worker_iter.next() else {
+        return result;
+    };
+
     let m1 = BitBoard::as_mask(f1);
     let h1 = prelude.board.get_height(f1);
     let h1_mask =

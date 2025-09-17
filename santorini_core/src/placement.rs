@@ -1,27 +1,73 @@
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, FullGameState},
+    board::{BoardState, FullGameState, GodPair},
     gods::generic::{GodMove, WorkerPlacement},
+    player::Player,
     square::Square,
 };
 
-pub fn get_starting_placements_count(board: &BoardState) -> Result<usize, String> {
-    let p1_workers = board.workers[0].count_ones();
-    let p2_workers = board.workers[1].count_ones();
+pub type MaybePlacementState = Option<PlacementState>;
 
-    match (p1_workers, p2_workers) {
-        (0, 0) => Ok(2),
-        (_, 0) => Ok(1),
-        (0, _) => Err(
-            "Invalid starting position. Player 2 has placed workers but not player 1".to_owned(),
-        ),
-        _ => Ok(0),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacementState {
+    pub next_placement: Player,
+    pub is_swapped: bool,
+}
+
+impl PlacementState {
+    pub fn new(next_placement: Player, is_swapped: bool) -> Self {
+        Self {
+            next_placement,
+            is_swapped,
+        }
+    }
+
+    pub fn next(self) -> Option<PlacementState> {
+        match (self.is_swapped, self.next_placement) {
+            (false, Player::One) => Some(PlacementState::new(Player::Two, false)),
+            (false, Player::Two) => None,
+
+            (true, Player::Two) => Some(PlacementState::new(Player::One, true)),
+            (true, Player::One) => None,
+        }
     }
 }
 
-pub fn get_all_placements(board: &BoardState) -> Vec<WorkerPlacement> {
+pub fn get_starting_placement_state(
+    board: &BoardState,
+    gods: GodPair,
+) -> Result<MaybePlacementState, String> {
+    // If the board has changed at all, assume the game as started
+    if board.height_map[0].is_not_empty() {
+        return Ok(None);
+    }
+
+    let is_placement_flipped = gods[1].is_placement_priority;
+
+    let p1_is_placed = board.workers[0].is_not_empty();
+    let p2_is_placed = board.workers[1].is_not_empty();
+
+    if is_placement_flipped {
+        match (p1_is_placed, p2_is_placed) {
+            (true, true) => Ok(None),
+            (false, false) => Ok(Some(PlacementState::new(Player::Two, true))),
+            (false, true) => Ok(Some(PlacementState::new(Player::One, true))),
+            (true, false) => Err( "Invalid starting position. Player 1 has placed workers, but expected Player 2 to place first" .to_owned(),
+            ),
+        }
+    } else {
+        match (p1_is_placed, p2_is_placed) {
+            (true, true) => Ok(None),
+            (false, false) => Ok(Some(PlacementState::new(Player::One, false))),
+            (true, false) => Ok(Some(PlacementState::new(Player::Two, false))),
+            (false, true) => Err( "Invalid starting position. Player 2 has placed workers, but expected Player 1 to place first" .to_owned()),
+        }
+    }
+}
+
+pub fn get_all_placements(board: &BoardState, player: Player) -> Vec<WorkerPlacement> {
     debug_assert!(
-        board.workers[board.current_player as usize] == BitBoard::EMPTY,
+        board.workers[player as usize] == BitBoard::EMPTY,
         "{:?}",
         board
     );
@@ -29,16 +75,13 @@ pub fn get_all_placements(board: &BoardState) -> Vec<WorkerPlacement> {
 
     for a in 0_usize..25 {
         let a_sq = Square::from(a);
-        if (board.workers[!board.current_player as usize] & BitBoard::as_mask(a_sq)).is_not_empty()
-        {
+        if (board.workers[!player as usize] & BitBoard::as_mask(a_sq)).is_not_empty() {
             continue;
         }
 
         for b in a + 1..25 {
             let b_sq = Square::from(b);
-            if (board.workers[!board.current_player as usize] & BitBoard::as_mask(b_sq))
-                .is_not_empty()
-            {
+            if (board.workers[!player as usize] & BitBoard::as_mask(b_sq)).is_not_empty() {
                 continue;
             }
 
@@ -50,30 +93,25 @@ pub fn get_all_placements(board: &BoardState) -> Vec<WorkerPlacement> {
     res
 }
 
-pub fn get_all_placements_3(board: &BoardState) -> Vec<WorkerPlacement> {
-    debug_assert!(board.workers[board.current_player as usize] == BitBoard::EMPTY);
+pub fn get_all_placements_3(board: &BoardState, player: Player) -> Vec<WorkerPlacement> {
+    debug_assert!(board.workers[player as usize] == BitBoard::EMPTY);
     let mut res = Vec::new();
 
     for a in 0_usize..25 {
         let a_sq = Square::from(a);
-        if (board.workers[!board.current_player as usize] & BitBoard::as_mask(a_sq)).is_not_empty()
-        {
+        if (board.workers[!player as usize] & BitBoard::as_mask(a_sq)).is_not_empty() {
             continue;
         }
 
         for b in a + 1..25 {
             let b_sq = Square::from(b);
-            if (board.workers[!board.current_player as usize] & BitBoard::as_mask(b_sq))
-                .is_not_empty()
-            {
+            if (board.workers[!player as usize] & BitBoard::as_mask(b_sq)).is_not_empty() {
                 continue;
             }
 
             for c in b + 1..25 {
                 let c_sq = Square::from(c);
-                if (board.workers[!board.current_player as usize] & BitBoard::as_mask(c_sq))
-                    .is_not_empty()
-                {
+                if (board.workers[!player as usize] & BitBoard::as_mask(c_sq)).is_not_empty() {
                     continue;
                 }
 
@@ -86,14 +124,14 @@ pub fn get_all_placements_3(board: &BoardState) -> Vec<WorkerPlacement> {
     res
 }
 
-pub fn get_unique_placements(state: &FullGameState) -> Vec<WorkerPlacement> {
+pub fn get_unique_placements(state: &FullGameState, player: Player) -> Vec<WorkerPlacement> {
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
-    let placements = get_all_placements(&state.board);
+    let placements = get_all_placements(&state.board, player);
     for p in placements {
         let mut b_clone = state.board.clone();
-        p.make_move(&mut b_clone);
+        p.make_move(&mut b_clone, player);
         let mut is_new = true;
         for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
             if unique_boards.contains(&permutation) {
@@ -110,14 +148,14 @@ pub fn get_unique_placements(state: &FullGameState) -> Vec<WorkerPlacement> {
     res
 }
 
-pub fn get_unique_placements_3(state: &FullGameState) -> Vec<WorkerPlacement> {
+pub fn get_unique_placements_3(state: &FullGameState, player: Player) -> Vec<WorkerPlacement> {
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
-    let placements = get_all_placements_3(&state.board);
+    let placements = get_all_placements_3(&state.board, player);
     for p in placements {
         let mut b_clone = state.board.clone();
-        p.make_move(&mut b_clone);
+        p.make_move(&mut b_clone, player);
         let mut is_new = true;
         for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
             if unique_boards.contains(&permutation) {
@@ -134,18 +172,21 @@ pub fn get_unique_placements_3(state: &FullGameState) -> Vec<WorkerPlacement> {
     res
 }
 
-pub fn get_placement_actions<const IS_UNIQUE: bool>(state: &FullGameState) -> Vec<WorkerPlacement> {
-    let active_god = state.get_active_god();
+pub fn get_placement_actions<const IS_UNIQUE: bool>(
+    state: &FullGameState,
+    placement_mode: PlacementState,
+) -> Vec<WorkerPlacement> {
+    let active_god = state.gods[placement_mode.next_placement as usize];
     if IS_UNIQUE {
         match active_god.num_workers {
-            2 => get_unique_placements(&state),
-            3 => get_unique_placements_3(&state),
+            2 => get_unique_placements(&state, placement_mode.next_placement),
+            3 => get_unique_placements_3(&state, placement_mode.next_placement),
             _ => unreachable!("Unknown worker count"),
         }
     } else {
         match active_god.num_workers {
-            2 => get_all_placements(&state.board),
-            3 => get_all_placements_3(&state.board),
+            2 => get_all_placements(&state.board, placement_mode.next_placement),
+            3 => get_all_placements_3(&state.board, placement_mode.next_placement),
             _ => unreachable!("Unknown worker count"),
         }
     }

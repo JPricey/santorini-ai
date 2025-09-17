@@ -1,7 +1,6 @@
 import './FullGamePlayer.css';
-import { parseFen } from "../common/fen";
 import { getWinner, isGameOver, Player, playerToPrettyColorString, type GameState, type PlayerType, type SquareType } from '../common/game_state';
-import { describeAction, gameStateWithActions, type PlayerAction } from '../common/api';
+import { describeAction, getPrettyGameStateFromFen, getPrettyGameStateWithActions, type PlayerAction } from '../common/api';
 import { ActionSelector } from '../common/action_selector';
 import { useEffect, useRef, useState } from 'react';
 import type { AiWorker, SearchResult } from '../ai/ai_worker';
@@ -46,7 +45,8 @@ function getIsAiTurn(player: PlayerType, aiConfig: AiConfig | undefined): boolea
 }
 
 function _getFreshState(fen: string): FullGamePlayerState {
-    const gameState = parseFen(fen).unwrap();
+    const gameState = getPrettyGameStateFromFen(fen);
+
     const selector = new ActionSelector(gameState, fen, []);
     let followingActions: Array<PlayerAction>;
     const nextStep = selector.nextStep;
@@ -80,7 +80,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
         followingActions
     } = state;
 
-    const isAiTurn = getIsAiTurn(gameState.currentPlayer, props.aiConfig);
+    const isAiTurn = getIsAiTurn(gameState.acting_player, props.aiConfig);
     const isHumanVsHuman = !props.aiConfig?.p1Ai && !props.aiConfig?.p2Ai;
 
     let undoTurn: (() => void) | null = null;
@@ -213,8 +213,7 @@ export function FullGamePlayer(props: FullGamePlayerProps) {
         renderableActions = followingActions;
     }
 
-    const gameStateForRender = gameStateWithActions(gameState, completedActions);
-
+    const gameStateForRender = getPrettyGameStateWithActions(state.fen, completedActions);
     return (
         <div className='game-full-container'>
             <div className='game-grid-container'>
@@ -284,9 +283,9 @@ function GameSidebar(props: GameSidebarProps) {
     const winner = getWinner(gameState);
     if (winner === null) {
         if (isAiThinking) {
-            toPlayText = `${playerToPrettyColorString(state.gameState.currentPlayer)} is thinking...`;
+            toPlayText = `${playerToPrettyColorString(state.gameState.acting_player)} is thinking...`;
         } else {
-            toPlayText = `${playerToPrettyColorString(state.gameState.currentPlayer)} to play`;
+            toPlayText = `${playerToPrettyColorString(state.gameState.acting_player)} to play`;
         }
     } else {
         toPlayText = `${playerToPrettyColorString(winner)} wins!`;

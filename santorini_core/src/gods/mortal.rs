@@ -32,27 +32,24 @@ pub struct MortalMove(pub MoveData);
 
 impl GodMove for MortalMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+        let mut res = vec![
+            PartialAction::SelectWorker(self.move_from_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
+        ];
         if self.get_is_winning() {
-            return vec![vec![
-                PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
-            ]];
+            return vec![res];
         }
 
-        let build_position = self.build_position();
-        vec![vec![
-            PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
-            PartialAction::Build(build_position),
-        ]]
+        res.push(PartialAction::Build(self.build_position()));
+        vec![res]
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 

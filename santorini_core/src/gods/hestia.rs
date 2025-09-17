@@ -134,7 +134,7 @@ impl GodMove for HestiaMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
         let mut move_vec = vec![
             PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
         ];
         if self.get_is_winning() {
             return vec![move_vec];
@@ -163,11 +163,11 @@ impl GodMove for HestiaMove {
         }
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 

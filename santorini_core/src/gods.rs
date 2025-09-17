@@ -19,6 +19,7 @@ pub(crate) mod apollo;
 pub(crate) mod artemis;
 pub(crate) mod athena;
 pub(crate) mod atlas;
+pub(crate) mod bia;
 pub(crate) mod demeter;
 pub(crate) mod europa;
 pub mod generic;
@@ -83,6 +84,7 @@ pub enum GodName {
     Aeolus = 21,
     Hestia = 22,
     Europa = 23,
+    Bia = 24,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -94,6 +96,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Aeolus,
     GodName::Hestia,
     GodName::Europa,
+    GodName::Bia,
 ]);
 
 impl GodName {
@@ -114,13 +117,39 @@ pub trait ResultsMapper<T>: Clone {
 
 pub type StateWithScore = (BoardState, Hueristic);
 
-/*
-pub enum MoveWorkerMeta {
-    None,
-    IsSwap,
-    Push(Square),
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+pub struct MoveEnemyWorker {
+    pub from: Square,
+    pub to: Square,
 }
-*/
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+pub struct KillEnemyWorker {
+    pub square: Square,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+#[serde(rename_all = "snake_case")]
+pub enum MoveWorkerMeta {
+    MoveEnemyWorker(MoveEnemyWorker),
+    KillEnemyWorker(KillEnemyWorker),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+pub struct MoveWorkerData {
+    pub dest: Square,
+    pub meta: Option<MoveWorkerMeta>,
+}
+
+impl From<Square> for MoveWorkerData {
+    fn from(value: Square) -> Self {
+        MoveWorkerData {
+            dest: value,
+            meta: None,
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -128,15 +157,34 @@ pub enum MoveWorkerMeta {
 pub enum PartialAction {
     SelectWorker(Square),
     PlaceWorker(Square),
-    MoveWorker(Square),
-    MoveWorkerWithSwap(Square, Square),
-    MoveWorkerWithPush(Square, Square),
+    MoveWorker(MoveWorkerData),
     Build(Square),
     Dome(Square),
     SetTalusPosition(Square),
     SetWindDirection(Option<Direction>),
     NoMoves,
     EndTurn,
+}
+
+impl PartialAction {
+    fn new_move_with_displace(dest: Square, swap_from: Square, swap_to: Square) -> PartialAction {
+        PartialAction::MoveWorker(MoveWorkerData {
+            dest,
+            meta: Some(MoveWorkerMeta::MoveEnemyWorker(MoveEnemyWorker {
+                from: swap_from,
+                to: swap_to,
+            })),
+        })
+    }
+
+    fn new_move_with_kill(dest: Square, kill_pos: Square) -> PartialAction {
+        PartialAction::MoveWorker(MoveWorkerData {
+            dest,
+            meta: Some(MoveWorkerMeta::KillEnemyWorker(KillEnemyWorker {
+                square: kill_pos,
+            })),
+        })
+    }
 }
 
 pub type FullAction = Vec<PartialAction>;
@@ -280,6 +328,7 @@ pub struct GodPower {
     pub is_aphrodite: bool,
     pub is_persephone: bool,
     pub is_preventing_down: bool,
+    pub is_placement_priority: bool,
 
     _get_wind_idx: GetWindIdxFn,
 
@@ -328,7 +377,7 @@ impl GodPower {
             .into_iter()
             .flat_map(|action| {
                 let mut result_state = state.board.clone();
-                self.make_move(&mut result_state, action.action);
+                self.make_move_checking_end_game_conditions(&mut result_state, action.action);
                 let action_paths = (self._get_actions_for_move)(&state.board, action.action);
 
                 action_paths.into_iter().map(move |full_actions| {
@@ -348,7 +397,7 @@ impl GodPower {
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
-                self.make_move(&mut result_state, action.action);
+                self.make_move_checking_end_game_conditions(&mut result_state, action.action);
                 result_state
             })
             .collect()
@@ -386,6 +435,22 @@ impl GodPower {
 
     pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
         (self._make_move)(board, action);
+        board.flip_current_player();
+    }
+
+    pub fn make_move_checking_end_game_conditions(
+        &self,
+        board: &mut BoardState,
+        action: GenericMove,
+    ) {
+        let pre_oppo_workers = board.workers[!board.current_player as usize].count_ones();
+        (self._make_move)(board, action);
+        let post_oppo_workers = board.workers[!board.current_player as usize].count_ones();
+
+        if post_oppo_workers == 0 && pre_oppo_workers > 0 {
+            board.set_winner(board.current_player);
+        }
+
         board.flip_current_player();
     }
 
@@ -472,6 +537,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     aeolus::build_aeolus(),
     hestia::build_hestia(),
     europa::build_europa(),
+    bia::build_bia(),
 ]);
 
 #[macro_export]
@@ -523,7 +589,7 @@ pub(crate) const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
 
     fn _make_move<T: GodMove>(board: &mut BoardState, action: GenericMove) {
         let action: T = action.into();
-        action.make_move(board)
+        action.make_move(board, board.current_player)
     }
 
     fn _get_blocker_board<T: GodMove>(board: &BoardState, action: GenericMove) -> BitBoard {
@@ -565,6 +631,8 @@ const fn god_power(
         _moveable_worker_filter_fn: _default_moveable_worker_filter,
         _can_opponent_climb_fn: _default_can_opponent_climb,
         _get_frozen_mask: _default_get_frozen_mask,
+        _get_wind_idx: _default_get_wind_idx,
+
         _make_passing_move: _default_passing_move,
 
         _get_blocker_board: actions._get_blocker_board,
@@ -585,7 +653,7 @@ const fn god_power(
         is_aphrodite: false,
         is_persephone: false,
         is_preventing_down: false,
-        _get_wind_idx: _default_get_wind_idx,
+        is_placement_priority: false,
 
         hash1,
         hash2,
@@ -625,6 +693,11 @@ impl GodPower {
 
     pub(super) const fn with_is_preventing_down(mut self) -> Self {
         self.is_preventing_down = true;
+        self
+    }
+
+    pub(super) const fn with_is_placement_priority(mut self) -> Self {
+        self.is_placement_priority = true;
         self
     }
 
@@ -732,6 +805,8 @@ mod tests {
 
     use rand::{Rng, rng};
 
+    use crate::fen::parse_fen;
+
     use super::*;
 
     #[test]
@@ -769,6 +844,18 @@ mod tests {
                 suggestions
             );
             all_hashes.insert(god_power.hash2);
+        }
+    }
+
+    #[test]
+    fn test_all_gods_can_lose_with_no_workers() {
+        for god_power in ALL_GODS_BY_ID.iter() {
+            let fen = format!(
+                "10000 00000 00000 00000 00000/1/{}/mortal:A1, A2",
+                god_power.god_name
+            );
+            let state = parse_fen(&fen).unwrap();
+            state.get_next_states_interactive();
         }
     }
 }

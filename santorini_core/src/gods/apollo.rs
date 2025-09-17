@@ -23,13 +23,13 @@ use crate::{
 
 use super::PartialAction;
 
-pub const APOLLO_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const APOLLO_MOVE_TO_POSITION_OFFSET: usize = APOLLO_MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
-pub const APOLLO_BUILD_POSITION_OFFSET: usize = APOLLO_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const APOLLO_SWAP_MOVE_OFFSET: usize = APOLLO_BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const MOVE_FROM_POSITION_OFFSET: usize = 0;
+const MOVE_TO_POSITION_OFFSET: usize = MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
+const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const SWAP_MOVE_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct ApolloMove(pub MoveData);
+struct ApolloMove(pub MoveData);
 
 impl Into<GenericMove> for ApolloMove {
     fn into(self) -> GenericMove {
@@ -44,52 +44,50 @@ impl From<GenericMove> for ApolloMove {
 }
 
 impl ApolloMove {
-    pub fn new_apollo_move(
+    fn new_basic_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
         swap_from_square: Option<Square>,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << APOLLO_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << APOLLO_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << APOLLO_BUILD_POSITION_OFFSET)
-            | ((swap_from_square.map_or(25 as MoveData, |s| s as MoveData))
-                << APOLLO_SWAP_MOVE_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+            | ((swap_from_square.map_or(25 as MoveData, |s| s as MoveData)) << SWAP_MOVE_OFFSET);
 
         Self(data)
     }
 
-    pub fn new_apollo_winning_move(
+    fn new_apollo_winning_move(
         move_from_position: Square,
         move_to_position: Square,
         swap_from_square: Option<Square>,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData) << APOLLO_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << APOLLO_MOVE_TO_POSITION_OFFSET)
-            | ((swap_from_square.map_or(25 as MoveData, |s| s as MoveData))
-                << APOLLO_SWAP_MOVE_OFFSET)
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((swap_from_square.map_or(25 as MoveData, |s| s as MoveData)) << SWAP_MOVE_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
 
-    pub fn move_from_position(&self) -> Square {
+    fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
-    pub fn move_to_position(&self) -> Square {
+    fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn build_position(self) -> Square {
-        Square::from((self.0 >> APOLLO_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+    fn build_position(self) -> Square {
+        Square::from((self.0 >> BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn move_mask(self) -> BitBoard {
+    fn move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
-    pub fn swap_from_square(self) -> Option<Square> {
-        let value = (self.0 >> APOLLO_SWAP_MOVE_OFFSET) as u8 & LOWER_POSITION_MASK;
+    fn swap_from_square(self) -> Option<Square> {
+        let value = (self.0 >> SWAP_MOVE_OFFSET) as u8 & LOWER_POSITION_MASK;
         if value == 25 {
             None
         } else {
@@ -97,7 +95,7 @@ impl ApolloMove {
         }
     }
 
-    pub fn get_is_winning(&self) -> bool {
+    fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }
@@ -128,12 +126,13 @@ impl GodMove for ApolloMove {
         let mut res = vec![PartialAction::SelectWorker(self.move_from_position())];
 
         if let Some(swap_square) = self.swap_from_square() {
-            res.push(PartialAction::MoveWorkerWithSwap(
+            res.push(PartialAction::new_move_with_displace(
                 self.move_to_position(),
+                self.move_from_position(),
                 swap_square,
             ));
         } else {
-            res.push(PartialAction::MoveWorker(self.move_to_position()));
+            res.push(PartialAction::MoveWorker(self.move_to_position().into()));
         }
 
         if !self.get_is_winning() {
@@ -143,20 +142,17 @@ impl GodMove for ApolloMove {
         return vec![res];
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let from_mask = BitBoard::as_mask(self.move_from_position());
         let to_mask = BitBoard::as_mask(self.move_to_position());
-        board.worker_xor(board.current_player, from_mask | to_mask);
+        board.worker_xor(player, from_mask | to_mask);
 
         if let Some(swap_from_square) = self.swap_from_square() {
-            board.worker_xor(
-                !board.current_player,
-                from_mask | BitBoard::as_mask(swap_from_square),
-            );
+            board.worker_xor(!player, from_mask | BitBoard::as_mask(swap_from_square));
         }
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
@@ -299,7 +295,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             for worker_build_pos in worker_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                let new_action = ApolloMove::new_apollo_move(
+                let new_action = ApolloMove::new_basic_move(
                     worker_start_pos,
                     worker_end_pos,
                     worker_build_pos,

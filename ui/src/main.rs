@@ -18,6 +18,7 @@ use santorini_core::{
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction, WIP_GODS},
     player::Player,
+    pretty_board::{game_state_with_partial_actions, get_acting_player},
     search::{BestSearchResult, WINNING_SCORE, WINNING_SCORE_BUFFER},
     square::Square,
     utils::sigmoid,
@@ -93,12 +94,10 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
     match action {
         PartialAction::PlaceWorker(x)
         | PartialAction::SelectWorker(x)
-        | PartialAction::MoveWorker(x)
-        | PartialAction::MoveWorkerWithSwap(x, _)
-        | PartialAction::MoveWorkerWithPush(x, _)
         | PartialAction::Build(x)
         | PartialAction::SetTalusPosition(x)
         | PartialAction::Dome(x) => Some(*x),
+        PartialAction::MoveWorker(data) => Some(data.dest),
         PartialAction::SetWindDirection(d) => Some(maybe_wind_direction_to_ui_square(*d)),
         PartialAction::NoMoves | PartialAction::EndTurn => None,
     }
@@ -108,9 +107,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
     match action {
         PartialAction::PlaceWorker(_) => egui::Color32::YELLOW,
         PartialAction::SelectWorker(_) => egui::Color32::BLUE,
-        PartialAction::MoveWorker(_)
-        | PartialAction::MoveWorkerWithSwap(_, _)
-        | PartialAction::MoveWorkerWithPush(_, _) => egui::Color32::DARK_GREEN,
+        PartialAction::MoveWorker(_) => egui::Color32::DARK_GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::SetTalusPosition(_) => egui::Color32::PURPLE,
@@ -128,8 +125,6 @@ fn partial_action_label(action: &PartialAction) -> String {
         PartialAction::PlaceWorker(_) => "Place Worker".to_string(),
         PartialAction::SelectWorker(_) => "Select Worker".to_string(),
         PartialAction::MoveWorker(_) => "Move Worker".to_string(),
-        PartialAction::MoveWorkerWithSwap(..) => "Move Worker (Swap)".to_string(),
-        PartialAction::MoveWorkerWithPush(..) => "Move Worker (Push)".to_string(),
         PartialAction::Build(_) => "Build".to_string(),
         PartialAction::Dome(_) => "Add Dome".to_string(),
         PartialAction::SetTalusPosition(_) => "Place Talus".to_string(),
@@ -140,63 +135,6 @@ fn partial_action_label(action: &PartialAction) -> String {
             Some(direction) => format!("Prevent Movements: {:?}", direction),
         },
     }
-}
-
-fn game_state_with_partial_actions(
-    state: &FullGameState,
-    actions: &Vec<PartialAction>,
-) -> FullGameState {
-    let mut result = state.clone();
-    let board = &mut result.board;
-    let current_player = board.current_player;
-
-    let mut selected_square: Option<Square> = None;
-
-    for action in actions.iter().cloned() {
-        match action {
-            PartialAction::PlaceWorker(square) => {
-                board.worker_xor(current_player, BitBoard::as_mask(square));
-            }
-            PartialAction::SelectWorker(square) => {
-                assert!(selected_square.is_none());
-                selected_square = Some(square);
-            }
-            PartialAction::MoveWorker(square) => {
-                let selected_square = selected_square.take().unwrap();
-                let mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
-                board.worker_xor(current_player, mask);
-            }
-            PartialAction::MoveWorkerWithSwap(square, swapped_from) => {
-                let selected_square = selected_square.take().unwrap();
-                let self_mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
-                board.worker_xor(current_player, self_mask);
-
-                let other_mask =
-                    BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(swapped_from);
-                board.worker_xor(!current_player, other_mask);
-            }
-            PartialAction::MoveWorkerWithPush(square, push) => {
-                let selected_square = selected_square.take().unwrap();
-                let mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(square);
-                board.worker_xor(current_player, mask);
-
-                let mask2 = BitBoard::as_mask(square) | BitBoard::as_mask(push);
-                board.worker_xor(!current_player, mask2);
-            }
-            PartialAction::Build(square) => {
-                board.build_up(square);
-            }
-            PartialAction::Dome(square) => {
-                board.dome_up(square);
-            }
-            PartialAction::NoMoves
-            | PartialAction::EndTurn
-            | PartialAction::SetTalusPosition(_)
-            | PartialAction::SetWindDirection(_) => (),
-        }
-    }
-
-    result
 }
 
 struct EngineThinkingState {
@@ -856,7 +794,7 @@ impl<'a> egui::Widget for PlayerInfo<'a> {
             if winner == self.player {
                 header_text += " (Winner!)";
             }
-        } else if self.state.board.current_player == self.player {
+        } else if get_acting_player(&self.state) == self.player {
             header_text += " (To Play)";
         }
         let resp = ui.heading(header_text);

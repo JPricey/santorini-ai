@@ -1,26 +1,25 @@
 use crate::{
     bitboard::{
-        apply_mapping_to_mask, BitBoard, DIRECTION_MAPPING, WIND_AWARE_NEIGHBOR_MAP,
-        WRAPPING_DIRECTION_MAPPING,
+        BitBoard, DIRECTION_MAPPING, WIND_AWARE_NEIGHBOR_MAP, WRAPPING_DIRECTION_MAPPING,
+        apply_mapping_to_mask,
     },
     board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
-    direction::{direction_idx_to_reverse, Direction},
+    direction::{Direction, direction_idx_to_reverse},
     gods::{
-        build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
         generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK,
-            MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH,
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
         move_helpers::{
-            build_scored_move, get_basic_moves, get_generator_prelude_state,
-            get_standard_reach_board_with_custom_wind, get_worker_end_move_state,
-            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
-            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
-            GeneratorPreludeState, WorkerNextMoveState,
+            GeneratorPreludeState, WorkerNextMoveState, build_scored_move, get_basic_moves,
+            get_generator_prelude_state, get_standard_reach_board_with_custom_wind,
+            get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
+            push_winning_moves,
         },
-        FullAction, GodName, GodPower, HistoryIdxHelper,
     },
     persephone_check_result,
     player::Player,
@@ -39,34 +38,31 @@ pub(super) struct AeolusMove(pub MoveData);
 
 impl GodMove for AeolusMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+        let mut res = vec![
+            PartialAction::SelectWorker(self.move_from_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
+        ];
         if self.get_is_winning() {
-            return vec![vec![
-                PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position()),
-            ]];
+            return vec![res];
         }
 
-        let build_position = self.build_position();
-        vec![vec![
-            PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
-            PartialAction::Build(build_position),
-            PartialAction::SetWindDirection(self.wind_direction()),
-        ]]
+        res.push(PartialAction::Build(self.build_position()));
+        res.push(PartialAction::SetWindDirection(self.wind_direction()));
+        vec![res]
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
 
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
         board.build_up(self.build_position());
 
-        board.set_god_data(board.current_player, self.wind_direction_idx() as u32);
+        board.set_god_data(player, self.wind_direction_idx() as u32);
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
@@ -411,7 +407,7 @@ mod tests {
     use crate::{
         fen::parse_fen,
         gods::ALL_GODS_BY_ID,
-        matchup::{is_matchup_banned, Matchup},
+        matchup::{Matchup, is_matchup_banned},
     };
 
     use super::*;

@@ -38,7 +38,8 @@ impl ConsistencyChecker {
 
     pub fn perform_all_validations(&mut self) -> Result<(), Vec<String>> {
         if let Err(err) = self.state.validation_err() {
-            self.errors.push(err);
+            self.errors
+                .push(format!("Root state has validation errors: {}", err));
         } else {
             let current_player = self.state.board.current_player;
             let (active_god, other_god) = self.state.get_active_non_active_gods();
@@ -803,6 +804,16 @@ impl ConsistencyChecker {
             let is_real_checker = wins_from_check_state.len() > 0;
 
             if is_check_flag != is_real_checker {
+                // Don't count checks where bia wins on kills. not realistic...
+                if is_real_checker && active_god.god_name == GodName::Bia {
+                    let win_action = wins_from_check_state[0];
+                    let win_state = check_state.next_state(active_god, win_action.action);
+
+                    if win_state.board.workers[!current_player as usize].is_empty() {
+                        continue;
+                    }
+                }
+
                 if is_real_checker
                     && active_god.god_name == GodName::Artemis
                     && other_god.god_name == GodName::Harpies
@@ -913,6 +924,8 @@ impl ConsistencyChecker {
             return;
         }
 
+        let new_oppo_workes = won_state.board.workers[!current_player as usize];
+
         let old_workers = state.board.workers[current_player as usize];
         let new_workers = won_state.board.workers[current_player as usize];
         let old_only = old_workers & !new_workers;
@@ -949,6 +962,11 @@ impl ConsistencyChecker {
         }
 
         if is_pan_falling_win {
+            return;
+        }
+
+        if active_god.god_name == GodName::Bia && new_oppo_workes.count_ones() == 0 {
+            // Bia win by kills
             return;
         }
 

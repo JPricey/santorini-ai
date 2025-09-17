@@ -26,6 +26,7 @@ export const God = {
     Aeolus: 'aeolus',
     Hestia: 'hestia',
     Europa: 'europa',
+    Bia: 'bia',
 } as const;
 export type GodType = typeof God[keyof typeof God];
 
@@ -36,6 +37,7 @@ export const WIP_GODS: Set<GodType> = new Set([
     God.Morpheus,
     God.Aeolus,
     God.Hestia,
+    God.Bia,
 ]);
 
 export const Square = {
@@ -68,8 +70,8 @@ export const Square = {
 export type SquareType = typeof Square[keyof typeof Square];
 
 export const Player = {
-    One: 0,
-    Two: 1,
+    One: "One",
+    Two: "Two",
 } as const;
 export type PlayerType = typeof Player[keyof typeof Player];
 
@@ -114,47 +116,43 @@ export type Coord = {
 
 export type PlayerGameState = {
     god: string,
-    workers: Array<SquareType>,
-    tokens: Array<SquareType>,
-    isWin: boolean,
-    otherAttributes: string,
-};
+    workers: Array<string>,
+    tokens: Array<string>,
+    special_text: string,
+}
 
 export type GameState = {
-    heights: Array<number>,
-    players: Array<PlayerGameState>,
-    currentPlayer: PlayerType,
-};
+    acting_player: PlayerType,
+    winner?: PlayerType,
+    heights: Array<Array<number>>,
+    players: Array<PlayerGameState>
+}
 
 export function getWinner(gameState: GameState): PlayerType | null {
-    if (gameState.players[0].isWin) {
-        return Player.One;
-    }
-    if (gameState.players[1].isWin) {
-        return Player.Two;
-    }
-    return null;
+    return gameState.winner ?? null;
 }
 
 export function isGameOver(gameState: GameState) {
-    return gameState.players[0].isWin || gameState.players[1].isWin;
+    return getWinner(gameState) !== null;
 }
 
 export function getPlayerOnSquare(gameState: GameState, square: SquareType): PlayerType | null {
-    if (gameState.players[0].workers.includes(square)) {
+    const squareStr = squareToSquareStr(square);
+    if (gameState.players[0].workers.includes(squareStr)) {
         return Player.One;
     }
-    if (gameState.players[1].workers.includes(square)) {
+    if (gameState.players[1].workers.includes(squareStr)) {
         return Player.Two;
     }
     return null;
 }
 
 export function getTokenOnSquare(gameState: GameState, square: SquareType): PlayerType | null {
-    if (gameState.players[0].tokens.includes(square)) {
+    const squareStr = squareToSquareStr(square);
+    if (gameState.players[0].tokens.includes(squareStr)) {
         return Player.One;
     }
-    if (gameState.players[1].tokens.includes(square)) {
+    if (gameState.players[1].tokens.includes(squareStr)) {
         return Player.Two;
     }
     return null;

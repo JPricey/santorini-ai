@@ -4,7 +4,7 @@ use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::{Rng, rng};
 use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::matchup::{Matchup, MatchupSelector};
-use santorini_core::placement::get_placement_actions;
+use santorini_core::placement::{get_placement_actions, get_starting_placement_state};
 use santorini_core::player::Player;
 use santorini_core::search::{Hueristic, SearchContext, WINNING_SCORE_BUFFER, negamax_search};
 use santorini_core::search_terminators::{
@@ -237,9 +237,13 @@ fn generate_one(
     let mut move_count = 0;
 
     for _ in 0..2 {
-        let placement_actions = get_placement_actions::<true>(&current_state);
+        let placement_mode = get_starting_placement_state(&current_state.board, current_state.gods)
+            .unwrap()
+            .unwrap();
+
+        let placement_actions = get_placement_actions::<true>(&current_state, placement_mode);
         let action = placement_actions.choose(rng).unwrap();
-        current_state = action.make_on_clone(&current_state);
+        current_state = action.make_on_clone(&current_state, placement_mode.next_placement);
     }
 
     eprintln!("Random starting state: {:?}", current_state);

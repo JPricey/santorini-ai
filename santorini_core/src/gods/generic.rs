@@ -5,6 +5,7 @@ use crate::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState, GodData},
     gods::{FullAction, PartialAction},
+    player::Player,
     square::Square,
 };
 use std::fmt::Debug;
@@ -52,6 +53,9 @@ pub const MOVE_IS_WINNING_MASK: MoveData = MoveData::MAX ^ (MoveData::MAX >> 1);
 pub const MOVE_IS_CHECK_MASK: MoveData = MOVE_IS_WINNING_MASK >> 1;
 pub const MOVE_DATA_MAIN_SECTION: MoveData = MOVE_IS_CHECK_MASK - 1;
 
+pub(crate) const _MOVE_IS_WINNING_OFFSET: usize = 31;
+const _WINNING_MOVE_ASSERT: () = assert!(1 << _MOVE_IS_WINNING_OFFSET == MOVE_IS_WINNING_MASK);
+
 pub(crate) fn get_default_parse_data_err(data: &str) -> Result<GodData, String> {
     Err(format!("Could not parse god data: {}", data))
 }
@@ -62,7 +66,7 @@ pub struct GenericMove(pub MoveData);
 pub trait GodMove: From<GenericMove> + Into<GenericMove> + std::fmt::Debug {
     fn move_to_actions(self, board: &BoardState) -> Vec<FullAction>;
 
-    fn make_move(self, board: &mut BoardState);
+    fn make_move(self, board: &mut BoardState, player: Player);
 
     fn get_blocker_board(self, board: &BoardState) -> BitBoard;
 
@@ -213,9 +217,9 @@ impl WorkerPlacement {
         }
     }
 
-    pub fn make_on_clone(self, state: &FullGameState) -> FullGameState {
+    pub fn make_on_clone(self, state: &FullGameState, player: Player) -> FullGameState {
         let mut result = state.clone();
-        self.make_move(&mut result.board);
+        self.make_move(&mut result.board, player);
         result
     }
 }
@@ -254,8 +258,8 @@ impl GodMove for WorkerPlacement {
         result
     }
 
-    fn make_move(self, board: &mut BoardState) {
-        board.worker_xor(board.current_player, self.move_mask());
+    fn make_move(self, board: &mut BoardState, player: Player) {
+        board.worker_xor(player, self.move_mask());
         board.flip_current_player();
     }
 
@@ -267,5 +271,3 @@ impl GodMove for WorkerPlacement {
         self.0 as usize
     }
 }
-
-

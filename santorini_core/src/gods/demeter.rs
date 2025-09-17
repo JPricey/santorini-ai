@@ -18,15 +18,14 @@ use crate::{
 
 use super::PartialAction;
 
-pub const DEMETER_MOVE_FROM_POSITION_OFFSET: usize = 0;
-pub const DEMETER_MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
-pub const DEMETER_BUILD_POSITION_OFFSET: usize = DEMETER_MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
-pub const DEMETER_SECOND_BUILD_POSITION_OFFSET: usize =
-    DEMETER_BUILD_POSITION_OFFSET + POSITION_WIDTH;
-pub const DEMETER_NO_SECOND_BUILD_VALUE: MoveData = 25 << DEMETER_SECOND_BUILD_POSITION_OFFSET;
+const MOVE_FROM_POSITION_OFFSET: usize = 0;
+const MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
+const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
+const SECOND_BUILD_POSITION_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
+const NO_SECOND_BUILD_VALUE: MoveData = 25 << SECOND_BUILD_POSITION_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct DemeterMove(pub MoveData);
+pub(crate) struct DemeterMove(pub MoveData);
 
 impl Into<GenericMove> for DemeterMove {
     fn into(self) -> GenericMove {
@@ -41,21 +40,20 @@ impl From<GenericMove> for DemeterMove {
 }
 
 impl DemeterMove {
-    pub fn new_demeter_move(
+    fn new_demeter_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
     ) -> Self {
-        let data: MoveData = ((move_from_position as MoveData)
-            << DEMETER_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << DEMETER_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << DEMETER_BUILD_POSITION_OFFSET)
-            | DEMETER_NO_SECOND_BUILD_VALUE;
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+            | NO_SECOND_BUILD_VALUE;
 
         Self(data)
     }
 
-    pub fn new_demeter_two_build_move(
+    fn new_demeter_two_build_move(
         move_from_position: Square,
         move_to_position: Square,
         mut build_position: Square,
@@ -65,37 +63,35 @@ impl DemeterMove {
             std::mem::swap(&mut build_position, &mut build_position_2);
         }
 
-        let data: MoveData = ((move_from_position as MoveData)
-            << DEMETER_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << DEMETER_MOVE_TO_POSITION_OFFSET)
-            | ((build_position as MoveData) << DEMETER_BUILD_POSITION_OFFSET)
-            | ((build_position_2 as MoveData) << DEMETER_SECOND_BUILD_POSITION_OFFSET);
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+            | ((build_position_2 as MoveData) << SECOND_BUILD_POSITION_OFFSET);
 
         Self(data)
     }
 
-    pub fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        let data: MoveData = ((move_from_position as MoveData)
-            << DEMETER_MOVE_FROM_POSITION_OFFSET)
-            | ((move_to_position as MoveData) << DEMETER_MOVE_TO_POSITION_OFFSET)
+    fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
+        let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
+            | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
 
-    pub fn move_from_position(&self) -> Square {
+    fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
-    pub fn move_to_position(&self) -> Square {
+    fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn build_position(self) -> Square {
-        Square::from((self.0 >> DEMETER_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
+    fn build_position(self) -> Square {
+        Square::from((self.0 >> BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK)
     }
 
-    pub fn second_build_position(self) -> Option<Square> {
-        let value = (self.0 >> DEMETER_SECOND_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
+    fn second_build_position(self) -> Option<Square> {
+        let value = (self.0 >> SECOND_BUILD_POSITION_OFFSET) as u8 & LOWER_POSITION_MASK;
         if value == 25 {
             None
         } else {
@@ -103,11 +99,11 @@ impl DemeterMove {
         }
     }
 
-    pub fn move_mask(self) -> BitBoard {
+    fn move_mask(self) -> BitBoard {
         BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
     }
 
-    pub fn get_is_winning(&self) -> bool {
+    fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }
@@ -137,7 +133,7 @@ impl GodMove for DemeterMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
         let mut move_vec = vec![
             PartialAction::SelectWorker(self.move_from_position()),
-            PartialAction::MoveWorker(self.move_to_position()),
+            PartialAction::MoveWorker(self.move_to_position().into()),
         ];
         if self.get_is_winning() {
             return vec![move_vec];
@@ -158,11 +154,11 @@ impl GodMove for DemeterMove {
         }
     }
 
-    fn make_move(self, board: &mut BoardState) {
+    fn make_move(self, board: &mut BoardState, player: Player) {
         let worker_move_mask = self.move_mask();
-        board.worker_xor(board.current_player, worker_move_mask);
+        board.worker_xor(player, worker_move_mask);
         if self.get_is_winning() {
-            board.set_winner(board.current_player);
+            board.set_winner(player);
             return;
         }
 
