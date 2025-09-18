@@ -387,6 +387,36 @@ fn get_wind_idx(board: &BoardState, player: Player) -> usize {
     board.god_data[player as usize] as usize
 }
 
+fn flip_horizontal(data: GodData) -> GodData {
+    match data {
+        0 => data,
+        x => {
+            let dir = Direction::from_u8(x as u8 - 1);
+            dir.flip_horizontal() as GodData + 1
+        }
+    }
+}
+
+fn flip_vertical(data: GodData) -> GodData {
+    match data {
+        0 => data,
+        x => {
+            let dir = Direction::from_u8(x as u8 - 1);
+            dir.flip_vertical() as GodData + 1
+        }
+    }
+}
+
+fn flip_tranpose(data: GodData) -> GodData {
+    match data {
+        0 => data,
+        x => {
+            let dir = Direction::from_u8(x as u8 - 1);
+            dir.flip_transpose() as GodData + 1
+        }
+    }
+}
+
 pub const fn build_aeolus() -> GodPower {
     god_power(
         GodName::Aeolus,
@@ -400,6 +430,9 @@ pub const fn build_aeolus() -> GodPower {
     .with_stringify_god_data_fn(stringify_god_data)
     .with_get_wind_idx_fn(get_wind_idx)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)
+    .with_flip_god_data_horizontal_fn(flip_horizontal)
+    .with_flip_god_data_vertical_fn(flip_vertical)
+    .with_flip_god_data_transpose_fn(flip_tranpose)
 }
 
 #[cfg(test)]
@@ -437,4 +470,16 @@ mod tests {
             assert_eq!(moves.len(), expected_moves);
         }
     }
+
+    // #[test]
+    // fn test_aeolus_permutations() {
+    //     let state =
+    //         parse_fen("01000 00200 00000 00000 00000/1/aeolus[nw]:E1,E2/mortal:A1").unwrap();
+
+    //     for s in state.get_all_permutations::<true>() {
+    //         let f = FullGameState::new(s, state.gods);
+    //         eprintln!("{:?}", f);
+    //         f.print_to_console();
+    //     }
+    // }
 }

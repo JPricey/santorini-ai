@@ -290,6 +290,11 @@ fn _default_get_frozen_mask(_board: &BoardState, _player: Player) -> BitBoard {
     BitBoard::EMPTY
 }
 
+pub(super) type FlipGodDataFn = fn(GodData) -> GodData;
+fn _default_flip_god_data(god_data: GodData) -> GodData {
+    god_data
+}
+
 pub struct GodPower {
     pub god_name: GodName,
     pub model_god_name: GodName,
@@ -307,6 +312,10 @@ pub struct GodPower {
     _can_opponent_climb_fn: CanOpponentClimbFn,
     _get_frozen_mask: GetFrozenMask,
     pub win_mask: BitBoard,
+
+    _flip_god_data_horizontal: FlipGodDataFn,
+    _flip_god_data_vertical: FlipGodDataFn,
+    _flip_god_data_transpose: FlipGodDataFn,
 
     // Action Fns
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
@@ -490,6 +499,18 @@ impl GodPower {
     pub fn pretty_stringify_god_data(&self, board: &BoardState, player: Player) -> Option<String> {
         (self._pretty_stringify_god_data)(board, player)
     }
+
+    pub fn get_flip_horizontal_god_data(&self, god_data: GodData) -> GodData {
+        (self._flip_god_data_horizontal)(god_data)
+    }
+
+    pub fn get_flip_vertical_god_data(&self, god_data: GodData) -> GodData {
+        (self._flip_god_data_vertical)(god_data)
+    }
+
+    pub fn get_flip_transpose_god_data(&self, god_data: GodData) -> GodData {
+        (self._flip_god_data_transpose)(god_data)
+    }
 }
 
 impl std::fmt::Debug for GodPower {
@@ -631,6 +652,11 @@ const fn god_power(
         _moveable_worker_filter_fn: _default_moveable_worker_filter,
         _can_opponent_climb_fn: _default_can_opponent_climb,
         _get_frozen_mask: _default_get_frozen_mask,
+
+        _flip_god_data_horizontal: _default_flip_god_data,
+        _flip_god_data_vertical: _default_flip_god_data,
+        _flip_god_data_transpose: _default_flip_god_data,
+
         _get_wind_idx: _default_get_wind_idx,
 
         _make_passing_move: _default_passing_move,
@@ -756,6 +782,30 @@ impl GodPower {
         get_frozen_mask_fn: GetFrozenMask,
     ) -> Self {
         self._get_frozen_mask = get_frozen_mask_fn;
+        self
+    }
+
+    pub(super) const fn with_flip_god_data_horizontal_fn(
+        mut self,
+        flip_god_data_fn: FlipGodDataFn,
+    ) -> Self {
+        self._flip_god_data_horizontal = flip_god_data_fn;
+        self
+    }
+
+    pub(super) const fn with_flip_god_data_vertical_fn(
+        mut self,
+        flip_god_data_fn: FlipGodDataFn,
+    ) -> Self {
+        self._flip_god_data_vertical = flip_god_data_fn;
+        self
+    }
+
+    pub(super) const fn with_flip_god_data_transpose_fn(
+        mut self,
+        flip_god_data_fn: FlipGodDataFn,
+    ) -> Self {
+        self._flip_god_data_transpose = flip_god_data_fn;
         self
     }
 }

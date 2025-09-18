@@ -53,6 +53,45 @@ impl Direction {
         let val = self as u8;
         Self::from_u8((val + 4) % 8)
     }
+
+    pub const fn flip_horizontal(self) -> Self {
+        match self {
+            Direction::NW => Direction::NE,
+            Direction::N => Direction::N,
+            Direction::NE => Direction::NW,
+            Direction::E => Direction::W,
+            Direction::SE => Direction::SW,
+            Direction::S => Direction::S,
+            Direction::SW => Direction::SE,
+            Direction::W => Direction::E,
+        }
+    }
+
+    pub const fn flip_vertical(self) -> Self {
+        match self {
+            Direction::NW => Direction::SW,
+            Direction::N => Direction::S,
+            Direction::NE => Direction::SE,
+            Direction::E => Direction::E,
+            Direction::SE => Direction::NE,
+            Direction::S => Direction::N,
+            Direction::SW => Direction::NW,
+            Direction::W => Direction::W,
+        }
+    }
+
+    pub const fn flip_transpose(self) -> Self {
+        match self {
+            Direction::NW => Direction::NW,
+            Direction::N => Direction::W,
+            Direction::NE => Direction::SW,
+            Direction::E => Direction::S,
+            Direction::SE => Direction::SE,
+            Direction::S => Direction::E,
+            Direction::SW => Direction::NE,
+            Direction::W => Direction::N,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]

@@ -356,6 +356,33 @@ impl BitBoard {
     pub const fn bit_not(self) -> Self {
         Self(!self.0)
     }
+
+    pub fn flip_vertical(self) -> BitBoard {
+        let mut board = _delta_swap(self, 0b11111, 20);
+        board = _delta_swap(board, 0b1111100000, 10);
+        board
+    }
+
+    pub fn flip_horizontal(self) -> BitBoard {
+        let mut board = _delta_swap(self, 0b00001_00001_00001_00001_00001, 4);
+        board = _delta_swap(board, 0b00010_00010_00010_00010_00010, 2);
+        board
+    }
+
+    /// "Transpose" is to flip across the A5 -> E1 diagonal
+    pub fn flip_transpose(self) -> BitBoard {
+        // https://stackoverflow.com/questions/72097570/rotate-and-reflect-a-5x5-bitboard
+        let mut board = _delta_swap(self, 0x00006300, 16);
+        board = _delta_swap(board, 0x020a080a, 4);
+        board = _delta_swap(board, 0x0063008c, 8);
+        board = _delta_swap(board, 0x00006310, 16);
+        board
+    }
+}
+
+fn _delta_swap(board: BitBoard, mask: u32, shift: u32) -> BitBoard {
+    let delta = ((board.0 >> shift) ^ board.0) & mask;
+    BitBoard((board.0 ^ delta) ^ (delta << shift))
 }
 
 impl Iterator for BitBoard {
@@ -396,5 +423,67 @@ impl Mul<u32> for BitBoard {
 
     fn mul(self, rhs: u32) -> Self::Output {
         Self(self.0 * rhs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::square::Square;
+
+    use super::*;
+
+    #[test]
+    fn test_flip_board_v() {
+        for b in 0..25 {
+            let board: BitBoard = BitBoard(1 << b);
+            let row = b / 5;
+            let col = b % 5;
+
+            let flipped = board.flip_vertical();
+            let pos = flipped.0.trailing_zeros();
+            let arow = pos / 5;
+            let acol = pos % 5;
+
+            assert_eq!(arow, 4 - row);
+            assert_eq!(acol, col);
+        }
+    }
+
+    #[test]
+    fn test_flip_board_h() {
+        for b in 0..25 {
+            let board = BitBoard(1 << b);
+            let row = b / 5;
+            let col = b % 5;
+
+            let flipped = board.flip_horizontal();
+            let pos = flipped.trailing_zeros();
+            let arow = pos / 5;
+            let acol = pos % 5;
+
+            assert_eq!(arow, row);
+            assert_eq!(acol, 4 - col);
+        }
+    }
+
+    #[test]
+    fn test_transpose() {
+        for b in 0..25 {
+            let board = BitBoard(1 << b);
+            let row = b / 5;
+            let col = b % 5;
+
+            let flipped = board.flip_transpose();
+
+            let pos = flipped.trailing_zeros();
+            let arow = pos / 5;
+            let acol = pos % 5;
+
+            assert_eq!(row, acol);
+            assert_eq!(col, arow);
+
+            // eprintln!("board: {board}");
+            // eprintln!("flipped: {flipped}");
+        }
     }
 }

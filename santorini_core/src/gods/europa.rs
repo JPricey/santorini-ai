@@ -343,6 +343,18 @@ fn get_frozen_mask(board: &BoardState, player: Player) -> BitBoard {
     BitBoard(board.god_data[player as usize])
 }
 
+fn flip_horizontal(god_data: GodData) -> GodData {
+    BitBoard(god_data).flip_horizontal().0 as GodData
+}
+
+fn flip_vertical(god_data: GodData) -> GodData {
+    BitBoard(god_data).flip_vertical().0 as GodData
+}
+
+fn flip_transpose(god_data: GodData) -> GodData {
+    BitBoard(god_data).flip_transpose().0 as GodData
+}
+
 pub const fn build_europa() -> GodPower {
     god_power(
         GodName::Europa,
@@ -356,6 +368,9 @@ pub const fn build_europa() -> GodPower {
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)
     .with_get_frozen_mask_fn(get_frozen_mask)
+    .with_flip_god_data_horizontal_fn(flip_horizontal)
+    .with_flip_god_data_vertical_fn(flip_vertical)
+    .with_flip_god_data_transpose_fn(flip_transpose)
 }
 
 // TODO:
@@ -365,7 +380,10 @@ pub const fn build_europa() -> GodPower {
 
 #[cfg(test)]
 mod tests {
-    use crate::fen::{game_state_to_fen, parse_fen};
+    use crate::{
+        board::FullGameState,
+        fen::{game_state_to_fen, parse_fen},
+    };
 
     #[test]
     fn test_europa_parse_round_trip() {
@@ -374,4 +392,16 @@ mod tests {
         let new_fen = game_state_to_fen(&state);
         assert_eq!(initial_fen, new_fen);
     }
+
+    // #[test]
+    // fn test_europa_permutations() {
+    //     let state =
+    //         parse_fen("01000 00200 00000 00000 00000/1/europa[d2]:E1,E2/mortal:A1").unwrap();
+
+    //     for s in state.get_all_permutations::<true>() {
+    //         let f = FullGameState::new(s, state.gods);
+    //         eprintln!("{:?}", f);
+    //         f.print_to_console();
+    //     }
+    // }
 }

@@ -133,7 +133,7 @@ pub fn get_unique_placements(state: &FullGameState, player: Player) -> Vec<Worke
         let mut b_clone = state.board.clone();
         p.make_move(&mut b_clone, player);
         let mut is_new = true;
-        for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
+        for permutation in b_clone.get_all_permutations::<true>(state.gods, state.base_hash()) {
             if unique_boards.contains(&permutation) {
                 is_new = false;
                 break;
@@ -157,7 +157,7 @@ pub fn get_unique_placements_3(state: &FullGameState, player: Player) -> Vec<Wor
         let mut b_clone = state.board.clone();
         p.make_move(&mut b_clone, player);
         let mut is_new = true;
-        for permutation in b_clone.get_all_permutations::<true>(state.base_hash()) {
+        for permutation in b_clone.get_all_permutations::<true>(state.gods, state.base_hash()) {
             if unique_boards.contains(&permutation) {
                 is_new = false;
                 break;

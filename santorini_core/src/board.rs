@@ -232,6 +232,11 @@ impl FullGameState {
     pub fn get_winner(&self) -> Option<Player> {
         self.board.get_winner()
     }
+
+    pub fn get_all_permutations<const INCLUDE_SELF: bool>(&self) -> Vec<BoardState> {
+        self.board
+            .get_all_permutations::<INCLUDE_SELF>(self.gods, self.base_hash())
+    }
 }
 
 pub(crate) const WINNER_MASK_OFFSET: usize = 30;
@@ -533,11 +538,7 @@ impl BoardState {
         Ok(())
     }
 
-    fn _validate_playable_player(
-        &self,
-        player: Player,
-        gods: GodPair,
-    ) -> Result<(), String> {
+    fn _validate_playable_player(&self, player: Player, gods: GodPair) -> Result<(), String> {
         let player_idx = player as usize;
         let (own_god, other_god) = (gods[player_idx], gods[1 - player_idx]);
         let own_workers = self.workers[player_idx];
@@ -684,59 +685,69 @@ impl BoardState {
         )
     }
 
-    fn _flip_vertical_mut(&mut self) {
-        self.height_map[0] = _flip_bitboard_vertical(self.height_map[0]);
-        self.height_map[1] = _flip_bitboard_vertical(self.height_map[1]);
-        self.height_map[2] = _flip_bitboard_vertical(self.height_map[2]);
-        self.height_map[3] = _flip_bitboard_vertical(self.height_map[3]);
-        self.workers[0] = _flip_bitboard_vertical(self.workers[0]);
-        self.workers[1] = _flip_bitboard_vertical(self.workers[1]);
+    fn _flip_vertical_mut(&mut self, gods: GodPair) {
+        self.height_map[0] = self.height_map[0].flip_vertical();
+        self.height_map[1] = self.height_map[1].flip_vertical();
+        self.height_map[2] = self.height_map[2].flip_vertical();
+        self.height_map[3] = self.height_map[3].flip_vertical();
+        self.workers[0] = self.workers[0].flip_vertical();
+        self.workers[1] = self.workers[1].flip_vertical();
+        self.god_data[0] = gods[0].get_flip_vertical_god_data(self.god_data[0]);
+        self.god_data[1] = gods[1].get_flip_vertical_god_data(self.god_data[1]);
     }
 
-    fn _flip_horizontal_mut(&mut self) {
-        self.height_map[0] = _flip_bitboard_horizontal(self.height_map[0]);
-        self.height_map[1] = _flip_bitboard_horizontal(self.height_map[1]);
-        self.height_map[2] = _flip_bitboard_horizontal(self.height_map[2]);
-        self.height_map[3] = _flip_bitboard_horizontal(self.height_map[3]);
-        self.workers[0] = _flip_bitboard_horizontal(self.workers[0]);
-        self.workers[1] = _flip_bitboard_horizontal(self.workers[1]);
+    fn _flip_horizontal_mut(&mut self, gods: GodPair) {
+        self.height_map[0] = self.height_map[0].flip_horizontal();
+        self.height_map[1] = self.height_map[1].flip_horizontal();
+        self.height_map[2] = self.height_map[2].flip_horizontal();
+        self.height_map[3] = self.height_map[3].flip_horizontal();
+        self.workers[0] = self.workers[0].flip_horizontal();
+        self.workers[1] = self.workers[1].flip_horizontal();
+        self.god_data[0] = gods[0].get_flip_horizontal_god_data(self.god_data[0]);
+        self.god_data[1] = gods[1].get_flip_horizontal_god_data(self.god_data[1]);
     }
 
-    fn _transpose_mut(&mut self) {
-        self.height_map[0] = _transpose_bitboard(self.height_map[0]);
-        self.height_map[1] = _transpose_bitboard(self.height_map[1]);
-        self.height_map[2] = _transpose_bitboard(self.height_map[2]);
-        self.height_map[3] = _transpose_bitboard(self.height_map[3]);
-        self.workers[0] = _transpose_bitboard(self.workers[0]);
-        self.workers[1] = _transpose_bitboard(self.workers[1]);
+    fn _transpose_mut(&mut self, gods: GodPair) {
+        self.height_map[0] = self.height_map[0].flip_transpose();
+        self.height_map[1] = self.height_map[1].flip_transpose();
+        self.height_map[2] = self.height_map[2].flip_transpose();
+        self.height_map[3] = self.height_map[3].flip_transpose();
+        self.workers[0] = self.workers[0].flip_transpose();
+        self.workers[1] = self.workers[1].flip_transpose();
+        self.god_data[0] = gods[0].get_flip_transpose_god_data(self.god_data[0]);
+        self.god_data[1] = gods[1].get_flip_transpose_god_data(self.god_data[1]);
     }
 
-    fn _flip_vertical_clone(&self) -> Self {
+    fn _flip_vertical_clone(&self, gods: GodPair) -> Self {
         let mut result = self.clone();
-        result._flip_vertical_mut();
+        result._flip_vertical_mut(gods);
         result
     }
 
-    fn _flip_horz_clone(&self) -> Self {
+    fn _flip_horz_clone(&self, gods: GodPair) -> Self {
         let mut result = self.clone();
-        result._flip_horizontal_mut();
+        result._flip_horizontal_mut(gods);
         result
     }
 
-    fn _transpose_clone(&self) -> Self {
+    fn _transpose_clone(&self, gods: GodPair) -> Self {
         let mut result = self.clone();
-        result._transpose_mut();
+        result._transpose_mut(gods);
         result
     }
 
-    pub fn get_all_permutations<const INCLUDE_SELF: bool>(&self, base_hash: HashType) -> Vec<Self> {
-        let horz = self._flip_horz_clone();
-        let vert = self._flip_vertical_clone();
-        let hv = horz._flip_vertical_clone();
-        let trans = self._transpose_clone();
-        let th = trans._flip_horz_clone();
-        let tv = trans._flip_vertical_clone();
-        let tvh = th._flip_vertical_clone();
+    pub fn get_all_permutations<const INCLUDE_SELF: bool>(
+        &self,
+        gods: GodPair,
+        base_hash: HashType,
+    ) -> Vec<Self> {
+        let horz = self._flip_horz_clone(gods);
+        let vert = self._flip_vertical_clone(gods);
+        let hv = horz._flip_vertical_clone(gods);
+        let trans = self._transpose_clone(gods);
+        let th = trans._flip_horz_clone(gods);
+        let tv = trans._flip_vertical_clone(gods);
+        let tvh = th._flip_vertical_clone(gods);
 
         let mut res = if INCLUDE_SELF {
             vec![self.clone(), horz, vert, hv, trans, th, tv, tvh]
@@ -752,30 +763,18 @@ impl BoardState {
     }
 }
 
-pub fn get_all_permutations_for_pair(
-    a: &BoardState,
-    b: &BoardState,
-) -> Vec<(BoardState, BoardState)> {
-    let h = (a._flip_horz_clone(), b._flip_horz_clone());
-    let v = (a._flip_vertical_clone(), b._flip_vertical_clone());
-    let hv = (h.0._flip_vertical_clone(), h.1._flip_vertical_clone());
-    let t = (a._transpose_clone(), b._transpose_clone());
-    let th = (t.0._flip_horz_clone(), t.1._flip_horz_clone());
-    let tv = (t.0._flip_vertical_clone(), t.1._flip_vertical_clone());
-    let thv = (th.0._flip_vertical_clone(), th.1._flip_vertical_clone());
-
-    vec![(a.clone(), b.clone()), h, v, hv, t, th, tv, thv]
-}
-
 impl Ord for BoardState {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.height_map[0]
-            .cmp(other.height_map[0])
+        self.current_player
+            .cmp(&other.current_player)
+            .then(self.height_map[0].cmp(other.height_map[0]))
             .then(self.height_map[1].cmp(other.height_map[1]))
             .then(self.height_map[2].cmp(other.height_map[2]))
             .then(self.height_map[3].cmp(other.height_map[3]))
             .then(self.workers[0].cmp(other.workers[0]))
             .then(self.workers[1].cmp(other.workers[1]))
+            .then(self.god_data[0].cmp(&other.god_data[0]))
+            .then(self.god_data[1].cmp(&other.god_data[1]))
     }
 }
 
@@ -785,38 +784,9 @@ impl PartialOrd for BoardState {
     }
 }
 
-#[inline]
-fn _delta_swap(board: BitBoard, mask: u32, shift: u32) -> BitBoard {
-    let delta = ((board.0 >> shift) ^ board.0) & mask;
-    BitBoard((board.0 ^ delta) ^ (delta << shift))
-}
-
-fn _flip_bitboard_vertical(mut board: BitBoard) -> BitBoard {
-    board = _delta_swap(board, 0b11111, 20);
-    board = _delta_swap(board, 0b1111100000, 10);
-    board
-}
-
-fn _flip_bitboard_horizontal(mut board: BitBoard) -> BitBoard {
-    board = _delta_swap(board, 0b00001_00001_00001_00001_00001, 4);
-    board = _delta_swap(board, 0b00010_00010_00010_00010_00010, 2);
-    board
-}
-
-fn _transpose_bitboard(mut board: BitBoard) -> BitBoard {
-    // https://stackoverflow.com/questions/72097570/rotate-and-reflect-a-5x5-bitboard
-    board = _delta_swap(board, 0x00006300, 16);
-    board = _delta_swap(board, 0x020a080a, 4);
-    board = _delta_swap(board, 0x0063008c, 8);
-    board = _delta_swap(board, 0x00006310, 16);
-    board
-}
-
 #[cfg(test)]
 mod tests {
     use crate::square::Square;
-
-    use super::*;
 
     #[test]
     fn test_serde_coord() {
@@ -826,61 +796,6 @@ mod tests {
             let parsed_coord: Square = serde_json::from_str(&coord_str).unwrap();
 
             assert_eq!(coord, parsed_coord);
-        }
-    }
-
-    #[test]
-    fn test_flip_board_v() {
-        for b in 0..25 {
-            let board: BitBoard = BitBoard(1 << b);
-            let row = b / 5;
-            let col = b % 5;
-
-            let flipped = _flip_bitboard_vertical(board);
-            let pos = flipped.0.trailing_zeros();
-            let arow = pos / 5;
-            let acol = pos % 5;
-
-            assert_eq!(arow, 4 - row);
-            assert_eq!(acol, col);
-        }
-    }
-
-    #[test]
-    fn test_flip_board_h() {
-        for b in 0..25 {
-            let board = BitBoard(1 << b);
-            let row = b / 5;
-            let col = b % 5;
-
-            let flipped = _flip_bitboard_horizontal(board);
-            let pos = flipped.trailing_zeros();
-            let arow = pos / 5;
-            let acol = pos % 5;
-
-            assert_eq!(arow, row);
-            assert_eq!(acol, 4 - col);
-        }
-    }
-
-    #[test]
-    fn test_transpose() {
-        for b in 0..25 {
-            let board = BitBoard(1 << b);
-            let row = b / 5;
-            let col = b % 5;
-
-            let flipped = _transpose_bitboard(board);
-
-            let pos = flipped.trailing_zeros();
-            let arow = pos / 5;
-            let acol = pos % 5;
-
-            assert_eq!(row, acol);
-            assert_eq!(col, arow);
-
-            // println!("{board}");
-            // println!("{flipped}");
         }
     }
 }

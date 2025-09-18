@@ -31,7 +31,7 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         //     santorini_core::player::Player::One,
         //     &santorini_core::gods::WIP_GODS,
         // )
-        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Europa])
+        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Bia])
         .get_all();
 
     // for m in &all_matchups {
@@ -127,12 +127,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Sleep a bit to make sure we don't miss anything
             std::thread::sleep(Duration::from_secs(1));
             tx.send(WorkerMessage::Done).unwrap();
-
-            // HACK: sleep forever to not cause a panic, because we didn't implement
-            // clean shutdowns for worker threads
-            // loop {
-            //     std::thread::sleep(Duration::from_secs(1));
-            // }
         });
     }
 
