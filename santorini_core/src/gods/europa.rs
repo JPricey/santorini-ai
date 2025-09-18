@@ -335,7 +335,7 @@ fn stringify_god_data(data: GodData) -> Option<String> {
 fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<String> {
     match board.god_data[player as usize] {
         0 => Some("Talus unplaced".to_string()),
-        x => Some(format!("Talus at: {:?}", BitBoard(x).lsb())),
+        x => Some(format!("Talus at {:?}", BitBoard(x).lsb())),
     }
 }
 

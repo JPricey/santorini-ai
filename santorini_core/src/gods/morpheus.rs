@@ -599,7 +599,7 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
     if board.current_player == player {
         god_data += 1;
     }
-    Some(format!("Builds: {god_data}"))
+    Some(format!("Builds tokens: {god_data}"))
 }
 
 pub const fn build_morpheus() -> GodPower {
