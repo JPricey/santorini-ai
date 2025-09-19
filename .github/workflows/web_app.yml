@@ -25,6 +25,9 @@ jobs:
           toolchain: nightly
           target: wasm32-unknown-unknown
 
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
       - name: Run builds
         run: cd web_app && npm i && npm run build:wasm && npm run build
 
