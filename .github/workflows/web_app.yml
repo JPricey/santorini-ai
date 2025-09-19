@@ -22,6 +22,7 @@ jobs:
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
+          components: rust-src
           toolchain: nightly
           target: wasm32-unknown-unknown
           override: true
