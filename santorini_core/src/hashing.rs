@@ -1,7 +1,4 @@
-use crate::{
-    bitboard::BitBoard,
-    board::{BoardState, FullGameState},
-};
+use crate::board::{BoardState, FullGameState};
 
 pub(crate) type HashType = u64;
 
@@ -316,14 +313,15 @@ pub(crate) fn compute_hash_from_scratch_for_board(
     }
 
     for w in 0..2 {
-        for square in BitBoard(board.god_data[w]) {
-            result ^= ZOBRIST_DATA_RANDOMS[w][square as usize];
+        let mut bb = board.god_data[w];
+        while bb > 0 {
+            let lsb = bb.trailing_zeros();
+            bb &= bb - 1;
+            result ^= ZOBRIST_DATA_RANDOMS[w][lsb as usize];
         }
     }
 
     result ^= ZORBRIST_ACTIVE_PLAYER[board.current_player as usize];
-
-    // eprintln!("{:?}: {:064b}", board.as_basic_game_state(), result);
 
     result
 }

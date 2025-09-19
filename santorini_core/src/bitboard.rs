@@ -428,8 +428,6 @@ impl Mul<u32> for BitBoard {
 
 #[cfg(test)]
 mod tests {
-    use crate::square::Square;
-
     use super::*;
 
     #[test]

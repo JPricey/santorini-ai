@@ -492,6 +492,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_nnue_id_should_be_set() {
+        for god_power in ALL_GODS_BY_ID.iter() {
+            if (god_power.god_name as usize) < NNUE_GOD_COUNT {
+                assert_eq!(
+                    god_power.god_name,
+                    god_power.model_god_name,
+                    "God {:?} should use their own NNUE model",
+                    god_power.god_name,
+                );
+            }
+        }
+    }
+
     // #[test]
     // fn test_incremental_updates() {
     //     let game_iter = RandomSingleGameStateGenerator::default();

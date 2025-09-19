@@ -469,9 +469,21 @@ impl BoardState {
         let old_data = self.god_data[player as usize];
         self.god_data[player as usize] = data;
 
-        let delta = old_data ^ data;
-        for square in BitBoard(delta) {
-            self.hash ^= ZOBRIST_DATA_RANDOMS[player as usize][square as usize];
+        let mut delta = old_data ^ data;
+        while delta > 0 {
+            let lsb = delta.trailing_zeros();
+            delta &= delta - 1;
+            self.hash ^= ZOBRIST_DATA_RANDOMS[player as usize][lsb as usize];
+        }
+    }
+
+    pub fn delta_god_data(&mut self, player: Player, mut delta: GodData) {
+        self.god_data[player as usize] ^= delta;
+
+        while delta > 0 {
+            let lsb = delta.trailing_zeros();
+            delta &= delta - 1;
+            self.hash ^= ZOBRIST_DATA_RANDOMS[player as usize][lsb as usize];
         }
     }
 

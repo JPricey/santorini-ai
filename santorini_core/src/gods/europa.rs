@@ -373,17 +373,9 @@ pub const fn build_europa() -> GodPower {
     .with_flip_god_data_transpose_fn(flip_transpose)
 }
 
-// TODO:
-// add frozen squares to fuzzer
-// add frozen squares to prelude & move helpers
-// fix up frozen square respect for special movers
-
 #[cfg(test)]
 mod tests {
-    use crate::{
-        board::FullGameState,
-        fen::{game_state_to_fen, parse_fen},
-    };
+    use crate::fen::{game_state_to_fen, parse_fen};
 
     #[test]
     fn test_europa_parse_round_trip() {

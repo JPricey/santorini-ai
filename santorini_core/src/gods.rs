@@ -20,6 +20,7 @@ pub(crate) mod artemis;
 pub(crate) mod athena;
 pub(crate) mod atlas;
 pub(crate) mod bia;
+pub(crate) mod clio;
 pub(crate) mod demeter;
 pub(crate) mod europa;
 pub mod generic;
@@ -85,6 +86,7 @@ pub enum GodName {
     Hestia = 22,
     Europa = 23,
     Bia = 24,
+    Clio = 25,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -97,6 +99,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Hestia,
     GodName::Europa,
     GodName::Bia,
+    GodName::Clio,
 ]);
 
 impl GodName {
@@ -559,6 +562,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     hestia::build_hestia(),
     europa::build_europa(),
     bia::build_bia(),
+    clio::build_clio(),
 ]);
 
 #[macro_export]
