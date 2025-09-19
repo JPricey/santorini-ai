@@ -376,8 +376,8 @@ function SvgBoard({ gameState, width, height, onClick, availableActions }: SvgBo
                                 action === null ? null :
                                     <polygon key='action' points={actionPath} fill={actionToFill(action)} className='action-selection' />
                             }
-                            {workerEllipse()}
                             {tokenTriangle()}
+                            {workerEllipse()}
                         </g>
                     );
                 })
