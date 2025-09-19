@@ -37,6 +37,7 @@ export const WIP_GODS: Set<GodType> = new Set([
     God.Morpheus,
     God.Aeolus,
     God.Hestia,
+    God.Europa,
     God.Bia,
 ]);
 
