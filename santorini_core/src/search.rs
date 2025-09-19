@@ -379,10 +379,7 @@ where
             placement.make_move(&mut best_child_state.board, starting_mode.next_placement);
         } else {
             let active_god = root_state.get_active_god();
-            active_god.make_move_checking_end_game_conditions(
-                &mut best_child_state.board,
-                tt_entry.best_action,
-            );
+            active_god.make_move(&mut best_child_state.board, tt_entry.best_action);
         }
 
         let new_best_move = BestSearchResult::new(

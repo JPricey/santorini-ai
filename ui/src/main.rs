@@ -277,6 +277,10 @@ impl MyApp {
     }
 
     pub fn get_action_for_square(&mut self, square: Square) -> Option<PartialAction> {
+        if self.available_next_actions == vec![PartialAction::NoMoves] {
+            return Some(PartialAction::NoMoves);
+        }
+
         let mut has_end = false;
 
         for action in &self.available_next_actions {

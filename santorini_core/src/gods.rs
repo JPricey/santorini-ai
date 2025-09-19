@@ -389,7 +389,7 @@ impl GodPower {
             .into_iter()
             .flat_map(|action| {
                 let mut result_state = state.board.clone();
-                self.make_move_checking_end_game_conditions(&mut result_state, action.action);
+                self.make_move(&mut result_state, action.action);
                 let action_paths = (self._get_actions_for_move)(&state.board, action.action);
 
                 action_paths.into_iter().map(move |full_actions| {
@@ -409,7 +409,7 @@ impl GodPower {
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
-                self.make_move_checking_end_game_conditions(&mut result_state, action.action);
+                self.make_move(&mut result_state, action.action);
                 result_state
             })
             .collect()
@@ -447,22 +447,6 @@ impl GodPower {
 
     pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
         (self._make_move)(board, action);
-        board.flip_current_player();
-    }
-
-    pub fn make_move_checking_end_game_conditions(
-        &self,
-        board: &mut BoardState,
-        action: GenericMove,
-    ) {
-        let pre_oppo_workers = board.workers[!board.current_player as usize].count_ones();
-        (self._make_move)(board, action);
-        let post_oppo_workers = board.workers[!board.current_player as usize].count_ones();
-
-        if post_oppo_workers == 0 && pre_oppo_workers > 0 {
-            board.set_winner(board.current_player);
-        }
-
         board.flip_current_player();
     }
 

@@ -195,6 +195,7 @@ pub(super) fn bia_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(bia_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let targetable_oppo_workers = prelude.oppo_workers & !prelude.domes_and_frozen;
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
@@ -228,7 +229,7 @@ pub(super) fn bia_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             if let Some(next_square) = next_square_test {
                 let next_mask = BitBoard::as_mask(next_square);
-                if (next_mask & prelude.oppo_workers).is_not_empty() {
+                if (next_mask & targetable_oppo_workers).is_not_empty() {
                     let new_oppo_workers = prelude.oppo_workers ^ next_mask;
 
                     if prelude.is_against_harpies {
@@ -377,6 +378,7 @@ mod tests {
         player::Player,
         search::{SearchContext, WINNING_SCORE_BUFFER, negamax_search},
         search_terminators::DynamicMaxDepthSearchTerminator,
+        square::Square,
         transposition_table::TranspositionTable,
     };
 
@@ -395,12 +397,12 @@ mod tests {
     }
 
     #[test]
-    fn test_bia_next_states_includes_kill() {
+    fn test_bia_kills() {
         let state = parse_fen("04040 04040 04040 04440 00000/1/bia:C3/mortal:C5").unwrap();
         let next_states = state.get_next_states();
-        assert!(next_states.len() > 0);
-        for s in &next_states {
-            assert_eq!(s.get_winner(), Some(Player::One))
+        assert_eq!(next_states.len(), 2);
+        for s in next_states {
+            assert!(s.board.workers[1].all_squares().is_empty());
         }
     }
 
@@ -458,5 +460,15 @@ mod tests {
         assert_eq!(child_board.current_player, Player::Two);
         assert!(child_board.workers[0].is_not_empty());
         assert!(child_board.workers[1].is_empty());
+    }
+
+    #[test]
+    fn test_bia_doesnt_kill_clio_on_coin() {
+        let state = parse_fen("04040 04040 04040 04440 00000/1/bia:C3/clio[0|C5]:C5").unwrap();
+        let next_states = state.get_next_states();
+        assert_eq!(next_states.len(), 1);
+
+        let next_state = next_states[0].clone();
+        assert_eq!(next_state.board.workers[1].all_squares(), vec![Square::C5]);
     }
 }
