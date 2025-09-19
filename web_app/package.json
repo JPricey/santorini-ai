@@ -30,7 +30,7 @@
     "build:wasm": "RUSTFLAGS='-C target-feature=+bulk-memory --cfg getrandom_backend=\"wasm_js\"' rustup run nightly wasm-pack build --target web --out-dir ../web_app/pkg ../wasm_app -- -Z build-std=panic_abort,std",
     "dev": "vite",
     "tsc": "tsc --noEmit",
-    "build": "vite build --base=https://jpricey.github.io/god-game/",
+    "build": "vite build --base=https://jpricey.github.io/santorini-ai/",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest"
