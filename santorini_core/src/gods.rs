@@ -102,6 +102,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Europa,
     GodName::Bia,
     GodName::Clio,
+    GodName::Maenads,
 ]);
 
 impl GodName {
