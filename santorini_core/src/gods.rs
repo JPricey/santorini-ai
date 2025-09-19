@@ -33,6 +33,7 @@ pub(crate) mod hermes;
 pub(crate) mod hestia;
 pub(crate) mod hypnus;
 pub(crate) mod limus;
+pub(crate) mod maenads;
 pub(crate) mod minotaur;
 pub(crate) mod morpheus;
 pub(crate) mod mortal;
@@ -87,6 +88,7 @@ pub enum GodName {
     Europa = 23,
     Bia = 24,
     Clio = 25,
+    Maenads = 26,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -547,6 +549,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     europa::build_europa(),
     bia::build_bia(),
     clio::build_clio(),
+    maenads::build_maenads(),
 ]);
 
 #[macro_export]

@@ -720,6 +720,13 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if other_god.god_name == GodName::Maenads {
+                // TODO: scope this down.
+                // Maenads dancing wins have a huge blocker board, since so far we haven't included
+                // FROM positions as part of key square maps
+                continue;
+            }
+
             let mut err_str = format!("Block move didn't remove any wins: {}: ", stringed_action);
             for winning_action in other_wins {
                 err_str.push_str(&format!(
@@ -812,6 +819,12 @@ impl ConsistencyChecker {
                     if win_state.board.workers[!current_player as usize].is_empty() {
                         continue;
                     }
+                }
+
+                if is_real_checker && active_god.god_name == GodName::Maenads {
+                    // maenads dancing kills...
+                    // TODO: include these
+                    continue;
                 }
 
                 if is_real_checker
@@ -924,8 +937,6 @@ impl ConsistencyChecker {
             return;
         }
 
-        let new_oppo_workes = won_state.board.workers[!current_player as usize];
-
         let old_workers = state.board.workers[current_player as usize];
         let new_workers = won_state.board.workers[current_player as usize];
         let old_only = old_workers & !new_workers;
@@ -938,6 +949,11 @@ impl ConsistencyChecker {
         let new_height = won_state.board.get_height(new_pos) as i32;
         let is_pan_falling_win =
             active_god.god_name == GodName::Pan && new_height <= old_height - 2;
+
+        if active_god.god_name == GodName::Maenads {
+            // Maenads wins by dancing
+            return;
+        }
 
         let can_climb = other_god.can_opponent_climb(&state.board, !current_player);
         if !can_climb && !is_pan_falling_win {
@@ -962,11 +978,6 @@ impl ConsistencyChecker {
         }
 
         if is_pan_falling_win {
-            return;
-        }
-
-        if active_god.god_name == GodName::Bia && new_oppo_workes.count_ones() == 0 {
-            // Bia win by kills
             return;
         }
 

@@ -94,6 +94,26 @@ pub const PUSH_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
     result
 };
 
+pub const BETWEEN_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
+    let mut result = [[None; NUM_SQUARES]; NUM_SQUARES];
+    const_for!(from in 0..25 => {
+        let from_square: Square = transmute_enum!(from as u8);
+        let from_coord = from_square.to_icoord();
+        const_for!(direction_idx in 0..8 => {
+            let direction = Direction::from_u8(direction_idx as u8);
+            let delta = direction.to_icoord();
+
+            let mid_coord = from_coord.add(delta);
+            let other_coord = mid_coord.add(delta);
+
+            if let Some(other_square) = other_coord.to_square() && let Some(mid_square) = mid_coord.to_square() {
+                result[from as usize][other_square as usize] = Some(mid_square);
+            }
+        });
+    });
+    result
+};
+
 pub const DIRECTION_MAPPING: [[Option<Square>; NUM_SQUARES]; 8] = {
     let mut result = [[None; NUM_SQUARES]; 8];
 
@@ -314,6 +334,15 @@ impl BitBoard {
 
     pub const fn lsb(self) -> Square {
         transmute_enum!(self.0.trailing_zeros() as u8)
+    }
+
+    pub const fn maybe_lsb(self) -> Option<Square> {
+        let lsb = self.0.trailing_zeros() as u8;
+        if lsb < 25 {
+            Some(transmute_enum!(lsb))
+        } else {
+            None
+        }
     }
 
     pub const fn is_empty(self) -> bool {
