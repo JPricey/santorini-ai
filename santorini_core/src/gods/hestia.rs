@@ -337,5 +337,4 @@ pub const fn build_hestia() -> GodPower {
         12982186464139786853,
         3782535430861395330,
     )
-    .with_nnue_god_name(GodName::Demeter)
 }

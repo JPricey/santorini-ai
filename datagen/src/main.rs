@@ -2,7 +2,7 @@ use clap::Parser;
 use rand::distr::Alphanumeric;
 use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::{Rng, rng};
-use santorini_core::gods::{ALL_GODS_BY_ID, GodName, WIP_GODS};
+use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::matchup::{Matchup, MatchupSelector};
 use santorini_core::placement::{get_placement_actions, get_starting_placement_state};
 use santorini_core::player::Player;

@@ -123,7 +123,6 @@ pub const fn build_persephone() -> GodPower {
         6544769205610216454,
     )
     .with_is_persephone()
-    .with_nnue_god_name(GodName::Mortal)
 }
 
 #[cfg(test)]

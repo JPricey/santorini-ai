@@ -123,7 +123,6 @@ pub const fn build_aphrodite() -> GodPower {
         2419339499129334119,
     )
     .with_is_aphrodite()
-    .with_nnue_god_name(GodName::Mortal)
 }
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ use santorini_core::{
     utils::timestamp_string,
 };
 
-const DEFAULT_DURATION_SECS: f32 = 5.0;
+const DEFAULT_DURATION_SECS: f32 = 1.0;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -31,7 +31,7 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         //     santorini_core::player::Player::One,
         //     &santorini_core::gods::WIP_GODS,
         // )
-        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Ares])
+        // .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Ares])
         .get_all();
 
     // for m in &all_matchups {

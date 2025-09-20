@@ -19,7 +19,7 @@ use santorini_core::{
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction, WIP_GODS},
     player::Player,
     pretty_board::{game_state_with_partial_actions, get_acting_player},
-    search::{BestSearchResult, WINNING_SCORE, WINNING_SCORE_BUFFER},
+    search::{BestMoveTrigger, BestSearchResult, WINNING_SCORE, WINNING_SCORE_BUFFER},
     square::Square,
     utils::sigmoid,
 };
@@ -162,7 +162,7 @@ impl EngineThinkingState {
     }
 
     pub fn add_message(&mut self, state: &FullGameState, message: BestSearchResult) {
-        if state == &self.state {
+        if state == &self.state && message.trigger != BestMoveTrigger::Seed {
             self.engine_messages
                 .push((message, self.start_time.elapsed()));
         }
@@ -980,7 +980,9 @@ impl eframe::App for MyApp {
                     });
                 });
 
-                ui.checkbox(&mut self.may_show_wip_gods, "Include WIP gods").on_hover_text("Some gods are WIP, meaning their move logic is supported, but the AI does not know how to evaluate their positions correctly. Check this box to include them in the gods picker");
+                if WIP_GODS.len() > 0 {
+                    ui.checkbox(&mut self.may_show_wip_gods, "Include WIP gods").on_hover_text("Some gods are WIP, meaning their move logic is supported, but the AI does not know how to evaluate their positions correctly. Check this box to include them in the gods picker");
+                }
 
                 ui.heading("Modes");
                 let before = self.edit_mode;

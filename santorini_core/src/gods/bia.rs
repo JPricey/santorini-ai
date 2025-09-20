@@ -357,7 +357,6 @@ pub(super) const fn build_bia() -> GodPower {
     )
     .with_is_placement_priority()
     .with_placement_type(PlacementType::PerimeterOnly)
-    .with_nnue_god_name(GodName::Mortal)
 }
 
 #[cfg(test)]

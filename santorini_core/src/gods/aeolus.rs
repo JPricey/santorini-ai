@@ -425,7 +425,6 @@ pub const fn build_aeolus() -> GodPower {
         12246185600298435959,
         13250172022449743639,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_get_wind_idx_fn(get_wind_idx)

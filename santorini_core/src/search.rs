@@ -37,6 +37,7 @@ pub enum BestMoveTrigger {
     EndOfLine,
     Improvement,
     Saved,
+    Seed,
 }
 
 #[derive(Clone, Debug)]
@@ -396,14 +397,31 @@ where
         );
         search_state.best_move = Some(new_best_move.clone());
         (search_context.new_best_move_callback)(new_best_move);
+    } else {
+        // Pick a random move to start with, to make sure we don't fail to find any move
+        let all_next_states = root_state.get_all_next_states_with_actions();
+
+        if let Some((next_state, next_action)) = all_next_states.last() {
+            let new_best_move = BestSearchResult::new(
+                next_state.clone(),
+                next_action.clone(),
+                starting_mode.is_some(),
+                -INFINITY,
+                0,
+                0,
+                BestMoveTrigger::Seed,
+            );
+            search_state.best_move = Some(new_best_move.clone());
+            (search_context.new_best_move_callback)(new_best_move);
+        }
     }
 
     let start_depth = starting_mode.is_none() as usize;
 
     let mut nnue_acc = LabeledAccumulator::new_from_scratch(
         &root_state.board,
-        root_state.gods[0].god_name,
-        root_state.gods[1].god_name,
+        root_state.gods[0].model_god_name,
+        root_state.gods[1].model_god_name,
     );
 
     for depth in start_depth.. {

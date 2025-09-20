@@ -22,7 +22,7 @@ use crate::{
 
 use serde::{Deserialize, Serialize};
 
-pub(crate) type GodData = u32;
+pub type GodData = u32;
 pub type GodPair = [StaticGod; 2];
 
 #[derive(Clone, PartialEq, Eq)]
@@ -148,6 +148,33 @@ impl FullGameState {
             _frozen_squares(self, Player::One),
             _frozen_squares(self, Player::Two),
         )
+    }
+
+    pub fn get_all_next_states_with_actions(&self) -> Vec<(FullGameState, GenericMove)> {
+        let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
+
+        if let Some(placement_mode) = placement_mode {
+            get_placement_actions::<false>(self, placement_mode)
+                .into_iter()
+                .map(|a| {
+                    (
+                        a.make_on_clone(self, placement_mode.next_placement),
+                        a.into(),
+                    )
+                })
+                .collect()
+        } else {
+            let active_god = self.get_active_god();
+            active_god
+                .get_moves_for_search(&self, self.board.current_player)
+                .into_iter()
+                .map(|a| {
+                    let mut state_clone = self.clone();
+                    active_god.make_move(&mut state_clone.board, a.action);
+                    (state_clone, a.action)
+                })
+                .collect()
+        }
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {

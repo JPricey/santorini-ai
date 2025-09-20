@@ -5,11 +5,13 @@ use crate::{
     direction::Direction,
     gods::generic::{GenericMove, GodMove, ScoredMove},
     hashing::HashType,
+    nnue::NNUE_MORPHEUS_MAX_BLOCKS_INCLUSIVE,
     placement::PlacementType,
     player::Player,
     square::Square,
     utils::hash_u64,
 };
+use const_for::const_for;
 use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
@@ -96,21 +98,8 @@ pub enum GodName {
     Ares = 28,
 }
 
-// pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [
-    GodName::Aphrodite,
-    GodName::Persephone,
-    GodName::Hades,
-    GodName::Morpheus,
-    GodName::Aeolus,
-    GodName::Hestia,
-    GodName::Europa,
-    GodName::Bia,
-    GodName::Clio,
-    GodName::Maenads,
-    GodName::Zeus,
-    GodName::Ares,
-]);
+pub const WIP_GODS: [GodName; 0] = [];
+// counted_array!(pub const WIP_GODS: [GodName; _] = [ ]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -564,6 +553,40 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     ares::build_ares(),
 ]);
 
+pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
+    match god_name {
+        GodName::Athena => 1,
+        GodName::Morpheus => NNUE_MORPHEUS_MAX_BLOCKS_INCLUSIVE as usize,
+        GodName::Aeolus => 8,
+        GodName::Europa => 25,
+        GodName::Clio => 26,
+        _ => 0,
+    }
+}
+
+pub const GOD_FEATURE_OFFSETS: [usize; ALL_GODS_BY_ID.len()] = {
+    let mut res = [0; ALL_GODS_BY_ID.len()];
+
+    let mut current_offset = 0;
+    const_for!(god_idx in 0..ALL_GODS_BY_ID.len() => {
+        let god_name = ALL_GODS_BY_ID[god_idx].god_name;
+        res[god_idx] = current_offset;
+        current_offset += god_name_to_nnue_size(god_name);
+    });
+
+    res
+};
+
+pub const TOTAL_GOD_DATA_FEATURE_COUNT: usize = {
+    let mut res = 0;
+    const_for!(god_idx in 0..ALL_GODS_BY_ID.len() => {
+        let god_name = ALL_GODS_BY_ID[god_idx].god_name;
+        res += god_name_to_nnue_size(god_name);
+    });
+
+    res
+};
+
 #[macro_export]
 macro_rules! build_god_power_movers {
     (
@@ -691,6 +714,7 @@ const fn god_power(
 }
 
 impl GodPower {
+    #[allow(dead_code)]
     pub(super) const fn with_nnue_god_name(mut self, name: GodName) -> Self {
         self.model_god_name = name;
         self

@@ -372,7 +372,6 @@ pub const fn build_clio() -> GodPower {
         4755690011371988784,
         3211938079590198314,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)

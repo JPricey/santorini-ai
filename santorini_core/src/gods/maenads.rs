@@ -303,7 +303,6 @@ pub const fn build_maenads() -> GodPower {
         6024874840407544606,
         8949450171891062378,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }
 
 #[cfg(test)]

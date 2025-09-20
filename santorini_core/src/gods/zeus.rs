@@ -143,5 +143,4 @@ pub const fn build_zeus() -> GodPower {
         12061343469622292818,
         398941887106100521,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

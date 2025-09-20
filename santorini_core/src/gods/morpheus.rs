@@ -610,7 +610,6 @@ pub const fn build_morpheus() -> GodPower {
         838429420552497011,
         482189877001639000,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)

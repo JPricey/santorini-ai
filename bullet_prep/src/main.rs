@@ -1,33 +1,146 @@
 use std::fs::{self, File, OpenOptions, remove_file};
 use std::io::{BufReader, BufWriter, prelude::*};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
+use clap::Parser;
 use rand::seq::SliceRandom;
 use rand::{Rng, rng};
 use santorini_core::bitboard::BitBoard;
-use santorini_core::board::FullGameState;
-use santorini_core::gods::GodName;
+use santorini_core::board::{BoardState, FullGameState, GodData, GodPair};
+use santorini_core::gods::{
+    GOD_FEATURE_OFFSETS, GodName, TOTAL_GOD_DATA_FEATURE_COUNT, god_name_to_nnue_size,
+};
 use santorini_core::matchup::Matchup;
+use santorini_core::nnue::{build_feature_set, emit_god_data_features};
 use santorini_core::player::Player;
+use santorini_core::utils::timestamp_string;
 
 // !!! BulletSantoriniBoard needs to match exactly with the definition in santorini-trainer rep
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BulletSantoriniBoard {
-    height_maps: [BitBoard; 4],
-    worker_maps: [BitBoard; 2],
-    score: i16,
-    result: u8,
-    god1: u8,
-    god2: u8,
-    is_athena_block: bool,
-    extra: u8,
+    // First 100 bits into height map
+    // top 28 bits are:
+    // 8 bit result
+    // 8 bit god1 id
+    // 8 bit god2 id
+    height_maps: u128,
+    worker_maps: [u32; 2],
+    god_datas: [u32; 2],
 }
 const _RIGHT_SIZE: () = assert!(std::mem::size_of::<BulletSantoriniBoard>() == 32);
 
+const NUM_GODS: usize = 27;
+const BOARD_FULL_MASK: u32 = (1 << 25) - 1;
+const BASE_FEATURES: usize = 5 * 25;
+const WORKER_FEATURES: usize = 25 * 4;
+
+const PLAYER_GODS_OFFSET: usize = 0;
+const PLAYER_WORKERS_OFFSET: usize = PLAYER_GODS_OFFSET + NUM_GODS;
+const PLAYER_DATAS_OFFSET: usize = PLAYER_WORKERS_OFFSET + WORKER_FEATURES;
+const PER_SIDE_FEATURES: usize = PLAYER_DATAS_OFFSET + TOTAL_GOD_DATA_FEATURE_COUNT;
+
+const ACTIVE_PLAYER_OFFSET: usize = BASE_FEATURES;
+
+const OPPO_OFFSET: usize = ACTIVE_PLAYER_OFFSET + PER_SIDE_FEATURES;
+
+fn _get_worker_pos_height(height_maps: u128, pos: usize) -> usize {
+    let pos = pos as u128;
+
+    let res = ((height_maps >> pos) & 1)
+        + 2 * ((height_maps >> (25 + pos)) & 1)
+        + 3 * ((height_maps >> (50 + pos)) & 1)
+        + 4 * ((height_maps >> (75 + pos)) & 1);
+    res as usize
+}
+
+type FType = usize;
+impl BulletSantoriniBoard {
+    fn map_features<F: FnMut(FType)>(&self, mut f: F) {
+        let mut remaining_spaces = BOARD_FULL_MASK;
+        for h_idx in (0..4).rev() {
+            let mut height_mask: u32 =
+                ((self.height_maps >> (h_idx * 25)) as u32) & BOARD_FULL_MASK;
+            remaining_spaces ^= height_mask;
+
+            let height = h_idx + 1;
+            while height_mask > 0 {
+                let square = height_mask.trailing_zeros() as FType;
+                height_mask &= height_mask - 1;
+                let feature = (square * 5 + height as FType) as FType;
+                f(feature);
+            }
+        }
+
+        while remaining_spaces > 0 {
+            let square = remaining_spaces.trailing_zeros();
+            remaining_spaces &= remaining_spaces - 1;
+            let feature = (square * 5) as FType;
+            f(feature);
+        }
+
+        let god1 = ((self.height_maps >> 108) as u8) as usize;
+        let god2 = ((self.height_maps >> 116) as u8) as usize;
+
+        let player_offsets = [
+            ACTIVE_PLAYER_OFFSET + PLAYER_WORKERS_OFFSET,
+            OPPO_OFFSET + PLAYER_WORKERS_OFFSET,
+        ];
+
+        let data_offsets = [
+            ACTIVE_PLAYER_OFFSET + PLAYER_DATAS_OFFSET + GOD_FEATURE_OFFSETS[god1],
+            OPPO_OFFSET + PLAYER_DATAS_OFFSET + GOD_FEATURE_OFFSETS[god2],
+        ];
+
+        f(ACTIVE_PLAYER_OFFSET + god1 as usize);
+        f(OPPO_OFFSET + god2 as usize);
+
+        for i in 0..2 {
+            let mut worker_map = self.worker_maps[i];
+            while worker_map > 0 {
+                let pos = worker_map.trailing_zeros() as FType;
+                worker_map &= worker_map - 1;
+                let worker_height = _get_worker_pos_height(self.height_maps, pos);
+                let worker_pos_delta = 4 * pos + worker_height;
+
+                let stm = player_offsets[i] + worker_pos_delta;
+                f(stm);
+            }
+
+            let mut god_data = self.god_datas[i];
+            while god_data > 0 {
+                let pos = god_data.trailing_zeros() as FType;
+                god_data &= god_data - 1;
+                let stm = data_offsets[i] + pos;
+                f(stm);
+            }
+        }
+    }
+}
+
 const TMP_OUTPUT_FILE_COUNT: usize = 1024;
 
-fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player, i16)> {
+fn extract_god_data(god: GodName, data: GodData) -> u32 {
+    let res = _extract_god_data_to_u32(god, data);
+    let max_size = god_name_to_nnue_size(god);
+
+    assert!(res.leading_zeros() as u32 >= (32 - max_size as u32));
+
+    res
+}
+
+fn _extract_god_data_to_u32(god: GodName, data: GodData) -> u32 {
+    let mut res = 0;
+
+    emit_god_data_features(god, data, |feature_idx| {
+        res |= 1 << feature_idx;
+    });
+
+    res
+}
+
+fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player)> {
     let parts: Vec<_> = row.split(' ').collect();
     if parts.len() < 6 {
         eprintln!("skipping malformed row: {}", row);
@@ -35,13 +148,13 @@ fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player, i1
     }
     let fen_str = parts[0];
     let winner_str = parts[1];
-    let score_str = parts[2];
+    let _score_str = parts[2];
     let _ply_str = parts[3];
     let _depth_str = parts[4];
     let _nodes_str = parts[5];
 
     let full_state = FullGameState::try_from(fen_str).expect("Could not parse fen");
-    let score: i16 = score_str.parse().expect("Could not parse score");
+    // let score: i16 = score_str.parse().expect("Could not parse score");
     let winner_idx: i32 = winner_str.parse().expect("Could not parse winner");
 
     let winner = match winner_idx {
@@ -50,7 +163,7 @@ fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player, i1
         _ => panic!("Winner string must be either 1 or 2"),
     };
 
-    Some((full_state, winner, score))
+    Some((full_state, winner))
 }
 
 fn write_data_file<T: Copy>(items: &[T], path: &PathBuf) -> std::io::Result<()> {
@@ -117,15 +230,195 @@ fn all_filenames_in_dir(root: &PathBuf) -> Result<Vec<PathBuf>, Box<dyn std::err
     Ok(files)
 }
 
+// First 100 bits of this 128 are an exclusive height map. That is:
+// 0..25: true if this square is exactly h=1
+// 25..50: true if this square is exactly h=2
+// ...
+// Height 0 is completely skipped for space
+fn height_map_to_exclusive_height_u128(heights: &[BitBoard; 4]) -> u128 {
+    let mut result: u128 = 0;
+
+    let mut remaining_spaces: u32 = (1 << 25) - 1;
+    for height in (0..4).rev() {
+        let height_mask = heights[height].0 & remaining_spaces;
+        remaining_spaces ^= height_mask;
+
+        result |= (height_mask as u128) << (height * 25);
+    }
+
+    result
+}
+
+fn fill_results_data(heights: &mut u128, result: u8, god1: u8, god2: u8) {
+    let extra: u32 = ((result as u32) << 0) | ((god1 as u32) << 8) | ((god2 as u32) << 16);
+    *heights |= (extra as u128) << 100;
+}
+
+fn convert_state_to_bullet(
+    board: &BoardState,
+    gods: GodPair,
+    winner: Player,
+) -> BulletSantoriniBoard {
+    let [god1, god2] = gods;
+
+    let mut height_maps = height_map_to_exclusive_height_u128(&board.height_map);
+
+    let worker_maps = [board.workers[0].0, board.workers[1].0];
+    let god_datas = [
+        extract_god_data(god1.god_name, board.god_data[0]),
+        extract_god_data(god2.god_name, board.god_data[1]),
+    ];
+
+    let winner_result: u8 = (board.current_player == winner) as u8;
+    if board.current_player == Player::Two {
+        fill_results_data(
+            &mut height_maps,
+            winner_result,
+            god2.god_name as u8,
+            god1.god_name as u8,
+        );
+
+        return BulletSantoriniBoard {
+            height_maps,
+            worker_maps: [worker_maps[1], worker_maps[0]],
+            god_datas: [god_datas[1], god_datas[0]],
+        };
+    } else {
+        fill_results_data(
+            &mut height_maps,
+            winner_result,
+            god1.god_name as u8,
+            god2.god_name as u8,
+        );
+
+        BulletSantoriniBoard {
+            height_maps,
+            worker_maps,
+            god_datas,
+        }
+    }
+}
+
+fn process_raw_data_files_worker(
+    input_files_queue: Arc<Mutex<Vec<PathBuf>>>,
+    output_files: Arc<Mutex<Vec<File>>>,
+    used_features: Arc<Mutex<Vec<u32>>>,
+    total_records: Arc<Mutex<usize>>,
+    delete_source: bool,
+) {
+    let try_fetch_next_input = move || {
+        let mut queue = input_files_queue.lock().unwrap();
+        let res = queue.pop();
+
+        println!("{} Queue size: {}", timestamp_string(), queue.len());
+
+        res
+    };
+
+    let mut total_examples = 0;
+    let mut current_buffer = Vec::new();
+    let mut temp_file_buffers: Vec<Vec<BulletSantoriniBoard>> =
+        vec![Vec::new(); TMP_OUTPUT_FILE_COUNT];
+    let all_god_datas = vec![0_u32; santorini_core::gods::ALL_GODS_BY_ID.len()];
+
+    loop {
+        let Some(next_input_file) = try_fetch_next_input() else {
+            break;
+        };
+
+        current_buffer.clear();
+        for buffer in &mut temp_file_buffers {
+            buffer.clear();
+        }
+
+        // println!("Processing {:?}", next_input_file);
+
+        let file_handle = File::open(&next_input_file).expect("Failed to open file");
+        let reader = BufReader::new(file_handle);
+
+        for line in reader.lines() {
+            let Some((state, winner)) =
+                convert_row_to_board_and_meta(&line.expect("Failed to read line"))
+            else {
+                continue;
+            };
+
+            for perm in state
+                .board
+                .get_all_permutations::<true>(state.gods, state.base_hash())
+            {
+                let bullet_board = convert_state_to_bullet(&perm, state.gods, winner);
+                current_buffer.push(bullet_board);
+            }
+        }
+
+        total_examples += current_buffer.len();
+
+        println!(
+            "{}: Shuffling and distributing {} examples",
+            timestamp_string(),
+            current_buffer.len()
+        );
+
+        let mut rng = rng();
+        current_buffer.shuffle(&mut rng);
+        for state in &current_buffer {
+            let file_idx = rng.random_range(0..TMP_OUTPUT_FILE_COUNT);
+            temp_file_buffers[file_idx].push(*state);
+        }
+
+        let mut output_files = output_files.lock().unwrap();
+        for (file_idx, buffer) in temp_file_buffers.iter_mut().enumerate() {
+            write_data_file_with_handle(buffer, &mut output_files[file_idx])
+                .expect("Failed to write to output file");
+        }
+
+        if delete_source {
+            if let Err(e) = std::fs::remove_file(&next_input_file) {
+                eprintln!(
+                    "{}: Warning: Failed to delete source file {:?}: {}",
+                    timestamp_string(),
+                    next_input_file,
+                    e
+                );
+            } else {
+                println!(
+                    "{}: Deleted source file: {:?}",
+                    timestamp_string(),
+                    next_input_file
+                );
+            }
+        }
+    }
+
+    println!("{}: Worker exiting", timestamp_string());
+
+    {
+        let mut god_datas = used_features.lock().unwrap();
+        for (i, data) in all_god_datas.iter().enumerate() {
+            god_datas[i] |= *data;
+        }
+    }
+
+    {
+        let mut total = total_records.lock().unwrap();
+        *total += total_examples;
+    }
+}
+
 // Step 1: Convert raw data files to temporary bullet format files, distributing across multiple outputs
 fn process_raw_data_files(
     input_dir: PathBuf,
     temp_dir: PathBuf,
     delete_source: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut rng = rng();
+    let num_workers = num_cpus::get();
     let all_data_files = all_filenames_in_dir(&input_dir)?;
-
+    println!(
+        "Found {} raw data files, using {} worker threads",
+        all_data_files.len(),
+        num_workers
+    );
     std::fs::create_dir_all(&temp_dir)?;
 
     let mut temp_files: Vec<File> = Vec::with_capacity(TMP_OUTPUT_FILE_COUNT);
@@ -138,103 +431,59 @@ fn process_raw_data_files(
             .open(temp_file_path)?;
         temp_files.push(file);
     }
+    let output_files = Arc::new(Mutex::new(temp_files));
 
-    let mut total_examples = 0;
+    let input_files_queue = Arc::new(Mutex::new(all_data_files));
+    let used_features = Arc::new(Mutex::new(vec![
+        0_u32;
+        santorini_core::gods::ALL_GODS_BY_ID.len()
+    ]));
+    let total_records = Arc::new(Mutex::new(0_usize));
 
-    let mut current_buffer = Vec::new();
-    let mut temp_file_buffers: Vec<Vec<BulletSantoriniBoard>> =
-        vec![Vec::new(); TMP_OUTPUT_FILE_COUNT];
+    let mut handles = Vec::with_capacity(num_workers);
+    for _ in 0..num_workers {
+        let input_files_queue = Arc::clone(&input_files_queue);
+        let output_files = Arc::clone(&output_files);
+        let used_features = Arc::clone(&used_features);
+        let total_records = Arc::clone(&total_records);
+        let handle = std::thread::spawn(move || {
+            process_raw_data_files_worker(
+                input_files_queue,
+                output_files,
+                used_features,
+                total_records,
+                delete_source,
+            );
+        });
+        handles.push(handle);
+    }
 
-    for (i, filename) in all_data_files.iter().enumerate() {
-        println!(
-            "{}/{} Processing {:?} ({})",
-            i + 1,
-            all_data_files.len(),
-            filename,
-            total_examples
-        );
+    for handle in handles {
+        handle.join().expect("Thread panicked");
+    }
 
-        let file_handle = File::open(filename).expect("Failed to open file");
-        let reader = BufReader::new(file_handle);
+    let total_examples = *total_records.lock().unwrap();
+    println!(
+        "{}: All workers complete, processed {} total examples into {} temporary files",
+        timestamp_string(),
+        total_examples,
+        TMP_OUTPUT_FILE_COUNT
+    );
 
-        for line in reader.lines() {
-            let Some((state, winner, score)) = convert_row_to_board_and_meta(&line?) else {
-                continue;
-            };
-
-            let (god1, god2) = match state.board.current_player {
-                Player::One => (state.gods[0], state.gods[1]),
-                Player::Two => (state.gods[1], state.gods[0]),
-            };
-            let god1 = god1.god_name as u8;
-            let god2 = god2.god_name as u8;
-            // let is_athena_block = state.board.get_worker_can_climb(state.board.current_player);
-            let is_athena_block = false;
-            let result = if winner == state.board.current_player {
-                1
-            } else {
-                0
-            };
-
-            for perm in state
-                .board
-                .get_all_permutations::<true>(state.gods, state.base_hash())
-            {
-                // TODO: flip god datas too
-                let mut worker_maps = perm.workers;
-                if state.board.current_player == Player::Two {
-                    worker_maps.swap(0, 1);
-                }
-
-                let bullet_board = BulletSantoriniBoard {
-                    height_maps: perm.height_map,
-                    worker_maps,
-                    score,
-                    result,
-                    god1,
-                    god2,
-                    is_athena_block,
-                    extra: 0,
-                };
-
-                current_buffer.push(bullet_board);
-                total_examples += 1;
-            }
-        }
-
-        println!(
-            "Shuffling and distributing {} examples",
-            current_buffer.len()
-        );
-        current_buffer.shuffle(&mut rng);
-
-        for state in &current_buffer {
-            let file_idx = rng.random_range(0..TMP_OUTPUT_FILE_COUNT);
-            temp_file_buffers[file_idx].push(*state);
-        }
-        current_buffer.clear();
-
-        for (file_idx, buffer) in temp_file_buffers.iter_mut().enumerate() {
-            write_data_file_with_handle(buffer, &mut temp_files[file_idx])?;
-            buffer.clear();
-        }
-
-        if delete_source {
-            if let Err(e) = std::fs::remove_file(filename) {
-                eprintln!(
-                    "Warning: Failed to delete source file {:?}: {}",
-                    filename, e
-                );
-            } else {
-                println!("Deleted source file: {:?}", filename);
-            }
+    let all_god_datas = used_features.lock().unwrap();
+    for god in santorini_core::gods::ALL_GODS_BY_ID {
+        let god_id = god.god_name as usize;
+        let feature_count = god_name_to_nnue_size(god.god_name);
+        let all_features_used = (1 << feature_count) - 1;
+        let unused_features = all_features_used & !all_god_datas[god_id];
+        if unused_features > 0 {
+            eprintln!(
+                "Warning: God {:?} is missing features: {:032b}",
+                god.god_name, unused_features
+            );
         }
     }
 
-    println!(
-        "Processed {} total examples into {} temporary files",
-        total_examples, TMP_OUTPUT_FILE_COUNT
-    );
     Ok(())
 }
 
@@ -344,7 +593,7 @@ fn filter_atlas_vs_athena() -> Result<(), Box<dyn std::error::Error>> {
 
         for line in reader.lines() {
             let line = line?;
-            let Some((state, _, _)) = convert_row_to_board_and_meta(&line) else {
+            let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
                 eprintln!("bad line: {:?}", &line);
                 continue;
             };
@@ -361,8 +610,73 @@ fn filter_atlas_vs_athena() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn real_main() -> Result<(), Box<dyn std::error::Error>> {
-    let is_delete = true;
+#[derive(Parser, Debug)]
+struct BulletPrepArgs {
+    #[arg(
+        short = 'd',
+        long,
+        default_value_t = false,
+        help = "Delete source raw data files after processing"
+    )]
+    is_delete: bool,
+}
+
+fn _test_feature_compat(state: &FullGameState) {
+    let bullet_board = convert_state_to_bullet(&state.board, state.gods, Player::One);
+    let mut bullet_features = Vec::new();
+    bullet_board.map_features(|f| {
+        bullet_features.push(f);
+    });
+
+    let feature_set =
+        build_feature_set(&state.board, state.gods[0].god_name, state.gods[1].god_name);
+
+    let mut nnue_features: Vec<FType> = Vec::new();
+    nnue_features.extend(feature_set.ordered_features.iter().map(|x| *x as FType));
+    nnue_features.extend(feature_set.dynamic_features.iter().map(|x| *x as FType));
+
+    bullet_features.sort();
+    nnue_features.sort();
+
+    if bullet_features != nnue_features {
+        eprintln!("Feature mismatch {:?}", state);
+        eprintln!("Bullet: {:?}", bullet_features);
+        eprintln!("NNUE:   {:?}", nnue_features);
+        eprintln!("");
+    }
+}
+
+#[allow(dead_code)]
+fn _test_feature_compat_from_files() {
+    let input_path = PathBuf::from("raw_data");
+    let all_data_files = all_filenames_in_dir(&input_path).expect("Failed to list input dir");
+    for (i, filename) in all_data_files.iter().enumerate() {
+        println!(
+            "{}/{} Processing {:?}",
+            i + 1,
+            all_data_files.len(),
+            filename,
+        );
+
+        let file_handle = File::open(filename).expect("Failed to open file");
+        let reader = BufReader::new(file_handle);
+
+        for line in reader.lines() {
+            let Some((state, _)) =
+                convert_row_to_board_and_meta(&line.expect("Failed to read line"))
+            else {
+                continue;
+            };
+
+            _test_feature_compat(&state);
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn _main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = BulletPrepArgs::parse();
+    let is_delete = args.is_delete;
 
     let input_path = PathBuf::from("raw_data");
     let temp_path = PathBuf::from("temp_data");
@@ -372,79 +686,21 @@ fn real_main() -> Result<(), Box<dyn std::error::Error>> {
     process_raw_data_files(input_path, temp_path.clone(), is_delete)?;
 
     println!("Step 2: Consolidating temporary files...");
-    consolidate_temp_files(temp_path, output_path, is_delete)?;
+    consolidate_temp_files(temp_path, output_path, true)?;
 
     println!("Data preparation complete!");
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    real_main()?;
+    _main()?;
+    // _test_feature_compat_from_files();
     // filter_atlas_vs_athena()?;
     Ok(())
 }
-
-// fn break_up_final_data(
-//     final_data_path: PathBuf,
-//     temp_dir: PathBuf,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     let mut rng = rng();
-//
-//     // Read all data from final file
-//     println!("Reading final data from: {:?}", final_data_path);
-//     let mut all_data = read_data_file(&final_data_path)?;
-//     println!("Read {} total examples", all_data.len());
-//
-//     // Create temp directory
-//     std::fs::create_dir_all(&temp_dir)?;
-//
-//     // Create temp files
-//     let mut temp_files: Vec<File> = Vec::with_capacity(TMP_OUTPUT_FILE_COUNT);
-//     for i in 0..TMP_OUTPUT_FILE_COUNT {
-//         let temp_file_path = temp_dir.join(format!("temp_{:04}.dat", i));
-//         let file = OpenOptions::new()
-//             .create(true)
-//             .truncate(true)
-//             .write(true)
-//             .open(temp_file_path)?;
-//         temp_files.push(file);
-//     }
-//
-//     // Distribute data across temp files
-//     let chunk_size = (all_data.len() + TMP_OUTPUT_FILE_COUNT - 1) / TMP_OUTPUT_FILE_COUNT;
-//
-//     for (file_idx, chunk) in all_data.chunks(chunk_size).enumerate() {
-//         if file_idx >= TMP_OUTPUT_FILE_COUNT {
-//             break;
-//         }
-//
-//         println!("Writing {} examples to temp file {}", chunk.len(), file_idx);
-//         write_data_file_with_handle(chunk, &mut temp_files[file_idx])?;
-//     }
-//
-//     println!(
-//         "Successfully broke up data into {} temporary files",
-//         TMP_OUTPUT_FILE_COUNT
-//     );
-//     Ok(())
-// }
-//
-// fn main() -> Result<(), Box<dyn std::error::Error>> {
-//     let final_data_path = PathBuf::from("final_data");
-//     let temp_dir = PathBuf::from("temp_data");
-//
-//     if !final_data_path.exists() {
-//         eprintln!("Error: final_data file does not exist");
-//         return Ok(());
-//     }
-//
-//     break_up_final_data(final_data_path, temp_dir)?;
-//
-//     println!("Data break-up complete!");
-//     Ok(())
-// }
 
 // rm -rf temp_data
 // rm final_data
 // ulimit -n 2048
 // cargo run -p bullet_prep --release
+// cargo run -p bullet_prep --release -- -d

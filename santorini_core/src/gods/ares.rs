@@ -341,5 +341,4 @@ pub const fn build_ares() -> GodPower {
         17599326819886293963,
         6718403080906493456,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

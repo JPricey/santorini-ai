@@ -363,7 +363,6 @@ pub const fn build_europa() -> GodPower {
         10238480885541372364,
         2504683456410965362,
     )
-    .with_nnue_god_name(GodName::Mortal)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)

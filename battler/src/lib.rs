@@ -255,7 +255,9 @@ pub fn do_battle<'a>(
                                     }
                                     break;
                                 }
-                                BestMoveTrigger::Improvement | BestMoveTrigger::Saved => (),
+                                BestMoveTrigger::Seed
+                                | BestMoveTrigger::Improvement
+                                | BestMoveTrigger::Saved => (),
                             }
                         }
                         _ => {
@@ -278,7 +280,12 @@ pub fn do_battle<'a>(
 
         moves_made += 1;
 
-        let saved_best_move = saved_best_move.expect("Expected engine to output at least 1 move");
+        let Some(saved_best_move) = saved_best_move else {
+            panic!(
+                "{:?}: Expected engine to output at least 1 move",
+                current_state
+            );
+        };
 
         current_state = saved_best_move.next_state.clone();
 
