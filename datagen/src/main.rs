@@ -2,7 +2,7 @@ use clap::Parser;
 use rand::distr::Alphanumeric;
 use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::{Rng, rng};
-use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
+use santorini_core::gods::{ALL_GODS_BY_ID, GodName, WIP_GODS};
 use santorini_core::matchup::{Matchup, MatchupSelector};
 use santorini_core::placement::{get_placement_actions, get_starting_placement_state};
 use santorini_core::player::Player;
@@ -68,10 +68,10 @@ fn worker_thread() {
 }
 
 fn get_matchups_list() -> Vec<Matchup> {
-    // let mut gods_to_always_generate: Vec<GodName> = WIP_GODS.iter().cloned().collect();
-    // gods_to_always_generate.push(GodName::Hephaestus);
+    let gods_to_always_generate: Vec<GodName> = WIP_GODS.iter().cloned().collect();
 
     let matchup_selector = MatchupSelector::default()
+        .with_exact_gods_for_player(Player::One, &gods_to_always_generate)
         .with_can_swap_option(true)
         .with_can_mirror_option(true);
 
@@ -264,6 +264,10 @@ fn generate_one(
             .ok_or("Failed to find random child")?
             .clone();
         move_count += 1;
+
+        if current_state.get_winner().is_some() {
+            return Ok(vec![]); // Early end, no data to record
+        }
     }
 
     playout_subgame(rng, current_state, move_count, tt, 0.3)

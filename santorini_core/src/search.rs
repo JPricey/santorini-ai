@@ -364,7 +364,10 @@ where
 
     root_state.validate();
     if root_state.get_winner().is_some() {
-        panic!("Should not search in an already terminal state");
+        panic!(
+            "Should not search in an already terminal state: {:?}",
+            root_state
+        );
     }
 
     let starting_mode = get_starting_placement_state(&root_state.board, root_state.gods).unwrap();
