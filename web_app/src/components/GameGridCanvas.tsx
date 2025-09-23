@@ -145,6 +145,7 @@ function actionToFill(actionType: PlayerActionType): string {
         case PlayerActionTypes.MoveWorker:
             return 'green'
         case PlayerActionTypes.ForceOpponentWorker:
+        case PlayerActionTypes.HeroPower:
             return 'greenyellow'
         case PlayerActionTypes.Build:
             return 'red'

@@ -22,6 +22,7 @@ export const PlayerActionTypes = {
     ForceOpponentWorker: 'force_opponent_worker',
     SetWindDirection: 'set_wind_direction',
     SetTalusPosition: 'set_talus_position',
+    HeroPower: 'hero_power',
     Build: 'build',
     Destroy: 'destroy',
     Dome: 'dome',
@@ -58,6 +59,7 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.Destroy; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
     | { type: typeof PlayerActionTypes.SetTalusPosition; value: string }
+    | { type: typeof PlayerActionTypes.HeroPower; value: string }
     | { type: typeof PlayerActionTypes.SetWindDirection; value: DirectionType | null }
     | { type: typeof PlayerActionTypes.EndTurn }
     | { type: typeof PlayerActionTypes.NoMoves };
@@ -98,6 +100,8 @@ export function describeActionType(actionType: PlayerActionType): string {
             return `Destroy`;
         case PlayerActionTypes.SetTalusPosition:
             return `Place Talus`;
+        case PlayerActionTypes.HeroPower:
+            return `Use Power`;
         case PlayerActionTypes.EndTurn:
             return `End Turn`;
         case PlayerActionTypes.NoMoves:
@@ -145,6 +149,7 @@ export function describeAction(action: PlayerAction): string {
         case PlayerActionTypes.Dome:
         case PlayerActionTypes.Destroy:
         case PlayerActionTypes.SetTalusPosition:
+        case PlayerActionTypes.HeroPower:
             return `${describeActionType(action.type)} (${action.value})`;
         case PlayerActionTypes.MoveWorker:
             return `${describeActionType(action.type)} (${moveDesc(action.value)})`;

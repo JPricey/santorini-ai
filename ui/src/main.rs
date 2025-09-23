@@ -98,6 +98,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         | PartialAction::Build(x)
         | PartialAction::SetTalusPosition(x)
         | PartialAction::Dome(x)
+        | PartialAction::HeroPower(x)
         | PartialAction::Destroy(x) => Some(*x),
         PartialAction::MoveWorker(data) => Some(data.dest),
         PartialAction::ForceOpponentWorker(from, _) => Some(*from),
@@ -118,6 +119,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::Destroy(_) => egui::Color32::ORANGE,
         PartialAction::SetTalusPosition(_) => egui::Color32::PURPLE,
         PartialAction::EndTurn => egui::Color32::WHITE,
+        PartialAction::HeroPower(_) => egui::Color32::GREEN,
         PartialAction::NoMoves => egui::Color32::BLACK,
         PartialAction::SetWindDirection(maybe_direction) => match maybe_direction {
             None => egui::Color32::GRAY,
@@ -139,6 +141,7 @@ fn partial_action_label(action: &PartialAction) -> String {
         PartialAction::SetTalusPosition(_) => "Place Talus".to_string(),
         PartialAction::EndTurn => "End Turn".to_string(),
         PartialAction::NoMoves => "Pass".to_string(),
+        PartialAction::HeroPower(_) => "Use Hero Power".to_string(),
         PartialAction::SetWindDirection(maybe_direction) => match maybe_direction {
             None => "No Wind Direction".to_string(),
             Some(direction) => format!("Prevent Movements: {:?}", direction),

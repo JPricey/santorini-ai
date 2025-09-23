@@ -861,11 +861,11 @@ where
     T: SearchTerminator,
     NT: NodeType,
 {
-    // debug_assert!(state.validation_err().is_ok());
-    if let Err(err) = state.validation_err() {
-        state.print_to_console();
-        panic!("{:?}: {}", state, err);
-    }
+    debug_assert!(state.validation_err().is_ok());
+    // if let Err(err) = state.validation_err() {
+    //     state.print_to_console();
+    //     panic!("{:?}: {}", state, err);
+    // }
 
     let current_player_idx = state.board.current_player as usize;
     let other_player_idx = !state.board.current_player;

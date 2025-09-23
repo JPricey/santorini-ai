@@ -141,6 +141,7 @@ pub fn game_state_with_partial_actions(
             }
             PartialAction::NoMoves
             | PartialAction::EndTurn
+            | PartialAction::HeroPower(_)
             | PartialAction::SetWindDirection(_) => (),
         }
     }

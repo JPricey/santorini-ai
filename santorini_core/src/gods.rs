@@ -59,6 +59,7 @@ pub(crate) mod move_helpers;
 pub(crate) mod pan;
 pub(crate) mod pegasus;
 pub(crate) mod persephone;
+pub(crate) mod polyphemus;
 pub(crate) mod prometheus;
 pub(crate) mod proteus;
 pub(crate) mod scylla;
@@ -128,10 +129,11 @@ pub enum GodName {
     Iris = 40,
     Castor = 41,
     CharonV2 = 42,
+    Polyphemus = 43,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris, GodName::Castor, GodName::CharonV2]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris, GodName::Castor, GodName::CharonV2, GodName::Polyphemus]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -199,6 +201,7 @@ pub enum PartialAction {
     Dome(Square),
     Destroy(Square),
     SetTalusPosition(Square),
+    HeroPower(Square),
     SetWindDirection(Option<Direction>),
     NoMoves,
     EndTurn,
@@ -394,6 +397,8 @@ fn _default_flip_god_data(god_data: GodData) -> GodData {
     god_data
 }
 
+pub(super) type EvalScoreModifierFn = fn(GodData) -> Heuristic;
+
 pub struct GodPower {
     pub god_name: GodName,
     pub model_god_name: GodName,
@@ -417,6 +422,8 @@ pub struct GodPower {
     _flip_god_data_horizontal: FlipGodDataFn,
     _flip_god_data_vertical: FlipGodDataFn,
     _flip_god_data_transpose: FlipGodDataFn,
+
+    _eval_score_modifier_fn: Option<EvalScoreModifierFn>,
 
     // Action Fns
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
@@ -642,6 +649,14 @@ impl GodPower {
         (self._get_history_hash)(board, action)
     }
 
+    pub(super) fn get_eval_modifier(&self, god_data: GodData) -> Heuristic {
+        if let Some(modifier_fn) = self._eval_score_modifier_fn {
+            modifier_fn(god_data)
+        } else {
+            0
+        }
+    }
+
     pub(super) fn can_opponent_climb(&self, board: &BoardState, player: Player) -> bool {
         (self._can_opponent_climb_fn)(board, player)
     }
@@ -743,6 +758,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     iris::build_iris(),
     castor::build_castor(),
     charon_v2::build_charon_v2(),
+    polyphemus::build_polyphemus(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -882,6 +898,7 @@ const fn god_power(
         _flip_god_data_vertical: _default_flip_god_data,
         _flip_god_data_transpose: _default_flip_god_data,
 
+        _eval_score_modifier_fn: None,
         _get_wind_idx: _default_get_wind_idx,
 
         _make_passing_move: _default_passing_move,
@@ -1045,6 +1062,14 @@ impl GodPower {
         flip_god_data_fn: FlipGodDataFn,
     ) -> Self {
         self._flip_god_data_transpose = flip_god_data_fn;
+        self
+    }
+
+    pub(super) const fn with_eval_score_modifier_fn(
+        mut self,
+        eval_score_modifier_fn: EvalScoreModifierFn,
+    ) -> Self {
+        self._eval_score_modifier_fn = Some(eval_score_modifier_fn);
         self
     }
 }

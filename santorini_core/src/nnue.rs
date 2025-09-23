@@ -246,6 +246,7 @@ impl Accumulator {
 pub struct LabeledAccumulator {
     feature_set: FeatureSet,
     accumulator: Accumulator,
+    eval_delta: Heuristic,
 }
 
 impl Debug for LabeledAccumulator {
@@ -263,6 +264,7 @@ impl LabeledAccumulator {
         let mut res = LabeledAccumulator {
             feature_set,
             accumulator: Accumulator::new(),
+            eval_delta: 0,
         };
 
         res._apply_own_feature_set();
@@ -385,15 +387,20 @@ impl LabeledAccumulator {
             &state.board,
             state.gods[0].model_god_name,
             state.gods[1].model_god_name,
-        ))
+        ));
+        self.calc_eval_delta(state);
     }
 
-    pub fn replace_from_board(&mut self, board: &BoardState, god1: GodName, god2: GodName) {
-        self.replace_features(build_feature_set(board, god1, god2))
+    pub(crate) fn calc_eval_delta(&mut self, state: &FullGameState) {
+        let current = state.board.current_player as usize;
+        let other = 1 - (state.board.current_player as usize);
+
+        self.eval_delta = state.gods[current].get_eval_modifier(state.board.god_data[current])
+            - state.gods[other].get_eval_modifier(state.board.god_data[other]);
     }
 
     pub fn evaluate(&self) -> Heuristic {
-        MODEL.evaluate(&self.accumulator)
+        MODEL.evaluate(&self.accumulator) + self.eval_delta
     }
 }
 

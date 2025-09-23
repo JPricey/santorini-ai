@@ -7,7 +7,9 @@ use santorini_core::{
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
     matchup::MatchupSelector,
     player::Player,
-    random_utils::{get_random_move, get_random_starting_state},
+    random_utils::{
+        get_random_move, get_random_starting_state, get_random_state_flattening_powers,
+    },
 };
 
 fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
@@ -28,7 +30,8 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
             // panic!("Consistency check failed");
         }
 
-        if let Some(next_state) = get_random_move(&current_state, rng) {
+        if let Some(next_state) = get_random_state_flattening_powers(&current_state, rng) {
+            // eprintln!("{:?}", next_state);
             current_state = next_state;
         } else {
             return;
