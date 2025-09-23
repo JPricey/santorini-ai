@@ -92,7 +92,6 @@
 
 .last-ai-turn-section {
     margin-top: 50vh;
-    /* Optional: add a smooth transition if content above changes height */
     transition: margin-top 0.2s;
 }
 
