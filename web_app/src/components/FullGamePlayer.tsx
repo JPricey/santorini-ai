@@ -341,6 +341,9 @@ function GameSidebar(props: GameSidebarProps) {
 
                 <div className='game-sidebar-filler' />
 
+                <button onClick={retry} className='back-button'>
+                    Retry Match
+                </button>
                 <button onClick={returnToMenu} className='back-button'>
                     Back to Menu
                 </button>
