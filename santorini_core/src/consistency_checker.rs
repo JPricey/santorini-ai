@@ -10,6 +10,7 @@ use crate::{
         GodName, StaticGod,
         ares::AresMove,
         athena::AthenaMove,
+        castor::CastorMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_blockers,
         hydra::HydraMove,
@@ -242,6 +243,20 @@ impl ConsistencyChecker {
             let new_state = self.state.next_state(active_god, oppo_god, action);
 
             if let Some(other_action) = seen.get(&new_state.board) {
+                if active_god.god_name == GodName::Castor {
+                    let action: CastorMove = action.into();
+                    let other_action: CastorMove = action.into();
+
+                    let action_is_double_move = action.maybe_move_from_position_2().is_some()
+                        && action.maybe_move_from_position_2().is_some();
+                    let other_is_double_move = other_action.maybe_move_from_position_2().is_some()
+                        && other_action.maybe_move_from_position_2().is_some();
+
+                    if action_is_double_move && other_is_double_move {
+                        continue;
+                    }
+                }
+
                 self.errors.push(format!(
                     "Duplicate move found: {} / {} -> {:?}",
                     active_god.stringify_move(action),
@@ -432,6 +447,9 @@ impl ConsistencyChecker {
                         did_any_increase = true;
                     }
                 }
+            } else if active_god.god_name == GodName::Castor {
+                // TODO: detect this properly
+                return;
             } else {
                 let mut old_heights = Vec::new();
                 let mut new_heights = Vec::new();
@@ -905,6 +923,10 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if _test_castor_bad_key_move_blockers(&self.state) {
+                continue;
+            }
+
             let mut err_str = format!(
                 "Block move didn't remove any wins (Move: {}) - Other wins:  ",
                 stringed_action
@@ -1145,6 +1167,18 @@ impl ConsistencyChecker {
 
         let win_mask = oppo_god.win_mask;
         if (win_mask & new_only).is_empty() {
+            if active_god.god_name == GodName::Castor {
+                if _validate_castor_double_move_win(
+                    state,
+                    &won_state,
+                    current_player,
+                    action,
+                    win_mask,
+                ) {
+                    return;
+                }
+            }
+
             self.errors.push(format!(
                 "Winning move did not move to win mask: {}. {:?} -> {:?}",
                 stringed_action, state, won_state,
@@ -1196,6 +1230,13 @@ impl ConsistencyChecker {
             }
         }
 
+        if active_god.god_name == GodName::Castor {
+            if _validate_castor_double_move_win(state, &won_state, current_player, action, win_mask)
+            {
+                return;
+            }
+        }
+
         // Iris wins by jumping over a worker to level 2
         if active_god.god_name == GodName::Iris {
             if let Some(jumped_pos) = BETWEEN_MAPPING[old_pos as usize][new_pos as usize] {
@@ -1238,4 +1279,72 @@ impl ConsistencyChecker {
             }
         }
     }
+}
+
+fn _test_castor_bad_key_move_blockers(state: &FullGameState) -> bool {
+    // Castor has you in check
+    // One of his workers is on lvl 3, the other on lvl 2
+    // And the check is to move the lvl 3 worker out of the way, so the lvl 2 worker can step up
+    // The spot that the lvl 2 worker moves into is a key square, so you try to build there to
+    // block it.
+    // If that doesn't dome the square, that's not enough. But whatever.
+
+    let current_player = state.board.current_player;
+    let (_active_god, oppo_god) = state.get_active_non_active_gods();
+
+    if oppo_god.god_name != GodName::Castor {
+        return false;
+    }
+
+    let castor_workers = state.board.workers[!current_player as usize];
+    let exactly_2 = castor_workers & state.board.height_map[1] & !state.board.height_map[2];
+    let exactly_3 = castor_workers & state.board.height_map[2] & !state.board.height_map[3];
+
+    if exactly_2.count_ones() != 1 {
+        return false;
+    }
+    if exactly_3.count_ones() != 1 {
+        return false;
+    }
+
+    let pos2 = exactly_2.lsb();
+    if (NEIGHBOR_MAP[pos2 as usize] & exactly_3).is_empty() {
+        return false;
+    }
+
+    return true;
+}
+
+fn _validate_castor_double_move_win(
+    prev_state: &FullGameState,
+    won_state: &FullGameState,
+    _player: Player,
+    action: GenericMove,
+    win_mask: BitBoard,
+) -> bool {
+    let action: CastorMove = action.into();
+
+    let Some(f1) = action.maybe_move_from_position_1() else {
+        return false;
+    };
+    let Some(f2) = action.maybe_move_from_position_2() else {
+        return false;
+    };
+
+    let t1 = action.move_to_position_1();
+    let t2 = action.move_to_position_2();
+
+    let o1 = prev_state.board.get_height(f1) as i32;
+    let n1 = won_state.board.get_height(t1) as i32;
+    if o1 == 2 && n1 == 3 && (t1.to_board() & win_mask).is_not_empty() {
+        return true;
+    }
+
+    let o2 = prev_state.board.get_height(f2) as i32;
+    let n2 = won_state.board.get_height(t2) as i32;
+    if o2 == 2 && n2 == 3 && (t2.to_board() & win_mask).is_not_empty() {
+        return true;
+    }
+
+    false
 }

@@ -250,7 +250,10 @@ impl MyApp {
         let _ = self.engine.stop();
 
         if is_playable {
-            let _ = self.engine.start_search(&state, Some(callback));
+            let res = self.engine.start_search(&state, Some(callback));
+            if let Err(err) = res {
+                panic!("Failed to start search in state {:?}: {}", state, err);
+            }
         }
     }
 

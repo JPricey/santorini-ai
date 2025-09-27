@@ -672,6 +672,26 @@ impl BoardState {
             }
         }
 
+        if own_god.god_name == GodName::Castor {
+            if worker_count > 2 {
+                return Err(format!(
+                    "Player {:?} as Castor can't have more than 2 workers",
+                    player
+                ));
+            }
+
+            if [GodName::Persephone, GodName::Harpies, GodName::Hypnus]
+                .contains(&other_god.god_name)
+            {
+                if !(worker_count == 0 || worker_count == 2) {
+                    return Err(format!(
+                        "Player {:?} as Castor must have exactly 2 workers vs {:?}",
+                        player, other_god.god_name,
+                    ));
+                }
+            }
+        }
+
         if own_god.god_name == GodName::Hydra {
             if worker_count > 11 {
                 return Err(format!(

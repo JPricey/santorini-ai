@@ -31,6 +31,7 @@ pub(crate) mod athena;
 pub(crate) mod atlas;
 pub(crate) mod bia;
 pub(crate) mod charon;
+pub(crate) mod castor;
 pub(crate) mod clio;
 pub(crate) mod demeter;
 pub(crate) mod eros;
@@ -124,10 +125,11 @@ pub enum GodName {
     ApolloV2 = 38,
     Medusa = 39,
     Iris = 40,
+    Castor = 41,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris, GodName::Castor]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -737,6 +739,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     apollo_v2::build_apollo_v2(),
     medusa::build_medusa(),
     iris::build_iris(),
+    castor::build_castor(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -1071,6 +1074,16 @@ impl HistoryIdxHelper {
         } else {
             self.0 *= 101
         }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn add_known_maybe_square_with_height(
+        &mut self,
+        board: &BoardState,
+        square: Square,
+    ) {
+        let height = board.get_height(square);
+        self.add_value((square as usize) * 4 + height + 1, 101);
     }
 
     pub(crate) fn add_bool(&mut self, value: bool) {

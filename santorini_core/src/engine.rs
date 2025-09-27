@@ -167,6 +167,10 @@ impl EngineThreadWrapper {
         state: &FullGameState,
         each_move_callback: Option<EachMoveCallback>,
     ) -> Result<Receiver<BestSearchResult>, String> {
+        if let Err(err) = state.validation_err() {
+            return Err(err);
+        }
+
         if self.is_ending {
             panic!("Tried to start a search when engine thread is already ended");
         }

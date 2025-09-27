@@ -484,21 +484,13 @@ mod tests {
             for action in &moves {
                 eprintln!("{:?} {}", god_name, god.stringify_move(action.action));
             }
-            let expected_moves = if god_name == GodName::Hermes { 1 } else { 0 };
+            let expected_moves = if [GodName::Hermes, GodName::Castor].contains(&god_name) {
+                1
+            } else {
+                0
+            };
 
             assert_eq!(moves.len(), expected_moves);
         }
     }
-
-    // #[test]
-    // fn test_aeolus_permutations() {
-    //     let state =
-    //         parse_fen("01000 00200 00000 00000 00000/1/aeolus[nw]:E1,E2/mortal:A1").unwrap();
-
-    //     for s in state.get_all_permutations::<true>() {
-    //         let f = FullGameState::new(s, state.gods);
-    //         eprintln!("{:?}", f);
-    //         f.print_to_console();
-    //     }
-    // }
 }
