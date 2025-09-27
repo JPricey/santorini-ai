@@ -92,7 +92,10 @@ impl GodMove for CastorMove {
                 BitBoard::as_mask(move_from_1) ^ BitBoard::as_mask(self.move_to_position_1());
             // TODO: handle double move
             board.worker_xor(player, move_mask);
-            if let Some(build) = self.maybe_build_position_1() {
+
+            if self.get_is_winning() {
+                board.set_winner(player);
+            } else if let Some(build) = self.maybe_build_position_1() {
                 board.build_up(build);
             }
         } else {
@@ -104,9 +107,15 @@ impl GodMove for CastorMove {
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
-        // TODO: double moves
-        BitBoard::as_mask(self.definite_move_from_position_1())
-            | BitBoard::as_mask(self.move_to_position_1())
+        if let Some(mf_2) = self.maybe_move_from_position_2() {
+            BitBoard::as_mask(self.definite_move_from_position_1())
+                | BitBoard::as_mask(self.move_to_position_1())
+                | BitBoard::as_mask(mf_2)
+                | BitBoard::as_mask(self.move_to_position_2())
+        } else {
+            BitBoard::as_mask(self.definite_move_from_position_1())
+                | BitBoard::as_mask(self.move_to_position_1())
+        }
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
@@ -348,89 +357,99 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         }
     }
 
-    if is_mate_only::<F>() {
+    if is_mate_only::<F>() || MUST_CLIMB {
         return result;
     }
 
     let unblocked_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
 
+    let mut own_workers = prelude.own_workers.into_iter();
+    let Some(worker_start_1) = own_workers.next() else {
+        return result;
+    };
+
     // Double builds
-    for worker_start_1 in prelude.own_workers {
-        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_1);
+    let worker_start_state = get_worker_start_move_state(&prelude, worker_start_1);
 
-        let possible_builds_1 =
-            NEIGHBOR_MAP[worker_start_1 as usize] & unblocked_squares & prelude.build_mask;
+    let possible_builds_1 =
+        NEIGHBOR_MAP[worker_start_1 as usize] & unblocked_squares & prelude.build_mask;
 
-        // TODO: hypnus
-        let mut reach = if worker_start_state.worker_start_height == 2 {
-            WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_start_1 as usize]
+    let mut reach = if worker_start_state.worker_start_height == 2 {
+        WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_start_1 as usize]
+    } else {
+        BitBoard::EMPTY
+    };
+
+    if let Some(worker_start_2) = worker_start_state.other_own_workers.into_iter().next() {
+        if prelude.is_against_hypnus
+            && (prelude.own_workers & prelude.exactly_level_2) != prelude.own_workers
+        {
+            reach = BitBoard::EMPTY;
         } else {
-            BitBoard::EMPTY
-        };
-
-        if let Some(worker_start_2) = worker_start_state.other_own_workers.into_iter().next() {
-            reach |= WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_start_2 as usize];
-            reach &= unblocked_squares & prelude.win_mask;
-
-            let possible_builds_2 =
-                NEIGHBOR_MAP[worker_start_2 as usize] & unblocked_squares & prelude.build_mask;
-
-            let overlap = possible_builds_1 & possible_builds_2;
-            let not_overlap = !overlap;
-
-            let cant_both_build = overlap & prelude.exactly_level_3;
-
-            for b1 in possible_builds_1 {
-                let b1_mask = BitBoard::as_mask(b1);
-
-                let b2_builds =
-                    if is_interact_with_key_squares::<F>() && (key_squares & b1_mask).is_empty() {
-                        possible_builds_2 & key_squares
-                    } else {
-                        possible_builds_2 & !(cant_both_build & b1_mask)
-                    };
-
-                for b2 in b2_builds {
-                    let b2_mask = BitBoard::as_mask(b2);
-                    let both_mask = b1_mask | b2_mask;
-                    if (both_mask & not_overlap).is_empty() {
-                        if (b2 as u8) > (b1 as u8) {
-                            continue;
-                        }
-                    }
-
-                    let is_check = {
-                        let final_lvl_3 = if b1 == b2 {
-                            (prelude.exactly_level_3 & !both_mask)
-                                | (prelude.exactly_level_1 & both_mask)
-                        } else {
-                            (prelude.exactly_level_3 & !both_mask)
-                                | (prelude.exactly_level_2 & both_mask)
-                        };
-                        (final_lvl_3 & reach).is_not_empty()
-                    };
-                    let new_action = CastorMove::new_double_build(b1, b2);
-                    result.push(build_scored_move::<F, _>(new_action, is_check, false));
-                }
+            if prelude.board.get_height(worker_start_2) == 2 {
+                reach |= WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_start_2 as usize];
             }
-        } else {
-            let narrowed_builds = if is_interact_with_key_squares::<F>() {
-                possible_builds_1 & key_squares
-            } else {
-                possible_builds_1
-            };
+            reach &= unblocked_squares & prelude.win_mask;
+        }
 
-            for b1 in narrowed_builds {
-                let b1_mask = BitBoard::as_mask(b1);
+        let possible_builds_2 =
+            NEIGHBOR_MAP[worker_start_2 as usize] & unblocked_squares & prelude.build_mask;
+
+        let overlap = possible_builds_1 & possible_builds_2;
+        let not_overlap = !overlap;
+
+        for b1 in possible_builds_1 {
+            let b1_mask = BitBoard::as_mask(b1);
+
+            let b2_builds =
+                if is_interact_with_key_squares::<F>() && (key_squares & b1_mask).is_empty() {
+                    possible_builds_2 & key_squares
+                } else {
+                    possible_builds_2 & !(prelude.exactly_level_3 & b1_mask)
+                };
+
+            for b2 in b2_builds {
+                let b2_mask = BitBoard::as_mask(b2);
+                let both_mask = b1_mask | b2_mask;
+                if (both_mask & not_overlap).is_empty() {
+                    if (b2 as u8) > (b1 as u8) {
+                        continue;
+                    }
+                }
+
                 let is_check = {
-                    let final_lvl_3 =
-                        (prelude.exactly_level_3 & !b1_mask) | (prelude.exactly_level_2 & b1_mask);
-
+                    let final_lvl_3 = if b1 == b2 {
+                        (prelude.exactly_level_3 & !both_mask)
+                            | (prelude.exactly_level_1 & both_mask)
+                    } else {
+                        (prelude.exactly_level_3 & !both_mask)
+                            | (prelude.exactly_level_2 & both_mask)
+                    };
                     (final_lvl_3 & reach).is_not_empty()
                 };
-                let new_action = CastorMove::new_single_build(b1);
+                let new_action = CastorMove::new_double_build(b1, b2);
                 result.push(build_scored_move::<F, _>(new_action, is_check, false));
             }
+        }
+    } else {
+        reach &= unblocked_squares & prelude.win_mask;
+
+        let narrowed_builds = if is_interact_with_key_squares::<F>() {
+            possible_builds_1 & key_squares
+        } else {
+            possible_builds_1
+        };
+
+        for b1 in narrowed_builds {
+            let b1_mask = BitBoard::as_mask(b1);
+            let is_check = {
+                let final_lvl_3 =
+                    (prelude.exactly_level_3 & !b1_mask) | (prelude.exactly_level_2 & b1_mask);
+
+                (final_lvl_3 & reach).is_not_empty()
+            };
+            let new_action = CastorMove::new_single_build(b1);
+            result.push(build_scored_move::<F, _>(new_action, is_check, false));
         }
     }
 
