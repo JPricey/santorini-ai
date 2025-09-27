@@ -7,6 +7,7 @@ use crate::{
     gods::{
         GodName, StaticGod,
         athena::AthenaMove,
+        castor::CastorMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_worker_blocker,
         mortal::MortalMove,
@@ -174,6 +175,20 @@ impl ConsistencyChecker {
             let new_state = self.state.next_state(active_god, action);
 
             if let Some(other_action) = seen.get(&new_state.board) {
+                if active_god.god_name == GodName::Castor {
+                    let action: CastorMove = action.into();
+                    let other_action: CastorMove = action.into();
+
+                    let action_is_double_move = action.maybe_move_from_position_1().is_some()
+                        && action.maybe_move_from_position_2().is_some();
+                    let other_is_double_move = other_action.maybe_move_from_position_1().is_some()
+                        && other_action.maybe_move_from_position_2().is_some();
+
+                    if action_is_double_move && other_is_double_move {
+                        continue;
+                    }
+                }
+
                 self.errors.push(format!(
                     "Duplicate move found: {} / {} -> {:?}",
                     active_god.stringify_move(action),

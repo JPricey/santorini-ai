@@ -10,10 +10,12 @@ use crate::{
         },
         god_power,
         move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_standard_reach_board,
-            get_worker_end_move_state, get_worker_next_build_state, get_worker_next_move_state,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            build_scored_move, get_basic_moves_from_raw_data_with_custom_blockers,
+            get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state,
+            get_worker_next_build_state, get_worker_next_move_state, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, is_stop_on_mate,
             modify_prelude_for_checking_workers, push_winning_moves,
+            restrict_moves_by_affinity_area,
         },
     },
     persephone_check_result,
@@ -59,17 +61,51 @@ pub struct CastorMove(pub MoveData);
 
 impl GodMove for CastorMove {
     fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
-        if let Some(move_from_1) = self.maybe_move_from_position_1() {
+        if let Some(from1) = self.maybe_move_from_position_1() {
+            let to1 = self.move_to_position_1();
             let mut res = vec![
-                PartialAction::SelectWorker(move_from_1),
-                PartialAction::MoveWorker(self.move_to_position_1().into()),
+                PartialAction::SelectWorker(from1),
+                PartialAction::MoveWorker(to1.into()),
             ];
 
-            if let Some(build) = self.maybe_build_position_1() {
+            if let Some(from2) = self.maybe_move_from_position_2() {
+                let to2 = self.move_to_position_2();
+
+                if to1 == from2 {
+                    return vec![vec![
+                        PartialAction::SelectWorker(from2),
+                        PartialAction::MoveWorker(to2.into()),
+                        PartialAction::SelectWorker(from1),
+                        PartialAction::MoveWorker(to1.into()),
+                    ]];
+                } else if to2 == from1 {
+                    return vec![vec![
+                        PartialAction::SelectWorker(from1),
+                        PartialAction::MoveWorker(to1.into()),
+                        PartialAction::SelectWorker(from2),
+                        PartialAction::MoveWorker(to2.into()),
+                    ]];
+                } else {
+                    return vec![
+                        vec![
+                            PartialAction::SelectWorker(from1),
+                            PartialAction::MoveWorker(to1.into()),
+                            PartialAction::SelectWorker(from2),
+                            PartialAction::MoveWorker(to2.into()),
+                        ],
+                        vec![
+                            PartialAction::SelectWorker(from2),
+                            PartialAction::MoveWorker(to2.into()),
+                            PartialAction::SelectWorker(from1),
+                            PartialAction::MoveWorker(to1.into()),
+                        ],
+                    ];
+                }
+            } else if let Some(build) = self.maybe_build_position_1() {
                 res.push(PartialAction::Build(build));
                 return vec![res];
             } else {
-                todo!("Handle single/double moves");
+                return vec![res];
             }
         } else {
             // Double build
@@ -88,15 +124,25 @@ impl GodMove for CastorMove {
 
     fn make_move(self, board: &mut BoardState, player: Player) {
         if let Some(move_from_1) = self.maybe_move_from_position_1() {
-            let move_mask =
+            let mut move_mask =
                 BitBoard::as_mask(move_from_1) ^ BitBoard::as_mask(self.move_to_position_1());
-            // TODO: handle double move
-            board.worker_xor(player, move_mask);
 
-            if self.get_is_winning() {
-                board.set_winner(player);
-            } else if let Some(build) = self.maybe_build_position_1() {
-                board.build_up(build);
+            if let Some(from2) = self.maybe_move_from_position_2() {
+                move_mask ^=
+                    BitBoard::as_mask(from2) ^ BitBoard::as_mask(self.move_to_position_2());
+                board.worker_xor(player, move_mask);
+
+                if self.get_is_winning() {
+                    board.set_winner(player);
+                }
+            } else {
+                board.worker_xor(player, move_mask);
+
+                if self.get_is_winning() {
+                    board.set_winner(player);
+                } else if let Some(build) = self.maybe_build_position_1() {
+                    board.build_up(build);
+                }
             }
         } else {
             board.build_up(self.definite_build_position_1());
@@ -173,7 +219,29 @@ impl CastorMove {
         let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET_1)
             | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET_1)
             | ((25 as MoveData) << MOVE_FROM_POSITION_OFFSET_2)
+            | ((25 as MoveData) << BUILD_POSITION_1)
             | MOVE_IS_WINNING_MASK;
+        Self(data)
+    }
+
+    pub fn new_double_move(from1: Square, to1: Square, from2: Square, to2: Square) -> Self {
+        let data: MoveData = ((from1 as MoveData) << MOVE_FROM_POSITION_OFFSET_1)
+            | ((to1 as MoveData) << MOVE_TO_POSITION_OFFSET_1)
+            | ((from2 as MoveData) << MOVE_FROM_POSITION_OFFSET_2)
+            | ((to2 as MoveData) << MOVE_TO_POSITION_OFFSET_2)
+            | ((25 as MoveData) << BUILD_POSITION_1);
+
+        Self(data)
+    }
+
+    pub fn new_winning_double_move(from1: Square, to1: Square, from2: Square, to2: Square) -> Self {
+        let data: MoveData = ((from1 as MoveData) << MOVE_FROM_POSITION_OFFSET_1)
+            | ((to1 as MoveData) << MOVE_TO_POSITION_OFFSET_1)
+            | ((from2 as MoveData) << MOVE_FROM_POSITION_OFFSET_2)
+            | ((to2 as MoveData) << MOVE_TO_POSITION_OFFSET_2)
+            | ((25 as MoveData) << BUILD_POSITION_1)
+            | MOVE_IS_WINNING_MASK;
+
         Self(data)
     }
 
@@ -193,9 +261,6 @@ impl CastorMove {
 
     pub fn maybe_move_from_position_1(&self) -> Option<Square> {
         let value = (self.0 >> MOVE_FROM_POSITION_OFFSET_1) as u8 & LOWER_POSITION_MASK;
-        if value > 25 {
-            eprintln!("TOO LARGE VALUE: {}, {:0b}", value, self.0);
-        }
         if value == 25 {
             None
         } else {
@@ -296,6 +361,8 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
+    let mut did_win = false;
+
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
@@ -310,6 +377,7 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 moves_to_level_3,
                 CastorMove::new_winning_single_move,
             ) {
+                did_win = true;
                 return result;
             }
             worker_next_moves.worker_moves ^= moves_to_level_3;
@@ -357,6 +425,160 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         }
     }
 
+    // Double moves
+    {
+        let mut own_workers = prelude.own_workers.into_iter();
+        let Some(worker_start_1) = own_workers.next() else {
+            return result;
+        };
+
+        if prelude.is_against_hypnus
+            && (prelude.own_workers & prelude.exactly_level_2) != prelude.own_workers
+        {
+            // noop
+        } else if did_win {
+            // noop
+        } else {
+            let non_own_worker_blockers = prelude.domes_and_frozen | prelude.oppo_workers;
+
+            // TODO: handle persephone - should only need to climb with ONE worker
+            let start_height_1 = prelude.board.get_height(worker_start_1);
+            let start_mask_1 = BitBoard::as_mask(worker_start_1);
+            let mut moves_1 = get_basic_moves_from_raw_data_with_custom_blockers::<MUST_CLIMB>(
+                &prelude,
+                worker_start_1,
+                start_mask_1,
+                start_height_1,
+                non_own_worker_blockers,
+            );
+
+            let wins_1 = if start_height_1 == 2 {
+                moves_1 & prelude.exactly_level_3 & prelude.win_mask
+            } else {
+                BitBoard::EMPTY
+            };
+            moves_1 ^= wins_1;
+
+            if let Some(worker_start_2) = own_workers.next() {
+                let start_height_2 = prelude.board.get_height(worker_start_2);
+                let start_mask_2 = BitBoard::as_mask(worker_start_2);
+
+                let mut moves_2 = get_basic_moves_from_raw_data_with_custom_blockers::<MUST_CLIMB>(
+                    &prelude,
+                    worker_start_2,
+                    start_mask_2,
+                    start_height_2,
+                    non_own_worker_blockers,
+                );
+
+                let wins_2 = if start_height_2 == 2 {
+                    moves_2 & prelude.exactly_level_3 & prelude.win_mask
+                } else {
+                    BitBoard::EMPTY
+                };
+                moves_2 ^= wins_2;
+
+                if (wins_2 & start_mask_1).is_not_empty() {
+                    for to1 in moves_1 & !start_mask_2 {
+                        let new_action = CastorMove::new_winning_double_move(
+                            worker_start_1,
+                            to1,
+                            worker_start_2,
+                            worker_start_1,
+                        );
+                        result.push(ScoredMove::new_winning_move(new_action.into()));
+                        if is_stop_on_mate::<F>() {
+                            return result;
+                        }
+                    }
+                }
+
+                if (wins_1 & start_mask_2).is_not_empty() {
+                    for to2 in moves_2 & !start_mask_1 {
+                        let new_action = CastorMove::new_winning_double_move(
+                            worker_start_2,
+                            to2,
+                            worker_start_1,
+                            worker_start_2,
+                        );
+                        result.push(ScoredMove::new_winning_move(new_action.into()));
+                        if is_stop_on_mate::<F>() {
+                            return result;
+                        }
+                    }
+                }
+
+                if is_mate_only::<F>() {
+                    // NOOP - can't mate here anymore
+                } else {
+                    for to1 in moves_1 {
+                        let end_mask_1 = BitBoard::as_mask(to1);
+                        let end_height_1 = prelude.board.get_height(to1);
+                        let reach1 = if end_height_1 == 2 {
+                            WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][to1 as usize]
+                        } else {
+                            BitBoard::EMPTY
+                        };
+
+                        let mut final_moves_2 = moves_2 & !end_mask_1;
+                        if to1 == worker_start_2 {
+                            final_moves_2 &= !start_mask_1;
+                        }
+
+                        if is_interact_with_key_squares::<F>()
+                            && (key_squares & end_mask_1).is_empty()
+                        {
+                            final_moves_2 &= key_squares;
+                        }
+
+                        for to2 in final_moves_2 {
+                            let end_height_2 = prelude.board.get_height(to2);
+                            let end_mask_2 = BitBoard::as_mask(to2);
+                            let end_masks = end_mask_1 | end_mask_2;
+
+                            let new_action = CastorMove::new_double_move(
+                                worker_start_1,
+                                to1,
+                                worker_start_2,
+                                to2,
+                            );
+
+                            let reach2 = if end_height_2 == 2 {
+                                WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][to2 as usize]
+                            } else {
+                                BitBoard::EMPTY
+                            };
+
+                            let is_check = {
+                                if prelude.is_against_hypnus
+                                    && (end_height_1 != 2 || end_height_2 != 2)
+                                {
+                                    false
+                                } else {
+                                    let check_board = (reach1 | reach2)
+                                        & !(prelude.oppo_workers
+                                            | end_masks
+                                            | prelude.domes_and_frozen)
+                                        & prelude.exactly_level_3
+                                        & prelude.win_mask;
+                                    check_board.is_not_empty()
+                                }
+                            };
+
+                            result.push(build_scored_move::<F, _>(
+                                new_action,
+                                is_check,
+                                end_height_1 > start_height_2 || end_height_2 > start_height_2,
+                            ));
+                        }
+                    }
+                }
+            } else {
+                // TODO: single move only
+            }
+        }
+    }
+
     if is_mate_only::<F>() || MUST_CLIMB {
         return result;
     }
@@ -364,9 +586,7 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let unblocked_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
 
     let mut own_workers = prelude.own_workers.into_iter();
-    let Some(worker_start_1) = own_workers.next() else {
-        return result;
-    };
+    let worker_start_1 = own_workers.next().unwrap();
 
     // Double builds
     let worker_start_state = get_worker_start_move_state(&prelude, worker_start_1);
@@ -465,4 +685,61 @@ pub const fn build_castor() -> GodPower {
         362356524330526493,
     )
     .with_nnue_god_name(GodName::Mortal)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fen::parse_fen;
+
+    use super::*;
+
+    #[test]
+    fn test_castor_wins_move_out_of_eachothers_way_1() {
+        let fen = "0000000000002300000000000/1/castor:C3,D3/mortal:A1,B1";
+        let state = parse_fen(fen).unwrap();
+        let castor = GodName::Castor.to_power();
+
+        let next_moves = castor.get_moves_for_search(&state, Player::One);
+        for m in next_moves {
+            if m.action.get_is_winning() {
+                return;
+            }
+        }
+
+        assert!(false, "Could not find expected win");
+    }
+
+    #[test]
+    fn test_castor_wins_move_out_of_eachothers_way_2() {
+        let fen = "0000000000003200000000000/1/castor:C3,D3/mortal:A1,B1";
+        let state = parse_fen(fen).unwrap();
+        let castor = GodName::Castor.to_power();
+
+        let next_moves = castor.get_moves_for_search(&state, Player::One);
+        for m in next_moves {
+            if m.action.get_is_winning() {
+                return;
+            }
+        }
+
+        assert!(false, "Could not find expected win");
+    }
+
+    #[test]
+    fn test_castor_debug() {
+        let fen = "0000000000000000000000000/1/castor:D5,A3/castor:C4";
+        let state = parse_fen(fen).unwrap();
+        let castor = GodName::Castor.to_power();
+
+        let next_moves = castor.get_moves_for_search(&state, Player::One);
+        for m in next_moves {
+            let action = m.action;
+            if !action.get_is_winning() {
+                continue;
+            }
+            let next_state = state.next_state(castor, action);
+            next_state.print_to_console();
+            eprintln!("{} / {:0b}", castor.stringify_move(action), action.0);
+        }
+    }
 }
