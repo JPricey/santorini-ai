@@ -245,6 +245,7 @@ impl CastorMove {
         Self(data)
     }
 
+    // TODO: winning double move
     pub fn new_double_build(build_1: Square, build_2: Square) -> Self {
         let data: MoveData = ((25 as MoveData) << MOVE_FROM_POSITION_OFFSET_1)
             | ((build_1 as MoveData) << BUILD_POSITION_1)
@@ -361,8 +362,6 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    let mut did_win = false;
-
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
@@ -377,7 +376,6 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 moves_to_level_3,
                 CastorMove::new_winning_single_move,
             ) {
-                did_win = true;
                 return result;
             }
             worker_next_moves.worker_moves ^= moves_to_level_3;
@@ -436,12 +434,11 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             && (prelude.own_workers & prelude.exactly_level_2) != prelude.own_workers
         {
             // noop
-        } else if did_win {
-            // noop
         } else {
             let non_own_worker_blockers = prelude.domes_and_frozen | prelude.oppo_workers;
 
             // TODO: handle persephone - should only need to climb with ONE worker
+            // TODO: handle harpies
             let start_height_1 = prelude.board.get_height(worker_start_1);
             let start_mask_1 = BitBoard::as_mask(worker_start_1);
             let mut moves_1 = get_basic_moves_from_raw_data_with_custom_blockers::<MUST_CLIMB>(

@@ -31,7 +31,7 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         //     santorini_core::player::Player::One,
         //     &santorini_core::gods::WIP_GODS,
         // )
-        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Zeus])
+        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Castor])
         .get_all();
 
     // for m in &all_matchups {
