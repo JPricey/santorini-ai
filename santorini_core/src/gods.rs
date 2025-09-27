@@ -20,6 +20,7 @@ pub(crate) mod artemis;
 pub(crate) mod athena;
 pub(crate) mod atlas;
 pub(crate) mod bia;
+pub(crate) mod castor;
 pub(crate) mod clio;
 pub(crate) mod demeter;
 pub(crate) mod europa;
@@ -91,6 +92,7 @@ pub enum GodName {
     Clio = 25,
     Maenads = 26,
     Zeus = 27,
+    Castor = 28,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -555,6 +557,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     clio::build_clio(),
     maenads::build_maenads(),
     zeus::build_zeus(),
+    castor::build_castor(),
 ]);
 
 #[macro_export]
@@ -834,6 +837,15 @@ impl HistoryIdxHelper {
         } else {
             self.0 *= 101
         }
+    }
+
+    pub(crate) fn add_known_maybe_square_with_height(
+        &mut self,
+        board: &BoardState,
+        square: Square,
+    ) {
+        let height = board.get_height(square);
+        self.add_value((square as usize) * 4 + height + 1, 101);
     }
 
     pub(crate) fn add_bool(&mut self, value: bool) {
