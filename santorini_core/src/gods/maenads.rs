@@ -150,12 +150,12 @@ impl std::fmt::Debug for MaenadsMove {
 
         let move_from = self.move_from_position();
         let move_to = self.move_to_position();
-        let build = self.build_position();
         let is_win = self.get_is_winning();
 
         if is_win {
             write!(f, "{}>{}#", move_from, move_to)
         } else {
+            let build = self.build_position();
             write!(f, "{}>{}^{}", move_from, move_to, build)
         }
     }

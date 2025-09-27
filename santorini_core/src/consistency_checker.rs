@@ -288,6 +288,12 @@ impl ConsistencyChecker {
             return;
         }
 
+        // Ignore zeus, who can appear to move up by building under himself
+        // TODO: scope this down
+        if active_god.god_name == GodName::Zeus {
+            return;
+        }
+
         let old_workers = self.state.board.workers[current_player as usize];
 
         let mut increase_move = None;

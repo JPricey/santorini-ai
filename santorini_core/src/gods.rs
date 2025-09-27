@@ -42,6 +42,7 @@ pub(crate) mod pan;
 pub(crate) mod persephone;
 pub(crate) mod prometheus;
 pub(crate) mod urania;
+pub(crate) mod zeus;
 
 pub type StaticGod = &'static GodPower;
 
@@ -89,6 +90,7 @@ pub enum GodName {
     Bia = 24,
     Clio = 25,
     Maenads = 26,
+    Zeus = 27,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -103,6 +105,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Bia,
     GodName::Clio,
     GodName::Maenads,
+    GodName::Zeus,
 ]);
 
 impl GodName {
@@ -551,6 +554,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     bia::build_bia(),
     clio::build_clio(),
     maenads::build_maenads(),
+    zeus::build_zeus(),
 ]);
 
 #[macro_export]

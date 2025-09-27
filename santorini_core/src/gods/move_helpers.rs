@@ -316,25 +316,71 @@ pub(super) fn get_worker_end_move_state_with_custom_worker_helper<const F: MoveG
     }
 }
 
+pub(super) fn get_reach_board_when_can_be_level_3<const F: MoveGenFlags>(
+    prelude: &GeneratorPreludeState,
+    worker_move_state: &WorkerNextMoveState,
+    has_level_3_others: bool,
+    worker_end_pos: Square,
+    worker_end_height: usize,
+    unblocked_squares: BitBoard,
+) -> BitBoard {
+    if prelude.is_against_hypnus {
+        let next_turn_moves = NEIGHBOR_MAP[worker_end_pos as usize];
+
+        if worker_end_height == 3 {
+            worker_move_state.other_threatening_neighbors & unblocked_squares
+        } else if has_level_3_others
+            || (worker_move_state.other_threatening_workers.count_ones()
+                + (worker_end_height == 2) as u32)
+                >= 2
+        {
+            (worker_move_state.other_threatening_neighbors
+                | (next_turn_moves * (worker_end_height == 2) as u32))
+                & unblocked_squares
+        } else {
+            BitBoard::EMPTY
+        }
+    } else {
+        let next_turn_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_end_pos as usize];
+
+        (worker_move_state.other_threatening_neighbors
+            | (next_turn_moves * (worker_end_height == 2) as u32))
+            & prelude.win_mask
+            & unblocked_squares
+    }
+}
+
 pub(super) fn get_standard_reach_board<const F: MoveGenFlags>(
     prelude: &GeneratorPreludeState,
     worker_move_state: &WorkerNextMoveState,
     worker_end_move_state: &WorkerEndMoveState,
     unblocked_squares: BitBoard,
 ) -> BitBoard {
-    let next_turn_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx]
-        [worker_end_move_state.worker_end_pos as usize]
-        & unblocked_squares;
+    get_standard_reach_board_from_parts::<F>(
+        prelude,
+        worker_move_state,
+        worker_end_move_state.worker_end_pos,
+        worker_end_move_state.is_now_lvl_2,
+        unblocked_squares,
+    )
+}
+
+pub(super) fn get_standard_reach_board_from_parts<const F: MoveGenFlags>(
+    prelude: &GeneratorPreludeState,
+    worker_move_state: &WorkerNextMoveState,
+    worker_end_pos: Square,
+    is_now_lvl_2: u32,
+    unblocked_squares: BitBoard,
+) -> BitBoard {
+    let next_turn_moves =
+        WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_end_pos as usize] & unblocked_squares;
 
     let reach_board = if prelude.is_against_hypnus
-        && (worker_move_state.other_threatening_workers.count_ones()
-            + worker_end_move_state.is_now_lvl_2)
-            < 2
+        && (worker_move_state.other_threatening_workers.count_ones() + is_now_lvl_2) < 2
     {
         BitBoard::EMPTY
     } else {
-        (worker_move_state.other_threatening_neighbors
-            | (next_turn_moves * worker_end_move_state.is_now_lvl_2))
+        (worker_move_state.other_threatening_neighbors | (next_turn_moves * is_now_lvl_2))
             & prelude.win_mask
             & unblocked_squares
     };
