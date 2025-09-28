@@ -13,10 +13,10 @@ use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
-pub(crate) mod ares;
 pub(crate) mod aeolus;
 pub(crate) mod aphrodite;
 pub(crate) mod apollo;
+pub(crate) mod ares;
 pub(crate) mod artemis;
 pub(crate) mod athena;
 pub(crate) mod atlas;

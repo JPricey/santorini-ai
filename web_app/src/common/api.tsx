@@ -21,6 +21,7 @@ export const PlayerActionTypes = {
     SetWindDirection: 'set_wind_direction',
     SetTalusPosition: 'set_talus_position',
     Build: 'build',
+    Destroy: 'destroy',
     Dome: 'dome',
     EndTurn: 'end_turn',
     NoMoves: 'no_moves',
@@ -48,6 +49,7 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.SelectWorker; value: string }
     | { type: typeof PlayerActionTypes.MoveWorker; value: MoveWorkerData }
     | { type: typeof PlayerActionTypes.Build; value: string }
+    | { type: typeof PlayerActionTypes.Destroy; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
     | { type: typeof PlayerActionTypes.SetTalusPosition; value: string }
     | { type: typeof PlayerActionTypes.SetWindDirection; value: DirectionType | null }
@@ -82,6 +84,8 @@ export function describeActionType(actionType: PlayerActionType): string {
             return `Build`;
         case PlayerActionTypes.Dome:
             return `Dome`;
+        case PlayerActionTypes.Destroy:
+            return `Destroy`;
         case PlayerActionTypes.SetTalusPosition:
             return `Place Talus`;
         case PlayerActionTypes.EndTurn:
@@ -124,6 +128,7 @@ export function describeAction(action: PlayerAction): string {
         case PlayerActionTypes.SelectWorker:
         case PlayerActionTypes.Build:
         case PlayerActionTypes.Dome:
+        case PlayerActionTypes.Destroy:
         case PlayerActionTypes.SetTalusPosition:
             return `${describeActionType(action.type)} (${action.value})`;
         case PlayerActionTypes.MoveWorker:

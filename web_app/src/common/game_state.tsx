@@ -30,6 +30,7 @@ export const God = {
     Clio: 'clio',
     Maenads: 'maenads',
     Zeus: 'zeus',
+    Ares: 'ares',
 } as const;
 export type GodType = typeof God[keyof typeof God];
 
@@ -45,6 +46,7 @@ export const WIP_GODS: Set<GodType> = new Set([
     God.Clio,
     God.Maenads,
     God.Zeus,
+    God.Ares,
 ]);
 
 export const Square = {

@@ -36,6 +36,7 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
         case PlayerActionTypes.PlaceWorker:
         case PlayerActionTypes.SelectWorker:
         case PlayerActionTypes.Build:
+        case PlayerActionTypes.Destroy:
         case PlayerActionTypes.Dome:
         case PlayerActionTypes.SetTalusPosition:
             return action.value === squareStr ? action.type : null;

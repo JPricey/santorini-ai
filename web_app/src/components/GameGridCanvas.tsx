@@ -144,6 +144,8 @@ function actionToFill(actionType: PlayerActionType): string {
             return 'green'
         case PlayerActionTypes.Build:
             return 'red'
+        case PlayerActionTypes.Destroy:
+            return 'orange'
         case PlayerActionTypes.Dome:
         case PlayerActionTypes.SetTalusPosition:
             return 'purple'
