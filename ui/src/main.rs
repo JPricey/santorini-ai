@@ -100,6 +100,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         | PartialAction::Dome(x)
         | PartialAction::Destroy(x) => Some(*x),
         PartialAction::MoveWorker(data) => Some(data.dest),
+        PartialAction::ForceOpponentWorker(from, _) => Some(*from),
         PartialAction::SetWindDirection(d) => Some(maybe_wind_direction_to_ui_square(*d)),
         PartialAction::NoMoves | PartialAction::EndTurn => None,
     }
@@ -111,6 +112,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::SetFemaleWorker(_) => egui::Color32::LIGHT_RED,
         PartialAction::SelectWorker(_) => egui::Color32::BLUE,
         PartialAction::MoveWorker(_) => egui::Color32::DARK_GREEN,
+        PartialAction::ForceOpponentWorker(_, _) => egui::Color32::GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::Destroy(_) => egui::Color32::ORANGE,
@@ -130,6 +132,7 @@ fn partial_action_label(action: &PartialAction) -> String {
         PartialAction::SetFemaleWorker(_) => "Pick Female Worker".to_string(),
         PartialAction::SelectWorker(_) => "Select Worker".to_string(),
         PartialAction::MoveWorker(_) => "Move Worker".to_string(),
+        PartialAction::ForceOpponentWorker(_, _) => "Force Opponent Worker".to_string(),
         PartialAction::Build(_) => "Build".to_string(),
         PartialAction::Dome(_) => "Add Dome".to_string(),
         PartialAction::Destroy(_) => "Destroy Block".to_string(),

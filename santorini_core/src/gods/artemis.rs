@@ -14,7 +14,7 @@ use crate::{
         hypnus::hypnus_moveable_worker_filter,
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_inclusive_movement_neighbors,
-            get_sized_result, get_wind_reverse_neighbor_map, get_worker_climb_height_raw,
+            get_sized_result, get_reverse_direction_neighbor_map, get_worker_climb_height_raw,
             get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
             is_stop_on_mate,
         },
@@ -476,7 +476,7 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let neighbor_map_ref = prelude.standard_neighbor_map;
     let inclusive_neighbor_map = get_inclusive_movement_neighbors(&prelude);
-    let reverse_neighbor_map = get_wind_reverse_neighbor_map(&prelude);
+    let reverse_neighbor_map = get_reverse_direction_neighbor_map(&prelude);
 
     for worker_start_pos in acting_workers.into_iter() {
         let worker_start_mask = BitBoard::as_mask(worker_start_pos);

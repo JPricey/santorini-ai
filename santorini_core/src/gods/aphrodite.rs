@@ -73,17 +73,28 @@ pub(super) fn aphrodite_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let mut narrowed_builds = all_possible_builds;
             if is_interact_with_key_squares::<F>() {
-                let all_own_workers =
-                    worker_start_state.other_own_workers | worker_end_move_state.worker_end_mask;
-                let affinity_mask = apply_mapping_to_mask(all_own_workers, &INCLUSIVE_NEIGHBOR_MAP);
-
                 let is_already_matched =
                     (worker_end_move_state.worker_end_mask & prelude.key_squares).is_not_empty()
                         || {
+                            let all_own_workers = worker_start_state.other_own_workers
+                                | worker_end_move_state.worker_end_mask;
+                            let affinity_mask =
+                                apply_mapping_to_mask(all_own_workers, &INCLUSIVE_NEIGHBOR_MAP);
                             let affinity_match = affinity_mask & key_squares;
+
+                            // We're blocking checks as long as we have key square opponents in the affinity area,
+                            // and have some key squares (we're assuming the check spot) outside the affinity area
                             (affinity_match & prelude.oppo_workers).is_not_empty()
-                                && affinity_match != key_squares
+                                && (affinity_match != key_squares
+                                // Charon may have to flip aphrodite workers out of a level 3 spot in order to win
+                                // In doing so, it puts the aphrodite worker behind charon, which changes the affinity area in a bad way for charon
+                                // So, consider a move a check blocker if we're against charon and we're on the check spot,
+                                // even if the checking spot is already inside the affinity area
+                                || prelude.other_god.god_name == GodName::Charon
+                                    && (all_own_workers & key_squares & prelude.exactly_level_3)
+                                        .is_not_empty())
                         };
+
                 narrowed_builds &=
                     [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched as usize];
             }

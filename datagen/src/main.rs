@@ -7,7 +7,7 @@ use santorini_core::matchup::{Matchup, MatchupSelector};
 use santorini_core::placement::get_starting_placement_state;
 use santorini_core::player::Player;
 use santorini_core::search::{
-    Hueristic, SearchContext, WINNING_SCORE_BUFFER, get_win_reached_search_terminator,
+    Heuristic, SearchContext, WINNING_SCORE_BUFFER, get_win_reached_search_terminator,
     negamax_search,
 };
 use santorini_core::search_terminators::{
@@ -34,7 +34,7 @@ type DatagenStaticSearchTerminator = OrSearchTerminator<
 #[derive(Debug)]
 struct SingleState {
     pub game_state: FullGameState,
-    pub score: Hueristic,
+    pub score: Heuristic,
     pub calculated_depth: usize,
     pub winner: Player,
     pub move_count: usize,

@@ -12,7 +12,7 @@ use crate::{
     board::{BoardState, FullGameState, GodData},
     gods::{GOD_FEATURE_OFFSETS, GodName, TOTAL_GOD_DATA_FEATURE_COUNT},
     player::Player,
-    search::Hueristic,
+    search::Heuristic,
 };
 
 pub const QA: i32 = 255;
@@ -411,13 +411,13 @@ impl LabeledAccumulator {
         self.replace_features(build_feature_set(board, god1, god2))
     }
 
-    pub fn evaluate(&self) -> Hueristic {
+    pub fn evaluate(&self) -> Heuristic {
         MODEL.evaluate(&self.accumulator)
     }
 }
 
 impl Network {
-    pub fn evaluate(&self, us: &Accumulator) -> Hueristic {
+    pub fn evaluate(&self, us: &Accumulator) -> Heuristic {
         let mut simd_sum = Simd::<i32, EVAL_LANES>::splat(0);
 
         let min = Simd::splat(0 as i16);
@@ -443,7 +443,7 @@ impl Network {
         output *= SCALE;
         output /= i32::from(QA) * i32::from(QB);
 
-        output as Hueristic
+        output as Heuristic
     }
 }
 

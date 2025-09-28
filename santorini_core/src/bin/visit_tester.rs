@@ -6,7 +6,7 @@ use santorini_core::{
     board::FullGameState,
     gods::{GodName, generic::GenericMove},
     search::{
-        Hueristic, SearchContext, SearchState, WINNING_SCORE_BUFFER,
+        Heuristic, SearchContext, SearchState, WINNING_SCORE_BUFFER,
         get_win_reached_search_terminator, negamax_search,
     },
     search_terminators::DynamicMaxDepthSearchTerminator,
@@ -25,7 +25,7 @@ struct ScenarioEntry {
     best_move: GenericMove,
     best_move_str: String,
     best_move_state: FullGameState,
-    score: Hueristic,
+    score: Heuristic,
     depth: usize,
 }
 

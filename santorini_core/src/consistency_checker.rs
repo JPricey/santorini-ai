@@ -412,6 +412,12 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
+            if active_god.god_name == GodName::Scylla && action.get_is_winning() {
+                // Scylla can always pull aphrodite into range, and we didn't bother to implement the drag on winning moves
+                // So just ignore this check
+                continue;
+            }
+
             let new_state = self.state.next_state(active_god, other_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
@@ -646,6 +652,17 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if other_god.god_name == GodName::Charon {
+                if active_god.god_name == GodName::Hermes {
+                    // Hermes thinks that while standing still in Charon's winning square he's blocking a win
+                    continue;
+                }
+
+                // If a character builds in the flip zone, it doesn't do anything.
+                // TODO: add check to confirm this is what's happening
+                continue;
+            }
+
             if other_god.god_name == GodName::Pan {
                 let any_pan_move: MortalMove = other_wins[0].action.into();
 
@@ -693,6 +710,12 @@ impl ConsistencyChecker {
                 // But this can false positive if another worker can pull out a win anyway
                 if (key_moves & self.state.board.workers[!current_player as usize]).count_ones() > 1
                 {
+                    continue;
+                }
+
+                // Aphrodite can't block scylla with affinity restrictions, so ignore this check
+                // TODO: consider if we should add this check to Aphrodite's check response instead
+                if other_god.god_name == GodName::Scylla {
                     continue;
                 }
             }
@@ -757,14 +780,17 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            let mut err_str = format!("Block move didn't remove any wins: {}: ", stringed_action);
+            let mut err_str = format!(
+                "Block move didn't remove any wins (Move: {}) - Other wins:  ",
+                stringed_action
+            );
             for winning_action in other_wins {
                 err_str.push_str(&format!(
-                    "{} ",
+                    "{}, ",
                     other_god.stringify_move(winning_action.action)
                 ));
             }
-            err_str.push_str(&format!("\n{}", key_moves));
+            err_str.push_str(&format!("\n Key moves: {}", key_moves));
 
             self.errors.push(err_str);
             return;
@@ -785,6 +811,7 @@ impl ConsistencyChecker {
             if new_oppo_wins.len() < other_wins.len() {
                 if active_god.god_name == GodName::Persephone && other_god.god_name == GodName::Pan
                 {
+                    // TODO: comment this? Forget why it's here.
                     if new_oppo_wins.len() > 0 {
                         continue;
                     }

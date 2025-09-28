@@ -1,4 +1,4 @@
-use super::search::Hueristic;
+use super::search::Heuristic;
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState, GodData, GodPair},
@@ -28,6 +28,7 @@ pub(crate) mod artemis;
 pub(crate) mod athena;
 pub(crate) mod atlas;
 pub(crate) mod bia;
+pub(crate) mod charon;
 pub(crate) mod clio;
 pub(crate) mod demeter;
 pub(crate) mod eros;
@@ -51,6 +52,7 @@ pub(crate) mod move_helpers;
 pub(crate) mod pan;
 pub(crate) mod persephone;
 pub(crate) mod prometheus;
+pub(crate) mod scylla;
 pub(crate) mod selene;
 pub(crate) mod urania;
 pub(crate) mod zeus;
@@ -106,6 +108,8 @@ pub enum GodName {
     Eros = 29,
     Selene = 30,
     Hippolyta = 31,
+    Scylla = 32,
+    Charon = 33,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -127,7 +131,7 @@ pub trait ResultsMapper<T>: Clone {
     fn map_result(&self, state: BoardState) -> T;
 }
 
-pub type StateWithScore = (BoardState, Hueristic);
+pub type StateWithScore = (BoardState, Heuristic);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct MoveEnemyWorker {
@@ -172,6 +176,7 @@ pub enum PartialAction {
     PlaceWorker(Square),
     SetFemaleWorker(Square),
     MoveWorker(MoveWorkerData),
+    ForceOpponentWorker(Square, Square),
     Build(Square),
     Dome(Square),
     Destroy(Square),
@@ -709,6 +714,8 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     eros::build_eros(),
     selene::build_selene(),
     hippolyta::build_hippolyta(),
+    scylla::build_scylla(),
+    charon::build_charon(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

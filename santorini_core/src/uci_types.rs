@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     board::FullGameState,
     gods::PartialAction,
-    search::{BestMoveTrigger, Hueristic},
+    search::{BestMoveTrigger, Heuristic},
 };
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NextStateOutput {
@@ -20,7 +20,7 @@ pub struct NextMovesOutput {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BestMoveMeta {
-    pub score: Hueristic,
+    pub score: Heuristic,
     pub calculated_depth: usize,
     pub nodes_visited: Option<usize>,
     pub elapsed_seconds: f32,

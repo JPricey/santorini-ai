@@ -68,9 +68,12 @@ def main():
         print(k, v, "/", gods_by_losses[k])
 
     SHOW_LOSSES_GODS = [
+        "Charon",
+        "Limus",
         "Aeolus",
         "Apollo",
         "Limus",
+        "Scylla",
     ]
 
     SHOW_WINS_GODS = [

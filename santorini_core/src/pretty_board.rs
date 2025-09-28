@@ -98,6 +98,13 @@ pub fn game_state_with_partial_actions(
                 assert!(selected_square.is_none());
                 selected_square = Some(square);
             }
+            PartialAction::ForceOpponentWorker(from, to) => {
+                // TODO: check if opponent is a female worker, and move the female worker token
+                board.worker_xor(
+                    !current_player,
+                    BitBoard::as_mask(from) | BitBoard::as_mask(to),
+                );
+            }
             PartialAction::MoveWorker(data) => {
                 let selected_square = selected_square.take().unwrap();
                 let self_mask = BitBoard::as_mask(selected_square) ^ BitBoard::as_mask(data.dest);

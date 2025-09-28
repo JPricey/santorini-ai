@@ -18,13 +18,13 @@ use super::transposition_table::TranspositionTable;
 
 pub const MAX_PLY: usize = 127;
 
-pub type Hueristic = i16;
-pub const WINNING_SCORE: Hueristic = 10_000;
-pub const INFINITY: Hueristic = WINNING_SCORE * 2;
-pub const WINNING_SCORE_BUFFER: Hueristic = 9000;
+pub type Heuristic = i16;
+pub const WINNING_SCORE: Heuristic = 10_000;
+pub const INFINITY: Heuristic = WINNING_SCORE * 2;
+pub const WINNING_SCORE_BUFFER: Heuristic = 9000;
 
-pub const fn win_at_ply(ply: usize) -> Hueristic {
-    WINNING_SCORE - ply as Hueristic
+pub const fn win_at_ply(ply: usize) -> Heuristic {
+    WINNING_SCORE - ply as Heuristic
 }
 
 const HALF_USIZE: u32 = size_of::<usize>() as u32 / 2;
@@ -44,7 +44,7 @@ pub struct BestSearchResult {
     pub child_state: FullGameState,
     pub action: GenericMove,
     pub action_str: String,
-    pub score: Hueristic,
+    pub score: Heuristic,
     pub depth: usize,
     pub nodes_visited: usize,
     pub trigger: BestMoveTrigger,
@@ -55,7 +55,7 @@ impl BestSearchResult {
         state: FullGameState,
         action: GenericMove,
         is_placement_action: bool,
-        score: Hueristic,
+        score: Heuristic,
         depth: usize,
         nodes_visited: usize,
         trigger: BestMoveTrigger,
@@ -86,7 +86,7 @@ pub struct SearchContext<'a, T: SearchTerminator> {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SearchStackEntry {
-    pub eval: Hueristic,
+    pub eval: Heuristic,
     pub is_null_move: bool,
     pub move_hash: usize,
 }
@@ -504,7 +504,7 @@ fn _root_search<T>(
     state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
     remaining_depth: usize,
-) -> Hueristic
+) -> Heuristic
 where
     T: SearchTerminator,
 {
@@ -541,9 +541,9 @@ fn _start_inner_search<T, NT>(
     nnue_acc: &mut LabeledAccumulator,
     ply: usize,
     remaining_depth: usize,
-    alpha: Hueristic,
-    beta: Hueristic,
-) -> Hueristic
+    alpha: Heuristic,
+    beta: Heuristic,
+) -> Heuristic
 where
     T: SearchTerminator,
     NT: NodeType,
@@ -578,9 +578,9 @@ fn _placement_search<T, NT>(
     placement_mode: PlacementState,
     ply: usize,
     remaining_depth: usize,
-    mut alpha: Hueristic,
-    beta: Hueristic,
-) -> Hueristic
+    mut alpha: Heuristic,
+    beta: Heuristic,
+) -> Heuristic
 where
     T: SearchTerminator,
     NT: NodeType,
@@ -715,9 +715,9 @@ fn _q_extend<T>(
     nnue_acc: &mut LabeledAccumulator,
     ply: usize,
     q_depth: u32,
-    mut alpha: Hueristic,
-    beta: Hueristic,
-) -> Hueristic
+    mut alpha: Heuristic,
+    beta: Heuristic,
+) -> Heuristic
 where
     T: SearchTerminator,
 {
@@ -852,10 +852,10 @@ fn _inner_search<T, NT>(
     ply: usize,
     carry_reduction: i32,
     mut remaining_depth: i32,
-    mut alpha: Hueristic,
-    mut beta: Hueristic,
+    mut alpha: Heuristic,
+    mut beta: Heuristic,
     is_cut_node: bool,
-) -> Hueristic
+) -> Heuristic
 where
     T: SearchTerminator,
     NT: NodeType,
@@ -1072,7 +1072,7 @@ where
         // Reverse Futility Pruning
         if remaining_depth <= 8 {
             let rfp_margin =
-                150 + 100 * remaining_depth as Hueristic - (improving as Hueristic) * 80;
+                150 + 100 * remaining_depth as Heuristic - (improving as Heuristic) * 80;
             if eval - rfp_margin >= beta {
                 return beta;
             }
@@ -1080,7 +1080,7 @@ where
 
         // Null move pruning
         if remaining_depth > 3
-            && eval + 45 * (improving as Hueristic) >= beta
+            && eval + 45 * (improving as Heuristic) >= beta
             && !ss[ply - 1].is_null_move
         {
             let nmp_reduction = (4 + remaining_depth / 4).min(remaining_depth);
@@ -1123,7 +1123,7 @@ where
     }
 
     let mut best_action = GenericMove::NULL_MOVE;
-    let mut best_score = Hueristic::MIN;
+    let mut best_score = Heuristic::MIN;
 
     let mut should_stop = false;
     let mut move_idx = 0;

@@ -10,7 +10,7 @@ use crate::{
     search::{MAX_PLY, WINNING_SCORE_BUFFER},
 };
 
-use super::search::Hueristic;
+use super::search::Heuristic;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SearchScoreType {
@@ -25,8 +25,8 @@ pub struct TTValue {
     pub best_action: GenericMove,
     pub search_depth: u8,
     pub score_type: SearchScoreType,
-    pub score: Hueristic,
-    pub eval: Hueristic,
+    pub score: Heuristic,
+    pub eval: Heuristic,
 }
 
 impl Default for TTValue {
@@ -48,8 +48,8 @@ pub struct TTEntry {
     // pub board: BoardState,
 }
 
-fn to_tt(value: Hueristic, ply: usize) -> Hueristic {
-    let ply = ply as Hueristic;
+fn to_tt(value: Heuristic, ply: usize) -> Heuristic {
+    let ply = ply as Heuristic;
 
     if value >= WINNING_SCORE_BUFFER {
         value + ply
@@ -60,8 +60,8 @@ fn to_tt(value: Hueristic, ply: usize) -> Hueristic {
     }
 }
 
-fn to_search(value: Hueristic, ply: usize) -> Hueristic {
-    let ply = ply as Hueristic;
+fn to_search(value: Heuristic, ply: usize) -> Heuristic {
+    let ply = ply as Heuristic;
 
     if value >= WINNING_SCORE_BUFFER {
         value - ply
@@ -142,8 +142,8 @@ impl TranspositionTable {
         best_action: GenericMove,
         depth: u8,
         score_type: SearchScoreType,
-        search_score: Hueristic,
-        current_eval: Hueristic,
+        search_score: Heuristic,
+        current_eval: Heuristic,
         ply: usize,
     ) {
         let hash_code = hash_board(state);
@@ -173,8 +173,8 @@ impl TranspositionTable {
         mut best_action: GenericMove,
         depth: u8,
         score_type: SearchScoreType,
-        search_score: Hueristic,
-        current_eval: Hueristic,
+        search_score: Heuristic,
+        current_eval: Heuristic,
         ply: usize,
     ) {
         let hash_code = hash_board(state);

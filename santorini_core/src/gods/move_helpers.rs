@@ -218,7 +218,7 @@ pub(super) fn get_inclusive_movement_neighbors(
     }
 }
 
-pub(super) fn get_wind_reverse_neighbor_map(
+pub(super) fn get_reverse_direction_neighbor_map(
     prelude: &GeneratorPreludeState,
 ) -> &'static BitboardMapping {
     if prelude.other_god.god_name == GodName::Aeolus {
@@ -655,6 +655,41 @@ pub(super) fn get_basic_moves_from_raw_data<const MUST_CLIMB: bool>(
         worker_start_height,
         prelude.all_workers_and_frozen_mask,
     )
+}
+
+pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers_no_affinity<
+    const MUST_CLIMB: bool,
+>(
+    prelude: &GeneratorPreludeState,
+    worker_start_pos: Square,
+    worker_start_height: usize,
+    blockers: BitBoard,
+) -> BitBoard {
+    if MUST_CLIMB {
+        let height_mask = match worker_start_height {
+            0 => prelude.exactly_level_1,
+            1 => prelude.exactly_level_2,
+            2 => prelude.exactly_level_3,
+            3 => return BitBoard::EMPTY,
+            _ => unreachable!(),
+        };
+
+        let worker_moves =
+            prelude.standard_neighbor_map[worker_start_pos as usize] & height_mask & !blockers;
+        worker_moves
+    } else {
+        let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
+            !prelude.board.height_map[worker_start_height - 1]
+        } else {
+            BitBoard::EMPTY
+        };
+
+        let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
+        let worker_moves = prelude.standard_neighbor_map[worker_start_pos as usize]
+            & !(prelude.board.height_map[climb_height] | down_mask | blockers);
+
+        worker_moves
+    }
 }
 
 pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIMB: bool>(
