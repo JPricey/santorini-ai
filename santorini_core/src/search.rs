@@ -1032,7 +1032,7 @@ where
         nnue_acc.evaluate()
     };
 
-    if ply >= MAX_PLY {
+    if ply >= MAX_PLY - 1 {
         return eval;
     }
 

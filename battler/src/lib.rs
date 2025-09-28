@@ -59,6 +59,13 @@ pub fn create_log_dir() {
     std::fs::create_dir_all(&path).expect("Failed to create logs directory");
 }
 
+pub fn create_tmp_dir() {
+    let path = std::env::current_dir()
+        .expect("Failed to get current directory")
+        .join("tmp");
+    std::fs::create_dir_all(&path).expect("Failed to create logs directory");
+}
+
 pub struct EngineSubprocess {
     pub engine_name: String,
     #[allow(dead_code)]

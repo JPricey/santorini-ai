@@ -96,7 +96,8 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         | PartialAction::SelectWorker(x)
         | PartialAction::Build(x)
         | PartialAction::SetTalusPosition(x)
-        | PartialAction::Dome(x) => Some(*x),
+        | PartialAction::Dome(x)
+        | PartialAction::Destroy(x) => Some(*x),
         PartialAction::MoveWorker(data) => Some(data.dest),
         PartialAction::SetWindDirection(d) => Some(maybe_wind_direction_to_ui_square(*d)),
         PartialAction::NoMoves | PartialAction::EndTurn => None,
@@ -110,6 +111,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::MoveWorker(_) => egui::Color32::DARK_GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
+        PartialAction::Destroy(_) => egui::Color32::ORANGE,
         PartialAction::SetTalusPosition(_) => egui::Color32::PURPLE,
         PartialAction::EndTurn => egui::Color32::WHITE,
         PartialAction::NoMoves => egui::Color32::BLACK,
@@ -127,6 +129,7 @@ fn partial_action_label(action: &PartialAction) -> String {
         PartialAction::MoveWorker(_) => "Move Worker".to_string(),
         PartialAction::Build(_) => "Build".to_string(),
         PartialAction::Dome(_) => "Add Dome".to_string(),
+        PartialAction::Destroy(_) => "Destroy Block".to_string(),
         PartialAction::SetTalusPosition(_) => "Place Talus".to_string(),
         PartialAction::EndTurn => "End Turn".to_string(),
         PartialAction::NoMoves => "Pass".to_string(),

@@ -6,6 +6,7 @@ use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{
         GodName, StaticGod,
+        ares::AresMove,
         athena::AthenaMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_worker_blocker,
@@ -687,6 +688,18 @@ impl ConsistencyChecker {
                 if (key_moves & self.state.board.workers[!current_player as usize]).count_ones() > 1
                 {
                     continue;
+                }
+            }
+
+            if active_god.god_name == GodName::Ares {
+                let ares_move: AresMove = block_action.into();
+                if let Some(remove_build) = ares_move.remove_build_position() {
+                    if remove_build == ares_move.build_position()
+                        && (key_moves & BitBoard::as_mask(remove_build)).is_not_empty()
+                    {
+                        // Ares can undo his own build, not worth checking for
+                        continue;
+                    }
                 }
             }
 

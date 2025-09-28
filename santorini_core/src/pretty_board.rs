@@ -116,6 +116,9 @@ pub fn game_state_with_partial_actions(
             PartialAction::Dome(square) => {
                 board.dome_up(square);
             }
+            PartialAction::Destroy(square) => {
+                board.unbuild(square);
+            }
             PartialAction::SetTalusPosition(square) => {
                 board.set_god_data(current_player, BitBoard::as_mask(square).0 as GodData);
             }

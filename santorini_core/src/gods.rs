@@ -13,6 +13,7 @@ use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
+pub(crate) mod ares;
 pub(crate) mod aeolus;
 pub(crate) mod aphrodite;
 pub(crate) mod apollo;
@@ -91,6 +92,7 @@ pub enum GodName {
     Clio = 25,
     Maenads = 26,
     Zeus = 27,
+    Ares = 28,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -106,6 +108,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Clio,
     GodName::Maenads,
     GodName::Zeus,
+    GodName::Ares,
 ]);
 
 impl GodName {
@@ -169,6 +172,7 @@ pub enum PartialAction {
     MoveWorker(MoveWorkerData),
     Build(Square),
     Dome(Square),
+    Destroy(Square),
     SetTalusPosition(Square),
     SetWindDirection(Option<Direction>),
     NoMoves,
@@ -555,6 +559,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     clio::build_clio(),
     maenads::build_maenads(),
     zeus::build_zeus(),
+    ares::build_ares(),
 ]);
 
 #[macro_export]

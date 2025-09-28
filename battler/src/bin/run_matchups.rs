@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use battler::{BattleResult, WorkerMessage, write_results_to_csv};
+use battler::{BattleResult, WorkerMessage, create_tmp_dir, write_results_to_csv};
 use clap::Parser;
 use santorini_core::{
     board::FullGameState,
@@ -14,7 +14,7 @@ use santorini_core::{
     utils::timestamp_string,
 };
 
-const DEFAULT_DURATION_SECS: f32 = 10.0;
+const DEFAULT_DURATION_SECS: f32 = 5.0;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -31,7 +31,7 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         //     santorini_core::player::Player::One,
         //     &santorini_core::gods::WIP_GODS,
         // )
-        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Zeus])
+        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Ares])
         .get_all();
 
     // for m in &all_matchups {
@@ -58,6 +58,8 @@ fn worker_thread(
             engine.end();
             break;
         };
+
+        eprintln!("starting matchup {} {}", timestamp_string(), next_matchup);
 
         let root_state = FullGameState::new_for_matchup(&next_matchup);
         let battle_result = playout_game(&root_state, &mut engine, duration).unwrap();
@@ -96,6 +98,7 @@ fn playout_game(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    create_tmp_dir();
     let args = Args::parse();
 
     let mut all_matchups = get_all_matchups();

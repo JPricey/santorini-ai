@@ -26,6 +26,9 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     add_matchup(GodName::Aeolus, GodName::Aeolus, BannedReason::Engine);
     add_matchup(GodName::Bia, GodName::Bia, BannedReason::Engine);
 
+    // TODO: Aphrodite is too low at QS. Speed it up somehow?
+    add_matchup(GodName::Ares, GodName::Aphrodite, BannedReason::Engine);
+
     add_matchup(GodName::Hades, GodName::Pan, BannedReason::Game);
 
     add_matchup(GodName::Aphrodite, GodName::Urania, BannedReason::Game);
