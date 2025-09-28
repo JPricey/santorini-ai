@@ -42,7 +42,7 @@ pub fn get_starting_placement_state(
         return Ok(None);
     }
 
-    let is_placement_flipped = gods[1].is_placement_priority;
+    let is_placement_flipped = gods[1].is_placement_priority && !gods[0].is_placement_priority;
 
     let p1_is_placed = board.workers[0].is_not_empty();
     let p2_is_placed = board.workers[1].is_not_empty();

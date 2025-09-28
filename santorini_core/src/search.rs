@@ -849,10 +849,6 @@ where
     let current_player_idx = state.board.current_player as usize;
     let other_player_idx = !state.board.current_player;
 
-    if is_in_check {
-        remaining_depth += 1;
-    }
-
     let (active_god, other_god) = state.get_active_non_active_gods();
 
     if !NT::ROOT
@@ -951,6 +947,8 @@ where
             for action in &other_wins {
                 key_squares |= other_god.get_blocker_board(&state.board, action.action);
             }
+
+            remaining_depth += 1;
 
             Some(key_squares)
         }
@@ -1192,7 +1190,7 @@ where
 
             let used_reduction = reduction / 1024;
             let remaining_reduction = reduction % 1024;
-            let next_depth = remaining_depth - 1;
+            let next_depth = (remaining_depth - 1).max(0);
             let reduced_depth = (next_depth - used_reduction).clamp(0, next_depth);
 
             // Prune quiet moves once move scores get very low

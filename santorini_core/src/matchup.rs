@@ -23,11 +23,11 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         set.insert(Matchup::new(g2, g1), reason);
     };
 
+    // Would be annoying to handle wind from the opposing aeolus
     add_matchup(GodName::Aeolus, GodName::Aeolus, BannedReason::Engine);
-    add_matchup(GodName::Bia, GodName::Bia, BannedReason::Engine);
 
-    // TODO: Aphrodite is too low at QS. Speed it up somehow?
-    add_matchup(GodName::Ares, GodName::Aphrodite, BannedReason::Engine);
+    // Gets stuck in infinite loop
+    add_matchup(GodName::Ares, GodName::Ares, BannedReason::Engine);
 
     add_matchup(GodName::Hades, GodName::Pan, BannedReason::Game);
 
