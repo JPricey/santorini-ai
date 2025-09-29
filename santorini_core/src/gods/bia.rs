@@ -1,7 +1,6 @@
 use crate::{
     bitboard::{
-        BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP,
-        apply_mapping_to_mask,
+        BitBoard, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP,
     },
     board::{BoardState, FullGameState},
     build_god_power_movers,
@@ -199,7 +198,6 @@ pub(super) fn bia_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    // TODO: can use non-checking workers to "win" on kills
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
@@ -244,17 +242,6 @@ pub(super) fn bia_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     let worker_end_mask = BitBoard::as_mask(worker_end_pos);
                     let worker_end_height = prelude.board.get_height(worker_end_pos);
                     let is_now_lvl_2 = (worker_end_height == 2) as u32;
-
-                    if prelude.other_god.is_aphrodite
-                        && (prelude.affinity_area & worker_start_state.worker_start_mask)
-                            .is_not_empty()
-                    {
-                        let new_affinity_mask =
-                            apply_mapping_to_mask(new_oppo_workers, &INCLUSIVE_NEIGHBOR_MAP);
-                        if (worker_end_mask & new_affinity_mask).is_empty() {
-                            continue;
-                        }
-                    }
 
                     let build_mask = prelude.other_god.get_build_mask(new_oppo_workers)
                         | prelude.exactly_level_3;

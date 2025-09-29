@@ -424,8 +424,14 @@ impl ConsistencyChecker {
 
             let new_only = new_workers & !old_workers;
             let new_aphro_workers = new_state.board.workers[!current_player as usize];
-            let new_affinity_area =
-                apply_mapping_to_mask(new_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP);
+
+            // If Bia enters the affinity area and kills a worker, she's allowed to end her turn outside
+            // the new affinity area, so keep checking against the old one.
+            let new_affinity_area = if active_god.god_name == GodName::Bia {
+                old_affinity_area
+            } else {
+                apply_mapping_to_mask(new_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP)
+            };
 
             if old_only.count_ones() != new_only.count_ones() {
                 self.errors.push(format!(
@@ -830,16 +836,6 @@ impl ConsistencyChecker {
             let is_real_checker = wins_from_check_state.len() > 0;
 
             if is_check_flag != is_real_checker {
-                // Don't count checks where bia wins on kills. not realistic...
-                if is_real_checker && active_god.god_name == GodName::Bia {
-                    let win_action = wins_from_check_state[0];
-                    let win_state = check_state.next_state(active_god, win_action.action);
-
-                    if win_state.board.workers[!current_player as usize].is_empty() {
-                        continue;
-                    }
-                }
-
                 if is_real_checker && active_god.god_name == GodName::Maenads {
                     // maenads dancing kills...
                     // TODO: include these

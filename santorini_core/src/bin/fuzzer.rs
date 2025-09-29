@@ -124,3 +124,6 @@ fn main() {
         run_match(root_state, &mut rng);
     }
 }
+
+// cargo run -p santorini_core --bin fuzzer -r
+// cargo run -p santorini_core --bin fuzzer -r -- -g bia -G aphrodite
