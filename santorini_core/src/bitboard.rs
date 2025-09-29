@@ -211,6 +211,28 @@ pub const WIND_AWARE_WRAPPING_NEIGHBOR_MAP: [BitboardMapping; 9] = {
     result
 };
 
+pub const LOWER_SQUARES_INCLUSIVE_MASK: BitboardMapping = square_map!(square => {
+    let mut res = BitBoard::MAIN_SECTION_MASK;
+    let target_square_idx = square as usize;
+
+    const_for!(square_idx in 0..target_square_idx => {
+        res = res.bit_xor(BitBoard::as_mask_u8(square_idx as u8));
+    });
+
+    res
+});
+
+pub const LOWER_SQUARES_EXCLUSIVE_MASK: BitboardMapping = square_map!(square => {
+    let mut res = BitBoard::MAIN_SECTION_MASK;
+    let target_square_idx = square as usize;
+
+    const_for!(square_idx in 0..target_square_idx + 1 => {
+        res = res.bit_xor(BitBoard::as_mask_u8(square_idx as u8));
+    });
+
+    res
+});
+
 pub const MIDDLE_SPACES_MASK: BitBoard = BitBoard(0b00000_01110_01110_01110_00000);
 pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
     .bit_not()
@@ -380,6 +402,10 @@ impl BitBoard {
 
     pub const fn bit_or(self, other: Self) -> Self {
         Self(self.0 | other.0)
+    }
+
+    pub const fn bit_xor(self, other: Self) -> Self {
+        Self(self.0 ^ other.0)
     }
 
     pub const fn bit_not(self) -> Self {
