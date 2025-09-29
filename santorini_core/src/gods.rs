@@ -5,6 +5,7 @@ use crate::{
     direction::Direction,
     gods::generic::{GenericMove, GodMove, ScoredMove},
     hashing::HashType,
+    placement::PlacementType,
     player::Player,
     square::Square,
     utils::hash_u64,
@@ -346,6 +347,7 @@ pub struct GodPower {
     _pretty_stringify_god_data: PrettyStringifyGodDataFn,
 
     pub num_workers: usize,
+    pub placement_type: PlacementType,
 
     pub is_aphrodite: bool,
     pub is_persephone: bool,
@@ -674,6 +676,7 @@ const fn god_power(
         _pretty_stringify_god_data: _default_pretty_stringify_god_data,
 
         num_workers: 2,
+        placement_type: PlacementType::Normal,
 
         win_mask: BitBoard::MAIN_SECTION_MASK,
 
@@ -695,6 +698,11 @@ impl GodPower {
 
     pub(super) const fn with_num_workers(mut self, num_workers: usize) -> Self {
         self.num_workers = num_workers;
+        self
+    }
+
+    pub(super) const fn with_placement_type(mut self, placement_type: PlacementType) -> Self {
+        self.placement_type = placement_type;
         self
     }
 

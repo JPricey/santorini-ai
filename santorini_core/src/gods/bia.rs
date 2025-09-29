@@ -3,6 +3,7 @@ use crate::{
         BitBoard, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP,
     },
     board::{BoardState, FullGameState},
+    placement::PlacementType,
     build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
@@ -355,6 +356,7 @@ pub(super) const fn build_bia() -> GodPower {
         6207457018138760746,
     )
     .with_is_placement_priority()
+    .with_placement_type(PlacementType::PerimeterOnly)
     .with_nnue_god_name(GodName::Mortal)
 }
 

@@ -1,12 +1,26 @@
 use crate::{
-    bitboard::BitBoard,
+    bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, PERIMETER_SPACES_MASK},
     board::{BoardState, FullGameState, GodPair},
     gods::generic::{GodMove, WorkerPlacement},
     player::Player,
-    square::Square,
 };
 
 pub type MaybePlacementState = Option<PlacementState>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacementType {
+    Normal,
+    PerimeterOnly,
+}
+
+impl PlacementType {
+    pub(crate) fn get_valid_squares(&self) -> BitBoard {
+        match self {
+            PlacementType::Normal => BitBoard::MAIN_SECTION_MASK,
+            PlacementType::PerimeterOnly => PERIMETER_SPACES_MASK,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlacementState {
@@ -65,70 +79,80 @@ pub fn get_starting_placement_state(
     }
 }
 
-pub fn get_all_placements(board: &BoardState, player: Player) -> Vec<WorkerPlacement> {
+pub fn get_all_placements(
+    board: &BoardState,
+    player: Player,
+    placement_type: PlacementType,
+) -> Vec<WorkerPlacement> {
     debug_assert!(
         board.workers[player as usize] == BitBoard::EMPTY,
         "{:?}",
         board
     );
-    let mut res = Vec::new();
 
-    for a in 0_usize..25 {
-        let a_sq = Square::from(a);
-        if (board.workers[!player as usize] & BitBoard::as_mask(a_sq)).is_not_empty() {
-            continue;
-        }
+    let mut valid_squares = placement_type.get_valid_squares();
+    valid_squares &= !board.workers[!player as usize];
 
-        for b in a + 1..25 {
-            let b_sq = Square::from(b);
-            if (board.workers[!player as usize] & BitBoard::as_mask(b_sq)).is_not_empty() {
-                continue;
-            }
+    let n = valid_squares.count_ones() as usize;
+    let capacity = n * (n - 1) / 2;
+    let mut res = Vec::with_capacity(capacity);
 
-            let action = WorkerPlacement::new(a_sq, b_sq);
+    for a in valid_squares {
+        let b_valids = valid_squares & LOWER_SQUARES_EXCLUSIVE_MASK[a as usize];
+
+        for b in b_valids {
+            let action = WorkerPlacement::new(a, b);
             res.push(action);
         }
     }
 
+    debug_assert!(res.len() == capacity);
+
     res
 }
 
-pub fn get_all_placements_3(board: &BoardState, player: Player) -> Vec<WorkerPlacement> {
+pub fn get_all_placements_3(
+    board: &BoardState,
+    player: Player,
+    placement_type: PlacementType,
+) -> Vec<WorkerPlacement> {
     debug_assert!(board.workers[player as usize] == BitBoard::EMPTY);
-    let mut res = Vec::new();
 
-    for a in 0_usize..25 {
-        let a_sq = Square::from(a);
-        if (board.workers[!player as usize] & BitBoard::as_mask(a_sq)).is_not_empty() {
-            continue;
-        }
+    let mut valid_squares = placement_type.get_valid_squares();
 
-        for b in a + 1..25 {
-            let b_sq = Square::from(b);
-            if (board.workers[!player as usize] & BitBoard::as_mask(b_sq)).is_not_empty() {
-                continue;
-            }
+    valid_squares &= !board.workers[!player as usize];
 
-            for c in b + 1..25 {
-                let c_sq = Square::from(c);
-                if (board.workers[!player as usize] & BitBoard::as_mask(c_sq)).is_not_empty() {
-                    continue;
-                }
+    let n = valid_squares.count_ones() as usize;
+    let capacity = n * (n - 1) * (n - 2) / 6;
+    let mut res = Vec::with_capacity(capacity);
 
-                let action = WorkerPlacement::new_3(a_sq, b_sq, c_sq);
+    for a in valid_squares {
+        let b_valids = valid_squares & LOWER_SQUARES_EXCLUSIVE_MASK[a as usize];
+
+        for b in b_valids {
+            let c_valids = valid_squares & LOWER_SQUARES_EXCLUSIVE_MASK[b as usize];
+
+            for c in c_valids {
+                let action = WorkerPlacement::new_3(a, b, c);
                 res.push(action);
             }
         }
     }
 
+    debug_assert!(res.len() == capacity);
+
     res
 }
 
-pub fn get_unique_placements(state: &FullGameState, player: Player) -> Vec<WorkerPlacement> {
+pub fn get_unique_placements(
+    state: &FullGameState,
+    player: Player,
+    placement_type: PlacementType,
+) -> Vec<WorkerPlacement> {
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
-    let placements = get_all_placements(&state.board, player);
+    let placements = get_all_placements(&state.board, player, placement_type);
     for p in placements {
         let mut b_clone = state.board.clone();
         p.make_move(&mut b_clone, player);
@@ -148,11 +172,15 @@ pub fn get_unique_placements(state: &FullGameState, player: Player) -> Vec<Worke
     res
 }
 
-pub fn get_unique_placements_3(state: &FullGameState, player: Player) -> Vec<WorkerPlacement> {
+pub fn get_unique_placements_3(
+    state: &FullGameState,
+    player: Player,
+    placement_type: PlacementType,
+) -> Vec<WorkerPlacement> {
     let mut res = Vec::new();
     let mut unique_boards = Vec::new();
 
-    let placements = get_all_placements_3(&state.board, player);
+    let placements = get_all_placements_3(&state.board, player, placement_type);
     for p in placements {
         let mut b_clone = state.board.clone();
         p.make_move(&mut b_clone, player);
@@ -177,16 +205,18 @@ pub fn get_placement_actions<const IS_UNIQUE: bool>(
     placement_mode: PlacementState,
 ) -> Vec<WorkerPlacement> {
     let active_god = state.gods[placement_mode.next_placement as usize];
+    let placement_type = active_god.placement_type;
+
     if IS_UNIQUE {
         match active_god.num_workers {
-            2 => get_unique_placements(&state, placement_mode.next_placement),
-            3 => get_unique_placements_3(&state, placement_mode.next_placement),
+            2 => get_unique_placements(&state, placement_mode.next_placement, placement_type),
+            3 => get_unique_placements_3(&state, placement_mode.next_placement, placement_type),
             _ => unreachable!("Unknown worker count"),
         }
     } else {
         match active_god.num_workers {
-            2 => get_all_placements(&state.board, placement_mode.next_placement),
-            3 => get_all_placements_3(&state.board, placement_mode.next_placement),
+            2 => get_all_placements(&state.board, placement_mode.next_placement, placement_type),
+            3 => get_all_placements_3(&state.board, placement_mode.next_placement, placement_type),
             _ => unreachable!("Unknown worker count"),
         }
     }
