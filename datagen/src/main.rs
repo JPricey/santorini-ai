@@ -68,7 +68,9 @@ fn worker_thread() {
 }
 
 fn get_matchups_list() -> Vec<Matchup> {
-    let gods_to_always_generate: Vec<GodName> = WIP_GODS.iter().cloned().collect();
+    // let gods_to_always_generate: Vec<GodName> = WIP_GODS.iter().cloned().collect();
+    let gods_to_always_generate: Vec<GodName> =
+        [GodName::Zeus, GodName::Ares].iter().cloned().collect();
 
     let matchup_selector = MatchupSelector::default()
         .with_exact_gods_for_player(Player::One, &gods_to_always_generate)
