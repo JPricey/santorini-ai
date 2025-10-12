@@ -76,6 +76,10 @@ pub fn game_state_with_partial_actions(
     state: &FullGameState,
     actions: &Vec<PartialAction>,
 ) -> FullGameState {
+    if actions.is_empty() {
+        return state.clone();
+    }
+
     let mut result = state.clone();
     let board = &mut result.board;
     let current_player = get_acting_player(&state);

@@ -17,7 +17,7 @@ use santorini_core::{
     engine::EngineThreadWrapper,
     fen::{game_state_to_fen, parse_fen},
     gods::{ALL_GODS_BY_ID, GameStateWithAction, GodName, PartialAction, WIP_GODS},
-    player::Player,
+    player::{self, Player},
     pretty_board::{game_state_with_partial_actions, get_acting_player},
     search::{BestMoveTrigger, BestSearchResult, WINNING_SCORE, WINNING_SCORE_BUFFER},
     square::Square,
@@ -727,6 +727,7 @@ impl<'a> egui::Widget for GodChanger<'a> {
         if selected != before {
             let mut new_state = self.app.state.clone();
             new_state.gods[player_id] = selected.to_power();
+            new_state.board.god_data[player_id] = 0;
             new_state.recalculate_internals();
             self.app.update_state(new_state);
         }
@@ -948,6 +949,9 @@ impl eframe::App for MyApp {
                         let mut new_state = self.state.clone();
                         new_state.gods[0] = self.state.gods[1];
                         new_state.gods[1] = self.state.gods[0];
+
+                        new_state.board.god_data.swap(0, 1);
+
                         new_state.recalculate_internals();
                         self.update_state(new_state);
                     }
