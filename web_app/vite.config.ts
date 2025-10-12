@@ -11,7 +11,7 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico'],
             workbox: {
-                maximumFileSizeToCacheInBytes: 3 * 1024 ** 2,
+                maximumFileSizeToCacheInBytes: 5 * 1024 ** 2,
             },
             manifest: {
                 name: 'SantoriniAI',
