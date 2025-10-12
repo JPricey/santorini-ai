@@ -9,15 +9,36 @@ Board states are represented in this format:
 ```<height_map>/<current_player_id>/<player_details: player 1>/<player_details: player 2>```
 - `height_map`: 25 digits representing the height map of the board. Each digit must be a number from 0-4 inclusive. Domes are always represented as 4s, even for techincally incomplete towers (this is a known limitation)
 - `current_player_id`: either `1` or `2` representing whose turn it is
-- `player_details`: A string in this format: `<god_name>[#]:<worker_position>,...`
+- `player_details`: A string in this format: `<god_name>[#][<optional god state>]:<worker_position>,...`. Broken down as:
     - First, a god name in lowercase
     - Then, optionally a `#` if the game is over and this player is the winner.
-    - Then, optionally a `-` if the opponent is Athena, who just climbed
+    - Then, optional square brackets with a god state string. The form of this state depends on the god, and is outlined below.
     - Then a `:`, marking the start of the worker positions section
     - Then a comma separated list of worker positions, represented as a file & rank coordinate (ex: A5).
 
 Example:
 `4101202110011400102000100/2/mortal:A3,C3/artemis:E4,A1`
+
+### God State
+
+Some gods have powers that utilize state other than their own worker placements. An example of a game string using these gods is: `0000011000001000000000100/1/aeolus[w]:B3,C2/clio[1|B4,C3]:C3,D3`. The format of this state is described per relevant god:
+
+#### Athena
+Use `^` If Athena climbed on her last turn, and is now blocking upponents upwards movements. Defaults to non-blocking behaviour. Example: `athena[^]:A1`
+
+#### Morpheus
+Use the number of builds that Morpheus has stored. Defaults to 0. Stored builds are only updated at the _end_ of Morpheus' turn. This means that during his turn, Morpheus always has 1 more build available than indicated. Example: `morpheus[1]:A1`
+
+#### Clio
+Clio represents both number of remaining coin placements, and current coin placements using this format: `<remaining coin placements>|<comma separated coin coordinates>`. Defaults to 3 remaining placements.
+Example: `clio[1|B2,C3]:A1`
+
+#### Europa
+Use `<coordinate>` representing the square that Talus is placed. Defaults to no placement. Example: `europa[A2]:A1`
+
+#### Aeolus
+One of `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw`, or `` (empty string). Represents the direction of movement that is currently _blocked_ (which is opposite the wind direction). Defaults to no wind. Example: `aeolus[e]:A1`
+
 
 # Commands
 ## Inputs
@@ -26,11 +47,11 @@ Commands are input in the format:
 
 The UCI must always be ready to accept commands, even while some other computation is in progress.
 
-`set_position <board_state_fen>`: The engine will stop all other computation and start computing moves for this new position.
-`next_moves <board_state_fen>`: The engine will output all board states reachable from moves board_state_fen, plus the incremental actions required to reach those board states.
-`ping`: Returns `pong`
-`stop`: Stops the current calculation, if in progress
-`quit`: Closes the engine
+`set_position <board_state_fen>`: The engine will stop all other computation and start computing moves for this new position.  
+`next_moves <board_state_fen>`: The engine will output all board states reachable from moves board_state_fen, plus the incremental actions required to reach those board states.  
+`ping`: Returns `pong`  
+`stop`: Stops the current calculation, if in progress  
+`quit`: Closes the engine  
 
 ## Outputs
 Outputs are in JSON format.
@@ -138,7 +159,6 @@ Here are the set of possible interactive player actions:
 
 ### Known Limitations
 - Domes are represented as spaced with height 4. This means that incomplete towers cannot be represented
-- No characters with tokens have been implemented yet. The board state format will have to be extended for this purpose. When this happens athenas height signal will be changed as well.
 
 ### Why do input vs output use a different serialization format?
 - Mostly lazyness. I wanted output data to be highly structured for ease in parsing in another app, while being human readable enough, while the input format should be simple enough to write by hand without much boilerplate. Maybe later JSON will be accepted as inputs too.
