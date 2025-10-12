@@ -7,7 +7,7 @@ This submodule implements the UCI Santorini AI executable. In this doc we cover 
 Board states are represented in this format:
 
 ```<height_map>/<current_player_id>/<player_details: player 1>/<player_details: player 2>```
-- `height_map`: 25 digits representing the height map of the board. Each digit must be a number from 0-4 inclusive. Domes are always represented as 4s, even for techincally incomplete towers (this is a known limitation)
+- `height_map`: 25 digits representing the height map of the board. Each digit must be a number from 0-4 inclusive. Domes are always represented as 4s, even for techincally incomplete towers (this is a known limitation). The digits are ordered row-wise, starting with `A5` as in: `A5, B5, C5, D5, E4, A4...`
 - `current_player_id`: either `1` or `2` representing whose turn it is
 - `player_details`: A string in this format: `<god_name>[#][<optional god state>]:<worker_position>,...`. Broken down as:
     - First, a god name in lowercase
@@ -16,12 +16,12 @@ Board states are represented in this format:
     - Then a `:`, marking the start of the worker positions section
     - Then a comma separated list of worker positions, represented as a file & rank coordinate (ex: A5).
 
-Example:
-`4101202110011400102000100/2/mortal:A3,C3/artemis:E4,A1`
+Example: `4101202110011400102000100/2/mortal:A3,C3/artemis:E4,A1`
 
 ### God State
 
-Some gods have powers that utilize state other than their own worker placements. An example of a game string using these gods is: `0000011000001000000000100/1/aeolus[w]:B3,C2/clio[1|B4,C3]:C3,D3`. The format of this state is described per relevant god:
+Some gods have powers that utilize state other than their own worker placements. An example of a game string using these gods is: `0000011000001000000000100/1/aeolus[w]:B3,C2/clio[1|B4,C3]:C3,D3`.  
+The format of this state is described per relevant god:
 
 #### Athena
 Use `^` If Athena climbed on her last turn, and is now blocking upponents upwards movements. Defaults to non-blocking behaviour. Example: `athena[^]:A1`
@@ -34,10 +34,10 @@ Clio represents both number of remaining coin placements, and current coin place
 Example: `clio[1|B2,C3]:A1`
 
 #### Europa
-Use `<coordinate>` representing the square that Talus is placed. Defaults to no placement. Example: `europa[A2]:A1`
+The coordinate representing the square that Talus is placed, or empty string. Defaults to no placement. Example: `europa[A2]:A1`
 
 #### Aeolus
-One of `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw`, or `` (empty string). Represents the direction of movement that is currently _blocked_ (which is opposite the wind direction). Defaults to no wind. Example: `aeolus[e]:A1`
+One of `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw`, or empty string. Represents the direction of movement that is currently _blocked_ (which is opposite the wind direction). Defaults to no wind. Example: `aeolus[e]:A1`
 
 
 # Commands
