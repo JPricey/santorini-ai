@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::BitBoard,
+    bitboard::{BitBoard, NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -9,7 +9,12 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
-        move_helpers::{build_scored_move, make_build_only_power_generator},
+        move_helpers::{
+            build_scored_move, get_generator_prelude_state, get_standard_reach_board,
+            get_worker_end_move_state, get_worker_next_move_state, get_worker_start_move_state,
+            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
+            push_winning_moves,
+        },
     },
     persephone_check_result,
     player::Player,
@@ -177,59 +182,109 @@ fn atlas_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    persephone_check_result!(atlas_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+    let mut result = persephone_check_result!(atlas_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
-    make_build_only_power_generator::<F, MUST_CLIMB, _, _, _>(
-        state,
-        player,
-        key_squares,
-        AtlasMove::new_winning_move,
-        |context| {
-            for worker_build_pos in context.worker_next_build_state.narrowed_builds {
-                let worker_build_mask = BitBoard::as_mask(worker_build_pos);
-                let worker_build_height = state.board.get_height(worker_build_pos);
+    let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let checkable_mask = prelude.exactly_level_2;
+    modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-                {
-                    let new_action = AtlasMove::new_basic_move(
-                        context.worker_start_state.worker_start_pos,
-                        context.worker_end_state.worker_end_pos,
-                        worker_build_pos,
-                    );
-                    let is_check = {
-                        let final_level_3 = (context.prelude.exactly_level_2 & worker_build_mask)
-                            | (context.prelude.exactly_level_3 & !worker_build_mask);
-                        let check_board = context.reach_board & final_level_3;
-                        check_board.is_not_empty()
-                    };
+    for worker_start_pos in prelude.acting_workers {
+        let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
+        let mut worker_next_moves =
+            get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
 
-                    context.result.push(build_scored_move::<F, _>(
-                        new_action,
-                        is_check,
-                        context.worker_end_state.is_improving,
-                    ))
-                }
-
-                if worker_build_height < 3 {
-                    let new_action = AtlasMove::new_dome_build_move(
-                        context.worker_start_state.worker_start_pos,
-                        context.worker_end_state.worker_end_pos,
-                        worker_build_pos,
-                    );
-                    let is_check = {
-                        let final_level_3 = context.prelude.exactly_level_3 & !worker_build_mask;
-                        let check_board = context.reach_board & final_level_3;
-                        check_board.is_not_empty()
-                    };
-
-                    context.result.push(build_scored_move::<F, _>(
-                        new_action,
-                        is_check,
-                        context.worker_end_state.is_improving,
-                    ))
-                }
+        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            let moves_to_level_3 =
+                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+            if push_winning_moves::<F, AtlasMove, _>(
+                &mut result,
+                worker_start_pos,
+                moves_to_level_3,
+                AtlasMove::new_winning_move,
+            ) {
+                return result;
             }
-        },
-    )
+            worker_next_moves.worker_moves ^= moves_to_level_3;
+        }
+
+        if is_mate_only::<F>() {
+            continue;
+        }
+
+        for worker_end_pos in worker_next_moves.worker_moves {
+            let worker_end_move_state =
+                get_worker_end_move_state::<F>(&prelude, &worker_start_state, worker_end_pos);
+
+            let unblocked_squares = !(worker_start_state.all_non_moving_workers
+                | worker_end_move_state.worker_end_mask
+                | prelude.domes_and_frozen);
+
+            let all_possible_builds_no_limus =
+                NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize] & unblocked_squares;
+            let mut narrowed_builds_no_limus = all_possible_builds_no_limus;
+
+            if is_interact_with_key_squares::<F>() {
+                let is_already_matched = (worker_end_move_state.worker_end_mask
+                    & prelude.key_squares)
+                    .is_not_empty() as usize;
+                narrowed_builds_no_limus &=
+                    [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
+            }
+
+            let regular_buildables = narrowed_builds_no_limus & prelude.build_mask;
+            let dome_buildables = narrowed_builds_no_limus & !prelude.exactly_level_3;
+
+            let reach_board = get_standard_reach_board::<F>(
+                &prelude,
+                &worker_next_moves,
+                &worker_end_move_state,
+                unblocked_squares,
+            );
+
+            for worker_build_pos in regular_buildables {
+                let new_action = AtlasMove::new_basic_move(
+                    worker_start_pos,
+                    worker_end_move_state.worker_end_pos,
+                    worker_build_pos,
+                );
+                let is_check = {
+                    let final_level_3 = (prelude.exactly_level_2
+                        & BitBoard::as_mask(worker_build_pos))
+                        | (prelude.exactly_level_3 & !BitBoard::as_mask(worker_build_pos));
+                    let check_board = reach_board & final_level_3;
+                    check_board.is_not_empty()
+                };
+
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    worker_end_move_state.is_improving,
+                ))
+            }
+
+            for worker_dome_pos in dome_buildables {
+                let new_action = AtlasMove::new_dome_build_move(
+                    worker_start_pos,
+                    worker_end_move_state.worker_end_pos,
+                    worker_dome_pos,
+                );
+                let is_check = {
+                    let final_level_3 =
+                        prelude.exactly_level_3 & !BitBoard::as_mask(worker_dome_pos);
+                    let check_board = reach_board & final_level_3;
+                    check_board.is_not_empty()
+                };
+
+                result.push(build_scored_move::<F, _>(
+                    new_action,
+                    is_check,
+                    worker_end_move_state.is_improving,
+                ))
+            }
+        }
+    }
+
+    result
 }
 
 pub const fn build_atlas() -> GodPower {

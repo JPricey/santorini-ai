@@ -498,16 +498,14 @@ impl ConsistencyChecker {
 
         let mut dome_build_actions = Vec::new();
 
-        // Returns a mask of all builds done, except for lvl 3 -> domes (which limus allows)
+        // Returns a mask of all builds done, except for domes
         fn get_new_builds_mask(new_state: &BoardState, old_state: &BoardState) -> BitBoard {
             let mut new_builds = BitBoard::EMPTY;
             new_builds |= new_state.height_map[2] & !old_state.height_map[2];
             new_builds |= new_state.height_map[1] & !old_state.height_map[1];
             new_builds |= new_state.height_map[0] & !old_state.height_map[0];
-            let new_dome_builds_from_non_lvl_3 =
-                new_state.height_map[3] & !old_state.height_map[2] & !old_state.height_map[3];
 
-            new_builds | new_dome_builds_from_non_lvl_3
+            new_builds & !new_state.height_map[3]
         }
 
         for action in actions {
@@ -518,14 +516,12 @@ impl ConsistencyChecker {
 
             let new_state = self.state.next_state(active_god, action);
             let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
-            let new_dome_builds_from_lvl_3 = new_state.board.height_map[3]
-                & self.state.board.height_map[2]
-                & !self.state.board.height_map[3];
+            let new_dome_builds = new_state.board.height_map[3] & !self.state.board.height_map[3];
 
             let build_mask =
                 other_god.get_build_mask(new_state.board.workers[!current_player as usize]);
 
-            if new_dome_builds_from_lvl_3.is_not_empty() {
+            if new_dome_builds.is_not_empty() {
                 dome_build_actions.push(action);
             }
 
