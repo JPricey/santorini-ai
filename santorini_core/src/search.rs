@@ -474,7 +474,7 @@ where
                 losing_board,
                 GenericMove::NULL_MOVE,
                 false,
-                -WINNING_SCORE,
+                -win_at_ply(0),
                 0,
                 0,
                 BestMoveTrigger::EndOfLine,
@@ -762,10 +762,9 @@ where
     let child_moves;
     let opponent_wins = other_god.get_winning_moves(&state, !state.board.current_player);
 
-    // If opponent is threatening a win, we must respond to it. Don't bother taking the current
-    // eval, just know that we're losing
+    // Don't bother taking the current eval if we're in check - we have to respond to it.
     if opponent_wins.len() > 0 {
-        eval = -(WINNING_SCORE - 1);
+        eval = -win_at_ply(ply + 1);
         let mut blocker_board = BitBoard::EMPTY;
         for action in &opponent_wins {
             blocker_board |= other_god.get_blocker_board(&state.board, action.action);
