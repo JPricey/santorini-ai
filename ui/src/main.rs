@@ -695,6 +695,17 @@ struct GodChanger<'a> {
     player: Player,
 }
 
+fn ordered_god_names() -> Vec<GodName> {
+    let mut god_names: Vec<GodName> = ALL_GODS_BY_ID.iter().map(|g| g.god_name).collect();
+    god_names.sort_by_key(|g| {
+        (
+            if *g == GodName::Mortal { 0 } else { 1 },
+            format!("{:?}", g),
+        )
+    });
+    god_names
+}
+
 impl<'a> egui::Widget for GodChanger<'a> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let player_id = self.player as usize;
@@ -710,15 +721,14 @@ impl<'a> egui::Widget for GodChanger<'a> {
             egui::ComboBox::from_id_salt(text)
                 .selected_text(format!("{:?}", selected))
                 .show_ui(ui, |ui| {
-                    for god in ALL_GODS_BY_ID.iter() {
-                        let god_name = god.god_name;
+                    for god_name in ordered_god_names() {
                         let is_wip = WIP_GODS.contains(&god_name);
                         if self.app.may_show_wip_gods || !is_wip {
                             let wip_string = if is_wip { " (WIP)" } else { "" };
                             ui.selectable_value(
                                 &mut selected,
                                 god_name,
-                                format!("{:?} {}", god.god_name, wip_string),
+                                format!("{:?} {}", god_name, wip_string),
                             );
                         }
                     }
