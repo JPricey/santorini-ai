@@ -1012,7 +1012,7 @@ where
         }
 
         // If we're in check, assume that we're not smothered and are losing on the next turn
-        if is_in_check {
+        if key_squares.is_some() {
             return -win_at_ply(ply + 1);
         } else {
             return -win_at_ply(ply);
@@ -1066,7 +1066,7 @@ where
     };
 
     // let mut child_nnue_acc = nnue_acc.clone();
-    if !NT::ROOT && !NT::PV && !is_in_check {
+    if !NT::ROOT && !NT::PV && key_squares.is_none() {
         // Reverse Futility Pruning
         if remaining_depth <= 8 {
             let rfp_margin =
