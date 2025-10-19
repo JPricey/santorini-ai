@@ -6,7 +6,7 @@ use santorini_core::{
     matchup::BANNED_MATCHUPS,
     player::Player,
     pretty_board::{game_state_with_partial_actions, state_to_pretty_board},
-    search::{SearchContext, negamax_search},
+    search::{SearchContext, get_past_win_search_terminator, negamax_search},
     search_terminators::SearchTerminator,
     transposition_table::TranspositionTable,
     uci_types::{BestMoveMeta, BestMoveOutput, EngineOutput, NextMovesOutput, NextStateOutput},
@@ -109,7 +109,11 @@ impl WasmApp {
             terminator: JsTimeSearchTerminator::new(timeLimit),
         };
 
-        let search_result = negamax_search(&mut search_state, state.clone());
+        let search_result = negamax_search(
+            &mut search_state,
+            state.clone(),
+            get_past_win_search_terminator(),
+        );
 
         if let Some(action) = search_result.best_move {
             let actions = find_action_path(&state, &action.child_state).unwrap_or_default();

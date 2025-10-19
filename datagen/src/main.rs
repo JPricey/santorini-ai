@@ -6,7 +6,7 @@ use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::matchup::{Matchup, MatchupSelector};
 use santorini_core::placement::{get_placement_actions, get_starting_placement_state};
 use santorini_core::player::Player;
-use santorini_core::search::{Hueristic, SearchContext, WINNING_SCORE_BUFFER, negamax_search};
+use santorini_core::search::{get_win_reached_search_terminator, negamax_search, Hueristic, SearchContext, WINNING_SCORE_BUFFER};
 use santorini_core::search_terminators::{
     AndSearchTerminator, OrSearchTerminator, StaticMaxDepthSearchTerminator,
     StaticNodesVisitedSearchTerminator,
@@ -171,6 +171,7 @@ fn playout_subgame(
         let search_result = negamax_search::<DatagenStaticSearchTerminator>(
             &mut search_context,
             current_state.clone(),
+            get_win_reached_search_terminator(),
         );
 
         let Some(best_child) = search_result.best_move else {

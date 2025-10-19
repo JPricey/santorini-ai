@@ -1,6 +1,5 @@
 use std::{array, fmt::Debug};
 
-use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -93,32 +92,31 @@ pub struct SearchStackEntry {
     pub move_hash: usize,
 }
 
-// Examples only store pv for reporting. I'm much less interested now
-#[derive(Clone, Debug)]
-pub struct PVariation {
-    pub moves: ArrayVec<GenericMove, MAX_PLY>,
+type SoftSearchTerminatorFn = Box<dyn Fn(&SearchState) -> bool>;
+
+pub fn get_win_reached_search_terminator() -> SoftSearchTerminatorFn {
+    Box::new(|search_state: &SearchState| {
+        if let Some(best_move) = &search_state.best_move {
+            best_move.score.abs() >= WINNING_SCORE_BUFFER
+        } else {
+            false
+        }
+    })
 }
 
-impl PVariation {
-    const EMPTY: Self = Self {
-        moves: ArrayVec::new_const(),
-    };
+pub fn get_past_win_search_terminator() -> SoftSearchTerminatorFn {
+    Box::new(|search_state: &SearchState| {
+        if let Some(best_move) = &search_state.best_move {
+            let abs_score = best_move.score.abs();
+            if abs_score > WINNING_SCORE_BUFFER {
+                let win_depth = (WINNING_SCORE - abs_score).max(0) as usize;
 
-    pub fn moves(&self) -> &[GenericMove] {
-        &self.moves
-    }
+                return search_state.last_fully_completed_depth > 2 * (win_depth + 5);
+            }
+        }
 
-    pub const fn default_const() -> Self {
-        Self::EMPTY
-    }
-
-    pub fn load_from(&mut self, m: GenericMove, rest: &Self) {
-        self.moves.clear();
-        self.moves.push(m);
-        self.moves
-            .try_extend_from_slice(&rest.moves)
-            .expect("attempted to construct a PV longer than MAX_PLY.");
-    }
+        false
+    })
 }
 
 pub trait NodeType {
@@ -357,6 +355,7 @@ impl<'a, T: SearchTerminator> SearchContext<'a, T> {
 pub fn negamax_search<T>(
     search_context: &mut SearchContext<T>,
     mut root_state: FullGameState,
+    soft_search_terminator_fn: SoftSearchTerminatorFn,
 ) -> SearchState
 where
     T: SearchTerminator,
@@ -433,7 +432,7 @@ where
             break;
         }
 
-        let score = _root_search(
+        _root_search(
             search_context,
             &mut search_state,
             &mut root_state,
@@ -484,16 +483,11 @@ where
             break;
         }
 
-        if score.abs() > WINNING_SCORE_BUFFER && !search_context.should_stop(&search_state) {
-            // If we see a win/loss, maybe the refutation was pruned out. Keep searching a bit further
-            // to confirm, but there's no need to search forever
-            let win_depth = WINNING_SCORE - score.abs();
-            if depth as Hueristic > 1 * (win_depth + 1) {
-                let mut best_move = search_state.best_move.clone().unwrap();
-                best_move.trigger = BestMoveTrigger::EndOfLine;
-                (search_context.new_best_move_callback)(best_move);
-                break;
-            }
+        if soft_search_terminator_fn(&search_state) && !search_context.should_stop(&search_state) {
+            let mut best_move = search_state.best_move.clone().unwrap();
+            best_move.trigger = BestMoveTrigger::EndOfLine;
+            (search_context.new_best_move_callback)(best_move);
+            break;
         }
     }
 

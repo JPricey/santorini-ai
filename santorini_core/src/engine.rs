@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     board::FullGameState,
-    search::{BestSearchResult, SearchContext, negamax_search},
+    search::{BestSearchResult, SearchContext, get_past_win_search_terminator, negamax_search},
     search_terminators::{
         AndSearchTerminator, OrSearchTerminator, StaticMaxDepthSearchTerminator,
         StaticNodesVisitedSearchTerminator, StopFlagSearchTerminator,
@@ -126,7 +126,11 @@ impl EngineThreadWrapper {
                         terminator: StopFlagSearchTerminator::new(request.stop_flag.clone()),
                     };
 
-                    negamax_search(&mut search_state, request.state.clone());
+                    negamax_search(
+                        &mut search_state,
+                        request.state.clone(),
+                        get_past_win_search_terminator(),
+                    );
 
                     request.stop_flag.store(true, Ordering::Relaxed);
                 }

@@ -5,7 +5,10 @@ use std::time::{Duration, Instant};
 use santorini_core::{
     board::FullGameState,
     gods::{GodName, generic::GenericMove},
-    search::{Hueristic, SearchContext, SearchState, WINNING_SCORE_BUFFER, negamax_search},
+    search::{
+        Hueristic, SearchContext, SearchState, WINNING_SCORE_BUFFER,
+        get_win_reached_search_terminator, negamax_search,
+    },
     search_terminators::DynamicMaxDepthSearchTerminator,
     transposition_table::TranspositionTable,
     utils::SEARCH_TEST_SCENARIOS,
@@ -41,7 +44,11 @@ fn run_scenario(
     let mut search_state = SearchContext::new(tt, DynamicMaxDepthSearchTerminator::new(depth));
 
     let start_at = Instant::now();
-    let result = negamax_search(&mut search_state, game_state.clone());
+    let result = negamax_search(
+        &mut search_state,
+        game_state.clone(),
+        get_win_reached_search_terminator(),
+    );
     let duration = start_at.elapsed();
 
     (result, duration)
