@@ -29,7 +29,9 @@ fn persephone_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    let vs_pan_key_builds = if prelude.other_god.god_name == GodName::Pan {
+    let vs_alt_winner_key_builds = if prelude.other_god.god_name == GodName::Pan
+        || prelude.other_god.god_name == GodName::Eros
+    {
         apply_mapping_to_mask(prelude.oppo_workers, &NEIGHBOR_MAP)
     } else {
         BitBoard::EMPTY
@@ -73,10 +75,10 @@ fn persephone_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             if is_interact_with_key_squares::<F>() {
                 let is_already_matched = (worker_end_move_state.worker_end_mask
                     & prelude.key_squares
-                    | vs_pan_key_builds & worker_start_state.worker_start_mask)
+                    | vs_alt_winner_key_builds & worker_start_state.worker_start_mask)
                     .is_not_empty() as usize;
                 narrowed_builds &= [
-                    prelude.key_squares | vs_pan_key_builds,
+                    prelude.key_squares | vs_alt_winner_key_builds,
                     BitBoard::MAIN_SECTION_MASK,
                 ][is_already_matched];
             }
@@ -130,7 +132,9 @@ mod tests {
     use crate::{
         consistency_checker::ConsistencyChecker,
         fen::parse_fen,
-        search::{SearchContext, WINNING_SCORE_BUFFER, negamax_search},
+        search::{
+            SearchContext, WINNING_SCORE_BUFFER, get_win_reached_search_terminator, negamax_search,
+        },
         search_terminators::DynamicMaxDepthSearchTerminator,
         transposition_table::TranspositionTable,
     };
@@ -153,7 +157,11 @@ mod tests {
             new_best_move_callback: Box::new(move |_new_best_move| {}),
             terminator: DynamicMaxDepthSearchTerminator::new(2),
         };
-        let search_state = negamax_search(&mut search_context, state);
+        let search_state = negamax_search(
+            &mut search_context,
+            state,
+            get_win_reached_search_terminator(),
+        );
         // Persephone is winning from here
         assert!(search_state.best_move.unwrap().score > WINNING_SCORE_BUFFER);
     }

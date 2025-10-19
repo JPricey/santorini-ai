@@ -748,6 +748,11 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if other_god.god_name == GodName::Eros {
+                // TODO: scope this down.
+                continue;
+            }
+
             let mut err_str = format!("Block move didn't remove any wins: {}: ", stringed_action);
             for winning_action in other_wins {
                 err_str.push_str(&format!(
@@ -874,7 +879,7 @@ impl ConsistencyChecker {
                         ));
                     }
                 } else if is_check_flag
-                    && active_god.god_name == GodName::Pan
+                    && (active_god.god_name == GodName::Pan || active_god.god_name == GodName::Eros)
                     && other_god.god_name == GodName::Persephone
                 {
                     // Persephone can force pan to go up, preventing his downfall win con
@@ -963,6 +968,10 @@ impl ConsistencyChecker {
 
         if active_god.god_name == GodName::Maenads {
             // Maenads wins by dancing
+            return;
+        }
+
+        if active_god.god_name == GodName::Eros {
             return;
         }
 

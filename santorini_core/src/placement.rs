@@ -3,6 +3,7 @@ use crate::{
     board::{BoardState, FullGameState, GodPair},
     gods::generic::{GodMove, WorkerPlacement},
     player::Player,
+    square::Square,
 };
 
 pub type MaybePlacementState = Option<PlacementState>;
@@ -11,6 +12,7 @@ pub type MaybePlacementState = Option<PlacementState>;
 pub enum PlacementType {
     Normal,
     PerimeterOnly,
+    PerimeterOpposite,
 }
 
 impl PlacementType {
@@ -18,6 +20,7 @@ impl PlacementType {
         match self {
             PlacementType::Normal => BitBoard::MAIN_SECTION_MASK,
             PlacementType::PerimeterOnly => PERIMETER_SPACES_MASK,
+            PlacementType::PerimeterOpposite => unreachable!(),
         }
     }
 }
@@ -79,6 +82,26 @@ pub fn get_starting_placement_state(
     }
 }
 
+fn get_all_placements_opposite(board: &BoardState, player: Player) -> Vec<WorkerPlacement> {
+    let mut valid_starters = PERIMETER_SPACES_MASK & !LOWER_SQUARES_EXCLUSIVE_MASK[12 as usize];
+    let valid_anywhere = !board.workers[!player as usize];
+    valid_starters &= valid_anywhere;
+
+    let mut res = Vec::with_capacity(valid_starters.count_ones() as usize);
+
+    for a in valid_starters {
+        let b = Square::from(24 - (a as u8));
+        if valid_anywhere.contains_square(b) {
+            let action = WorkerPlacement::new(a, b);
+            res.push(action);
+        }
+    }
+
+    debug_assert!(res.len() <= valid_starters.count_ones() as usize);
+
+    res
+}
+
 pub fn get_all_placements(
     board: &BoardState,
     player: Player,
@@ -89,6 +112,10 @@ pub fn get_all_placements(
         "{:?}",
         board
     );
+
+    if placement_type == PlacementType::PerimeterOpposite {
+        return get_all_placements_opposite(board, player);
+    }
 
     let mut valid_squares = placement_type.get_valid_squares();
     valid_squares &= !board.workers[!player as usize];

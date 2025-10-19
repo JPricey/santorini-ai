@@ -595,6 +595,15 @@ impl BoardState {
             }
         }
 
+        if own_god.god_name == GodName::Eros {
+            if worker_count > 2 {
+                return Err(format!(
+                    "Player {:?} as Eros can't have more than 2 workers",
+                    player
+                ));
+            }
+        }
+
         if worker_count > 4 {
             return Err(format!("Player {:?} has too many workers", player));
         }

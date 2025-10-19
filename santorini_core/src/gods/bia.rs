@@ -1,9 +1,6 @@
 use crate::{
-    bitboard::{
-        BitBoard, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP,
-    },
+    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
-    placement::PlacementType,
     build_god_power_movers,
     gods::{
         FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
@@ -21,6 +18,7 @@ use crate::{
         },
     },
     persephone_check_result,
+    placement::PlacementType,
     player::Player,
     square::Square,
 };
@@ -364,7 +362,9 @@ mod tests {
     use crate::{
         fen::parse_fen,
         player::Player,
-        search::{SearchContext, WINNING_SCORE_BUFFER, negamax_search},
+        search::{
+            SearchContext, WINNING_SCORE_BUFFER, get_win_reached_search_terminator, negamax_search,
+        },
         search_terminators::DynamicMaxDepthSearchTerminator,
         square::Square,
         transposition_table::TranspositionTable,
@@ -380,7 +380,11 @@ mod tests {
             new_best_move_callback: Box::new(move |_new_best_move| {}),
             terminator: DynamicMaxDepthSearchTerminator::new(4),
         };
-        let search_state = negamax_search(&mut search_context, state);
+        let search_state = negamax_search(
+            &mut search_context,
+            state,
+            get_win_reached_search_terminator(),
+        );
         assert!(search_state.best_move.unwrap().score > WINNING_SCORE_BUFFER);
     }
 
@@ -426,7 +430,11 @@ mod tests {
             new_best_move_callback: Box::new(move |_new_best_move| {}),
             terminator: DynamicMaxDepthSearchTerminator::new(1),
         };
-        let search_state = negamax_search(&mut search_context, state);
+        let search_state = negamax_search(
+            &mut search_context,
+            state,
+            get_win_reached_search_terminator(),
+        );
         let child_board = search_state.best_move.unwrap().child_state.board;
         assert_eq!(child_board.current_player, Player::Two);
         assert!(child_board.workers[0].is_empty());
@@ -443,7 +451,11 @@ mod tests {
             new_best_move_callback: Box::new(move |_new_best_move| {}),
             terminator: DynamicMaxDepthSearchTerminator::new(1),
         };
-        let search_state = negamax_search(&mut search_context, state);
+        let search_state = negamax_search(
+            &mut search_context,
+            state,
+            get_win_reached_search_terminator(),
+        );
         let child_board = search_state.best_move.unwrap().child_state.board;
         assert_eq!(child_board.current_player, Player::Two);
         assert!(child_board.workers[0].is_not_empty());

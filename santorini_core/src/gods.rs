@@ -26,6 +26,7 @@ pub(crate) mod atlas;
 pub(crate) mod bia;
 pub(crate) mod clio;
 pub(crate) mod demeter;
+pub(crate) mod eros;
 pub(crate) mod europa;
 pub mod generic;
 pub(crate) mod graeae;
@@ -96,10 +97,11 @@ pub enum GodName {
     Maenads = 26,
     Zeus = 27,
     Ares = 28,
+    Eros = 29,
 }
 
-pub const WIP_GODS: [GodName; 0] = [];
-// counted_array!(pub const WIP_GODS: [GodName; _] = [ ]);
+// pub const WIP_GODS: [GodName; 0] = [];
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Eros]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -551,6 +553,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     maenads::build_maenads(),
     zeus::build_zeus(),
     ares::build_ares(),
+    eros::build_eros(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

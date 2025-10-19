@@ -1427,7 +1427,11 @@ mod tests {
             terminator: DynamicMaxDepthSearchTerminator::new(2),
         };
 
-        let search_state = negamax_search(&mut search_context, full_state);
+        let search_state = negamax_search(
+            &mut search_context,
+            full_state,
+            get_win_reached_search_terminator(),
+        );
 
         let _best_move = search_state.best_move.unwrap();
         // assert!(best_move.score > -WINNING_SCORE_BUFFER);
