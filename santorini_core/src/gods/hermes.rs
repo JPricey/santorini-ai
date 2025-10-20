@@ -1,23 +1,15 @@
 use crate::{
     bitboard::{
-        BitBoard, BitboardMapping, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask,
+        apply_mapping_to_mask, BitBoard, BitboardMapping, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP
     },
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, build_god_power_actions,
-        generic::{
-            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
-        },
-        god_power,
-        move_helpers::{
-            WorkerNextMoveState, build_scored_move, get_basic_moves_from_raw_data_for_hermes,
-            get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state,
-            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
-            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
-            restrict_moves_by_affinity_area,
-        },
+        build_god_power_actions, generic::{
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
+        }, god_power, move_helpers::{
+            build_scored_move, get_basic_moves_from_raw_data_for_hermes, get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers, push_winning_moves, restrict_moves_by_affinity_area, WorkerNextMoveState
+        }, FullAction, GodName, GodPower, StaticGod
     },
     persephone_check_result,
     player::Player,
@@ -249,7 +241,7 @@ impl GodMove for HermesMove {
         }
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, _other_god: StaticGod) {
         let worker_move_mask = self.move_mask();
         board.worker_xor(player, worker_move_mask);
 

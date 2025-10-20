@@ -121,23 +121,22 @@ impl ConsistencyChecker {
             all_move_map.insert(key, action.get_is_winning());
         }
 
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
+
         for action in search_moves {
             let key = action.action.0 & MOVE_DATA_MAIN_SECTION;
             if !all_move_map.contains_key(&key) {
                 self.errors.push(format!(
                     "Search move not in all moves: {} -> {:?}",
-                    self.state.get_active_god().stringify_move(action.action),
-                    self.state
-                        .next_state(self.state.get_active_god(), action.action)
+                    active_god.stringify_move(action.action),
+                    self.state.next_state(active_god, other_god, action.action)
                 ));
             } else {
                 let was_winning = all_move_map[&key];
                 if was_winning != action.get_is_winning() {
                     self.errors.push(format!(
                         "Search move win flag mismatch from all moves: {}. AllMovesWin: {} SearchMovesWin: {}",
-                        self.state
-                            .get_active_god()
-                            .stringify_move(action.action),
+                        active_god.stringify_move(action.action),
                         was_winning,
                         action.get_is_winning()
                     ));
@@ -150,16 +149,15 @@ impl ConsistencyChecker {
             if !all_move_map.contains_key(&key) {
                 self.errors.push(format!(
                     "Winning move not in all moves: {} -> {:?}",
-                    self.state.get_active_god().stringify_move(action.action),
-                    self.state
-                        .next_state(self.state.get_active_god(), action.action)
+                    active_god.stringify_move(action.action),
+                    self.state.next_state(active_god, other_god, action.action)
                 ));
             } else {
                 let was_winning = all_move_map[&key];
                 if !was_winning {
                     self.errors.push(format!(
                         "Winning move not marked as winning in all moves: {}",
-                        self.state.get_active_god().stringify_move(action.action),
+                        active_god.stringify_move(action.action),
                     ));
                 }
             }
@@ -168,11 +166,11 @@ impl ConsistencyChecker {
 
     fn validate_non_duplicates(&mut self, actions: &Vec<ScoredMove>) {
         let mut seen = HashMap::<BoardState, GenericMove>::new();
-        let active_god = self.state.get_active_god();
+        let (active_god, other_god) = self.state.get_active_non_active_gods();
 
         for action in actions {
             let action = action.action;
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
 
             if let Some(other_action) = seen.get(&new_state.board) {
                 self.errors.push(format!(
@@ -200,7 +198,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
             if (new_workers & other_frozens).is_not_empty() {
@@ -242,7 +240,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
             let old_only = old_workers & !new_workers;
@@ -303,7 +301,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
             let old_only = old_workers & !new_workers;
@@ -414,7 +412,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
             let old_only = old_workers & !new_workers;
@@ -464,7 +462,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
             let old_workers = self.state.board.workers[current_player as usize];
 
@@ -514,7 +512,7 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
             let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
             let new_dome_builds = new_state.board.height_map[3] & !self.state.board.height_map[3];
 
@@ -538,6 +536,12 @@ impl ConsistencyChecker {
             }
         }
 
+        if active_god.god_name == GodName::Morpheus {
+            // The check below only works for domers.
+            // Morpheus "domes" over multiple builds, which limus does not allow
+            return;
+        }
+
         let mut against_mortal_state = self.state.clone();
         against_mortal_state.gods[!current_player as usize] = GodName::Mortal.to_power();
         let mortal_search_moves =
@@ -545,9 +549,9 @@ impl ConsistencyChecker {
 
         for mortal_move in mortal_search_moves {
             let mortal_action = mortal_move.action;
-            let new_state = self.state.next_state(active_god, mortal_action);
-            // We could have built a dome and ALSO somewhere else. these moves are invalid too, so
-            // skip.
+            let new_state = self.state.next_state(active_god, other_god, mortal_action);
+            // We could have built a dome and ALSO somewhere else.
+            // these moves are invalid vs limus too, so skip this check.
             let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
             if new_builds.is_not_empty() {
                 continue;
@@ -562,7 +566,7 @@ impl ConsistencyChecker {
 
                 if !seen_dome_build {
                     let error_string = format!(
-                        "Was able to build vaid dome against mortal, but not limus: {} -> {:?}",
+                        "Was able to build valid dome against mortal, but not limus: {} -> {:?}",
                         active_god.stringify_move(mortal_action),
                         new_state,
                     );
@@ -623,7 +627,7 @@ impl ConsistencyChecker {
         for block_action in scored_blocker_actions.iter() {
             let block_action = block_action.action;
             let stringed_action = active_god.stringify_move(block_action);
-            let blocked_state = self.state.next_state(active_god, block_action);
+            let blocked_state = self.state.next_state(active_god, other_god, block_action);
 
             if blocked_state.board.get_winner() == Some(current_player) {
                 continue;
@@ -776,7 +780,7 @@ impl ConsistencyChecker {
             }
             let stringed_action = active_god.stringify_move(action);
 
-            let new_state = self.state.next_state(active_god, action);
+            let new_state = self.state.next_state(active_god, other_god, action);
             let new_oppo_wins = other_god.get_winning_moves(&new_state, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
                 if active_god.god_name == GodName::Persephone && other_god.god_name == GodName::Pan
@@ -831,7 +835,7 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            let mut check_state = self.state.next_state(active_god, action.action);
+            let mut check_state = self.state.next_state(active_god, other_god, action.action);
             other_god.make_passing_move(&mut check_state.board);
             let wins_from_check_state = active_god.get_winning_moves(&check_state, current_player);
             let is_real_checker = wins_from_check_state.len() > 0;
@@ -944,7 +948,7 @@ impl ConsistencyChecker {
         action: GenericMove,
     ) {
         let stringed_action = active_god.stringify_move(action);
-        let won_state = state.next_state(active_god, action);
+        let won_state = state.next_state(active_god, other_god, action);
         if won_state.get_winner() != Some(current_player) {
             self.errors.push(format!(
                 "{label}:Winning move did not result in win: {}. {:?} -> {:?} winner: {:?} current_player: {:?}",

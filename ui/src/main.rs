@@ -93,6 +93,7 @@ fn next_worker_rotation(current: Option<Player>) -> Option<Player> {
 fn square_for_interaction(action: &PartialAction) -> Option<Square> {
     match action {
         PartialAction::PlaceWorker(x)
+        | PartialAction::SetFemaleWorker(x)
         | PartialAction::SelectWorker(x)
         | PartialAction::Build(x)
         | PartialAction::SetTalusPosition(x)
@@ -107,6 +108,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
 fn partial_action_color(action: &PartialAction) -> egui::Color32 {
     match action {
         PartialAction::PlaceWorker(_) => egui::Color32::YELLOW,
+        PartialAction::SetFemaleWorker(_) => egui::Color32::LIGHT_RED,
         PartialAction::SelectWorker(_) => egui::Color32::BLUE,
         PartialAction::MoveWorker(_) => egui::Color32::DARK_GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
@@ -125,6 +127,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
 fn partial_action_label(action: &PartialAction) -> String {
     match action {
         PartialAction::PlaceWorker(_) => "Place Worker".to_string(),
+        PartialAction::SetFemaleWorker(_) => "Pick Female Worker".to_string(),
         PartialAction::SelectWorker(_) => "Select Worker".to_string(),
         PartialAction::MoveWorker(_) => "Move Worker".to_string(),
         PartialAction::Build(_) => "Build".to_string(),
@@ -432,7 +435,7 @@ impl<'a> egui::Widget for GameGrid<'a> {
         let render_state =
             game_state_with_partial_actions(&self.app.state, &self.app.current_actions);
 
-        let (p1_tokens, p2_tokens) = self.app.state.get_frozen_squares();
+        let (p1_tokens, p2_tokens) = self.app.state.get_token_squares();
 
         for r in 0..5 {
             for c in 0..5 {

@@ -7,7 +7,7 @@ use crate::{
     build_god_power_movers,
     direction::{Direction, direction_idx_to_reverse},
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
@@ -51,7 +51,7 @@ impl GodMove for AeolusMove {
         vec![res]
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, _other_god: StaticGod) {
         let worker_move_mask = self.move_mask();
         board.worker_xor(player, worker_move_mask);
 

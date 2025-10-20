@@ -3,7 +3,7 @@ use crate::{
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
@@ -54,7 +54,7 @@ impl GodMove for BiaMove {
         vec![res]
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, other_god: StaticGod) {
         let worker_move_mask = self.move_mask();
         board.worker_xor(player, worker_move_mask);
 
@@ -64,7 +64,7 @@ impl GodMove for BiaMove {
         }
 
         if let Some(killed_worker_pos) = self.killed_worker_pos() {
-            board.worker_xor(!player, BitBoard::as_mask(killed_worker_pos));
+            board.oppo_worker_kill(other_god, !player, killed_worker_pos.to_board());
         }
 
         board.build_up(self.build_position());

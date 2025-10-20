@@ -67,24 +67,27 @@ def main():
     for (k, v) in gods_by_wins.most_common():
         print(k, v, "/", gods_by_losses[k])
 
-    print("Aeolus losses")
-    for m in non_mirrors:
-        if m.losing_god == "Aeolus":
-            print(m)
+    SHOW_LOSSES_GODS = [
+        "Aeolus",
+        "Apollo",
+        "Limus",
+    ]
 
-    print("Apollos losses")
-    for m in non_mirrors:
-        if m.losing_god == "Apollo":
-            print(m)
+    SHOW_WINS_GODS = [
+        "Pan",
+        "Selene",
+    ]
 
-    print("Limus losses")
-    for m in non_mirrors:
-        if m.losing_god == "Limus":
-            print(m)
+    for god in SHOW_WINS_GODS:
+        print(f"{god} wins")
+        for m in non_mirrors:
+            if m.winning_god == god:
+                print(m)
 
-    print("Pans wins")
-    for m in non_mirrors:
-        if m.winning_god == "Pan":
-            print(m)
+    for god in SHOW_LOSSES_GODS:
+        print(f"{god} losses")
+        for m in non_mirrors:
+            if m.losing_god == god:
+                print(m)
 
 main()

@@ -4,6 +4,7 @@ use crate::{
 };
 
 pub(crate) mod common;
+pub(crate) mod female;
 pub(crate) mod opposite;
 pub(crate) mod perimeter;
 pub(crate) mod standard;
@@ -17,6 +18,7 @@ pub enum PlacementType {
     ThreeWorkers,
     PerimeterOnly,
     PerimeterOpposite,
+    FemaleWorker,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

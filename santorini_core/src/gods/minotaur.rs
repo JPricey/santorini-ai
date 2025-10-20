@@ -3,7 +3,7 @@ use crate::{
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
@@ -119,7 +119,7 @@ impl MinotaurMove {
     }
 
     fn move_mask(self) -> BitBoard {
-        BitBoard::as_mask(self.move_from_position()) | BitBoard::as_mask(self.move_to_position())
+        self.move_from_position().to_board() | self.move_to_position().to_board()
     }
 
     fn get_is_winning(&self) -> bool {
@@ -169,7 +169,7 @@ impl GodMove for MinotaurMove {
         return vec![result];
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, other_god: StaticGod) {
         let move_from = BitBoard::as_mask(self.move_from_position());
         let move_to = BitBoard::as_mask(self.move_to_position());
         board.worker_xor(player, move_to | move_from);
@@ -184,7 +184,7 @@ impl GodMove for MinotaurMove {
 
         if let Some(push_to) = self.push_to_position() {
             let push_mask = BitBoard::as_mask(push_to);
-            board.worker_xor(!player, move_to | push_mask);
+            board.oppo_worker_xor(other_god, !player, move_to | push_mask);
         }
     }
 

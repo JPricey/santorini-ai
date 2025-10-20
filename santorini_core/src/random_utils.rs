@@ -6,29 +6,28 @@ use rand::{
 use crate::{
     board::FullGameState,
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
+    matchup::Matchup,
+    placement::get_starting_placement_state,
 };
 
-pub fn get_board_with_random_placements_worker_counters(
-    rng: &mut impl Rng,
-    c1: usize,
-    c2: usize,
-) -> FullGameState {
-    let mut result = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
-    let worker_spots = (0..25).choose_multiple(rng, c1 + c2);
-    let mut iter = worker_spots.iter();
+pub fn get_random_starting_state<T: Rng>(matchup: &Matchup, rng: &mut T) -> FullGameState {
+    let mut state = FullGameState::new_for_matchup(matchup);
 
-    for _ in 0..c1 {
-        result.board.workers[0].0 |= 1 << iter.next().unwrap();
+    for _ in 0..2 {
+        let placement_state = get_starting_placement_state(&state.board, state.gods)
+            .unwrap()
+            .unwrap();
+        let active_player = placement_state.next_placement;
+        let (active_god, other_god) = state.get_player_non_player_gods(active_player);
+
+        let placement_actions =
+            active_god.get_all_placement_actions(state.gods, &state.board, active_player);
+        let action = placement_actions.choose(rng).unwrap().clone();
+
+        active_god.make_placement_move(action, &mut state.board, active_player, other_god);
     }
-    for _ in 0..c2 {
-        result.board.workers[1].0 |= 1 << iter.next().unwrap();
-    }
 
-    result
-}
-
-pub fn get_board_with_random_placements(rng: &mut impl Rng) -> FullGameState {
-    get_board_with_random_placements_worker_counters(rng, 2, 2)
+    state
 }
 
 pub fn get_random_god(rng: &mut impl Rng) -> StaticGod {
@@ -62,7 +61,10 @@ impl RandomSingleGameStateGenerator {
 
 impl Default for RandomSingleGameStateGenerator {
     fn default() -> Self {
-        Self::new(get_board_with_random_placements(&mut rng()))
+        Self::new(get_random_starting_state(
+            &Matchup::new(GodName::Mortal, GodName::Mortal),
+            &mut rng(),
+        ))
     }
 }
 

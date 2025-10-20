@@ -3,7 +3,7 @@ use crate::{
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
@@ -142,13 +142,13 @@ impl GodMove for ApolloMove {
         return vec![res];
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, other_god: StaticGod) {
         let from_mask = BitBoard::as_mask(self.move_from_position());
         let to_mask = BitBoard::as_mask(self.move_to_position());
         board.worker_xor(player, from_mask | to_mask);
 
         if let Some(swap_from_square) = self.swap_from_square() {
-            board.worker_xor(!player, from_mask | BitBoard::as_mask(swap_from_square));
+            board.oppo_worker_xor(other_god, !player, from_mask | swap_from_square.to_board());
         }
 
         if self.get_is_winning() {

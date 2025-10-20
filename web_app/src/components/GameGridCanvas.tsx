@@ -138,6 +138,8 @@ function actionToFill(actionType: PlayerActionType): string {
     switch (actionType) {
         case PlayerActionTypes.PlaceWorker:
             return 'yellow'
+        case PlayerActionTypes.SetFemaleWorker:
+            return 'pink'
         case PlayerActionTypes.SelectWorker:
             return 'blue'
         case PlayerActionTypes.MoveWorker:

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, GodData},
-    gods::FullAction,
+    gods::{FullAction, StaticGod},
     player::Player,
 };
 use std::fmt::Debug;
@@ -64,7 +64,7 @@ pub struct GenericMove(pub MoveData);
 pub trait GodMove: From<GenericMove> + Into<GenericMove> + std::fmt::Debug {
     fn move_to_actions(self, board: &BoardState) -> Vec<FullAction>;
 
-    fn make_move(self, board: &mut BoardState, player: Player);
+    fn make_move(self, board: &mut BoardState, player: Player, other_god: StaticGod);
 
     fn get_blocker_board(self, board: &BoardState) -> BitBoard;
 

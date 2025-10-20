@@ -4,10 +4,9 @@ use crate::{
     bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, PERIMETER_SPACES_MASK},
     board::{BoardState, GodPair},
     gods::{
-        FullAction, PartialAction,
-        generic::{GenericMove, GodMove, LOWER_POSITION_MASK, MoveData, POSITION_WIDTH},
+        generic::{GenericMove, GodMove, MoveData, LOWER_POSITION_MASK, POSITION_WIDTH}, FullAction, PartialAction, StaticGod
     },
-    placement::common::{WorkerPlacementMove, compute_unique_placements},
+    placement::common::{compute_unique_placements, WorkerPlacementMove},
     player::Player,
     square::Square,
 };
@@ -63,7 +62,7 @@ impl GodMove for OppositeWorkerPlacement {
         result
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, _other_god: StaticGod) {
         self.make_move_no_swap_sides(board, player);
         board.flip_current_player();
     }

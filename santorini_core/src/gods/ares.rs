@@ -1,20 +1,16 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{apply_mapping_to_mask, BitBoard, NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
-        generic::{
-            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
-        },
-        god_power,
-        move_helpers::{
+        build_god_power_actions, generic::{
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
+        }, god_power, move_helpers::{
             build_scored_move, get_generator_prelude_state, get_standard_reach_board,
             get_worker_end_move_state, get_worker_next_build_state, get_worker_next_move_state,
             get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
             is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
-        },
+        }, FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod
     },
     persephone_check_result,
     player::Player,
@@ -148,7 +144,7 @@ impl GodMove for AresMove {
         vec![move_vec]
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, _other_god: StaticGod) {
         let worker_move_mask = self.move_mask();
         board.worker_xor(player, worker_move_mask);
         if self.get_is_winning() {

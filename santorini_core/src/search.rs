@@ -376,15 +376,17 @@ where
     {
         let mut best_child_state = root_state.clone();
 
-        let active_god = root_state.get_active_god();
         if let Some(starting_mode) = starting_mode {
+            let (active_god, other_god) = root_state.get_player_non_player_gods(starting_mode.next_placement);
             active_god.make_placement_move(
                 tt_entry.best_action,
                 &mut best_child_state.board,
                 starting_mode.next_placement,
+                other_god,
             );
         } else {
-            active_god.make_move(&mut best_child_state.board, tt_entry.best_action);
+            let (active_god, other_god) = root_state.get_active_non_active_gods();
+            active_god.make_move(&mut best_child_state.board, other_god, tt_entry.best_action);
         }
 
         let new_best_move = BestSearchResult::new(
@@ -793,7 +795,7 @@ where
 
     let mut should_stop = false;
     for child_move in child_moves.iter().rev() {
-        let child_state = state.next_state(active_god, child_move.action);
+        let child_state = state.next_state(active_god, other_god, child_move.action);
 
         let score = -_q_extend(
             search_context,
@@ -992,7 +994,7 @@ where
             } else {
                 let score = -win_at_ply(ply + 1);
                 let best_action = moves[0].action;
-                let child_state = state.next_state(active_god, best_action);
+                let child_state = state.next_state(active_god, other_god, best_action);
 
                 let new_best_move = BestSearchResult::new(
                     child_state.clone(),
@@ -1022,7 +1024,7 @@ where
     if let Some(winning_action) = move_picker.get_winning_move(&state) {
         let score = win_at_ply(ply);
         if NT::ROOT {
-            let winning_state = state.next_state(active_god, winning_action);
+            let winning_state = state.next_state(active_god, other_god, winning_action);
             debug_assert!(winning_state.get_winner() == Some(state.board.current_player));
 
             let new_best_move = BestSearchResult::new(
@@ -1172,7 +1174,7 @@ where
         let mut score;
         let child_state;
         if move_idx == 1 {
-            child_state = state.next_state(active_god, child_action);
+            child_state = state.next_state(active_god, other_god, child_action);
 
             score = -_inner_search::<T, NT::Next>(
                 search_context,
@@ -1229,7 +1231,7 @@ where
                 break;
             }
 
-            child_state = state.next_state(active_god, child_action);
+            child_state = state.next_state(active_god, other_god, child_action);
 
             // Try a 0-window search
             score = -_inner_search::<T, OffPV>(

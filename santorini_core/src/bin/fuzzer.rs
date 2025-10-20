@@ -7,7 +7,7 @@ use santorini_core::{
     gods::{ALL_GODS_BY_ID, GodName, StaticGod},
     matchup::MatchupSelector,
     player::Player,
-    random_utils::{get_board_with_random_placements_worker_counters, get_random_move},
+    random_utils::{get_random_move, get_random_starting_state},
 };
 
 fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
@@ -85,6 +85,19 @@ struct FuzzerArgs {
     p2_gods: Vec<GodName>,
 }
 
+fn maybe_kill_random_worker<T: Rng>(state: &mut FullGameState, player: Player, rng: &mut T) {
+    if rng.random_bool(0.9) {
+        return;
+    }
+
+    let worker_squares = state.board.workers[player as usize].all_squares();
+    if let Some(square) = worker_squares.choose(rng) {
+        state
+            .board
+            .oppo_worker_kill(state.gods[player as usize], player, square.to_board());
+    }
+}
+
 fn main() {
     let mut rng = rng();
     let args = FuzzerArgs::parse();
@@ -103,18 +116,10 @@ fn main() {
             matchup = matchup.flip();
         }
 
-        let mut c1 = matchup.god_1().get_num_workers();
-        if rng.random_bool(0.1) {
-            c1 -= 1;
-        };
+        let mut root_state = get_random_starting_state(&matchup, &mut rng);
 
-        let mut c2 = matchup.god_2().get_num_workers();
-        if rng.random_bool(0.1) {
-            c2 -= 1;
-        };
-
-        let mut root_state = get_board_with_random_placements_worker_counters(&mut rng, c1, c2);
-        root_state.set_matchup(&matchup);
+        maybe_kill_random_worker(&mut root_state, Player::One, &mut rng);
+        maybe_kill_random_worker(&mut root_state, Player::Two, &mut rng);
 
         if root_state.validation_err().is_err() {
             // eprintln!("Invalid Matchup: {:?}", root_state);

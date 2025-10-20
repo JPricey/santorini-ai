@@ -41,9 +41,9 @@ fn _set_pretty_player(state: &FullGameState, player: Player, pretty_player: &mut
 
     pretty_player.god = state.gods[player as usize].god_name;
     pretty_player.workers = state.board.workers[player as usize].all_squares();
-    pretty_player.tokens = player_god
-        .get_frozen_mask(&state.board, player)
-        .all_squares();
+    pretty_player.tokens = (player_god.get_frozen_mask(&state.board, player)
+        | player_god.get_female_worker_mask(&state.board, player))
+    .all_squares();
     pretty_player.special_text = player_god.pretty_stringify_god_data(&state.board, player);
 }
 
@@ -91,6 +91,9 @@ pub fn game_state_with_partial_actions(
             PartialAction::PlaceWorker(square) => {
                 board.worker_xor(current_player, BitBoard::as_mask(square));
             }
+            PartialAction::SetFemaleWorker(square) => {
+                board.set_god_data(current_player, square.to_board().0);
+            }
             PartialAction::SelectWorker(square) => {
                 assert!(selected_square.is_none());
                 selected_square = Some(square);
@@ -110,6 +113,9 @@ pub fn game_state_with_partial_actions(
                         MoveWorkerMeta::KillEnemyWorker(kill_enemy_worker) => {
                             let enemy_worker_mask = BitBoard::as_mask(kill_enemy_worker.square);
                             board.worker_xor(!current_player, enemy_worker_mask);
+                        }
+                        MoveWorkerMeta::IsFWorker => {
+                            board.delta_god_data(current_player, self_mask.0);
                         }
                     }
                 }

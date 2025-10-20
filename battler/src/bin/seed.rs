@@ -2,11 +2,14 @@ use battler::{Corpus, StartingPosition, read_corpus};
 use rand::{Rng, rng};
 use santorini_core::{
     board::FullGameState,
-    random_utils::{get_board_with_random_placements, get_random_move},
+    gods::GodName,
+    matchup::Matchup,
+    random_utils::{get_random_move, get_random_starting_state},
 };
 
 fn _get_board_with_random_moves(rng: &mut impl Rng, num_moves: usize) -> FullGameState {
-    let mut position = get_board_with_random_placements(rng);
+    let mut position =
+        get_random_starting_state(&Matchup::new(GodName::Mortal, GodName::Mortal), rng);
 
     for _ in 0..num_moves {
         position = get_random_move(&position, rng).unwrap();
@@ -20,7 +23,8 @@ fn _seed_corpus(corpus: &mut Corpus) {
     let mut rng = rng();
     // Add some random positions to the starting position corpus
     for i in 0..10 {
-        let position = get_board_with_random_placements(&mut rng);
+        let position =
+            get_random_starting_state(&Matchup::new(GodName::Mortal, GodName::Mortal), &mut rng);
         corpus.positions.push(StartingPosition {
             name: format!("random_start_{}", i + 1),
             state: position,

@@ -12,7 +12,7 @@ use crate::{
         ZORBRIST_WORKER_RANDOMS, compute_hash_from_scratch_for_board,
     },
     matchup::{self, BANNED_MATCHUPS, Matchup},
-    placement::get_starting_placement_state,
+    placement::{PlacementType, get_starting_placement_state},
     player::Player,
     square::Square,
 };
@@ -115,9 +115,14 @@ impl FullGameState {
         self.board.flip_current_player();
     }
 
-    pub fn next_state(&self, god: StaticGod, action: GenericMove) -> FullGameState {
+    pub fn next_state(
+        &self,
+        god: StaticGod,
+        other_god: StaticGod,
+        action: GenericMove,
+    ) -> FullGameState {
         let mut result = self.clone();
-        god.make_move(&mut result.board, action);
+        god.make_move(&mut result.board, other_god, action);
         result
     }
 
@@ -136,9 +141,11 @@ impl FullGameState {
             .collect()
     }
 
-    pub fn get_frozen_squares(&self) -> (BitBoard, BitBoard) {
+    pub fn get_token_squares(&self) -> (BitBoard, BitBoard) {
         fn _frozen_squares(state: &FullGameState, player: Player) -> BitBoard {
-            state.gods[player as usize].get_frozen_mask(&state.board, player)
+            let god = state.gods[player as usize];
+            god.get_frozen_mask(&state.board, player)
+                | god.get_female_worker_mask(&state.board, player)
         }
 
         (
@@ -149,7 +156,7 @@ impl FullGameState {
 
     pub fn get_all_next_states_with_actions(&self) -> Vec<(FullGameState, GenericMove)> {
         let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
-        let active_god = self.get_active_god();
+        let (active_god, other_god) = self.get_active_non_active_gods();
 
         if let Some(placement_mode) = placement_mode {
             active_god
@@ -172,7 +179,7 @@ impl FullGameState {
                 .into_iter()
                 .map(|a| {
                     let mut state_clone = self.clone();
-                    active_god.make_move(&mut state_clone.board, a.action);
+                    active_god.make_move(&mut state_clone.board, other_god, a.action);
                     (state_clone, a.action)
                 })
                 .collect()
@@ -219,10 +226,11 @@ impl FullGameState {
     }
 
     pub fn get_active_non_active_gods(&self) -> (StaticGod, StaticGod) {
-        match self.board.current_player {
-            Player::One => (self.gods[0], self.gods[1]),
-            Player::Two => (self.gods[1], self.gods[0]),
-        }
+        self.get_player_non_player_gods(self.board.current_player)
+    }
+
+    pub fn get_player_non_player_gods(&self, player: Player) -> (StaticGod, StaticGod) {
+        (self.gods[player as usize], self.gods[!player as usize])
     }
 
     pub fn get_god_for_player(&self, player: Player) -> StaticGod {
@@ -444,6 +452,26 @@ impl BoardState {
         }
     }
 
+    pub fn oppo_worker_xor(&mut self, other_god: StaticGod, player: Player, xor: BitBoard) {
+        if other_god.placement_type == PlacementType::FemaleWorker {
+            if (self.god_data[player as usize] & xor.0) != 0 {
+                self.delta_god_data(player, xor.0);
+            }
+        }
+
+        self.worker_xor(player, xor);
+    }
+
+    pub fn oppo_worker_kill(&mut self, other_god: StaticGod, player: Player, xor: BitBoard) {
+        if other_god.placement_type == PlacementType::FemaleWorker {
+            if (self.god_data[player as usize] & xor.0) != 0 {
+                self.set_god_data(player, 0);
+            }
+        }
+
+        self.worker_xor(player, xor);
+    }
+
     pub fn build_up(&mut self, build_position: Square) {
         let build_mask = BitBoard::as_mask(build_position);
         let current_height = self.get_height(build_position);
@@ -595,6 +623,25 @@ impl BoardState {
 
         let oppo_workers = self.workers[1 - player_idx];
         let oppo_count = oppo_workers.count_ones();
+
+        if own_god.god_name == GodName::Selene {
+            let f_worker = self.god_data[player as usize];
+            if (f_worker & !own_workers.0) > 0 {
+                return Err(format!(
+                    "Player {:?} as Selene has misaligned female worker",
+                    player,
+                ));
+            }
+        }
+
+        if [GodName::Selene, GodName::Europa].contains(&own_god.god_name) {
+            if self.god_data[player as usize].count_ones() > 1 {
+                return Err(format!(
+                    "Player {:?} as {:?} has too many tokens placed",
+                    player, own_god.god_name
+                ));
+            }
+        }
 
         if own_god.god_name == GodName::Hermes {
             if worker_count > 2 {

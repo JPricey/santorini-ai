@@ -6,11 +6,10 @@ use crate::{
     gods::generic::{GenericMove, GodMove, ScoredMove},
     hashing::HashType,
     nnue::NNUE_MORPHEUS_MAX_BLOCKS_INCLUSIVE,
-    placement::PlacementType,
     placement::{
-        common::WorkerPlacementMove, opposite::OppositeWorkerPlacement,
-        perimeter::PerimeterWorkerPlacement, standard::StandardWorkerPlacement,
-        three_worker::ThreeWorkerPlacement,
+        PlacementType, common::WorkerPlacementMove, female::FemaleWorkerPlacement,
+        opposite::OppositeWorkerPlacement, perimeter::PerimeterWorkerPlacement,
+        standard::StandardWorkerPlacement, three_worker::ThreeWorkerPlacement,
     },
     player::Player,
     square::Square,
@@ -51,6 +50,7 @@ pub(crate) mod move_helpers;
 pub(crate) mod pan;
 pub(crate) mod persephone;
 pub(crate) mod prometheus;
+pub(crate) mod selene;
 pub(crate) mod urania;
 pub(crate) mod zeus;
 
@@ -103,10 +103,11 @@ pub enum GodName {
     Zeus = 27,
     Ares = 28,
     Eros = 29,
+    Selene = 30,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Eros]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Eros, GodName::Selene]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -143,6 +144,7 @@ pub struct KillEnemyWorker {
 pub enum MoveWorkerMeta {
     MoveEnemyWorker(MoveEnemyWorker),
     KillEnemyWorker(KillEnemyWorker),
+    IsFWorker,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
@@ -166,6 +168,7 @@ impl From<Square> for MoveWorkerData {
 pub enum PartialAction {
     SelectWorker(Square),
     PlaceWorker(Square),
+    SetFemaleWorker(Square),
     MoveWorker(MoveWorkerData),
     Build(Square),
     Dome(Square),
@@ -193,6 +196,13 @@ impl PartialAction {
             meta: Some(MoveWorkerMeta::KillEnemyWorker(KillEnemyWorker {
                 square: kill_pos,
             })),
+        })
+    }
+
+    fn new_move_female_worker(dest: Square) -> PartialAction {
+        PartialAction::MoveWorker(MoveWorkerData {
+            dest,
+            meta: Some(MoveWorkerMeta::IsFWorker),
         })
     }
 }
@@ -274,7 +284,8 @@ pub(super) struct GodPlacementFns {
     _get_all_placement_actions: PlacementMoveGeneratorFn,
     _get_unique_placement_actions: PlacementMoveGeneratorFn,
     _stringify_placement_move: StringifyMoveFn,
-    _make_placement_move: fn(action: GenericMove, board: &mut BoardState, player: Player),
+    _make_placement_move:
+        fn(action: GenericMove, board: &mut BoardState, player: Player, other_god: StaticGod),
     _move_to_actions: fn(action: GenericMove, board: &BoardState) -> Vec<FullAction>,
     _history_idx: fn(actions: GenericMove, board: &BoardState) -> usize,
 }
@@ -289,9 +300,10 @@ pub(super) const fn placement_to_fns<W: WorkerPlacementMove>() -> GodPlacementFn
         action: GenericMove,
         board: &mut BoardState,
         player: Player,
+        other_god: StaticGod,
     ) {
         let action: W = action.into();
-        action.make_move(board, player);
+        action.make_move(board, player, other_god);
     }
 
     fn _history_idx<W: WorkerPlacementMove>(action: GenericMove, board: &BoardState) -> usize {
@@ -321,7 +333,7 @@ pub(super) struct GodPowerActionFns {
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
     _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 
-    _make_move: fn(board: &mut BoardState, action: GenericMove),
+    _make_move: fn(board: &mut BoardState, action: GenericMove, other_god: StaticGod),
 
     _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
     _stringify_move: fn(action: GenericMove) -> String,
@@ -347,8 +359,8 @@ fn _default_passing_move(_board: &mut BoardState) {
     // Noop
 }
 
-pub(super) type GetFrozenMask = fn(&BoardState, Player) -> BitBoard;
-fn _default_get_frozen_mask(_board: &BoardState, _player: Player) -> BitBoard {
+pub(super) type GetDataMask = fn(&BoardState, Player) -> BitBoard;
+fn _default_get_data_mask_fn(_board: &BoardState, _player: Player) -> BitBoard {
     BitBoard::EMPTY
 }
 
@@ -372,7 +384,9 @@ pub struct GodPower {
     _build_mask_fn: BuildMaskFn,
     _moveable_worker_filter_fn: MovableWorkerFilter,
     _can_opponent_climb_fn: CanOpponentClimbFn,
-    _get_frozen_mask: GetFrozenMask,
+    _get_frozen_mask: GetDataMask,
+    _get_female_worker_mask: GetDataMask,
+
     pub win_mask: BitBoard,
 
     _flip_god_data_horizontal: FlipGodDataFn,
@@ -383,7 +397,7 @@ pub struct GodPower {
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
     _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
 
-    _make_move: fn(board: &mut BoardState, action: GenericMove),
+    _make_move: fn(board: &mut BoardState, action: GenericMove, other_god: StaticGod),
     _make_passing_move: MakePassingMoveFn,
 
     _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
@@ -433,7 +447,9 @@ impl GodPower {
     }
 
     pub fn get_next_states_interactive(&self, state: &FullGameState) -> Vec<BoardStateWithAction> {
-        let all_moves = (self._get_all_moves)(state, state.board.current_player, BitBoard::EMPTY);
+        let active_player = state.board.current_player;
+        let other_god = state.gods[!active_player as usize];
+        let all_moves = (self._get_all_moves)(state, active_player, BitBoard::EMPTY);
 
         // Lose due to no moves
         if all_moves.len() == 0 {
@@ -450,7 +466,7 @@ impl GodPower {
             .into_iter()
             .flat_map(|action| {
                 let mut result_state = state.board.clone();
-                self.make_move(&mut result_state, action.action);
+                self.make_move(&mut result_state, other_god, action.action);
                 let action_paths = (self._get_actions_for_move)(&state.board, action.action);
 
                 action_paths.into_iter().map(move |full_actions| {
@@ -465,12 +481,14 @@ impl GodPower {
     }
 
     pub fn get_all_next_states(&self, state: &FullGameState) -> Vec<BoardState> {
+        let current_player = state.board.current_player;
+        let other_god = state.gods[!current_player as usize];
         let board = &state.board;
-        (self._get_all_moves)(state, board.current_player, BitBoard::EMPTY)
+        (self._get_all_moves)(state, current_player, BitBoard::EMPTY)
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
-                self.make_move(&mut result_state, action.action);
+                self.make_move(&mut result_state, other_god, action.action);
                 result_state
             })
             .collect()
@@ -520,8 +538,14 @@ impl GodPower {
         (self._placement_fns._get_all_placement_actions)(gods, board, player)
     }
 
-    pub fn make_placement_move(&self, action: GenericMove, board: &mut BoardState, player: Player) {
-        (self._placement_fns._make_placement_move)(action, board, player);
+    pub fn make_placement_move(
+        &self,
+        action: GenericMove,
+        board: &mut BoardState,
+        player: Player,
+        other_god: StaticGod,
+    ) {
+        (self._placement_fns._make_placement_move)(action, board, player, other_god);
     }
 
     pub fn make_placement_move_on_clone(
@@ -531,7 +555,12 @@ impl GodPower {
         player: Player,
     ) -> FullGameState {
         let mut new_state = state.clone();
-        self.make_placement_move(action, &mut new_state.board, player);
+        self.make_placement_move(
+            action,
+            &mut new_state.board,
+            player,
+            new_state.gods[!player as usize],
+        );
         new_state
     }
 
@@ -566,8 +595,8 @@ impl GodPower {
         (self._get_blocker_board)(board, action)
     }
 
-    pub fn make_move(&self, board: &mut BoardState, action: GenericMove) {
-        (self._make_move)(board, action);
+    pub fn make_move(&self, board: &mut BoardState, other_god: StaticGod, action: GenericMove) {
+        (self._make_move)(board, action, other_god);
         board.flip_current_player();
     }
 
@@ -594,6 +623,10 @@ impl GodPower {
 
     pub(super) fn get_frozen_mask(&self, board: &BoardState, player: Player) -> BitBoard {
         (self._get_frozen_mask)(board, player)
+    }
+
+    pub(super) fn get_female_worker_mask(&self, board: &BoardState, player: Player) -> BitBoard {
+        (self._get_female_worker_mask)(board, player)
     }
 
     pub(super) fn parse_god_data(&self, fen: &str) -> Result<GodData, String> {
@@ -672,6 +705,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     zeus::build_zeus(),
     ares::build_ares(),
     eros::build_eros(),
+    selene::build_selene(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -755,9 +789,9 @@ pub(crate) const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
         action.move_to_actions(board)
     }
 
-    fn _make_move<T: GodMove>(board: &mut BoardState, action: GenericMove) {
+    fn _make_move<T: GodMove>(board: &mut BoardState, action: GenericMove, other_god: StaticGod) {
         let action: T = action.into();
-        action.make_move(board, board.current_player)
+        action.make_move(board, board.current_player, other_god)
     }
 
     fn _get_blocker_board<T: GodMove>(board: &BoardState, action: GenericMove) -> BitBoard {
@@ -798,7 +832,8 @@ const fn god_power(
         _build_mask_fn: _default_build_mask,
         _moveable_worker_filter_fn: _default_moveable_worker_filter,
         _can_opponent_climb_fn: _default_can_opponent_climb,
-        _get_frozen_mask: _default_get_frozen_mask,
+        _get_frozen_mask: _default_get_data_mask_fn,
+        _get_female_worker_mask: _default_get_data_mask_fn,
 
         _flip_god_data_horizontal: _default_flip_god_data,
         _flip_god_data_vertical: _default_flip_god_data,
@@ -848,6 +883,7 @@ impl GodPower {
             PlacementType::ThreeWorkers => placement_to_fns::<ThreeWorkerPlacement>(),
             PlacementType::PerimeterOnly => placement_to_fns::<PerimeterWorkerPlacement>(),
             PlacementType::PerimeterOpposite => placement_to_fns::<OppositeWorkerPlacement>(),
+            PlacementType::FemaleWorker => placement_to_fns::<FemaleWorkerPlacement>(),
         };
         self
     }
@@ -932,11 +968,16 @@ impl GodPower {
         self
     }
 
-    pub(super) const fn with_get_frozen_mask_fn(
-        mut self,
-        get_frozen_mask_fn: GetFrozenMask,
-    ) -> Self {
+    pub(super) const fn with_get_frozen_mask_fn(mut self, get_frozen_mask_fn: GetDataMask) -> Self {
         self._get_frozen_mask = get_frozen_mask_fn;
+        self
+    }
+
+    pub(super) const fn with_get_female_worker_mask_fn(
+        mut self,
+        get_female_worker_mask_fn: GetDataMask,
+    ) -> Self {
+        self._get_female_worker_mask = get_female_worker_mask_fn;
         self
     }
 

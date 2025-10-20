@@ -16,6 +16,7 @@ export type NextState = {
 
 export const PlayerActionTypes = {
     PlaceWorker: 'place_worker',
+    SetFemaleWorker: 'set_female_worker',
     SelectWorker: 'select_worker',
     MoveWorker: 'move_worker',
     SetWindDirection: 'set_wind_direction',
@@ -41,11 +42,14 @@ export type MoveWorkerData = {
         value: {
             square: string,
         }
+    } | {
+        type: 'is_f_worker'
     }
 };
 
 export type PlayerAction =
     | { type: typeof PlayerActionTypes.PlaceWorker; value: string }
+    | { type: typeof PlayerActionTypes.SetFemaleWorker; value: string }
     | { type: typeof PlayerActionTypes.SelectWorker; value: string }
     | { type: typeof PlayerActionTypes.MoveWorker; value: MoveWorkerData }
     | { type: typeof PlayerActionTypes.Build; value: string }
@@ -76,6 +80,8 @@ export function describeActionType(actionType: PlayerActionType): string {
     switch (actionType) {
         case PlayerActionTypes.PlaceWorker:
             return `Place Worker`;
+        case PlayerActionTypes.SetFemaleWorker:
+            return `Pick Female Worker`;
         case PlayerActionTypes.SelectWorker:
             return `Select Worker`;
         case PlayerActionTypes.MoveWorker:
@@ -115,6 +121,10 @@ function moveDesc(data: MoveWorkerData): string {
             base += ` x${data.meta.value.square})`;
             break;
         }
+        case 'is_f_worker': {
+            // No extra info needed
+            break;
+        }
         default:
             return assertUnreachable(data.meta);
     }
@@ -125,6 +135,7 @@ function moveDesc(data: MoveWorkerData): string {
 export function describeAction(action: PlayerAction): string {
     switch (action.type) {
         case PlayerActionTypes.PlaceWorker:
+        case PlayerActionTypes.SetFemaleWorker:
         case PlayerActionTypes.SelectWorker:
         case PlayerActionTypes.Build:
         case PlayerActionTypes.Dome:

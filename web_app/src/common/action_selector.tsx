@@ -34,6 +34,7 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
 
     switch (action.type) {
         case PlayerActionTypes.PlaceWorker:
+        case PlayerActionTypes.SetFemaleWorker:
         case PlayerActionTypes.SelectWorker:
         case PlayerActionTypes.Build:
         case PlayerActionTypes.Destroy:

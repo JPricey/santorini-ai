@@ -4,7 +4,7 @@ use crate::{
     build_god_power_movers,
     direction::{Direction, squares_to_direction},
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, build_god_power_actions,
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
         generic::{
             GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
@@ -82,7 +82,7 @@ impl GodMove for MorpheusMove {
         vec![action]
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, _other_god: StaticGod) {
         let worker_move_mask = self.move_mask();
         board.worker_xor(player, worker_move_mask);
 
@@ -634,7 +634,11 @@ mod tests {
 
         let morpheus = GodName::Morpheus.to_power();
 
-        morpheus.make_move(&mut state.board, morpheus_action.into());
+        morpheus.make_move(
+            &mut state.board,
+            GodName::Mortal.to_power(),
+            morpheus_action.into(),
+        );
 
         state.print_to_console();
     }

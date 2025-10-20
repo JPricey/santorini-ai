@@ -1,25 +1,18 @@
 use crate::{
     bitboard::{
-        BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP,
-        WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask,
+        apply_mapping_to_mask, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP
     },
     board::{BoardState, FullGameState},
     build_god_power_movers,
     direction::direction_idx_to_reverse,
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, PartialAction, build_god_power_actions,
-        generic::{
-            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
-            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
-        },
-        god_power,
-        harpies::slide_position_with_custom_worker_blocker,
-        hypnus::hypnus_moveable_worker_filter,
-        move_helpers::{
+        build_god_power_actions, generic::{
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
+        }, god_power, harpies::slide_position_with_custom_worker_blocker, hypnus::hypnus_moveable_worker_filter, move_helpers::{
             build_scored_move, get_generator_prelude_state, get_sized_result,
             get_worker_climb_height_raw, get_worker_start_move_state, is_interact_with_key_squares,
             is_mate_only, is_stop_on_mate,
-        },
+        }, FullAction, GodName, GodPower, HistoryIdxHelper, PartialAction, StaticGod
     },
     persephone_check_result,
     player::Player,
@@ -50,7 +43,7 @@ impl GodMove for ArtemisMove {
         vec![res]
     }
 
-    fn make_move(self, board: &mut BoardState, player: Player) {
+    fn make_move(self, board: &mut BoardState, player: Player, _other_god: StaticGod) {
         let worker_move_mask = self.move_mask();
         board.worker_xor(player, worker_move_mask);
 

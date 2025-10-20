@@ -109,7 +109,7 @@ impl Square {
     ];
 
     pub const fn to_board(self) -> BitBoard {
-        BitBoard(1u32 << self as usize)
+        BitBoard::as_mask(self)
     }
 }
 

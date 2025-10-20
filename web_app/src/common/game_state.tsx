@@ -32,10 +32,11 @@ export const God = {
     Urania: 'urania',
     Zeus: 'zeus',
     Eros: 'eros',
+    Selene: 'selene',
 } as const;
 export type GodType = typeof God[keyof typeof God];
 
-export const WIP_GODS: Set<GodType> = new Set([God.Eros]);
+export const WIP_GODS: Set<GodType> = new Set([God.Eros, God.Selene]);
 
 export const Square = {
     A5: 0,
