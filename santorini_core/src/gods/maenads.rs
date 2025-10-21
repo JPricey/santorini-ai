@@ -169,10 +169,11 @@ pub(super) fn maenads_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(maenads_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+    let targettable_oppo_workers = prelude.oppo_workers & !prelude.domes_and_frozen;
 
     let mut mad_spots = BitBoard::EMPTY;
     for worker_pos in prelude.own_workers {
-        let oppo_neighbors = NEIGHBOR_MAP[worker_pos as usize] & prelude.oppo_workers;
+        let oppo_neighbors = NEIGHBOR_MAP[worker_pos as usize] & targettable_oppo_workers;
         for oppo_neighbor in oppo_neighbors {
             if let Some(other_side_pos) = PUSH_MAPPING[worker_pos as usize][oppo_neighbor as usize]
             {
