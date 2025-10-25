@@ -1,8 +1,5 @@
 use crate::{
-    bitboard::{
-        BitBoard, DIRECTION_MAPPING, WIND_AWARE_NEIGHBOR_MAP, WRAPPING_DIRECTION_MAPPING,
-        apply_mapping_to_mask,
-    },
+    bitboard::{BitBoard, DIRECTION_MAPPING, WIND_AWARE_NEIGHBOR_MAP, WRAPPING_DIRECTION_MAPPING},
     board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
     direction::{Direction, direction_idx_to_reverse},
@@ -14,11 +11,11 @@ use crate::{
         },
         god_power,
         move_helpers::{
-            GeneratorPreludeState, WorkerNextMoveState, build_scored_move, get_basic_moves,
-            get_generator_prelude_state, get_standard_reach_board_with_custom_wind,
-            get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
-            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
-            push_winning_moves,
+            GeneratorPreludeState, WorkerNextMoveState, build_scored_move,
+            get_basic_moves_from_with_two_movement_maps, get_generator_prelude_state,
+            get_standard_reach_board_with_extra_move_map, get_worker_end_move_state,
+            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
     persephone_check_result,
@@ -176,9 +173,13 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
     prelude: &GeneratorPreludeState,
     result: &mut Vec<ScoredMove>,
     next_wind_idx: usize,
+    current_wind_idx: usize,
 ) -> bool {
     let mut did_interact_with_wind = false;
-    if is_interact_with_key_squares::<F>() && next_wind_idx > 0 && next_wind_idx != prelude.wind_idx
+    let current_wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[current_wind_idx];
+    let next_wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[next_wind_idx];
+
+    if is_interact_with_key_squares::<F>() && next_wind_idx > 0 && next_wind_idx != current_wind_idx
     {
         let other_god = prelude.other_god.god_name;
         if other_god == GodName::Artemis {
@@ -243,7 +244,14 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
-        let mut worker_moves = get_basic_moves::<MUST_CLIMB>(prelude, &worker_start_state);
+        let mut worker_moves = get_basic_moves_from_with_two_movement_maps::<MUST_CLIMB>(
+            prelude,
+            &current_wind_neighbor_map,
+            worker_start_state.worker_start_pos,
+            worker_start_state.worker_start_mask,
+            worker_start_state.worker_start_height,
+            prelude.all_workers_and_frozen_mask,
+        );
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
             let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
@@ -264,10 +272,12 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
 
         let other_threatening_workers =
             worker_start_state.other_own_workers & prelude.exactly_level_2;
-        let other_threatening_neighbors = apply_mapping_to_mask(
-            other_threatening_workers,
-            &WIND_AWARE_NEIGHBOR_MAP[next_wind_idx],
-        );
+        let mut other_threatening_neighbors = BitBoard::EMPTY;
+        for pos in other_threatening_workers {
+            other_threatening_neighbors |=
+                prelude.standard_neighbor_map[pos as usize] & next_wind_neighbor_map[pos as usize];
+        }
+
         let worker_next_moves = WorkerNextMoveState {
             other_threatening_workers,
             other_threatening_neighbors,
@@ -282,9 +292,10 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
                 &worker_start_state,
                 &worker_end_move_state,
             );
-            let reach_board = get_standard_reach_board_with_custom_wind::<F>(
+
+            let reach_board = get_standard_reach_board_with_extra_move_map::<F>(
                 &prelude,
-                next_wind_idx,
+                next_wind_neighbor_map,
                 &worker_next_moves,
                 &worker_end_move_state,
                 worker_next_build_state.unblocked_squares,
@@ -332,23 +343,32 @@ pub(super) fn aeolus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let wind_direction_idx = state.board.god_data[player as usize] as usize;
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    prelude.wind_idx = wind_direction_idx as usize;
-
     modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
 
     if wind_direction_idx == 0 {
         for d in 0..=8 {
-            if aeolus_move_gen_with_next_wind_direction::<F, MUST_CLIMB>(&prelude, &mut result, d) {
+            if aeolus_move_gen_with_next_wind_direction::<F, MUST_CLIMB>(
+                &prelude,
+                &mut result,
+                d,
+                0,
+            ) {
                 return result;
             }
         }
     } else {
-        if aeolus_move_gen_with_next_wind_direction::<F, MUST_CLIMB>(&prelude, &mut result, 0) {
+        if aeolus_move_gen_with_next_wind_direction::<F, MUST_CLIMB>(
+            &prelude,
+            &mut result,
+            0,
+            wind_direction_idx,
+        ) {
             return result;
         }
         if aeolus_move_gen_with_next_wind_direction::<F, MUST_CLIMB>(
             &prelude,
             &mut result,
+            wind_direction_idx,
             wind_direction_idx,
         ) {
             return result;

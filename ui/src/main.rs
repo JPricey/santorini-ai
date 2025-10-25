@@ -998,7 +998,11 @@ impl eframe::App for MyApp {
                 });
 
                 if WIP_GODS.len() > 0 {
-                    ui.checkbox(&mut self.may_show_wip_gods, "Include WIP gods").on_hover_text("Some gods are WIP, meaning their move logic is supported, but the AI does not know how to evaluate their positions correctly. Check this box to include them in the gods picker");
+                    let wip_gods_string = WIP_GODS.iter()
+                        .map(|g| format!("{:?}", g))
+                        .collect::<Vec<String>>()
+                        .join(", ");
+                    ui.checkbox(&mut self.may_show_wip_gods, "Include WIP gods").on_hover_text(&format!("Some gods are WIP, meaning their move logic is supported, but the AI does not know how to evaluate their positions correctly. Check this box to include them in the gods picker. Includes: {}", wip_gods_string));
                 }
 
                 ui.heading("Modes");

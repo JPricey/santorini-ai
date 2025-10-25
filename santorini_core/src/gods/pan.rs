@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{BitBoard,  apply_mapping_to_mask},
     board::FullGameState,
     build_god_power_movers,
     gods::{
@@ -27,7 +27,7 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2 | prelude.exactly_level_3;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
-    let wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+    let wind_neighbor_map = prelude.standard_neighbor_map;
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);

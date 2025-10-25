@@ -23,9 +23,6 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         set.insert(Matchup::new(g2, g1), reason);
     };
 
-    // Would be annoying to handle wind from the opposing aeolus
-    add_matchup(GodName::Aeolus, GodName::Aeolus, BannedReason::Engine);
-
     // Gets stuck in infinite loop
     add_matchup(GodName::Ares, GodName::Ares, BannedReason::Engine);
 
@@ -33,20 +30,7 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
 
     add_matchup(GodName::Aphrodite, GodName::Urania, BannedReason::Game);
 
-    // set.insert(
-    //     Matchup::new(GodName::Graeae, GodName::Nemesis),
-    //     BannedReason::Game,
-    // );
-
     add_matchup(GodName::Harpies, GodName::Hermes, BannedReason::Game);
-
-    // set.insert(
-    //     Matchup::new(GodName::Harpies, GodName::Triton),
-    //     BannedReason::Game,
-    // );
-
-    // TODO: special move logic
-    // add_matchup(GodName::Harpies, GodName::Artemis, BannedReason::Engine);
 
     set
 });

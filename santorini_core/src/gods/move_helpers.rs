@@ -1,11 +1,15 @@
 use crate::{
     bitboard::{
-        BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP,
-        apply_mapping_to_mask,
+        BitBoard, BitboardMapping, DIAGONAL_ONLY_NEIGHBOR_MAP,
+        INCLUSIVE_DIAGONAL_ONLY_NEIGHBOR_MAP, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP,
+        WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP,
+        WRAPPING_DIAGONAL_ONLY_NEIGHBOR_MAP, WRAPPING_NEIGHBOR_MAP,
+        WRAPPING_WIND_AWARE_NEIGHBOR_MAP, apply_mapping_to_mask,
     },
     board::{BoardState, FullGameState},
+    direction::direction_idx_to_reverse,
     gods::{
-        StaticGod,
+        GodName, StaticGod,
         generic::{
             GenericMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags,
             STOP_ON_MATE, ScoredMove,
@@ -87,7 +91,7 @@ pub(crate) struct GeneratorPreludeState<'a> {
     pub exactly_level_3: BitBoard,
     pub domes_and_frozen: BitBoard,
 
-    pub wind_idx: usize,
+    pub standard_neighbor_map: &'static BitboardMapping,
 
     pub can_climb: bool,
 
@@ -132,7 +136,6 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
     let is_against_hypnus = other_god.is_hypnus();
     let is_against_harpies = other_god.is_harpies();
     let is_against_aphrodite = other_god.is_aphrodite;
-    let wind_idx = other_god.get_wind_idx(&board, !player);
 
     let affinity_area = if is_against_aphrodite {
         apply_mapping_to_mask(oppo_workers, &INCLUSIVE_NEIGHBOR_MAP)
@@ -150,6 +153,14 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
 
     let is_down_prevented = other_god.is_preventing_down;
 
+    let neighbor_map = if other_god.god_name == GodName::Aeolus {
+        &WIND_AWARE_NEIGHBOR_MAP[other_god.get_wind_idx(board, !player)]
+    } else if other_god.god_name == GodName::Hippolyta {
+        &DIAGONAL_ONLY_NEIGHBOR_MAP
+    } else {
+        &NEIGHBOR_MAP
+    };
+
     GeneratorPreludeState {
         board,
         key_squares,
@@ -161,7 +172,7 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         exactly_level_3,
         domes_and_frozen: domes | frozen,
 
-        wind_idx,
+        standard_neighbor_map: neighbor_map,
 
         can_climb,
 
@@ -177,6 +188,50 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         is_down_prevented,
 
         acting_workers,
+    }
+}
+
+pub(super) fn get_urania_movement_neighbors(
+    prelude: &GeneratorPreludeState,
+    player: Player,
+) -> &'static BitboardMapping {
+    if prelude.other_god.god_name == GodName::Aeolus {
+        &WRAPPING_WIND_AWARE_NEIGHBOR_MAP[prelude.other_god.get_wind_idx(prelude.board, !player)]
+    } else if prelude.other_god.god_name == GodName::Hippolyta {
+        &WRAPPING_DIAGONAL_ONLY_NEIGHBOR_MAP
+    } else {
+        &WRAPPING_NEIGHBOR_MAP
+    }
+}
+
+pub(super) fn get_inclusive_movement_neighbors(
+    prelude: &GeneratorPreludeState,
+) -> &'static BitboardMapping {
+    if prelude.other_god.god_name == GodName::Aeolus {
+        &WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP[prelude
+            .other_god
+            .get_wind_idx(prelude.board, !prelude.board.current_player)]
+    } else if prelude.other_god.god_name == GodName::Hippolyta {
+        &INCLUSIVE_DIAGONAL_ONLY_NEIGHBOR_MAP
+    } else {
+        &INCLUSIVE_NEIGHBOR_MAP
+    }
+}
+
+pub(super) fn get_wind_reverse_neighbor_map(
+    prelude: &GeneratorPreludeState,
+) -> &'static BitboardMapping {
+    if prelude.other_god.god_name == GodName::Aeolus {
+        let wind_direction_idx = prelude
+            .other_god
+            .get_wind_idx(prelude.board, !prelude.board.current_player);
+        let reversed_wind_direction_idx = direction_idx_to_reverse(wind_direction_idx);
+
+        &WIND_AWARE_NEIGHBOR_MAP[reversed_wind_direction_idx]
+    } else if prelude.other_god.god_name == GodName::Hippolyta {
+        &DIAGONAL_ONLY_NEIGHBOR_MAP
+    } else {
+        &NEIGHBOR_MAP
     }
 }
 
@@ -242,10 +297,8 @@ pub(super) fn get_worker_next_move_state<const MUST_CLIMB: bool>(
     checkable_from_mask: BitBoard,
 ) -> WorkerNextMoveState {
     let other_threatening_workers = worker_start_state.other_own_workers & checkable_from_mask;
-    let other_threatening_neighbors = apply_mapping_to_mask(
-        other_threatening_workers,
-        &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx],
-    );
+    let other_threatening_neighbors =
+        apply_mapping_to_mask(other_threatening_workers, prelude.standard_neighbor_map);
     let worker_moves = get_basic_moves::<MUST_CLIMB>(prelude, worker_start_state);
 
     WorkerNextMoveState {
@@ -341,7 +394,7 @@ pub(super) fn get_reach_board_when_can_be_level_3<const F: MoveGenFlags>(
             BitBoard::EMPTY
         }
     } else {
-        let next_turn_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_end_pos as usize];
+        let next_turn_moves = prelude.standard_neighbor_map[worker_end_pos as usize];
 
         (worker_move_state.other_threatening_neighbors
             | (next_turn_moves * (worker_end_height == 2) as u32))
@@ -375,7 +428,7 @@ pub(super) fn get_standard_reach_board_from_parts<const F: MoveGenFlags>(
     unblocked_squares: BitBoard,
 ) -> BitBoard {
     let next_turn_moves =
-        WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_end_pos as usize] & unblocked_squares;
+        prelude.standard_neighbor_map[worker_end_pos as usize] & unblocked_squares;
 
     let reach_board = if prelude.is_against_hypnus
         && (other_threatening_workers.count_ones() + is_now_lvl_2) < 2
@@ -390,15 +443,16 @@ pub(super) fn get_standard_reach_board_from_parts<const F: MoveGenFlags>(
     reach_board
 }
 
-pub(super) fn get_standard_reach_board_with_custom_wind<const F: MoveGenFlags>(
+pub(super) fn get_standard_reach_board_with_extra_move_map<const F: MoveGenFlags>(
     prelude: &GeneratorPreludeState,
-    wind_idx: usize,
+    wind_map: &BitboardMapping,
     worker_move_state: &WorkerNextMoveState,
     worker_end_move_state: &WorkerEndMoveState,
     unblocked_squares: BitBoard,
 ) -> BitBoard {
-    let next_turn_moves = WIND_AWARE_NEIGHBOR_MAP[wind_idx]
+    let next_turn_moves = prelude.standard_neighbor_map
         [worker_end_move_state.worker_end_pos as usize]
+        & wind_map[worker_end_move_state.worker_end_pos as usize]
         & unblocked_squares;
 
     let reach_board = if prelude.is_against_hypnus
@@ -619,7 +673,43 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIM
             _ => unreachable!(),
         };
 
-        let worker_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_start_pos as usize]
+        let worker_moves =
+            prelude.standard_neighbor_map[worker_start_pos as usize] & height_mask & !blockers;
+        worker_moves
+    } else {
+        let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
+            !prelude.board.height_map[worker_start_height - 1]
+        } else {
+            BitBoard::EMPTY
+        };
+
+        let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
+        let worker_moves = prelude.standard_neighbor_map[worker_start_pos as usize]
+            & !(prelude.board.height_map[climb_height] | down_mask | blockers);
+
+        restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
+    }
+}
+
+pub(super) fn get_basic_moves_from_with_two_movement_maps<const MUST_CLIMB: bool>(
+    prelude: &GeneratorPreludeState,
+    extra_movement_map: &BitboardMapping,
+    worker_start_pos: Square,
+    worker_start_mask: BitBoard,
+    worker_start_height: usize,
+    blockers: BitBoard,
+) -> BitBoard {
+    if MUST_CLIMB {
+        let height_mask = match worker_start_height {
+            0 => prelude.exactly_level_1,
+            1 => prelude.exactly_level_2,
+            2 => prelude.exactly_level_3,
+            3 => return BitBoard::EMPTY,
+            _ => unreachable!(),
+        };
+
+        let worker_moves = (prelude.standard_neighbor_map[worker_start_pos as usize]
+            & extra_movement_map[worker_start_pos as usize])
             & height_mask
             & !blockers;
         worker_moves
@@ -631,7 +721,8 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIM
         };
 
         let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
-        let worker_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_start_pos as usize]
+        let worker_moves = (prelude.standard_neighbor_map[worker_start_pos as usize]
+            & extra_movement_map[worker_start_pos as usize])
             & !(prelude.board.height_map[climb_height] | down_mask | blockers);
 
         restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
@@ -660,7 +751,7 @@ pub(super) fn get_basic_moves_from_raw_data_for_hermes<const MUST_CLIMB: bool>(
     };
 
     let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
-    let worker_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx][worker_start_pos as usize]
+    let worker_moves = prelude.standard_neighbor_map[worker_start_pos as usize]
         & !(prelude.board.height_map[climb_height]
             | prelude.board.exactly_level_n(worker_start_height)
             | down_mask

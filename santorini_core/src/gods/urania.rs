@@ -1,7 +1,5 @@
 use crate::{
-    bitboard::{
-        BitBoard, WIND_AWARE_WRAPPING_NEIGHBOR_MAP, WRAPPING_NEIGHBOR_MAP, apply_mapping_to_mask,
-    },
+    bitboard::{BitBoard, WRAPPING_NEIGHBOR_MAP, apply_mapping_to_mask},
     board::FullGameState,
     build_god_power_movers,
     gods::{
@@ -12,9 +10,9 @@ use crate::{
         mortal::MortalMove,
         move_helpers::{
             GeneratorPreludeState, WorkerStartMoveState, build_scored_move,
-            get_generator_prelude_state, get_worker_climb_height, get_worker_start_move_state,
-            is_interact_with_key_squares, is_mate_only, is_stop_on_mate,
-            modify_prelude_for_checking_workers, push_winning_moves,
+            get_generator_prelude_state, get_urania_movement_neighbors, get_worker_climb_height,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
     persephone_check_result,
@@ -49,7 +47,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
 
     let mut null_build_blocker = BitBoard::MAIN_SECTION_MASK;
-    let wind_aware_neighbors = &WIND_AWARE_WRAPPING_NEIGHBOR_MAP[prelude.wind_idx];
+    let movement_map = get_urania_movement_neighbors(&prelude, player);
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -65,8 +63,10 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 };
 
             let climb_height = get_worker_climb_height(&prelude, &worker_start_state);
-            wind_aware_neighbors[worker_start_pos as usize]
-                & !(prelude.board.height_map[climb_height] | down_mask | prelude.all_workers_and_frozen_mask)
+            movement_map[worker_start_pos as usize]
+                & !(prelude.board.height_map[climb_height]
+                    | down_mask
+                    | prelude.all_workers_and_frozen_mask)
         };
 
         if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
@@ -89,9 +89,10 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_workers =
             worker_start_state.other_own_workers & prelude.exactly_level_2;
         let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &wind_aware_neighbors);
+            apply_mapping_to_mask(other_threatening_workers, movement_map);
 
-        let buildable_squares = !(worker_start_state.all_non_moving_workers | prelude.domes_and_frozen);
+        let buildable_squares =
+            !(worker_start_state.all_non_moving_workers | prelude.domes_and_frozen);
         let mut already_seen = BitBoard::EMPTY;
 
         for mut worker_end_pos in worker_moves {
@@ -120,7 +121,8 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let mut worker_builds =
                 WRAPPING_NEIGHBOR_MAP[worker_end_pos as usize] & buildable_squares;
-            let worker_plausible_next_moves = wind_aware_neighbors[worker_end_pos as usize] & buildable_squares;
+            let worker_plausible_next_moves =
+                movement_map[worker_end_pos as usize] & buildable_squares;
             worker_builds &= prelude.build_mask;
 
             if is_interact_with_key_squares::<F>() {

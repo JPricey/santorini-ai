@@ -55,8 +55,8 @@ impl ConsistencyChecker {
 
             self.validate_fen();
             self.validate_hash();
-            self.opponent_check_blockers(&other_wins, &search_moves);
             self.self_check_validations(&search_moves);
+            self.opponent_check_blockers(&other_wins, &search_moves);
             self.validate_non_duplicates(&search_moves);
             self.validate_wins(&own_winning_moves);
             self.validate_build_blockers(&search_moves);
@@ -790,19 +790,19 @@ impl ConsistencyChecker {
                     }
                 }
 
-                let mut error_str = format!("Missed blocking action: {}", stringed_action,);
+                let mut error_str = format!("Missed blocking action: {}", stringed_action);
 
                 if !did_output_key_moves {
                     error_str += &format!("Key moves board:{}\n", key_moves);
                     did_output_key_moves = true;
                 }
 
-                error_str += "Old Wins: ";
+                error_str += "| Old Wins: ";
                 for old in other_wins {
                     error_str += &format!("{}, ", other_god.stringify_move(old.action));
                 }
 
-                error_str += "New Wins: ";
+                error_str += "| New Wins: ";
                 for new in &new_oppo_wins {
                     error_str += &format!("{}, ", other_god.stringify_move(new.action));
                 }

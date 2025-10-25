@@ -24,6 +24,17 @@ macro_rules! for_each_direction {
 }
 
 #[macro_export]
+macro_rules! for_each_diagonal_direction {
+    ($dir: ident => $body: block) => {
+        use const_for::const_for;
+        const_for!(i in 0..4 => {
+            let $dir = $crate::direction::DIAGONAL_DIRECTIONS[i];
+            $body
+        })
+    }
+}
+
+#[macro_export]
 macro_rules! square_map {
     ($square: ident => $body: expr) => {{
         let mut arr: [core::mem::MaybeUninit<_>; NUM_SQUARES] =
@@ -71,6 +82,43 @@ pub const WRAPPING_NEIGHBOR_MAP: BitboardMapping = square_map!(square => {
         new_coord.row %= 5;
 
         res = res.bit_or(BitBoard::as_mask(new_coord.to_square().unwrap()));
+    });
+    res
+});
+
+pub const DIAGONAL_ONLY_NEIGHBOR_MAP: BitboardMapping = square_map!(square => {
+    let mut res = BitBoard::EMPTY;
+    let coord = square.to_icoord();
+    for_each_diagonal_direction!(dir => {
+        let new_coord = coord.add(dir.to_icoord());
+        if let Some(n) = new_coord.to_square() {
+            res = res.bit_or(BitBoard::as_mask(n));
+        }
+    });
+    res
+});
+
+pub const WRAPPING_DIAGONAL_ONLY_NEIGHBOR_MAP: BitboardMapping = square_map!(square => {
+    let mut res = BitBoard::EMPTY;
+    let coord = square.to_icoord();
+    for_each_diagonal_direction!(dir => {
+        let mut new_coord = coord.add(dir.to_icoord()).add(ICoord::new(5, 5));
+        new_coord.col %= 5;
+        new_coord.row %= 5;
+
+        res = res.bit_or(BitBoard::as_mask(new_coord.to_square().unwrap()));
+    });
+    res
+});
+
+pub const INCLUSIVE_DIAGONAL_ONLY_NEIGHBOR_MAP: BitboardMapping = square_map!(square => {
+    let coord = square.to_icoord();
+    let mut res = BitBoard::as_mask(square);
+    for_each_diagonal_direction!(dir => {
+        let new_coord = coord.add(dir.to_icoord());
+        if let Some(n) = new_coord.to_square() {
+            res = res.bit_or(BitBoard::as_mask(n));
+        }
     });
     res
 });
@@ -186,7 +234,7 @@ pub const WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP: [BitboardMapping; 9] = {
     result
 };
 
-pub const WIND_AWARE_WRAPPING_NEIGHBOR_MAP: [BitboardMapping; 9] = {
+pub const WRAPPING_WIND_AWARE_NEIGHBOR_MAP: [BitboardMapping; 9] = {
     let mut result = [[BitBoard::EMPTY; NUM_SQUARES]; 9];
 
     result[0] = WRAPPING_NEIGHBOR_MAP;

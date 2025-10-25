@@ -1,15 +1,19 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, move_helpers::{
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        move_helpers::{
             build_scored_move, get_basic_moves, get_generator_prelude_state,
             get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
             is_mate_only, is_stop_on_mate, push_winning_moves,
-        }, FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod
+        },
     },
     persephone_check_result,
     placement::PlacementType,
@@ -168,7 +172,7 @@ pub(super) fn eros_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let prelude = get_generator_prelude_state::<F>(state, player, key_squares);
 
-    let neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+    let neighbor_map = prelude.standard_neighbor_map;
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -248,8 +252,8 @@ pub(super) fn eros_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 BitBoard::EMPTY
             };
 
-            let this_worker_next_turn_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx]
-                [worker_end_move_state.worker_end_pos as usize];
+            let this_worker_next_turn_moves =
+                prelude.standard_neighbor_map[worker_end_move_state.worker_end_pos as usize];
 
             let lvl_3_reach_board;
             let mut can_eros_win = true;

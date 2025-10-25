@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -263,7 +263,7 @@ pub(super) fn bia_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     }
 
                     let reach_board = {
-                        let next_turn_moves = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx]
+                        let next_turn_moves = prelude.standard_neighbor_map
                             [worker_end_pos as usize]
                             & unblocked_squares;
 

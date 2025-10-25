@@ -1,13 +1,21 @@
 use crate::{
-    bitboard::{apply_mapping_to_mask, BitBoard, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, harpies::prometheus_slide, move_helpers::{
-            build_scored_move, get_basic_moves, get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers, push_winning_moves, WorkerNextMoveState
-        }, FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        harpies::prometheus_slide,
+        move_helpers::{
+            WorkerNextMoveState, build_scored_move, get_basic_moves, get_generator_prelude_state,
+            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            modify_prelude_for_checking_workers, push_winning_moves,
+        },
     },
     persephone_check_result,
     player::Player,
@@ -212,7 +220,7 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    let neighbor_moves_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+    let neighbor_moves_map = prelude.standard_neighbor_map;
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);

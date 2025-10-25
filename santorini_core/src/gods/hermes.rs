@@ -1,15 +1,21 @@
 use crate::{
-    bitboard::{
-        apply_mapping_to_mask, BitBoard, BitboardMapping, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP
-    },
+    bitboard::{BitBoard, BitboardMapping, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, move_helpers::{
-            build_scored_move, get_basic_moves_from_raw_data_for_hermes, get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers, push_winning_moves, restrict_moves_by_affinity_area, WorkerNextMoveState
-        }, FullAction, GodName, GodPower, StaticGod
+        FullAction, GodName, GodPower, StaticGod, build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        move_helpers::{
+            WorkerNextMoveState, build_scored_move, get_basic_moves_from_raw_data_for_hermes,
+            get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state,
+            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
+            restrict_moves_by_affinity_area,
+        },
     },
     persephone_check_result,
     player::Player,
@@ -320,14 +326,14 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
-    let wind_neighbor_ref = WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+    let moving_neighbor_map = prelude.standard_neighbor_map;
 
     for worker_start_pos in prelude.acting_workers.into_iter() {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
         let other_threatening_workers = (worker_start_state.other_own_workers) & checkable_mask;
         let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &wind_neighbor_ref);
+            apply_mapping_to_mask(other_threatening_workers, &moving_neighbor_map);
 
         let mut worker_moves = get_basic_moves_from_raw_data_for_hermes::<MUST_CLIMB>(
             &prelude,
@@ -413,7 +419,8 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let h1 = prelude.board.get_height(f1);
     let h1_mask =
         prelude.board.exactly_level_n(h1) & !(prelude.oppo_workers | prelude.domes_and_frozen);
-    let mut c1 = flood_fill(h1_mask, m1, &wind_neighbor_ref);
+    let mut c1 = flood_fill(h1_mask, m1, &moving_neighbor_map);
+    let l1 = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize];
 
     let Some(f2) = worker_iter.next() else {
         c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
@@ -433,10 +440,8 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
             }
 
-            let worker_plausible_next_moves = wind_neighbor_ref[t1 as usize];
-            let reach_board = (worker_plausible_next_moves
-                & BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize])
-                & prelude.win_mask;
+            let worker_plausible_next_moves = moving_neighbor_map[t1 as usize];
+            let reach_board = worker_plausible_next_moves & l1 & prelude.win_mask;
 
             for worker_build_pos in narrowed_builds {
                 let worker_build_mask = BitBoard::as_mask(worker_build_pos);
@@ -477,30 +482,37 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         c1 = restrict_moves_by_affinity_area(m1, c1, prelude.affinity_area);
         c2 = restrict_moves_by_affinity_area(
             m2,
-            flood_fill(h2_mask, m2, &wind_neighbor_ref),
+            flood_fill(h2_mask, m2, &moving_neighbor_map),
             prelude.affinity_area,
         );
     }
 
     let blocked_squares = prelude.oppo_workers | prelude.domes_and_frozen;
 
-    let l1 = BitBoard::CONDITIONAL_MASK[(h1 == 2) as usize];
     let l2 = BitBoard::CONDITIONAL_MASK[(h2 == 2) as usize];
 
     for t1 in c1 {
         let t1_mask = BitBoard::as_mask(t1);
         c2 &= !t1_mask;
 
-        let t1_ns = wind_neighbor_ref[t1 as usize];
-        let from_level_2_1 = t1_ns & l1;
+        let t1_building_neighbors = NEIGHBOR_MAP[t1 as usize];
+
+        let t1_moving_neighbors = prelude.standard_neighbor_map[t1 as usize];
+        let t1_moves_from_lvl_2 = t1_moving_neighbors & l1;
 
         for t2 in c2 {
             let t2_mask = BitBoard::as_mask(t2);
             let both_mask = t1_mask | t2_mask;
 
-            let t2_ns = wind_neighbor_ref[t2 as usize];
-            let mut possible_builds = (t1_ns | t2_ns) & !(blocked_squares | both_mask);
-            let worker_plausible_next_moves = possible_builds & prelude.win_mask;
+            let t2_building_neighbors = NEIGHBOR_MAP[t2 as usize];
+            let mut possible_builds =
+                (t1_building_neighbors | t2_building_neighbors) & !(blocked_squares | both_mask);
+
+            let t2_moving_neighbors = prelude.standard_neighbor_map[t2 as usize];
+            let t2_moves_from_lvl_2 = t2_moving_neighbors & l2;
+            let worker_checking_next_moves =
+                (t1_moves_from_lvl_2 | t2_moves_from_lvl_2) & prelude.win_mask & possible_builds;
+
             possible_builds &= prelude.build_mask;
 
             if is_interact_with_key_squares::<F>() {
@@ -508,9 +520,6 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     possible_builds &= key_squares;
                 }
             }
-
-            let from_level_2_2 = t2_ns & l2;
-            let l2_neighbors = from_level_2_1 | from_level_2_2;
 
             for build in possible_builds {
                 let new_action =
@@ -520,8 +529,7 @@ fn hermes_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 // dont need hypnus check here. if you can move both workers, it's because they are
                 // both on the same level
                 let is_check = {
-                    let check_board = l2_neighbors
-                        & worker_plausible_next_moves
+                    let check_board = worker_checking_next_moves
                         & (prelude.exactly_level_3 & !worker_build_mask
                             | prelude.exactly_level_2 & worker_build_mask);
                     check_board.is_not_empty()

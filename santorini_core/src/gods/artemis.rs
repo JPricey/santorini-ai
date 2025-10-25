@@ -1,18 +1,23 @@
 use crate::{
-    bitboard::{
-        apply_mapping_to_mask, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP
-    },
+    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     build_god_power_movers,
-    direction::direction_idx_to_reverse,
     gods::{
-        build_god_power_actions, generic::{
-            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH
-        }, god_power, harpies::slide_position_with_custom_worker_blocker, hypnus::hypnus_moveable_worker_filter, move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_sized_result,
-            get_worker_climb_height_raw, get_worker_start_move_state, is_interact_with_key_squares,
-            is_mate_only, is_stop_on_mate,
-        }, FullAction, GodName, GodPower, HistoryIdxHelper, PartialAction, StaticGod
+        FullAction, GodName, GodPower, HistoryIdxHelper, PartialAction, StaticGod,
+        build_god_power_actions,
+        generic::{
+            GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, MoveData,
+            MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+        },
+        god_power,
+        harpies::slide_position_with_custom_worker_blocker,
+        hypnus::hypnus_moveable_worker_filter,
+        move_helpers::{
+            build_scored_move, get_generator_prelude_state, get_inclusive_movement_neighbors,
+            get_sized_result, get_wind_reverse_neighbor_map, get_worker_climb_height_raw,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            is_stop_on_mate,
+        },
     },
     persephone_check_result,
     player::Player,
@@ -469,9 +474,10 @@ fn artemis_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let not_other_workers = !prelude.oppo_workers;
 
-    let neighbor_map_ref = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
-    let inclusive_neighbor_map = &WIND_AWARE_INCLUSIVE_NEIGHBOR_MAP[prelude.wind_idx];
-    let reverse_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[direction_idx_to_reverse(prelude.wind_idx)];
+    let neighbor_map_ref = prelude.standard_neighbor_map;
+    let inclusive_neighbor_map = get_inclusive_movement_neighbors(&prelude);
+    let reverse_neighbor_map = get_wind_reverse_neighbor_map(&prelude);
+
     for worker_start_pos in acting_workers.into_iter() {
         let worker_start_mask = BitBoard::as_mask(worker_start_pos);
         let worker_start_height = prelude.board.get_height(worker_start_pos);

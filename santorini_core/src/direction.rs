@@ -31,6 +31,9 @@ pub enum Direction {
     W,
 }
 
+pub(crate) const DIAGONAL_DIRECTIONS: [Direction; 4] =
+    [Direction::NW, Direction::NE, Direction::SE, Direction::SW];
+
 impl Direction {
     pub const fn to_icoord(self) -> ICoord {
         match self {

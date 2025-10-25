@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING, WIND_AWARE_NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -218,7 +218,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
-    let wind_neighbor_map = &WIND_AWARE_NEIGHBOR_MAP[prelude.wind_idx];
+    let neighbor_map = prelude.standard_neighbor_map;
 
     let blocked_squares = prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen;
 
@@ -377,7 +377,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                             | other_workers_post_push;
 
                         for worker in checkable_own_workers {
-                            let ns = wind_neighbor_map[worker as usize] & possible_dest_board;
+                            let ns = neighbor_map[worker as usize] & possible_dest_board;
                             if (ns & not_other_pushed_workers).is_not_empty() {
                                 is_check = true;
                                 break;
