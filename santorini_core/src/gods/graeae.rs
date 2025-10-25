@@ -1,11 +1,21 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP}, board::FullGameState, build_god_power_movers, gods::{
-        build_god_power_actions, generic::{MoveGenFlags, ScoredMove}, god_power, mortal::MortalMove, move_helpers::{
+    bitboard::{BitBoard, NEIGHBOR_MAP, WIND_AWARE_NEIGHBOR_MAP},
+    board::FullGameState,
+    build_god_power_movers,
+    gods::{
+        GodName, GodPower, build_god_power_actions,
+        generic::{MoveGenFlags, ScoredMove},
+        god_power,
+        mortal::MortalMove,
+        move_helpers::{
             build_scored_move, get_basic_moves, get_generator_prelude_state,
             get_worker_end_move_state, get_worker_start_move_state, is_interact_with_key_squares,
             is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
-        }, GodName, GodPower
-    }, persephone_check_result, player::Player
+        },
+    },
+    persephone_check_result,
+    placement::PlacementType,
+    player::Player,
 };
 
 pub fn graeae_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
@@ -117,5 +127,5 @@ pub const fn build_graeae() -> GodPower {
         3621759432554562343,
         8641066751388211347,
     )
-    .with_num_workers(3)
+    .with_placement_type(PlacementType::ThreeWorkers)
 }

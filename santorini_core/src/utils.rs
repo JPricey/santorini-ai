@@ -1,7 +1,12 @@
 #![feature(stdarch_x86_avx512)]
 #![feature(avx512_target_feature)]
 #![allow(unused)]
-use crate::{bitboard::BitBoard, board::FullGameState, gods::PartialAction};
+use crate::{
+    bitboard::BitBoard,
+    board::{FullGameState, GodPair},
+    gods::PartialAction,
+    hashing::HashType,
+};
 use chrono::Local;
 
 pub fn find_action_path(
@@ -41,6 +46,10 @@ pub const fn grid_position_builder<T: Copy>(
 
 pub fn timestamp_string() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
+}
+
+pub(crate) fn base_hash_for_god_pair(gods: GodPair) -> HashType {
+    gods[0].hash1 ^ gods[0].hash2
 }
 
 pub const fn hash_u64(mut x: usize) -> usize {

@@ -1,12 +1,17 @@
 use super::search::Hueristic;
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, FullGameState, GodData},
+    board::{BoardState, FullGameState, GodData, GodPair},
     direction::Direction,
     gods::generic::{GenericMove, GodMove, ScoredMove},
     hashing::HashType,
     nnue::NNUE_MORPHEUS_MAX_BLOCKS_INCLUSIVE,
     placement::PlacementType,
+    placement::{
+        common::WorkerPlacementMove, opposite::OppositeWorkerPlacement,
+        perimeter::PerimeterWorkerPlacement, standard::StandardWorkerPlacement,
+        three_worker::ThreeWorkerPlacement,
+    },
     player::Player,
     square::Square,
     utils::hash_u64,
@@ -252,12 +257,64 @@ fn _default_get_wind_idx(_board: &BoardState, _player: Player) -> usize {
 pub(super) type MoveGeneratorFn =
     fn(board: &FullGameState, player: Player, key_squares: BitBoard) -> Vec<ScoredMove>;
 
+pub(super) type PlacementMoveGeneratorFn =
+    fn(gods: GodPair, board: &BoardState, player: Player) -> Vec<GenericMove>;
+
+pub(super) type StringifyMoveFn = fn(action: GenericMove) -> String;
+
 pub(super) struct GodPowerMoveFns {
     _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
     _get_unscored_win_blockers: MoveGeneratorFn,
     _get_scored_win_blockers: MoveGeneratorFn,
     _get_moves_for_search: MoveGeneratorFn,
+}
+
+pub(super) struct GodPlacementFns {
+    _get_all_placement_actions: PlacementMoveGeneratorFn,
+    _get_unique_placement_actions: PlacementMoveGeneratorFn,
+    _stringify_placement_move: StringifyMoveFn,
+    _make_placement_move: fn(action: GenericMove, board: &mut BoardState, player: Player),
+    _move_to_actions: fn(action: GenericMove, board: &BoardState) -> Vec<FullAction>,
+    _history_idx: fn(actions: GenericMove, board: &BoardState) -> usize,
+}
+
+pub(super) const fn placement_to_fns<W: WorkerPlacementMove>() -> GodPlacementFns {
+    fn _stringify<W: WorkerPlacementMove>(action: GenericMove) -> String {
+        let action: W = action.into();
+        format!("{:?}", action)
+    }
+
+    fn _placement_move<W: WorkerPlacementMove>(
+        action: GenericMove,
+        board: &mut BoardState,
+        player: Player,
+    ) {
+        let action: W = action.into();
+        action.make_move(board, player);
+    }
+
+    fn _history_idx<W: WorkerPlacementMove>(action: GenericMove, board: &BoardState) -> usize {
+        let action: W = action.into();
+        hash_u64(action.get_history_idx(board))
+    }
+
+    fn _move_to_actions<W: WorkerPlacementMove>(
+        actions: GenericMove,
+        board: &BoardState,
+    ) -> Vec<FullAction> {
+        let action: W = actions.into();
+        action.move_to_actions(board)
+    }
+
+    GodPlacementFns {
+        _get_all_placement_actions: W::get_all_placements,
+        _get_unique_placement_actions: W::get_unique_placements,
+        _stringify_placement_move: _stringify::<W>,
+        _make_placement_move: _placement_move::<W>,
+        _move_to_actions: _move_to_actions::<W>,
+        _history_idx: _history_idx::<W>,
+    }
 }
 
 pub(super) struct GodPowerActionFns {
@@ -330,14 +387,15 @@ pub struct GodPower {
     _make_passing_move: MakePassingMoveFn,
 
     _get_history_hash: fn(board: &BoardState, action: GenericMove) -> usize,
-    _stringify_move: fn(action: GenericMove) -> String,
+    _stringify_move: StringifyMoveFn,
 
     _parse_god_data: ParseGodDataFn,
     _stringify_god_data: StringifyGodDataFn,
 
     _pretty_stringify_god_data: PrettyStringifyGodDataFn,
 
-    pub num_workers: usize,
+    _placement_fns: GodPlacementFns,
+
     pub placement_type: PlacementType,
 
     pub is_aphrodite: bool,
@@ -442,6 +500,66 @@ impl GodPower {
         key_moves: BitBoard,
     ) -> Vec<ScoredMove> {
         (self._get_unscored_win_blockers)(state, player, key_moves)
+    }
+
+    pub(crate) fn get_unique_placement_actions(
+        &self,
+        gods: GodPair,
+        board: &BoardState,
+        player: Player,
+    ) -> Vec<GenericMove> {
+        (self._placement_fns._get_unique_placement_actions)(gods, board, player)
+    }
+
+    pub fn get_all_placement_actions(
+        &self,
+        gods: GodPair,
+        board: &BoardState,
+        player: Player,
+    ) -> Vec<GenericMove> {
+        (self._placement_fns._get_all_placement_actions)(gods, board, player)
+    }
+
+    pub fn make_placement_move(&self, action: GenericMove, board: &mut BoardState, player: Player) {
+        (self._placement_fns._make_placement_move)(action, board, player);
+    }
+
+    pub fn make_placement_move_on_clone(
+        &self,
+        action: GenericMove,
+        state: &FullGameState,
+        player: Player,
+    ) -> FullGameState {
+        let mut new_state = state.clone();
+        self.make_placement_move(action, &mut new_state.board, player);
+        new_state
+    }
+
+    pub(crate) fn placement_move_to_actions(
+        &self,
+        action: GenericMove,
+        board: &BoardState,
+    ) -> Vec<FullAction> {
+        (self._placement_fns._move_to_actions)(action, board)
+    }
+
+    pub(crate) fn get_placement_history_hash(
+        &self,
+        action: GenericMove,
+        board: &BoardState,
+    ) -> usize {
+        (self._placement_fns._history_idx)(action, &board)
+    }
+
+    pub(crate) fn stringify_placement_move(&self, action: GenericMove) -> String {
+        (self._placement_fns._stringify_placement_move)(action)
+    }
+
+    pub fn get_num_workers(&self) -> usize {
+        match self.placement_type {
+            PlacementType::ThreeWorkers => 3,
+            _ => 2,
+        }
     }
 
     pub fn get_blocker_board(&self, board: &BoardState, action: GenericMove) -> BitBoard {
@@ -701,8 +819,8 @@ const fn god_power(
 
         _pretty_stringify_god_data: _default_pretty_stringify_god_data,
 
-        num_workers: 2,
         placement_type: PlacementType::Normal,
+        _placement_fns: placement_to_fns::<StandardWorkerPlacement>(),
 
         win_mask: BitBoard::MAIN_SECTION_MASK,
 
@@ -723,13 +841,14 @@ impl GodPower {
         self
     }
 
-    pub(super) const fn with_num_workers(mut self, num_workers: usize) -> Self {
-        self.num_workers = num_workers;
-        self
-    }
-
     pub(super) const fn with_placement_type(mut self, placement_type: PlacementType) -> Self {
         self.placement_type = placement_type;
+        self._placement_fns = match placement_type {
+            PlacementType::Normal => placement_to_fns::<StandardWorkerPlacement>(),
+            PlacementType::ThreeWorkers => placement_to_fns::<ThreeWorkerPlacement>(),
+            PlacementType::PerimeterOnly => placement_to_fns::<PerimeterWorkerPlacement>(),
+            PlacementType::PerimeterOpposite => placement_to_fns::<OppositeWorkerPlacement>(),
+        };
         self
     }
 

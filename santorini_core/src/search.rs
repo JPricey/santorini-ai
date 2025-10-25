@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bitboard::BitBoard,
     board::FullGameState,
-    gods::generic::{GenericMove, GodMove, KILLER_MATCH_SCORE, MoveScore, WorkerPlacement},
+    gods::generic::{GenericMove, KILLER_MATCH_SCORE, MoveScore},
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
-    placement::{PlacementState, get_placement_actions, get_starting_placement_state},
+    placement::{PlacementState, get_starting_placement_state},
     search_terminators::SearchTerminator,
     transposition_table::SearchScoreType,
     utils::{hash_u64, timestamp_string},
@@ -61,8 +61,7 @@ impl BestSearchResult {
         trigger: BestMoveTrigger,
     ) -> Self {
         let action_str = if is_placement_action {
-            let placement: WorkerPlacement = action.into();
-            format!("{:?}", placement)
+            state.get_other_god().stringify_placement_move(action)
         } else {
             state.get_other_god().stringify_move(action)
         };
@@ -377,11 +376,14 @@ where
     {
         let mut best_child_state = root_state.clone();
 
+        let active_god = root_state.get_active_god();
         if let Some(starting_mode) = starting_mode {
-            let placement: WorkerPlacement = tt_entry.best_action.into();
-            placement.make_move(&mut best_child_state.board, starting_mode.next_placement);
+            active_god.make_placement_move(
+                tt_entry.best_action,
+                &mut best_child_state.board,
+                starting_mode.next_placement,
+            );
         } else {
-            let active_god = root_state.get_active_god();
             active_god.make_move(&mut best_child_state.board, tt_entry.best_action);
         }
 
@@ -593,12 +595,15 @@ where
     let alpha_orig = alpha;
     let mut should_stop = false;
 
-    let mut placements = get_placement_actions::<true>(&state, placement_mode);
+    let active_player = placement_mode.next_placement;
+    let active_god = state.gods[active_player as usize];
+    let mut placements =
+        active_god.get_unique_placement_actions(state.gods, &state.board, active_player);
     let mut best_action = placements[0];
 
     let tt_entry = search_context.tt.fetch(&state, ply);
     if let Some(tt_entry) = tt_entry {
-        let tt_move: WorkerPlacement = tt_entry.best_action.into();
+        let tt_move = tt_entry.best_action.into();
         for i in 1..placements.len() {
             if placements[i] == tt_move {
                 placements.swap(0, i);
@@ -612,8 +617,10 @@ where
 
     search_state.search_stack[ply].eval = -WINNING_SCORE_BUFFER;
     for action in placements {
-        search_state.search_stack[ply].move_hash = hash_u64(action.get_history_idx(&state.board));
-        let child_state = action.make_on_clone(state, placement_mode.next_placement);
+        let child_state =
+            active_god.make_placement_move_on_clone(action, &state, placement_mode.next_placement);
+        search_state.search_stack[ply].move_hash =
+            active_god.get_placement_history_hash(action, &child_state.board);
 
         let score = if let Some(next_mode) = next_mode {
             -_placement_search::<T, NT::Next>(

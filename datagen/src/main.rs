@@ -4,9 +4,12 @@ use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::{Rng, rng};
 use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
 use santorini_core::matchup::{Matchup, MatchupSelector};
-use santorini_core::placement::{get_placement_actions, get_starting_placement_state};
+use santorini_core::placement::{get_starting_placement_state};
 use santorini_core::player::Player;
-use santorini_core::search::{get_win_reached_search_terminator, negamax_search, Hueristic, SearchContext, WINNING_SCORE_BUFFER};
+use santorini_core::search::{
+    Hueristic, SearchContext, WINNING_SCORE_BUFFER, get_win_reached_search_terminator,
+    negamax_search,
+};
 use santorini_core::search_terminators::{
     AndSearchTerminator, OrSearchTerminator, StaticMaxDepthSearchTerminator,
     StaticNodesVisitedSearchTerminator,
@@ -244,9 +247,16 @@ fn generate_one(
             .unwrap()
             .unwrap();
 
-        let placement_actions = get_placement_actions::<true>(&current_state, placement_mode);
-        let action = placement_actions.choose(rng).unwrap();
-        current_state = action.make_on_clone(&current_state, placement_mode.next_placement);
+        let active_player = placement_mode.next_placement;
+        let active_god = current_state.gods[active_player as usize];
+        let placement_actions = active_god.get_all_placement_actions(
+            current_state.gods,
+            &current_state.board,
+            active_player,
+        );
+        let action = placement_actions.choose(rng).unwrap().clone();
+
+        active_god.make_placement_move(action, &mut current_state.board, active_player);
     }
 
     eprintln!("Random starting state: {:?}", current_state);

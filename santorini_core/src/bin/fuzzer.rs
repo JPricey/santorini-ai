@@ -103,12 +103,12 @@ fn main() {
             matchup = matchup.flip();
         }
 
-        let mut c1 = matchup.god_1().num_workers;
+        let mut c1 = matchup.god_1().get_num_workers();
         if rng.random_bool(0.1) {
             c1 -= 1;
         };
 
-        let mut c2 = matchup.god_2().num_workers;
+        let mut c2 = matchup.god_2().get_num_workers();
         if rng.random_bool(0.1) {
             c2 -= 1;
         };

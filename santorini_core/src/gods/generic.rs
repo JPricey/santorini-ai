@@ -1,12 +1,10 @@
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     bitboard::BitBoard,
-    board::{BoardState, FullGameState, GodData},
-    gods::{FullAction, PartialAction},
+    board::{BoardState, GodData},
+    gods::FullAction,
     player::Player,
-    square::Square,
 };
 use std::fmt::Debug;
 
@@ -155,119 +153,5 @@ impl GenericMove {
 impl From<MoveData> for GenericMove {
     fn from(value: MoveData) -> Self {
         Self::new(value)
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct WorkerPlacement(pub MoveData);
-
-impl Into<GenericMove> for WorkerPlacement {
-    fn into(self) -> GenericMove {
-        unsafe { std::mem::transmute(self) }
-    }
-}
-
-impl From<GenericMove> for WorkerPlacement {
-    fn from(value: GenericMove) -> Self {
-        unsafe { std::mem::transmute(value) }
-    }
-}
-
-impl WorkerPlacement {
-    pub fn new(a: Square, b: Square) -> Self {
-        let data: MoveData = ((a as MoveData) << 0)
-            | ((b as MoveData) << POSITION_WIDTH)
-            | ((25 as MoveData) << 2 * POSITION_WIDTH);
-
-        Self(data)
-    }
-
-    pub fn new_3(a: Square, b: Square, c: Square) -> Self {
-        let data: MoveData = ((a as MoveData) << 0)
-            | ((b as MoveData) << POSITION_WIDTH)
-            | ((c as MoveData) << 2 * POSITION_WIDTH);
-
-        Self(data)
-    }
-
-    pub fn placement_1(self) -> Square {
-        Square::from((self.0 as u8) & LOWER_POSITION_MASK)
-    }
-
-    pub fn placement_2(self) -> Square {
-        Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
-    }
-
-    pub fn placement_3(self) -> Option<Square> {
-        let value = (self.0 >> 2 * POSITION_WIDTH) as u8 & LOWER_POSITION_MASK;
-        if value < 25 {
-            Some(Square::from(value))
-        } else {
-            None
-        }
-    }
-
-    pub fn move_mask(self) -> BitBoard {
-        if let Some(placement_3) = self.placement_3() {
-            BitBoard::as_mask(self.placement_1())
-                | BitBoard::as_mask(self.placement_2())
-                | BitBoard::as_mask(placement_3)
-        } else {
-            BitBoard::as_mask(self.placement_1()) | BitBoard::as_mask(self.placement_2())
-        }
-    }
-
-    pub fn make_on_clone(self, state: &FullGameState, player: Player) -> FullGameState {
-        let mut result = state.clone();
-        self.make_move(&mut result.board, player);
-        result
-    }
-}
-
-impl std::fmt::Debug for WorkerPlacement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(placement_3) = self.placement_3() {
-            write!(
-                f,
-                "P{} P{} P{}",
-                self.placement_1(),
-                self.placement_2(),
-                placement_3
-            )
-        } else {
-            write!(f, "P{} P{}", self.placement_1(), self.placement_2())
-        }
-    }
-}
-
-impl GodMove for WorkerPlacement {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
-        let mut actions = vec![
-            PartialAction::PlaceWorker(self.placement_1()),
-            PartialAction::PlaceWorker(self.placement_2()),
-        ];
-
-        if let Some(placement_3) = self.placement_3() {
-            actions.push(PartialAction::PlaceWorker(placement_3));
-        }
-
-        let actions_len = actions.len();
-
-        let result: Vec<FullAction> = actions.into_iter().permutations(actions_len).collect();
-
-        result
-    }
-
-    fn make_move(self, board: &mut BoardState, player: Player) {
-        board.worker_xor(player, self.move_mask());
-        board.flip_current_player();
-    }
-
-    fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
-        self.move_mask()
-    }
-
-    fn get_history_idx(self, _board: &BoardState) -> usize {
-        self.0 as usize
     }
 }

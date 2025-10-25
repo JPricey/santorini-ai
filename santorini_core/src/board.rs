@@ -6,16 +6,13 @@ use strum::IntoEnumIterator;
 use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
-    gods::{
-        BoardStateWithAction, GameStateWithAction, GodName, StaticGod,
-        generic::{GenericMove, GodMove},
-    },
+    gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod, generic::GenericMove},
     hashing::{
         HashType, ZOBRIST_DATA_RANDOMS, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO,
         ZORBRIST_WORKER_RANDOMS, compute_hash_from_scratch_for_board,
     },
     matchup::{self, BANNED_MATCHUPS, Matchup},
-    placement::{get_placement_actions, get_starting_placement_state},
+    placement::get_starting_placement_state,
     player::Player,
     square::Square,
 };
@@ -152,19 +149,24 @@ impl FullGameState {
 
     pub fn get_all_next_states_with_actions(&self) -> Vec<(FullGameState, GenericMove)> {
         let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
+        let active_god = self.get_active_god();
 
         if let Some(placement_mode) = placement_mode {
-            get_placement_actions::<false>(self, placement_mode)
+            active_god
+                .get_all_placement_actions(self.gods, &self.board, placement_mode.next_placement)
                 .into_iter()
                 .map(|a| {
                     (
-                        a.make_on_clone(self, placement_mode.next_placement),
+                        active_god.make_placement_move_on_clone(
+                            a,
+                            self,
+                            placement_mode.next_placement,
+                        ),
                         a.into(),
                     )
                 })
                 .collect()
         } else {
-            let active_god = self.get_active_god();
             active_god
                 .get_moves_for_search(&self, self.board.current_player)
                 .into_iter()
@@ -178,15 +180,24 @@ impl FullGameState {
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
+        let active_god = self.get_active_god();
         let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
 
         if let Some(placement_mode) = placement_mode {
-            let placement_actions = get_placement_actions::<false>(self, placement_mode);
+            let placement_actions = active_god.get_all_placement_actions(
+                self.gods,
+                &self.board,
+                placement_mode.next_placement,
+            );
             let mut res: Vec<GameStateWithAction> = Vec::new();
 
             for p in placement_actions {
-                for series in p.move_to_actions(&self.board) {
-                    let new_state = p.make_on_clone(self, placement_mode.next_placement);
+                for series in active_god.placement_move_to_actions(p, &self.board) {
+                    let new_state = active_god.make_placement_move_on_clone(
+                        p,
+                        self,
+                        placement_mode.next_placement,
+                    );
                     let board_state_w_action = BoardStateWithAction::new(new_state.board, series);
                     res.push(GameStateWithAction::new(
                         board_state_w_action,
@@ -198,7 +209,6 @@ impl FullGameState {
 
             res
         } else {
-            let active_god = self.get_active_god();
             let board_states_with_action_list = active_god.get_next_states_interactive(&self);
 
             board_states_with_action_list
