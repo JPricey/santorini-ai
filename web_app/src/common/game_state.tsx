@@ -31,13 +31,15 @@ export const God = {
     Prometheus: 'prometheus',
     Urania: 'urania',
     Zeus: 'zeus',
+    Charon: 'charon',
     Eros: 'eros',
     Hippolyta: 'hippolyta',
+    Scylla: 'scylla',
     Selene: 'selene',
 } as const;
 export type GodType = typeof God[keyof typeof God];
 
-export const WIP_GODS: Set<GodType> = new Set([God.Eros, God.Selene, God.Hippolyta]);
+export const WIP_GODS: Set<GodType> = new Set([God.Charon, God.Eros, God.Hippolyta, God.Scylla, God.Selene]);
 
 export const Square = {
     A5: 0,

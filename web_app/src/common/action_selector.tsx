@@ -43,6 +43,8 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
             return action.value === squareStr ? action.type : null;
         case PlayerActionTypes.MoveWorker:
             return action.value.dest === squareStr ? action.type : null;
+        case PlayerActionTypes.ForceOpponentWorker:
+            return action.value[0] === squareStr ? action.type : null;
         case PlayerActionTypes.EndTurn:
             return null;
         case PlayerActionTypes.NoMoves:

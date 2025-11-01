@@ -19,6 +19,7 @@ export const PlayerActionTypes = {
     SetFemaleWorker: 'set_female_worker',
     SelectWorker: 'select_worker',
     MoveWorker: 'move_worker',
+    ForceOpponentWorker: 'force_opponent_worker',
     SetWindDirection: 'set_wind_direction',
     SetTalusPosition: 'set_talus_position',
     Build: 'build',
@@ -52,6 +53,7 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.SetFemaleWorker; value: string }
     | { type: typeof PlayerActionTypes.SelectWorker; value: string }
     | { type: typeof PlayerActionTypes.MoveWorker; value: MoveWorkerData }
+    | { type: typeof PlayerActionTypes.ForceOpponentWorker; value: [string, string] } // [from, to]
     | { type: typeof PlayerActionTypes.Build; value: string }
     | { type: typeof PlayerActionTypes.Destroy; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
@@ -86,6 +88,8 @@ export function describeActionType(actionType: PlayerActionType): string {
             return `Select Worker`;
         case PlayerActionTypes.MoveWorker:
             return `Move Worker`;
+        case PlayerActionTypes.ForceOpponentWorker:
+            return `Force Opponent Worker`;
         case PlayerActionTypes.Build:
             return `Build`;
         case PlayerActionTypes.Dome:
@@ -144,6 +148,8 @@ export function describeAction(action: PlayerAction): string {
             return `${describeActionType(action.type)} (${action.value})`;
         case PlayerActionTypes.MoveWorker:
             return `${describeActionType(action.type)} (${moveDesc(action.value)})`;
+        case PlayerActionTypes.ForceOpponentWorker:
+            return `${describeActionType(action.type)} (${action.value[0]}→${action.value[1]})`;
         case PlayerActionTypes.SetWindDirection:
             return `${describeActionType(action.type)} (${action.value})`;
         case PlayerActionTypes.EndTurn:
