@@ -112,7 +112,9 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::SetFemaleWorker(_) => egui::Color32::LIGHT_RED,
         PartialAction::SelectWorker(_) => egui::Color32::BLUE,
         PartialAction::MoveWorker(_) => egui::Color32::DARK_GREEN,
-        PartialAction::ForceOpponentWorker(_, _) => egui::Color32::GREEN,
+        PartialAction::ForceOpponentWorker(_, _)  => {
+            egui::Color32::GREEN
+        }
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::Destroy(_) => egui::Color32::ORANGE,

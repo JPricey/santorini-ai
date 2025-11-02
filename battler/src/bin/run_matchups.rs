@@ -33,7 +33,7 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         // )
         .with_exact_gods_for_player(
             santorini_core::player::Player::One,
-            &[GodName::Pegasus],
+            &[GodName::Proteus],
         )
         .get_all();
 
@@ -167,4 +167,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-// cargo run -p battler --bin run_matchups -r -- -s 5.0
+// cargo run -p battler --bin run_matchups -r -- -s 2.0

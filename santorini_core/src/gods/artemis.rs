@@ -10,7 +10,7 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
-        harpies::slide_position_with_custom_worker_blocker,
+        harpies::slide_position_with_custom_blockers,
         hypnus::hypnus_moveable_worker_filter,
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_inclusive_movement_neighbors,
@@ -203,7 +203,7 @@ fn artemis_move_gen_vs_harpies<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let not_worker_start_mask = !worker_start_mask;
 
         for init_worker_mid_pos in worker_1d_moves {
-            let worker_mid_pos = slide_position_with_custom_worker_blocker(
+            let worker_mid_pos = slide_position_with_custom_blockers(
                 &prelude.board,
                 worker_start_pos,
                 init_worker_mid_pos,
@@ -235,7 +235,7 @@ fn artemis_move_gen_vs_harpies<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
 
             for worker_end_pos in next_moves {
-                let slid_worker_end_pos = slide_position_with_custom_worker_blocker(
+                let slid_worker_end_pos = slide_position_with_custom_blockers(
                     &prelude.board,
                     worker_mid_pos,
                     worker_end_pos,

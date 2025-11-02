@@ -78,7 +78,7 @@ pub fn urania_slide(board: &BoardState, from: Square, to: Square, workers: BitBo
         return to;
     }
 
-    slide_position_with_custom_worker_blocker(board, to, next_spot, workers)
+    slide_position_with_custom_blockers(board, to, next_spot, workers)
 }
 
 pub(crate) fn prometheus_slide(
@@ -124,11 +124,11 @@ pub(crate) fn slide_position(prelude: &GeneratorPreludeState, from: Square, to: 
     slide_position(prelude, to, next_spot)
 }
 
-pub fn slide_position_with_custom_worker_blocker(
+pub fn slide_position_with_custom_blockers(
     board: &BoardState,
     from: Square,
     to: Square,
-    workers: BitBoard,
+    blockers: BitBoard,
 ) -> Square {
     let Some(next_spot) = PUSH_MAPPING[from as usize][to as usize] else {
         return to;
@@ -142,11 +142,11 @@ pub fn slide_position_with_custom_worker_blocker(
     }
 
     let next_mask = BitBoard::as_mask(next_spot);
-    if (workers & next_mask).is_not_empty() {
+    if (blockers & next_mask).is_not_empty() {
         return to;
     }
 
-    slide_position_with_custom_worker_blocker(board, to, next_spot, workers)
+    slide_position_with_custom_blockers(board, to, next_spot, blockers)
 }
 
 // Same as mortal, except for custom key moves logic vs artemis

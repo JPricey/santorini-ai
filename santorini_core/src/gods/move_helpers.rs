@@ -14,7 +14,7 @@ use crate::{
             GenericMove, INCLUDE_SCORE, INTERACT_WITH_KEY_SQUARES, MATE_ONLY, MoveGenFlags,
             STOP_ON_MATE, ScoredMove,
         },
-        harpies::{slide_position, slide_position_with_custom_worker_blocker},
+        harpies::{slide_position, slide_position_with_custom_blockers},
         hypnus::hypnus_moveable_worker_filter,
     },
     player::Player,
@@ -347,7 +347,7 @@ pub(super) fn get_worker_end_move_state_with_custom_worker_helper<const F: MoveG
     blocker: BitBoard,
 ) -> WorkerEndMoveState {
     if prelude.is_against_harpies {
-        worker_end_pos = slide_position_with_custom_worker_blocker(
+        worker_end_pos = slide_position_with_custom_blockers(
             prelude.board,
             worker_start_state.worker_start_pos,
             worker_end_pos,

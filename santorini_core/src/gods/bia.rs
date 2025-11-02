@@ -9,7 +9,7 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
-        harpies::slide_position_with_custom_worker_blocker,
+        harpies::slide_position_with_custom_blockers,
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_standard_reach_board,
             get_worker_end_move_state, get_worker_next_build_state, get_worker_next_move_state,
@@ -230,7 +230,7 @@ pub(super) fn bia_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     let new_oppo_workers = prelude.oppo_workers ^ next_mask;
 
                     if prelude.is_against_harpies {
-                        worker_end_pos = slide_position_with_custom_worker_blocker(
+                        worker_end_pos = slide_position_with_custom_blockers(
                             prelude.board,
                             worker_start_state.worker_start_pos,
                             worker_end_pos,

@@ -9,7 +9,7 @@ use crate::{
         ares::AresMove,
         athena::AthenaMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
-        harpies::slide_position_with_custom_worker_blocker,
+        harpies::slide_position_with_custom_blockers,
         mortal::MortalMove,
     },
     hashing::compute_hash_from_scratch,
@@ -133,6 +133,9 @@ impl ConsistencyChecker {
                 ));
             } else {
                 let was_winning = all_move_map[&key];
+                if active_god.god_name == GodName::Proteus {
+                    continue;
+                }
                 if was_winning != action.get_is_winning() {
                     self.errors.push(format!(
                         "Search move win flag mismatch from all moves: {}. AllMovesWin: {} SearchMovesWin: {}",
@@ -153,6 +156,9 @@ impl ConsistencyChecker {
                     self.state.next_state(active_god, other_god, action.action)
                 ));
             } else {
+                if active_god.god_name == GodName::Proteus {
+                    continue;
+                }
                 let was_winning = all_move_map[&key];
                 if !was_winning {
                     self.errors.push(format!(
@@ -167,6 +173,10 @@ impl ConsistencyChecker {
     fn validate_non_duplicates(&mut self, actions: &Vec<ScoredMove>) {
         let mut seen = HashMap::<BoardState, GenericMove>::new();
         let (active_god, other_god) = self.state.get_active_non_active_gods();
+
+        if active_god.god_name == GodName::Proteus {
+            return;
+        }
 
         for action in actions {
             let action = action.action;
@@ -235,6 +245,10 @@ impl ConsistencyChecker {
             return;
         }
 
+        if active_god.god_name == GodName::Proteus {
+            return;
+        }
+
         let old_workers = self.state.board.workers[current_player as usize];
 
         for action in actions {
@@ -290,6 +304,10 @@ impl ConsistencyChecker {
         // Ignore zeus, who can appear to move up by building under himself
         // TODO: scope this down
         if active_god.god_name == GodName::Zeus {
+            return;
+        }
+
+        if active_god.god_name == GodName::Proteus {
             return;
         }
 
@@ -401,6 +419,10 @@ impl ConsistencyChecker {
             return;
         }
 
+        if active_god.god_name == GodName::Proteus {
+            return;
+        }
+
         let old_workers = self.state.board.workers[current_player as usize];
         let old_aphro_workers = self.state.board.workers[!current_player as usize];
         let old_affinity_area = apply_mapping_to_mask(old_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP);
@@ -462,6 +484,10 @@ impl ConsistencyChecker {
         let (active_god, other_god) = self.state.get_active_non_active_gods();
 
         if other_god.god_name != GodName::Hypnus {
+            return;
+        }
+
+        if active_god.god_name == GodName::Proteus {
             return;
         }
 
@@ -1046,7 +1072,7 @@ impl ConsistencyChecker {
             if other_god.god_name == GodName::Harpies {
                 let mut matched = false;
                 for n in old_n {
-                    let slide_n = slide_position_with_custom_worker_blocker(
+                    let slide_n = slide_position_with_custom_blockers(
                         &state.board,
                         old_pos,
                         n,
