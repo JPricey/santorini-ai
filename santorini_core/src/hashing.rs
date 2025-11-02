@@ -2,7 +2,7 @@ use crate::board::{BoardState, FullGameState};
 
 pub(crate) type HashType = u64;
 
-pub(crate) const ZORBRIST_HEIGHT_RANDOMS: [[HashType; 32]; 4] = [
+pub(crate) const ZOBRIST_HEIGHT_RANDOMS: [[HashType; 32]; 4] = [
     [
         6085914211561695364,
         2559176765352864341,
@@ -141,7 +141,7 @@ pub(crate) const ZORBRIST_HEIGHT_RANDOMS: [[HashType; 32]; 4] = [
     ],
 ];
 
-pub(crate) const ZORBRIST_WORKER_RANDOMS: [[HashType; 32]; 2] = [
+pub(crate) const ZOBRIST_WORKER_RANDOMS: [[HashType; 32]; 2] = [
     [
         3908243075560612309,
         16133310227149639150,
@@ -283,9 +283,9 @@ pub(crate) const ZOBRIST_DATA_RANDOMS: [[HashType; 32]; 2] = [
     ],
 ];
 
-pub(crate) const ZORBRIST_PLAYER_TWO: HashType = 9379755890162401779;
+pub(crate) const ZOBRIST_PLAYER_TWO: HashType = 9379755890162401779;
 
-pub(crate) const ZORBRIST_ACTIVE_PLAYER: [HashType; 2] = [0, ZORBRIST_PLAYER_TWO];
+pub(crate) const ZOBRIST_ACTIVE_PLAYER: [HashType; 2] = [0, ZOBRIST_PLAYER_TWO];
 
 pub(crate) fn compute_hash_from_scratch(state: &FullGameState) -> HashType {
     compute_hash_from_scratch_for_board(&state.board, state.base_hash())
@@ -302,13 +302,13 @@ pub(crate) fn compute_hash_from_scratch_for_board(
         while hm != 0 {
             let lsb = hm.trailing_zeros();
             hm &= hm - 1;
-            result ^= ZORBRIST_HEIGHT_RANDOMS[h][lsb as usize];
+            result ^= ZOBRIST_HEIGHT_RANDOMS[h][lsb as usize];
         }
     }
 
     for w in 0..2 {
         for square in board.workers[w] {
-            result ^= ZORBRIST_WORKER_RANDOMS[w][square as usize];
+            result ^= ZOBRIST_WORKER_RANDOMS[w][square as usize];
         }
     }
 
@@ -321,7 +321,7 @@ pub(crate) fn compute_hash_from_scratch_for_board(
         }
     }
 
-    result ^= ZORBRIST_ACTIVE_PLAYER[board.current_player as usize];
+    result ^= ZOBRIST_ACTIVE_PLAYER[board.current_player as usize];
 
     result
 }

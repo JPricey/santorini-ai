@@ -8,8 +8,8 @@ use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod, generic::GenericMove},
     hashing::{
-        HashType, ZOBRIST_DATA_RANDOMS, ZORBRIST_HEIGHT_RANDOMS, ZORBRIST_PLAYER_TWO,
-        ZORBRIST_WORKER_RANDOMS, compute_hash_from_scratch_for_board,
+        HashType, ZOBRIST_DATA_RANDOMS, ZOBRIST_HEIGHT_RANDOMS, ZOBRIST_PLAYER_TWO,
+        ZOBRIST_WORKER_RANDOMS, compute_hash_from_scratch_for_board,
     },
     matchup::{self, BANNED_MATCHUPS, Matchup},
     placement::{PlacementType, get_starting_placement_state},
@@ -156,9 +156,9 @@ impl FullGameState {
 
     pub fn get_all_next_states_with_actions(&self) -> Vec<(FullGameState, GenericMove)> {
         let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
-        let (active_god, other_god) = self.get_active_non_active_gods();
 
         if let Some(placement_mode) = placement_mode {
+            let active_god = self.gods[placement_mode.next_placement as usize];
             active_god
                 .get_all_placement_actions(self.gods, &self.board, placement_mode.next_placement)
                 .into_iter()
@@ -174,6 +174,7 @@ impl FullGameState {
                 })
                 .collect()
         } else {
+            let (active_god, other_god) = self.get_active_non_active_gods();
             active_god
                 .get_moves_for_search(&self, self.board.current_player)
                 .into_iter()
@@ -187,10 +188,10 @@ impl FullGameState {
     }
 
     pub fn get_next_states_interactive(&self) -> Vec<GameStateWithAction> {
-        let active_god = self.get_active_god();
         let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
 
         if let Some(placement_mode) = placement_mode {
+            let active_god = self.gods[placement_mode.next_placement as usize];
             let placement_actions = active_god.get_all_placement_actions(
                 self.gods,
                 &self.board,
@@ -216,6 +217,7 @@ impl FullGameState {
 
             res
         } else {
+            let active_god = self.get_active_god();
             let board_states_with_action_list = active_god.get_next_states_interactive(&self);
 
             board_states_with_action_list
@@ -361,7 +363,7 @@ impl BoardState {
 
     pub fn flip_current_player(&mut self) {
         self.current_player = !self.current_player;
-        self.hash ^= ZORBRIST_PLAYER_TWO;
+        self.hash ^= ZOBRIST_PLAYER_TWO;
     }
 
     pub fn get_height(&self, position: Square) -> usize {
@@ -383,7 +385,7 @@ impl BoardState {
     pub fn set_winner(&mut self, player: Player) {
         debug_assert_eq!(self.height_map[0].0 as usize >> WINNER_MASK_OFFSET, 0);
         self.height_map[0] ^= PLAYER_TO_WINNER_LOOKUP[player as usize];
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[0][WINNER_MASK_OFFSET + player as usize];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[0][WINNER_MASK_OFFSET + player as usize];
     }
 
     pub fn unset_winner(&mut self, player: Player) {
@@ -394,7 +396,7 @@ impl BoardState {
         );
 
         self.height_map[0] ^= PLAYER_TO_WINNER_LOOKUP[player as usize];
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[0][player_bit];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[0][player_bit];
     }
 
     pub fn exactly_level_0(&self) -> BitBoard {
@@ -448,7 +450,7 @@ impl BoardState {
     pub fn worker_xor(&mut self, player: Player, xor: BitBoard) {
         self.workers[player as usize] ^= xor;
         for pos in xor {
-            self.hash ^= ZORBRIST_WORKER_RANDOMS[player as usize][pos as usize];
+            self.hash ^= ZOBRIST_WORKER_RANDOMS[player as usize][pos as usize];
         }
     }
 
@@ -476,7 +478,7 @@ impl BoardState {
         let build_mask = BitBoard::as_mask(build_position);
         let current_height = self.get_height(build_position);
         self.height_map[current_height] ^= build_mask;
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
         self.height_lookup[build_position as usize] += 1;
     }
 
@@ -487,8 +489,8 @@ impl BoardState {
         self.height_map[current_height + 1] ^= build_mask;
         self.height_lookup[build_position as usize] += 2;
 
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height + 1][build_position as usize];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[current_height + 1][build_position as usize];
     }
 
     pub fn dome_up(&mut self, build_position: Square) {
@@ -496,7 +498,7 @@ impl BoardState {
         let current_height = self.get_height(build_position);
         for h in current_height..4 {
             self.height_map[h] ^= build_mask;
-            self.hash ^= ZORBRIST_HEIGHT_RANDOMS[h][build_position as usize];
+            self.hash ^= ZOBRIST_HEIGHT_RANDOMS[h][build_position as usize];
         }
         self.height_lookup[build_position as usize] = 4;
     }
@@ -505,7 +507,7 @@ impl BoardState {
         let build_mask = BitBoard::as_mask(build_position);
         let current_height = self.get_height(build_position) - 1;
         self.height_map[current_height] ^= build_mask;
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
         self.height_lookup[build_position as usize] -= 1;
     }
 
@@ -513,10 +515,10 @@ impl BoardState {
         let build_mask = BitBoard::as_mask(build_position);
         let current_height = self.get_height(build_position) - 1;
         self.height_map[current_height] ^= build_mask;
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[current_height][build_position as usize];
 
         self.height_map[current_height - 1] ^= build_mask;
-        self.hash ^= ZORBRIST_HEIGHT_RANDOMS[current_height - 1][build_position as usize];
+        self.hash ^= ZOBRIST_HEIGHT_RANDOMS[current_height - 1][build_position as usize];
 
         self.height_lookup[build_position as usize] -= 2;
     }
@@ -525,7 +527,7 @@ impl BoardState {
         let build_mask = BitBoard::as_mask(build_position);
         for h in final_height..4 {
             self.height_map[h] ^= build_mask;
-            self.hash ^= ZORBRIST_HEIGHT_RANDOMS[h][build_position as usize];
+            self.hash ^= ZOBRIST_HEIGHT_RANDOMS[h][build_position as usize];
         }
         self.height_lookup[build_position as usize] = final_height as u8;
     }
