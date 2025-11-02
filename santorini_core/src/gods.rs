@@ -50,6 +50,7 @@ pub(crate) mod morpheus;
 pub(crate) mod mortal;
 pub(crate) mod move_helpers;
 pub(crate) mod pan;
+pub(crate) mod pegasus;
 pub(crate) mod persephone;
 pub(crate) mod prometheus;
 pub(crate) mod scylla;
@@ -110,6 +111,7 @@ pub enum GodName {
     Hippolyta = 31,
     Scylla = 32,
     Charon = 33,
+    Pegasus = 34,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -716,6 +718,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     hippolyta::build_hippolyta(),
     scylla::build_scylla(),
     charon::build_charon(),
+    pegasus::build_pegasus(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
