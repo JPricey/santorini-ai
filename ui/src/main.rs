@@ -208,6 +208,8 @@ impl MyApp {
 
         if let Err(err) = state.validation_err() {
             self.editor_fen_error = Some(err);
+
+            self.is_autoplay_enabled = false;
             is_playable = false;
 
             if state.representation_err().is_err() {
@@ -218,6 +220,7 @@ impl MyApp {
         }
 
         if state.get_winner().is_some() {
+            self.is_autoplay_enabled = false;
             is_playable = false;
         }
 
