@@ -159,7 +159,7 @@ type HistoryDelta = i32;
 
 pub fn update_history_value(val: &mut MoveScore, bonus: HistoryDelta, max: HistoryDelta) {
     let current = HistoryDelta::from(*val);
-    *val += bonus as MoveScore - (current * bonus.abs() / max) as MoveScore;
+    *val += (bonus - (current * bonus.abs() / max)) as MoveScore;
 }
 
 pub fn set_min_history_value(val: &mut MoveScore, new_val: HistoryDelta) {
@@ -377,7 +377,8 @@ where
         let mut best_child_state = root_state.clone();
 
         if let Some(starting_mode) = starting_mode {
-            let (active_god, other_god) = root_state.get_player_non_player_gods(starting_mode.next_placement);
+            let (active_god, other_god) =
+                root_state.get_player_non_player_gods(starting_mode.next_placement);
             active_god.make_placement_move(
                 tt_entry.best_action,
                 &mut best_child_state.board,

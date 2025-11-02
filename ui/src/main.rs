@@ -180,16 +180,23 @@ struct MyApp {
     state_history: Vec<FullGameState>,
     state_idx: usize,
     editor_fen_string: String,
-    edtior_fen_error: Option<String>,
+    editor_fen_error: Option<String>,
     next_states: Vec<GameStateWithAction>,
     current_actions: Vec<PartialAction>,
     available_next_actions: Vec<PartialAction>,
     engine: EngineThreadWrapper,
     engine_thinking: Arc<Mutex<EngineThinkingState>>,
 
+    // Edit mode
     edit_mode: EditMode,
     may_arrow_shortcuts: bool,
     may_show_wip_gods: bool,
+
+    // Autoplay
+    is_autoplay_enabled: bool,
+    is_autoplay_per_player: [bool; 2],
+    autoplay_speed_secs: f32,
+    autoplay_last_status_change_time: Instant,
 }
 
 impl MyApp {
@@ -197,16 +204,17 @@ impl MyApp {
         assert_eq!(self.state, self.state_history[self.state_idx]);
 
         let mut is_playable = true;
+        self.autoplay_last_status_change_time = Instant::now();
 
         if let Err(err) = state.validation_err() {
-            self.edtior_fen_error = Some(err);
+            self.editor_fen_error = Some(err);
             is_playable = false;
 
             if state.representation_err().is_err() {
                 return;
             }
         } else {
-            self.edtior_fen_error = None;
+            self.editor_fen_error = None;
         }
 
         if state.get_winner().is_some() {
@@ -324,9 +332,10 @@ impl MyApp {
     }
 
     pub fn try_set_editor_fen(&mut self) {
+        self.is_autoplay_enabled = false;
         match parse_fen(&self.editor_fen_string) {
             Ok(new_state) => self.update_state(new_state),
-            Err(err_str) => self.edtior_fen_error = Some(err_str),
+            Err(err_str) => self.editor_fen_error = Some(err_str),
         }
     }
 
@@ -339,6 +348,7 @@ impl MyApp {
             self.state.gods[0].god_name,
             self.state.gods[1].god_name,
         );
+        self.is_autoplay_enabled = false;
         self.update_state(state);
     }
 
@@ -365,6 +375,7 @@ impl MyApp {
 
     pub fn try_forward_state(&mut self) {
         if let Some(state) = self.state_history.get(self.state_idx + 1) {
+            self.is_autoplay_enabled = false;
             self.state = state.clone();
             self.state_idx += 1;
             self.update_state(state.clone());
@@ -374,6 +385,7 @@ impl MyApp {
     pub fn try_back_state(&mut self) {
         if self.state_idx > 0 {
             if let Some(state) = self.state_history.get(self.state_idx - 1) {
+                self.is_autoplay_enabled = false;
                 self.state = state.clone();
                 self.state_idx -= 1;
                 self.update_state(state.clone());
@@ -390,7 +402,7 @@ impl Default for MyApp {
             state_history: vec![default_state.clone()],
             state_idx: 0,
             editor_fen_string: game_state_to_fen(&default_state),
-            edtior_fen_error: None,
+            editor_fen_error: None,
             next_states: Default::default(),
             current_actions: Default::default(),
             available_next_actions: Default::default(),
@@ -399,6 +411,11 @@ impl Default for MyApp {
             edit_mode: Default::default(),
             may_arrow_shortcuts: Default::default(),
             may_show_wip_gods: Default::default(),
+            // Autoplay
+            is_autoplay_enabled: false,
+            is_autoplay_per_player: [true; 2],
+            autoplay_speed_secs: 1.0,
+            autoplay_last_status_change_time: Instant::now(),
         };
 
         result.update_state(result.state.clone());
@@ -413,6 +430,19 @@ struct GameGrid<'a> {
 
 impl<'a> egui::Widget for GameGrid<'a> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        if self.app.is_autoplay_enabled
+            && self.app.is_autoplay_per_player
+                [self.app.state.get_current_player_consider_placement_mode() as usize]
+            && self
+                .app
+                .autoplay_last_status_change_time
+                .elapsed()
+                .as_secs_f32()
+                > self.app.autoplay_speed_secs
+        {
+            self.app.try_engine_move();
+        }
+
         let desired_size = ui.available_size();
         let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::hover());
         let full_width = rect.width();
@@ -766,7 +796,7 @@ impl<'a> egui::Widget for EvalBar<'a> {
             }
         } else {
             let engine = self.app.engine_thinking.lock();
-            let active_player = engine.state.board.current_player;
+            let active_player = engine.state.get_current_player_consider_placement_mode();
             if let Some(message) = engine.engine_messages.last() {
                 eval_for_p1 = match active_player {
                     Player::One => message.0.score,
@@ -845,14 +875,14 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::SidePanel::right("right_panel")
             .resizable(false)
-            .exact_width(400.0)
+            .exact_width(450.0)
             .show(ctx, |ui| {
                 self.may_arrow_shortcuts = true;
 
                 ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 12.0);
                 let available_size = ui.available_size();
 
-                let scroll_area_height = available_size.y / 2.0;
+                let scroll_area_height = available_size.y * 0.4;
 
                 ui.scope_builder(UiBuilder::new(), |ui| {
                     ui.set_min_height(scroll_area_height);
@@ -984,7 +1014,7 @@ impl eframe::App for MyApp {
                     }
                 });
 
-                if let Some(fen_error) = &self.edtior_fen_error {
+                if let Some(fen_error) = &self.editor_fen_error {
                     ui.label(fen_error);
                 }
 
@@ -1008,6 +1038,7 @@ impl eframe::App for MyApp {
                     ui.checkbox(&mut self.may_show_wip_gods, "Include WIP gods").on_hover_text(&format!("Some gods are WIP, meaning their move logic is supported, but the AI does not know how to evaluate their positions correctly. Check this box to include them in the gods picker. Includes: {}", wip_gods_string));
                 }
 
+                // MODES
                 ui.heading("Modes");
                 let before = self.edit_mode;
                 ui.horizontal(|ui| {
@@ -1024,6 +1055,20 @@ impl eframe::App for MyApp {
                         self.clear_actions();
                     }
                 }
+
+                // AUTOPLAY
+                ui.horizontal(|ui| {
+                    ui.heading("Autoplay");
+                    ui.checkbox(&mut self.is_autoplay_enabled, "Enable Autoplay").on_hover_text("When enabled, engine moves will automatically be made after the timeout");
+                });
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.is_autoplay_per_player[0], "Autoplay for Player 1").on_hover_text("Enable autoplay for Player 1");
+                    ui.checkbox(&mut self.is_autoplay_per_player[1], "Autoplay for Player 2").on_hover_text("Enable autoplay for Player 2");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Autoplay Speed (secs):");
+                    ui.add(egui::DragValue::new(&mut self.autoplay_speed_secs).speed(0.1).range(0.1..=60.0));
+                });
             });
 
         egui::TopBottomPanel::bottom("character_panel").show(ctx, |ui| {
