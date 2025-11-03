@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NUM_SQUARES, PUSH_MAPPING, WRAPPING_NEIGHBOR_MAP},
+    bitboard::{BitBoard, JUMP_OVER_PUSH_MAPPING, NUM_SQUARES, PUSH_MAPPING, WRAPPING_NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -106,6 +106,26 @@ pub(crate) fn prometheus_slide(
 
 pub(crate) fn slide_position(prelude: &GeneratorPreludeState, from: Square, to: Square) -> Square {
     let Some(next_spot) = PUSH_MAPPING[from as usize][to as usize] else {
+        return to;
+    };
+
+    let to_height = prelude.board.get_height(to);
+    let next_height = prelude.board.get_height(next_spot);
+
+    if next_height > to_height {
+        return to;
+    }
+
+    let next_mask = BitBoard::as_mask(next_spot);
+    if ((prelude.all_workers_and_frozen_mask) & next_mask).is_not_empty() {
+        return to;
+    }
+
+    slide_position(prelude, to, next_spot)
+}
+
+pub(crate) fn iris_slide_position(prelude: &GeneratorPreludeState, from: Square, to: Square) -> Square {
+    let Some(next_spot) = JUMP_OVER_PUSH_MAPPING[from as usize][to as usize] else {
         return to;
     };
 

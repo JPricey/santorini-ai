@@ -46,6 +46,7 @@ pub(crate) mod hestia;
 pub(crate) mod hippolyta;
 pub(crate) mod hydra;
 pub(crate) mod hypnus;
+pub(crate) mod iris;
 pub(crate) mod limus;
 pub(crate) mod maenads;
 pub(crate) mod medusa;
@@ -122,6 +123,7 @@ pub enum GodName {
     Hydra = 37,
     ApolloV2 = 38,
     Medusa = 39,
+    Iris = 40,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -734,6 +736,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     hydra::build_hydra(),
     apollo_v2::build_apollo_v2(),
     medusa::build_medusa(),
+    iris::build_iris(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

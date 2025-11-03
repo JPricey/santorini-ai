@@ -665,31 +665,15 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers_no_affinity<
     worker_start_height: usize,
     blockers: BitBoard,
 ) -> BitBoard {
-    if MUST_CLIMB {
-        let height_mask = match worker_start_height {
-            0 => prelude.exactly_level_1,
-            1 => prelude.exactly_level_2,
-            2 => prelude.exactly_level_3,
-            3 => return BitBoard::EMPTY,
-            _ => unreachable!(),
-        };
+    let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize];
 
-        let worker_moves =
-            prelude.standard_neighbor_map[worker_start_pos as usize] & height_mask & !blockers;
-        worker_moves
-    } else {
-        let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
-            !prelude.board.height_map[worker_start_height - 1]
-        } else {
-            BitBoard::EMPTY
-        };
-
-        let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
-        let worker_moves = prelude.standard_neighbor_map[worker_start_pos as usize]
-            & !(prelude.board.height_map[climb_height] | down_mask | blockers);
-
-        worker_moves
-    }
+    get_limited_moves_given_move_mask::<MUST_CLIMB, false>(
+        prelude,
+        move_mask,
+        BitBoard::EMPTY,
+        worker_start_height,
+        blockers,
+    )
 }
 
 pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIMB: bool>(
@@ -699,31 +683,15 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIM
     worker_start_height: usize,
     blockers: BitBoard,
 ) -> BitBoard {
-    if MUST_CLIMB {
-        let height_mask = match worker_start_height {
-            0 => prelude.exactly_level_1,
-            1 => prelude.exactly_level_2,
-            2 => prelude.exactly_level_3,
-            3 => return BitBoard::EMPTY,
-            _ => unreachable!(),
-        };
+    let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize];
 
-        let worker_moves =
-            prelude.standard_neighbor_map[worker_start_pos as usize] & height_mask & !blockers;
-        worker_moves
-    } else {
-        let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
-            !prelude.board.height_map[worker_start_height - 1]
-        } else {
-            BitBoard::EMPTY
-        };
-
-        let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
-        let worker_moves = prelude.standard_neighbor_map[worker_start_pos as usize]
-            & !(prelude.board.height_map[climb_height] | down_mask | blockers);
-
-        restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
-    }
+    get_limited_moves_given_move_mask::<MUST_CLIMB, true>(
+        prelude,
+        move_mask,
+        worker_start_mask,
+        worker_start_height,
+        blockers,
+    )
 }
 
 pub(super) fn get_basic_moves_from_with_two_movement_maps<const MUST_CLIMB: bool>(
@@ -734,6 +702,28 @@ pub(super) fn get_basic_moves_from_with_two_movement_maps<const MUST_CLIMB: bool
     worker_start_height: usize,
     blockers: BitBoard,
 ) -> BitBoard {
+    let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize]
+        & extra_movement_map[worker_start_pos as usize];
+
+    get_limited_moves_given_move_mask::<MUST_CLIMB, true>(
+        prelude,
+        move_mask,
+        worker_start_mask,
+        worker_start_height,
+        blockers,
+    )
+}
+
+pub(super) fn get_limited_moves_given_move_mask<
+    const MUST_CLIMB: bool,
+    const APPLY_AFFINITY: bool,
+>(
+    prelude: &GeneratorPreludeState,
+    move_mask: BitBoard,
+    worker_start_mask: BitBoard,
+    worker_start_height: usize,
+    blockers: BitBoard,
+) -> BitBoard {
     if MUST_CLIMB {
         let height_mask = match worker_start_height {
             0 => prelude.exactly_level_1,
@@ -743,10 +733,7 @@ pub(super) fn get_basic_moves_from_with_two_movement_maps<const MUST_CLIMB: bool
             _ => unreachable!(),
         };
 
-        let worker_moves = (prelude.standard_neighbor_map[worker_start_pos as usize]
-            & extra_movement_map[worker_start_pos as usize])
-            & height_mask
-            & !blockers;
+        let worker_moves = move_mask & height_mask & !blockers;
         worker_moves
     } else {
         let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
@@ -756,11 +743,14 @@ pub(super) fn get_basic_moves_from_with_two_movement_maps<const MUST_CLIMB: bool
         };
 
         let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
-        let worker_moves = (prelude.standard_neighbor_map[worker_start_pos as usize]
-            & extra_movement_map[worker_start_pos as usize])
-            & !(prelude.board.height_map[climb_height] | down_mask | blockers);
+        let worker_moves =
+            move_mask & !(prelude.board.height_map[climb_height] | down_mask | blockers);
 
-        restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
+        if APPLY_AFFINITY {
+            restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
+        } else {
+            worker_moves
+        }
     }
 }
 

@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{
+        BETWEEN_MAPPING, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask,
+    },
     board::{BoardState, FullGameState},
     fen::{game_state_to_fen, parse_fen},
     gods::{
@@ -848,6 +850,13 @@ impl ConsistencyChecker {
                 }
             }
 
+            if oppo_god.god_name == GodName::Iris {
+                // Jumps
+                if key_moves == BitBoard::MAIN_SECTION_MASK {
+                    continue;
+                }
+            }
+
             if oppo_god.god_name == GodName::Artemis {
                 // Artemis can have multiple paths to level 3, but only the start and end are
                 // reflected in the winning move.
@@ -1109,6 +1118,7 @@ impl ConsistencyChecker {
         let new_pos = new_only.lsb();
         let old_height = state.board.get_height(old_pos) as i32;
         let new_height = won_state.board.get_height(new_pos) as i32;
+
         let is_pan_falling_win =
             active_god.god_name == GodName::Pan && new_height <= old_height - 2;
 
@@ -1183,8 +1193,19 @@ impl ConsistencyChecker {
             }
         }
 
+        // Iris wins by jumping over a worker to level 2
+        if active_god.god_name == GodName::Iris {
+            if let Some(jumped_pos) = BETWEEN_MAPPING[old_pos as usize][new_pos as usize] {
+                let all_workers = won_state.board.workers[0] | won_state.board.workers[1];
+
+                if all_workers.contains_square(jumped_pos) && old_height < 3 && new_height == 3 {
+                    return;
+                }
+            }
+        }
+
         self.errors.push(format!(
-            "Move won with unknown winning condition: {}. {:?} -> {:?}",
+            "Move won with unknown winning condition: {}. {:?} -> {:?}. Old pos: {old_pos} New pos: {new_pos}. Old height: {old_height} New height: {new_height}",
             stringed_action, state, won_state,
         ));
     }

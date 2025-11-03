@@ -11,9 +11,9 @@ class Matchup:
     losing_god: str
     moves: int
 
-# MATCHUPS_FILE = 'tmp/all_matchups.csv'
+MATCHUPS_FILE = 'tmp/all_matchups.csv'
 # MATCHUPS_FILE = 'tmp/all_matchups_10s.csv'
-MATCHUPS_FILE = 'tmp/pegasus_v2_matchups.csv'
+# MATCHUPS_FILE = 'tmp/pegasus_v2_matchups.csv'
 
 def read_matchups(csv_path):
     matchups = []
