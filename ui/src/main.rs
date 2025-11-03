@@ -112,9 +112,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::SetFemaleWorker(_) => egui::Color32::LIGHT_RED,
         PartialAction::SelectWorker(_) => egui::Color32::BLUE,
         PartialAction::MoveWorker(_) => egui::Color32::DARK_GREEN,
-        PartialAction::ForceOpponentWorker(_, _)  => {
-            egui::Color32::GREEN
-        }
+        PartialAction::ForceOpponentWorker(_, _) => egui::Color32::GREEN,
         PartialAction::Build(_) => egui::Color32::RED,
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::Destroy(_) => egui::Color32::ORANGE,
@@ -1072,7 +1070,7 @@ impl eframe::App for MyApp {
                 });
                 ui.horizontal(|ui| {
                     ui.label("Autoplay Speed (secs):");
-                    ui.add(egui::DragValue::new(&mut self.autoplay_speed_secs).speed(0.1).range(0.1..=60.0));
+                    ui.add(egui::DragValue::new(&mut self.autoplay_speed_secs).speed(0.1).range(0.1..=30.0 * 60.0));
                 });
             });
 
