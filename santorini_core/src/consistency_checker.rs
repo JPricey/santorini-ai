@@ -43,9 +43,9 @@ impl ConsistencyChecker {
                 .push(format!("Root state has validation errors: {}", err));
         } else {
             let current_player = self.state.board.current_player;
-            let (active_god, other_god) = self.state.get_active_non_active_gods();
+            let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-            let other_wins = other_god.get_winning_moves(&self.state, !current_player);
+            let other_wins = oppo_god.get_winning_moves(&self.state, !current_player);
 
             let search_moves = active_god.get_moves_for_search(&self.state, current_player);
             self.check_wins_on_end_only("SearchMoves", &search_moves);
@@ -121,7 +121,7 @@ impl ConsistencyChecker {
             all_move_map.insert(key, action.get_is_winning());
         }
 
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
         for action in search_moves {
             let key = action.action.0 & MOVE_DATA_MAIN_SECTION;
@@ -129,7 +129,7 @@ impl ConsistencyChecker {
                 self.errors.push(format!(
                     "Search move not in all moves: {} -> {:?}",
                     active_god.stringify_move(action.action),
-                    self.state.next_state(active_god, other_god, action.action)
+                    self.state.next_state(active_god, oppo_god, action.action)
                 ));
             } else {
                 let was_winning = all_move_map[&key];
@@ -153,7 +153,7 @@ impl ConsistencyChecker {
                 self.errors.push(format!(
                     "Winning move not in all moves: {} -> {:?}",
                     active_god.stringify_move(action.action),
-                    self.state.next_state(active_god, other_god, action.action)
+                    self.state.next_state(active_god, oppo_god, action.action)
                 ));
             } else {
                 if active_god.god_name == GodName::Proteus {
@@ -172,7 +172,7 @@ impl ConsistencyChecker {
 
     fn validate_non_duplicates(&mut self, actions: &Vec<ScoredMove>) {
         let mut seen = HashMap::<BoardState, GenericMove>::new();
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
         if active_god.god_name == GodName::Proteus {
             return;
@@ -180,7 +180,7 @@ impl ConsistencyChecker {
 
         for action in actions {
             let action = action.action;
-            let new_state = self.state.next_state(active_god, other_god, action);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
 
             if let Some(other_action) = seen.get(&new_state.board) {
                 self.errors.push(format!(
@@ -198,30 +198,46 @@ impl ConsistencyChecker {
 
     fn validate_frozen_moves(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
-        let other_frozens = other_god.get_frozen_mask(&self.state.board, !current_player);
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-        if other_frozens.is_empty() {
+        let oppo_frozens = oppo_god.get_frozen_mask(&self.state.board, !current_player);
+        let oppo_workers = self.state.board.workers[!current_player as usize];
+
+        if oppo_frozens.is_empty() {
             return;
         }
+        let other_frozen_workers = oppo_workers & oppo_frozens;
 
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, other_god, action);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
-            if (new_workers & other_frozens).is_not_empty() {
+            let new_oppo_workers = new_state.board.workers[!current_player as usize];
+            let new_oppo_frozen_workers = new_oppo_workers & oppo_frozens;
+
+            if new_oppo_frozen_workers != other_frozen_workers {
                 self.errors.push(format!(
-                    "Moved a worker into a frozen space: {} -> {:?}\n Frozen: {}",
+                    "oppo frozen workers changed: {} -> {:?}\n Frozen: {}",
                     active_god.stringify_move(action),
                     new_state,
-                    other_frozens
+                    oppo_frozens
                 ));
                 return;
             }
 
-            for frozen_sq in other_frozens {
+            if (new_workers & oppo_frozens).is_not_empty() {
+                self.errors.push(format!(
+                    "Moved a worker into a frozen space: {} -> {:?}\n Frozen: {}",
+                    active_god.stringify_move(action),
+                    new_state,
+                    oppo_frozens
+                ));
+                return;
+            }
+
+            for frozen_sq in oppo_frozens {
                 let old_height = self.state.board.get_height(frozen_sq);
                 let new_height = new_state.board.get_height(frozen_sq);
                 if new_height != old_height {
@@ -229,7 +245,7 @@ impl ConsistencyChecker {
                         "Changed height of a frozen space: {} -> {:?}\n Frozen: {}",
                         active_god.stringify_move(action),
                         new_state,
-                        other_frozens
+                        oppo_frozens
                     ));
                     return;
                 }
@@ -239,9 +255,9 @@ impl ConsistencyChecker {
 
     fn validate_hades_moves(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-        if other_god.god_name != GodName::Hades {
+        if oppo_god.god_name != GodName::Hades {
             return;
         }
 
@@ -254,7 +270,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, other_god, action);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
             let old_only = old_workers & !new_workers;
@@ -295,9 +311,9 @@ impl ConsistencyChecker {
 
     fn validate_persephone_moves(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-        if other_god.god_name != GodName::Persephone {
+        if oppo_god.god_name != GodName::Persephone {
             return;
         }
 
@@ -319,7 +335,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, other_god, action);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
             let old_only = old_workers & !new_workers;
@@ -413,9 +429,9 @@ impl ConsistencyChecker {
 
     fn validate_aphrodite_moves(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-        if other_god.god_name != GodName::Aphrodite {
+        if oppo_god.god_name != GodName::Aphrodite {
             return;
         }
 
@@ -440,7 +456,7 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            let new_state = self.state.next_state(active_god, other_god, action);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
             let old_only = old_workers & !new_workers;
@@ -481,9 +497,9 @@ impl ConsistencyChecker {
 
     fn validate_hypnus_moves(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-        if other_god.god_name != GodName::Hypnus {
+        if oppo_god.god_name != GodName::Hypnus {
             return;
         }
 
@@ -494,7 +510,7 @@ impl ConsistencyChecker {
         for action in actions {
             let action = action.action;
 
-            let new_state = self.state.next_state(active_god, other_god, action);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
             let old_workers = self.state.board.workers[current_player as usize];
 
@@ -520,9 +536,9 @@ impl ConsistencyChecker {
 
     fn validate_build_blockers(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-        if other_god.god_name != GodName::Limus {
+        if oppo_god.god_name != GodName::Limus {
             return;
         }
 
@@ -544,12 +560,12 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            let new_state = self.state.next_state(active_god, other_god, action);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
             let new_dome_builds = new_state.board.height_map[3] & !self.state.board.height_map[3];
 
             let build_mask =
-                other_god.get_build_mask(new_state.board.workers[!current_player as usize]);
+                oppo_god.get_build_mask(new_state.board.workers[!current_player as usize]);
 
             if new_dome_builds.is_not_empty() {
                 dome_build_actions.push(action);
@@ -581,7 +597,7 @@ impl ConsistencyChecker {
 
         for mortal_move in mortal_search_moves {
             let mortal_action = mortal_move.action;
-            let new_state = self.state.next_state(active_god, other_god, mortal_action);
+            let new_state = self.state.next_state(active_god, oppo_god, mortal_action);
             // We could have built a dome and ALSO somewhere else.
             // these moves are invalid vs limus too, so skip this check.
             let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
@@ -631,7 +647,7 @@ impl ConsistencyChecker {
         search_moves: &Vec<ScoredMove>,
     ) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
         if other_wins.is_empty() {
             return;
@@ -639,7 +655,7 @@ impl ConsistencyChecker {
 
         let mut key_moves = BitBoard::EMPTY;
         for other_win_action in other_wins {
-            key_moves |= other_god.get_blocker_board(&self.state.board, other_win_action.action);
+            key_moves |= oppo_god.get_blocker_board(&self.state.board, other_win_action.action);
         }
 
         if key_moves.is_empty() {
@@ -659,13 +675,13 @@ impl ConsistencyChecker {
         for block_action in scored_blocker_actions.iter() {
             let block_action = block_action.action;
             let stringed_action = active_god.stringify_move(block_action);
-            let blocked_state = self.state.next_state(active_god, other_god, block_action);
+            let blocked_state = self.state.next_state(active_god, oppo_god, block_action);
 
             if blocked_state.board.get_winner() == Some(current_player) {
                 continue;
             }
 
-            let post_block_oppo_wins = other_god.get_winning_moves(&blocked_state, !current_player);
+            let post_block_oppo_wins = oppo_god.get_winning_moves(&blocked_state, !current_player);
             let mut did_block_any = false;
             for win_action in other_wins {
                 if !post_block_oppo_wins.contains(win_action) {
@@ -678,7 +694,7 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            if other_god.god_name == GodName::Charon {
+            if oppo_god.god_name == GodName::Charon {
                 if active_god.god_name == GodName::Hermes {
                     // Hermes thinks that while standing still in Charon's winning square he's blocking a win
                     continue;
@@ -689,7 +705,7 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            if other_god.god_name == GodName::Pan {
+            if oppo_god.god_name == GodName::Pan {
                 let any_pan_move: MortalMove = other_wins[0].action.into();
 
                 if active_god.god_name == GodName::Persephone {
@@ -741,7 +757,7 @@ impl ConsistencyChecker {
 
                 // Aphrodite can't block scylla with affinity restrictions, so ignore this check
                 // TODO: consider if we should add this check to Aphrodite's check response instead
-                if other_god.god_name == GodName::Scylla {
+                if oppo_god.god_name == GodName::Scylla {
                     continue;
                 }
             }
@@ -758,7 +774,7 @@ impl ConsistencyChecker {
                 }
             }
 
-            if other_god.god_name == GodName::Artemis {
+            if oppo_god.god_name == GodName::Artemis {
                 // Artemis can have multiple paths to level 3, but only the start and end are
                 // reflected in the winning move.
                 // Check that we at least made the key moves map smaller
@@ -766,7 +782,7 @@ impl ConsistencyChecker {
                 // let mut blocked_key_moves = BitBoard::EMPTY;
                 // for other_win_action in post_block_oppo_wins {
                 //     blocked_key_moves |=
-                //         other_god.get_blocker_board(&blocked_state.board, other_win_action.action);
+                //         oppo_god.get_blocker_board(&blocked_state.board, other_win_action.action);
                 // }
                 // if key_moves & blocked_key_moves == key_moves {
                 //     let mut err_str =
@@ -774,7 +790,7 @@ impl ConsistencyChecker {
                 //     for winning_action in other_wins {
                 //         err_str.push_str(&format!(
                 //             "{} ",
-                //             other_god.stringify_move(winning_action.action)
+                //             oppo_god.stringify_move(winning_action.action)
                 //         ));
                 //     }
                 //     err_str.push_str(&format!("\nkey moves: {}", key_moves));
@@ -787,21 +803,21 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            if other_god.god_name == GodName::Minotaur {
+            if oppo_god.god_name == GodName::Minotaur {
                 // TODO: scope this down
                 // Minotaur puts spots that it pushes TO during a mate into the blocker board
                 // but this only works on dome builds / moves - not lower builds.
                 continue;
             }
 
-            if other_god.god_name == GodName::Maenads {
+            if oppo_god.god_name == GodName::Maenads {
                 // TODO: scope this down.
                 // Maenads dancing wins have a huge blocker board, since so far we haven't included
                 // FROM positions as part of key square maps
                 continue;
             }
 
-            if other_god.god_name == GodName::Eros {
+            if oppo_god.god_name == GodName::Eros {
                 // TODO: scope this down.
                 continue;
             }
@@ -813,7 +829,7 @@ impl ConsistencyChecker {
             for winning_action in other_wins {
                 err_str.push_str(&format!(
                     "{}, ",
-                    other_god.stringify_move(winning_action.action)
+                    oppo_god.stringify_move(winning_action.action)
                 ));
             }
             err_str.push_str(&format!("\n Key moves: {}", key_moves));
@@ -832,11 +848,10 @@ impl ConsistencyChecker {
             }
             let stringed_action = active_god.stringify_move(action);
 
-            let new_state = self.state.next_state(active_god, other_god, action);
-            let new_oppo_wins = other_god.get_winning_moves(&new_state, !current_player);
+            let new_state = self.state.next_state(active_god, oppo_god, action);
+            let new_oppo_wins = oppo_god.get_winning_moves(&new_state, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
-                if active_god.god_name == GodName::Persephone && other_god.god_name == GodName::Pan
-                {
+                if active_god.god_name == GodName::Persephone && oppo_god.god_name == GodName::Pan {
                     // TODO: comment this? Forget why it's here.
                     if new_oppo_wins.len() > 0 {
                         continue;
@@ -852,12 +867,12 @@ impl ConsistencyChecker {
 
                 error_str += "| Old Wins: ";
                 for old in other_wins {
-                    error_str += &format!("{}, ", other_god.stringify_move(old.action));
+                    error_str += &format!("{}, ", oppo_god.stringify_move(old.action));
                 }
 
                 error_str += "| New Wins: ";
                 for new in &new_oppo_wins {
-                    error_str += &format!("{}, ", other_god.stringify_move(new.action));
+                    error_str += &format!("{}, ", oppo_god.stringify_move(new.action));
                 }
                 self.errors.push(error_str);
             }
@@ -866,7 +881,7 @@ impl ConsistencyChecker {
 
     fn self_check_validations(&mut self, search_moves: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
         for (i, action) in search_moves.iter().enumerate() {
             if action.get_is_winning() {
@@ -888,8 +903,8 @@ impl ConsistencyChecker {
                 continue;
             }
 
-            let mut check_state = self.state.next_state(active_god, other_god, action.action);
-            other_god.make_passing_move(&mut check_state.board);
+            let mut check_state = self.state.next_state(active_god, oppo_god, action.action);
+            oppo_god.make_passing_move(&mut check_state.board);
             let wins_from_check_state = active_god.get_winning_moves(&check_state, current_player);
             let is_real_checker = wins_from_check_state.len() > 0;
 
@@ -902,7 +917,7 @@ impl ConsistencyChecker {
 
                 if is_real_checker
                     && active_god.god_name == GodName::Artemis
-                    && other_god.god_name == GodName::Harpies
+                    && oppo_god.god_name == GodName::Harpies
                 {
                     let wins_from_mortal_check_state = GodName::Mortal
                         .to_power()
@@ -914,7 +929,7 @@ impl ConsistencyChecker {
                             GodName::Mortal.to_power().stringify_move(wins_from_mortal_check_state[0].action),
                         ));
                     }
-                } else if is_check_flag && other_god.god_name == GodName::Aphrodite {
+                } else if is_check_flag && oppo_god.god_name == GodName::Aphrodite {
                     let mut checks_vs_mortal_state = check_state.clone();
                     checks_vs_mortal_state.gods[!current_player as usize] =
                         GodName::Mortal.to_power();
@@ -937,7 +952,7 @@ impl ConsistencyChecker {
                     }
                 } else if is_check_flag
                     && (active_god.god_name == GodName::Pan || active_god.god_name == GodName::Eros)
-                    && other_god.god_name == GodName::Persephone
+                    && oppo_god.god_name == GodName::Persephone
                 {
                     // Persephone can force pan to go up, preventing his downfall win con
                     // Doesn't seem worth trying to account for
@@ -965,7 +980,7 @@ impl ConsistencyChecker {
                     &check_state,
                     current_player,
                     active_god,
-                    other_god,
+                    oppo_god,
                     winning_action.action,
                 );
             }
@@ -980,13 +995,13 @@ impl ConsistencyChecker {
 
     fn _validate_win_from_current_state(&mut self, action: GenericMove) {
         let current_player = self.state.board.current_player;
-        let (active_god, other_god) = self.state.get_active_non_active_gods();
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
         self._validate_win(
             &"FromRootState",
             &self.state.clone(),
             current_player,
             active_god,
-            other_god,
+            oppo_god,
             action,
         );
     }
@@ -997,11 +1012,11 @@ impl ConsistencyChecker {
         state: &FullGameState,
         current_player: Player,
         active_god: StaticGod,
-        other_god: StaticGod,
+        oppo_god: StaticGod,
         action: GenericMove,
     ) {
         let stringed_action = active_god.stringify_move(action);
-        let won_state = state.next_state(active_god, other_god, action);
+        let won_state = state.next_state(active_god, oppo_god, action);
         if won_state.get_winner() != Some(current_player) {
             self.errors.push(format!(
                 "{label}:Winning move did not result in win: {}. {:?} -> {:?} winner: {:?} current_player: {:?}",
@@ -1032,7 +1047,7 @@ impl ConsistencyChecker {
             return;
         }
 
-        let can_climb = other_god.can_opponent_climb(&state.board, !current_player);
+        let can_climb = oppo_god.can_opponent_climb(&state.board, !current_player);
         if !can_climb && !is_pan_falling_win {
             self.errors.push(format!(
                 "Win when blocked by athena: {}. {:?} -> {:?}",
@@ -1041,7 +1056,7 @@ impl ConsistencyChecker {
             return;
         }
 
-        let win_mask = other_god.win_mask;
+        let win_mask = oppo_god.win_mask;
         if (win_mask & new_only).is_empty() {
             self.errors.push(format!(
                 "Winning move did not move to win mask: {}. {:?} -> {:?}",
@@ -1069,7 +1084,7 @@ impl ConsistencyChecker {
                 return;
             }
 
-            if other_god.god_name == GodName::Harpies {
+            if oppo_god.god_name == GodName::Harpies {
                 let mut matched = false;
                 for n in old_n {
                     let slide_n = slide_position_with_custom_blockers(

@@ -280,6 +280,7 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     let reverse_neighbor_map = get_reverse_direction_neighbor_map(&prelude);
+    let flippable_oppo_workers = state.board.workers[!player as usize] & !prelude.domes_and_frozen;
 
     let all_starting_blocked_squares =
         prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen;
@@ -387,7 +388,7 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
         }
 
-        let mut possible_flips = NEIGHBOR_MAP[worker_start_pos as usize] & prelude.oppo_workers;
+        let mut possible_flips = NEIGHBOR_MAP[worker_start_pos as usize] & flippable_oppo_workers;
         if is_mate_only::<F>() {
             if prelude.other_god.is_aphrodite {
                 // If we're against aphrodite and only looking for mates, only bother checking if there's actually level 3's available
