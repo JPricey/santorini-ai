@@ -1,12 +1,13 @@
 use itertools::Itertools;
 
 use crate::{
-    bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, PERIMETER_SPACES_MASK},
+    bitboard::BitBoard,
     board::{BoardState, GodPair},
     gods::{
-        generic::{GenericMove, GodMove, MoveData, LOWER_POSITION_MASK, POSITION_WIDTH}, FullAction, PartialAction, StaticGod
+        FullAction, PartialAction, StaticGod,
+        generic::{GenericMove, GodMove, LOWER_POSITION_MASK, MoveData, POSITION_WIDTH},
     },
-    placement::common::{compute_unique_placements, WorkerPlacementMove},
+    placement::common::{WorkerPlacementMove, compute_unique_placements},
     player::Player,
     square::Square,
 };
@@ -76,6 +77,18 @@ impl GodMove for OppositeWorkerPlacement {
     }
 }
 
+const BOT: BitBoard = BitBoard(0b11111_00000_00000_00000_00000);
+const RIGHT: BitBoard = BitBoard(0b10000_10000_10000_10000_10000);
+
+const BOT_RIGHT: BitBoard = RIGHT.bit_or(BOT);
+
+fn _add_placements(a: Square, b_board: BitBoard, res: &mut Vec<GenericMove>) {
+    for b in b_board {
+        let action = OppositeWorkerPlacement::new(a, b);
+        res.push(action.into());
+    }
+}
+
 impl WorkerPlacementMove for OppositeWorkerPlacement {
     fn make_move_no_swap_sides(&self, board: &mut BoardState, player: Player) {
         board.worker_xor(
@@ -85,21 +98,23 @@ impl WorkerPlacementMove for OppositeWorkerPlacement {
     }
 
     fn get_all_placements(_gods: GodPair, board: &BoardState, player: Player) -> Vec<GenericMove> {
-        let mut valid_starters = PERIMETER_SPACES_MASK & !LOWER_SQUARES_EXCLUSIVE_MASK[12 as usize];
-        let valid_anywhere = !board.workers[!player as usize];
-        valid_starters &= valid_anywhere;
+        let open_squares = !board.workers[!player as usize];
 
-        let mut res = Vec::with_capacity(valid_starters.count_ones() as usize);
+        let mut res = Vec::with_capacity(49);
 
-        for a in valid_starters {
-            let b = Square::from(24 - (a as u8));
-            if valid_anywhere.contains_square(b) {
-                let action = OppositeWorkerPlacement::new(a, b);
-                res.push(action.into());
-            }
-        }
+        _add_placements(Square::A5, open_squares & BOT_RIGHT, &mut res);
 
-        debug_assert!(res.len() <= valid_starters.count_ones() as usize);
+        _add_placements(Square::B5, open_squares & BOT, &mut res);
+        _add_placements(Square::C5, open_squares & BOT, &mut res);
+        _add_placements(Square::D5, open_squares & BOT, &mut res);
+        _add_placements(Square::E5, open_squares & BOT, &mut res);
+
+        _add_placements(Square::A4, open_squares & RIGHT, &mut res);
+        _add_placements(Square::A3, open_squares & RIGHT, &mut res);
+        _add_placements(Square::A2, open_squares & RIGHT, &mut res);
+        _add_placements(Square::A1, open_squares & RIGHT, &mut res);
+
+        debug_assert!(res.len() <= 49);
 
         res
     }
