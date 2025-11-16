@@ -672,11 +672,21 @@ impl BoardState {
             }
         }
 
-        if worker_count > 4 {
-            return Err(format!("Player {:?} has too many workers", player));
+        if own_god.god_name == GodName::Hydra {
+            if worker_count > 11 {
+                return Err(format!(
+                    "Player {:?} has too many workers as hydra ({})",
+                    player, worker_count
+                ));
+            }
+        } else if worker_count > 4 {
+            return Err(format!(
+                "Player {:?} has too many workers ({})",
+                player, worker_count
+            ));
         }
 
-        if own_god.is_hypnus() && oppo_count == 1 {
+        if own_god.is_hypnus() && oppo_count == 1 && other_god.god_name != GodName::Hydra {
             return Err("Can't play hypnus against a solo worker".to_owned());
         }
 

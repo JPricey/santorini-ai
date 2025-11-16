@@ -31,9 +31,11 @@ export const God = {
     Prometheus: 'prometheus',
     Urania: 'urania',
     Zeus: 'zeus',
+    Asteria: 'asteria',
     Charon: 'charon',
     Eros: 'eros',
     Hippolyta: 'hippolyta',
+    Hydra: 'hydra',
     Pegasus: 'pegasus',
     Proteus: 'proteus',
     Scylla: 'scylla',
@@ -48,7 +50,9 @@ export const WIP_GODS: Set<GodType> = new Set([
     God.Pegasus,
     God.Proteus,
     God.Scylla,
-    God.Selene
+    God.Selene,
+    God.Asteria,
+    God.Hydra,
 ]);
 
 export const Square = {

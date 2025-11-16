@@ -131,4 +131,4 @@ fn main() {
 }
 
 // cargo run -p santorini_core --bin fuzzer -r
-// cargo run -p santorini_core --bin fuzzer -r -- -g asteria
+// cargo run -p santorini_core --bin fuzzer -r -- -g hydra

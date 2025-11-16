@@ -119,7 +119,7 @@ pub const HIDDEN_SIZE: usize = 1024;
 // const OPPO_WORKER_OFFSET: usize = OPPO_OFFSET + NNUE_GOD_COUNT;
 // const OPPO_DATA_OFFSET: usize = OPPO_WORKER_OFFSET + SIDE_WORKER_FEATURES;
 
-const MAX_DYNAMIC_FEATURE_COUNT: usize = 7 * 2; // Workers, extra datas
+const MAX_DYNAMIC_FEATURE_COUNT: usize = 10 * 2; // Workers, extra datas
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct FeatureSet {

@@ -329,8 +329,8 @@ pub const fn build_asteria() -> GodPower {
         GodName::Asteria,
         build_god_power_movers!(asteria_move_gen),
         build_god_power_actions::<AsteriaMove>(),
-        4758789900555289074,
-        17548932275576909220,
+        13209756228508321548,
+        4520869061511324205,
     )
     .with_nnue_god_name(GodName::Atlas)
 }

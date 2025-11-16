@@ -10,6 +10,7 @@ use crate::{
         athena::AthenaMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_blockers,
+        hydra::HydraMove,
         mortal::MortalMove,
     },
     hashing::compute_hash_from_scratch,
@@ -226,7 +227,11 @@ impl ConsistencyChecker {
         let mut seen = HashMap::<BoardState, GenericMove>::new();
         let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
-        if active_god.god_name == GodName::Proteus {
+        if active_god.god_name == GodName::Proteus && oppo_god.god_name == GodName::Harpies {
+            // Workers can end up in their own spot. This results in duplicate moves
+            return;
+        }
+        if active_god.god_name == GodName::Hydra {
             return;
         }
 
@@ -313,7 +318,7 @@ impl ConsistencyChecker {
             return;
         }
 
-        if active_god.god_name == GodName::Proteus {
+        if active_god.god_name == GodName::Proteus || active_god.god_name == GodName::Hydra {
             return;
         }
 
@@ -339,7 +344,7 @@ impl ConsistencyChecker {
 
             if old_heights.len() != new_heights.len() {
                 self.errors.push(format!(
-                    "different number of workers in persephone change that we don't know how to handle {} -> {:?}",
+                    "different number of workers in hades change that we don't know how to handle {} -> {:?}",
                     active_god.stringify_move(action),
                     new_state,
                 ));
@@ -369,13 +374,14 @@ impl ConsistencyChecker {
             return;
         }
 
+        let active_god_name = active_god.god_name;
         // Ignore zeus, who can appear to move up by building under himself
         // TODO: scope this down
-        if active_god.god_name == GodName::Zeus {
+        if active_god_name == GodName::Zeus {
             return;
         }
 
-        if active_god.god_name == GodName::Proteus {
+        if active_god_name == GodName::Proteus || active_god_name == GodName::Hydra {
             return;
         }
 
@@ -487,7 +493,8 @@ impl ConsistencyChecker {
             return;
         }
 
-        if active_god.god_name == GodName::Proteus {
+        let active_god_name = active_god.god_name;
+        if active_god_name == GodName::Proteus || active_god_name == GodName::Hydra {
             return;
         }
 
@@ -555,7 +562,7 @@ impl ConsistencyChecker {
             return;
         }
 
-        if active_god.god_name == GodName::Proteus {
+        if active_god.god_name == GodName::Proteus || active_god.god_name == GodName::Hydra {
             return;
         }
 
@@ -746,6 +753,15 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if active_god.god_name == GodName::Hydra {
+                // Hydra can get onto lvl 3, then move into the lvl 3 win spot, then kill itself
+                // TODO: fix that in move gen
+                let block_action: HydraMove = block_action.into();
+                if block_action.move_to_position() == block_action.special_worker_position() {
+                    continue;
+                }
+            }
+
             if oppo_god.god_name == GodName::Charon {
                 if active_god.god_name == GodName::Hermes {
                     // Hermes thinks that while standing still in Charon's winning square he's blocking a win
@@ -910,7 +926,7 @@ impl ConsistencyChecker {
                     }
                 }
 
-                let mut error_str = format!("Missed blocking action: {}", stringed_action);
+                let mut error_str = format!("Missed blocking action: {}\n", stringed_action);
 
                 if !did_output_key_moves {
                     error_str += &format!("Key moves board:{}\n", key_moves);
