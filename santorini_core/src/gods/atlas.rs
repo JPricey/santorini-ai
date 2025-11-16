@@ -19,7 +19,6 @@ use crate::{
 
 use super::PartialAction;
 
-// from(5)|to(5)|build(5)|is_dome_build(1)
 const MOVE_FROM_POSITION_OFFSET: usize = 0;
 const MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;

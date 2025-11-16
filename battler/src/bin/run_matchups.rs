@@ -33,7 +33,7 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         // )
         .with_exact_gods_for_player(
             santorini_core::player::Player::One,
-            &[GodName::Proteus],
+            &[GodName::Asteria],
         )
         .get_all();
 

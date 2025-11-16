@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
@@ -116,6 +116,7 @@ impl ConsistencyChecker {
         own_winning_moves: &Vec<ScoredMove>,
     ) {
         let mut all_move_map = HashMap::<u32, bool>::new();
+
         for action in all_moves {
             let key = action.action.0 & MOVE_DATA_MAIN_SECTION;
             all_move_map.insert(key, action.get_is_winning());
@@ -164,6 +165,57 @@ impl ConsistencyChecker {
                     self.errors.push(format!(
                         "Winning move not marked as winning in all moves: {}",
                         active_god.stringify_move(action.action),
+                    ));
+                }
+            }
+        }
+
+        if own_winning_moves.is_empty() {
+            let mut search_states_map = HashSet::<BoardState>::new();
+            let mut all_states_map = HashSet::<BoardState>::new();
+            if own_winning_moves.is_empty() {
+                for action in search_moves {
+                    let new_state = self.state.next_state(active_god, oppo_god, action.action);
+                    search_states_map.insert(new_state.board);
+                }
+
+                for action in all_moves {
+                    let new_state = self.state.next_state(active_god, oppo_god, action.action);
+                    all_states_map.insert(new_state.board);
+                }
+
+                let all_move_only_states = all_states_map
+                    .difference(&search_states_map)
+                    .collect::<Vec<&BoardState>>();
+
+                for all_move_only_state in all_move_only_states {
+                    let full_game_state =
+                        FullGameState::new(all_move_only_state.clone(), self.state.gods.clone());
+
+                    let mut relevant_actions = Vec::new();
+                    for action in all_moves {
+                        let new_state = self.state.next_state(active_god, oppo_god, action.action);
+                        if &new_state.board == all_move_only_state {
+                            relevant_actions.push(active_god.stringify_move(action.action));
+                        }
+                    }
+
+                    self.errors.push(format!(
+                        "All moves has state not in search moves: {:?} ({:?})",
+                        full_game_state, relevant_actions
+                    ));
+                }
+
+                let search_only_states = search_states_map
+                    .difference(&all_states_map)
+                    .collect::<Vec<&BoardState>>();
+                for search_only_state in search_only_states {
+                    let full_game_state =
+                        FullGameState::new(search_only_state.clone(), self.state.gods.clone());
+
+                    self.errors.push(format!(
+                        "Search moves has state not in all moves: {:?}",
+                        full_game_state
                     ));
                 }
             }
