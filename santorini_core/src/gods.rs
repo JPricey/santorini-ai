@@ -60,6 +60,7 @@ pub(crate) mod scylla;
 pub(crate) mod selene;
 pub(crate) mod urania;
 pub(crate) mod zeus;
+pub(crate) mod apollo_v2;
 
 pub type StaticGod = &'static GodPower;
 
@@ -118,6 +119,7 @@ pub enum GodName {
     Proteus = 35,
     Asteria = 36,
     Hydra = 37,
+    ApolloV2 = 38,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -131,6 +133,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Selene,
     GodName::Asteria,
     GodName::Hydra,
+    GodName::ApolloV2,
 ]);
 
 impl GodName {
@@ -738,6 +741,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     proteus::build_proteus(),
     asteria::build_asteria(),
     hydra::build_hydra(),
+    apollo_v2::build_apollo_v2(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

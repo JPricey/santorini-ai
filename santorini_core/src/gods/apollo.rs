@@ -29,7 +29,7 @@ const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
 const SWAP_MOVE_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-struct ApolloMove(pub MoveData);
+pub(crate) struct ApolloMove(pub MoveData);
 
 impl Into<GenericMove> for ApolloMove {
     fn into(self) -> GenericMove {
@@ -44,7 +44,7 @@ impl From<GenericMove> for ApolloMove {
 }
 
 impl ApolloMove {
-    fn new_basic_move(
+    pub(crate) fn new_basic_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -58,7 +58,7 @@ impl ApolloMove {
         Self(data)
     }
 
-    fn new_apollo_winning_move(
+    pub(crate) fn new_apollo_winning_move(
         move_from_position: Square,
         move_to_position: Square,
         swap_from_square: Option<Square>,
@@ -106,17 +106,29 @@ impl std::fmt::Debug for ApolloMove {
             return write!(f, "NULL");
         }
 
-        let move_from = self.move_from_position();
-        let move_to = self.move_to_position();
-        let build = self.build_position();
-        let is_win = self.get_is_winning();
-
-        if is_win {
-            write!(f, "{}>{}#", move_from, move_to)
+        if self.get_is_winning() {
+            write!(
+                f,
+                "{}>{}#",
+                self.move_from_position(),
+                self.move_to_position()
+            )
         } else if self.swap_from_square().is_some() {
-            write!(f, "{}<>{}^{}", move_from, move_to, build)
+            write!(
+                f,
+                "{}<>{}^{}",
+                self.move_from_position(),
+                self.move_to_position(),
+                self.build_position()
+            )
         } else {
-            write!(f, "{}>{}^{}", move_from, move_to, build)
+            write!(
+                f,
+                "{}>{}^{}",
+                self.move_from_position(),
+                self.move_to_position(),
+                self.build_position()
+            )
         }
     }
 }
@@ -153,11 +165,9 @@ impl GodMove for ApolloMove {
 
         if self.get_is_winning() {
             board.set_winner(player);
-            return;
+        } else {
+            board.build_up(self.build_position());
         }
-
-        let build_position = self.build_position();
-        board.build_up(build_position);
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
@@ -184,8 +194,6 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
-
-    let moving_map = prelude.standard_neighbor_map;
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -232,7 +240,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_workers =
             worker_start_state.other_own_workers & prelude.exactly_level_2;
         let other_threatening_neighbors =
-            apply_mapping_to_mask(other_threatening_workers, &moving_map);
+            apply_mapping_to_mask(other_threatening_workers, &prelude.standard_neighbor_map);
 
         for mut worker_end_pos in worker_moves {
             let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
@@ -287,7 +295,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 BitBoard::EMPTY
             } else {
                 (other_threatening_neighbors
-                    | (moving_map[worker_end_pos as usize]
+                    | (prelude.standard_neighbor_map[worker_end_pos as usize]
                         & BitBoard::CONDITIONAL_MASK[is_now_lvl_2 as usize]))
                     & unblocked_squares_for_checks
                     & prelude.win_mask
