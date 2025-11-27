@@ -291,8 +291,9 @@ pub(super) fn scylla_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
         }
 
-        let possible_drags =
-            NEIGHBOR_MAP[worker_start_pos as usize] & prelude.oppo_workers & !prelude.domes_and_frozen;
+        let possible_drags = NEIGHBOR_MAP[worker_start_pos as usize]
+            & prelude.oppo_workers
+            & !prelude.domes_and_frozen;
         for dragged_worker_pos in possible_drags {
             let dragged_worker_from_mask = dragged_worker_pos.to_board();
             let new_oppo_workers = prelude.oppo_workers
@@ -372,5 +373,4 @@ pub const fn build_scylla() -> GodPower {
         12345678901234567890,
         9876543210987654321,
     )
-    .with_nnue_god_name(GodName::Apollo)
 }

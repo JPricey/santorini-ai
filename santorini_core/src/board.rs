@@ -645,7 +645,7 @@ impl BoardState {
             }
         }
 
-        if [GodName::Selene, GodName::Europa].contains(&own_god.god_name) {
+        if [GodName::Selene, GodName::Europa, GodName::Hippolyta].contains(&own_god.god_name) {
             if self.god_data[player as usize].count_ones() > 1 {
                 return Err(format!(
                     "Player {:?} as {:?} has too many tokens placed",

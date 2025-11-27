@@ -457,5 +457,4 @@ pub const fn build_hydra() -> GodPower {
         2854659210591727588,
         10142526825370404391,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

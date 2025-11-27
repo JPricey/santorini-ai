@@ -334,5 +334,4 @@ pub const fn build_eros() -> GodPower {
         6256749897107858133,
     )
     .with_placement_type(PlacementType::PerimeterOpposite)
-    .with_nnue_god_name(GodName::Maenads)
 }

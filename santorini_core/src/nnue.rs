@@ -10,7 +10,7 @@ use arrayvec::ArrayVec;
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState, GodData},
-    gods::{GOD_FEATURE_OFFSETS, GodName, TOTAL_GOD_DATA_FEATURE_COUNT},
+    gods::{GOD_FEATURE_OFFSETS, GodName, TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE},
     player::Player,
     search::Heuristic,
 };
@@ -50,10 +50,12 @@ pub struct Network {
     pub feature_bias: Accumulator,
     pub output_weights: [i16; HIDDEN_SIZE],
     pub output_bias: i16,
+    pub asdf: u32,
 }
 
 type FType = u16;
-pub const NNUE_GOD_COUNT: usize = 29;
+// pub const NNUE_GOD_COUNT: usize = 29;
+pub const NNUE_GOD_COUNT: usize = 39;
 
 // Neutral Features
 const BOARD_FEATURES_COUNT: usize = 5 * 25;
@@ -75,7 +77,8 @@ const OPPO_PLAYER_OFFSET: FType = ACTIVE_PLAYER_OFFSET + PER_SIDE_MAIN_FEATURES_
 const PLAYER_WORKERS_OFFSET: FType = 0;
 const PLAYER_DATAS_OFFSET: FType = PLAYER_WORKERS_OFFSET + WORKER_FEATURES_COUNT as FType;
 
-const PER_SIDE_MAIN_FEATURES_COUNT: usize = WORKER_FEATURES_COUNT + TOTAL_GOD_DATA_FEATURE_COUNT;
+const PER_SIDE_MAIN_FEATURES_COUNT: usize =
+    WORKER_FEATURES_COUNT + TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE;
 const PER_GOD_MAIN_FEATURE_SECTION_TOTAL_SIZE: usize = PER_SIDE_MAIN_FEATURES_COUNT * 2;
 
 // Per-side  features normalizing features
@@ -93,31 +96,8 @@ const PER_GOD_NORMALIZING_FEATURE_TOTAL_SIZE: usize = NNUE_GOD_COUNT * 2;
 pub const TOTAL_NUM_FEATURES: usize = TOTAL_BASE_FEATURES_COUNT
     + PER_GOD_MAIN_FEATURE_SECTION_TOTAL_SIZE
     // + PER_GOD_NORMALIZING_FEATURE_TOTAL_SIZE
-;
-// pub const TOTAL_NUM_FEATURES: usize = 535;
+    ;
 pub const HIDDEN_SIZE: usize = 1024;
-
-// Older constants:
-// const BOARD_FEATURES: usize = 25 * 5;
-// const MATCHUP_FEAUTURE_COUNT: usize = NNUE_GOD_COUNT * NNUE_GOD_COUNT;
-//
-// const MATCHUP_FEATURE_OFFSET: FeatureType = BOARD_FEATURES as FeatureType;
-// const NEUTRAL_FEATURE_COUNT: usize = BOARD_FEATURES + MATCHUP_FEAUTURE_COUNT;
-//
-// const SIDE_WORKER_FEATURES: usize = 25 * 4;
-//
-// const PER_SIDE_FEATURES: usize =
-//     NNUE_GOD_COUNT + SIDE_WORKER_FEATURES + TOTAL_GOD_DATA_FEATURE_COUNT;
-//
-// const PADDED_FEATURE_COUNT: usize = NNUE_GOD_COUNT * 2;
-//
-// const ACTIVE_PLAYER_OFFSET: usize = BOARD_FEATURES;
-// const ACTIVE_PLAYER_WORKER_OFFSET: usize = BOARD_FEATURES + NNUE_GOD_COUNT;
-// const ACTIVE_PLAYER_DATA_OFFSET: usize = ACTIVE_PLAYER_WORKER_OFFSET + SIDE_WORKER_FEATURES;
-//
-// const OPPO_OFFSET: usize = ACTIVE_PLAYER_OFFSET + PER_SIDE_FEATURES;
-// const OPPO_WORKER_OFFSET: usize = OPPO_OFFSET + NNUE_GOD_COUNT;
-// const OPPO_DATA_OFFSET: usize = OPPO_WORKER_OFFSET + SIDE_WORKER_FEATURES;
 
 const MAX_DYNAMIC_FEATURE_COUNT: usize = 10 * 2; // Workers, extra datas
 
@@ -126,11 +106,12 @@ pub struct FeatureSet {
     // ordered_features are always present, and will always map 1-1 between different board states
     // Ex: the height of A3 will always be at the 3rd index, regardless of feature values
     pub ordered_features: [u16; 26], // Heights + matchup
+    // pub ordered_features: [u16; 28], // Heights + matchup
     pub dynamic_features: ArrayVec<u16, MAX_DYNAMIC_FEATURE_COUNT>,
 }
 
-pub static MODEL: Network =
-    unsafe { mem::transmute(*include_bytes!("../.././models/matchup_bit_only.bin")) };
+// pub static MODEL: Network = unsafe { mem::transmute(*include_bytes!("../.././models/full.bin")) };
+pub static MODEL: Network = unsafe { mem::transmute(*include_bytes!("../.././models/final.bin")) };
 
 impl Accumulator {
     pub fn new() -> Self {
@@ -469,7 +450,7 @@ pub fn emit_god_data_features<Extractor: FnMut(FType)>(
                 f(data as FType - 1)
             }
         }
-        GodName::Europa => {
+        GodName::Europa | GodName::Hippolyta | GodName::Selene => {
             if data > 0 {
                 f(data.trailing_zeros() as FType)
             }

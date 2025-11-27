@@ -368,7 +368,6 @@ pub const fn build_selene() -> GodPower {
         4758789900555289074,
         17548932275576909220,
     )
-    .with_nnue_god_name(GodName::Atlas)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)

@@ -274,6 +274,5 @@ pub const fn build_proteus() -> GodPower {
         11735363125997027301,
         16382114980006810069,
     )
-    .with_nnue_god_name(GodName::Graeae)
     .with_placement_type(PlacementType::ThreeWorkers)
 }
