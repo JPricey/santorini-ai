@@ -122,4 +122,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-// cargo run -p battler --bin compare_engines -r -- -e v111 -E v112
+// cargo run -p battler --bin compare_engines -r -- -e v111 -E v112 |& tee compare.txt

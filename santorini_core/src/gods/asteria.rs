@@ -332,5 +332,4 @@ pub const fn build_asteria() -> GodPower {
         13209756228508321548,
         4520869061511324205,
     )
-    .with_nnue_god_name(GodName::Atlas)
 }

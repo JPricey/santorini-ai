@@ -171,5 +171,4 @@ pub(crate) const fn build_apollo_v2() -> GodPower {
         7217779490744502025,
         16422608020866574275,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

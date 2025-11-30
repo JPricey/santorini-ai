@@ -31,7 +31,7 @@ pub struct BulletSantoriniBoard {
 }
 const _RIGHT_SIZE: () = assert!(std::mem::size_of::<BulletSantoriniBoard>() == 32);
 
-const NUM_GODS: usize = 27;
+const NUM_GODS: usize = 39;
 const BOARD_FULL_MASK: u32 = (1 << 25) - 1;
 const BASE_FEATURES: usize = 5 * 25;
 const WORKER_FEATURES: usize = 25 * 4;

@@ -23,6 +23,7 @@ use strum::{Display, EnumString, IntoStaticStr};
 pub(crate) mod aeolus;
 pub(crate) mod aphrodite;
 pub(crate) mod apollo;
+pub(crate) mod apollo_v2;
 pub(crate) mod ares;
 pub(crate) mod artemis;
 pub(crate) mod asteria;
@@ -60,7 +61,6 @@ pub(crate) mod scylla;
 pub(crate) mod selene;
 pub(crate) mod urania;
 pub(crate) mod zeus;
-pub(crate) mod apollo_v2;
 
 pub type StaticGod = &'static GodPower;
 
@@ -122,19 +122,8 @@ pub enum GodName {
     ApolloV2 = 38,
 }
 
-// pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [
-    GodName::Charon,
-    GodName::Eros,
-    GodName::Hippolyta,
-    GodName::Pegasus,
-    GodName::Proteus,
-    GodName::Scylla,
-    GodName::Selene,
-    GodName::Asteria,
-    GodName::Hydra,
-    GodName::ApolloV2,
-]);
+pub const WIP_GODS: [GodName; 0] = [];
+// counted_array!(pub const WIP_GODS: [GodName; _] = [ ]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -751,6 +740,8 @@ pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
         GodName::Aeolus => 8,
         GodName::Europa => 25,
         GodName::Clio => 26,
+        GodName::Hippolyta => 25,
+        GodName::Selene => 25,
         _ => 0,
     }
 }
@@ -777,6 +768,9 @@ pub const TOTAL_GOD_DATA_FEATURE_COUNT: usize = {
 
     res
 };
+pub(crate) const TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE: usize = 120;
+// Break this assertion when training new gods
+const _ASSERTION: () = assert!(TOTAL_GOD_DATA_FEATURE_COUNT == TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE);
 
 #[macro_export]
 macro_rules! build_god_power_movers {

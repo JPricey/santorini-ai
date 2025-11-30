@@ -536,5 +536,4 @@ pub const fn build_charon() -> GodPower {
         15324631767000384691,
         2986174260566155220,
     )
-    .with_nnue_god_name(GodName::Apollo)
 }

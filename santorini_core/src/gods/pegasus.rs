@@ -158,5 +158,4 @@ pub const fn build_pegasus() -> GodPower {
         16247440087819553927,
         7661264400958143927,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }
