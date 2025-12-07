@@ -494,7 +494,10 @@ impl ConsistencyChecker {
         }
 
         let active_god_name = active_god.god_name;
-        if active_god_name == GodName::Proteus || active_god_name == GodName::Hydra {
+        if active_god_name == GodName::Proteus
+            || active_god_name == GodName::Hydra
+            || active_god_name == GodName::Medusa
+        {
             return;
         }
 
@@ -600,6 +603,10 @@ impl ConsistencyChecker {
         if oppo_god.god_name != GodName::Limus {
             return;
         }
+        if active_god.god_name == GodName::Medusa {
+            // Medusa can "build" around limus, by converting limus workers in to stone
+            return;
+        }
 
         let mut dome_build_actions = Vec::new();
 
@@ -648,7 +655,6 @@ impl ConsistencyChecker {
             // Morpheus "domes" over multiple builds, which limus does not allow
             return;
         }
-
         let mut against_mortal_state = self.state.clone();
         against_mortal_state.gods[!current_player as usize] = GodName::Mortal.to_power();
         let mortal_search_moves =
