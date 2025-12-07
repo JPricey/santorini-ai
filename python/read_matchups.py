@@ -79,6 +79,7 @@ def main():
     SHOW_WINS_GODS = [
         "Pan",
         "Selene",
+        "Pegasus",
     ]
 
     for god in SHOW_WINS_GODS:

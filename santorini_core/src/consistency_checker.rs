@@ -998,6 +998,9 @@ impl ConsistencyChecker {
                         ));
                     }
                 } else if is_check_flag && oppo_god.god_name == GodName::Aphrodite {
+                    // We don't consider aphrodite areas when doing check detection
+                    // Replace aphrodite with a mortal and detect for checks again. If it is,
+                    // ignore it
                     let mut checks_vs_mortal_state = check_state.clone();
                     checks_vs_mortal_state.gods[!current_player as usize] =
                         GodName::Mortal.to_power();
