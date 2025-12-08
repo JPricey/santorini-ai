@@ -1,10 +1,13 @@
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex, mpsc},
+    thread::{self, current},
     time::Duration,
 };
 
-use battler::{BattleResult, WorkerMessage, create_tmp_dir, write_results_to_csv};
+use battler::{
+    BattleResult, WorkerMessage, create_tmp_dir, read_battle_result_csv, write_results_to_csv,
+};
 use clap::Parser;
 use santorini_core::{
     board::FullGameState,
@@ -15,11 +18,19 @@ use santorini_core::{
 };
 
 const DEFAULT_DURATION_SECS: f32 = 4.0;
+const MATCHUPS_CSV_FILE: &str = "tmp/all_matchups.csv";
 
 #[derive(Parser, Debug)]
 struct Args {
     #[arg(short = 's', long, default_value_t = DEFAULT_DURATION_SECS)]
     secs: f32,
+
+    #[arg(short = 'c', long, default_value_t = true)]
+    cont: bool,
+}
+
+fn _read_battle_results_csv() -> Vec<BattleResult> {
+    read_battle_result_csv(&PathBuf::from(MATCHUPS_CSV_FILE)).unwrap()
 }
 
 pub fn get_all_matchups() -> Vec<Matchup> {
@@ -31,7 +42,7 @@ pub fn get_all_matchups() -> Vec<Matchup> {
         //     santorini_core::player::Player::One,
         //     &santorini_core::gods::WIP_GODS,
         // )
-        //.with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Pegasus])
+        // .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Pan])
         .get_all();
 
     // for m in &all_matchups {
@@ -59,7 +70,17 @@ fn worker_thread(
             break;
         };
 
-        eprintln!("starting matchup {} {}", timestamp_string(), next_matchup);
+        let thread_name = {
+            let current_thread = thread::current();
+            current_thread.name().unwrap_or("unknown").to_string()
+        };
+
+        eprintln!(
+            "{}: starting matchup {} {}",
+            thread_name,
+            timestamp_string(),
+            next_matchup
+        );
 
         let root_state = FullGameState::new_for_matchup(&next_matchup);
         let battle_result = playout_game(&root_state, &mut engine, duration).unwrap();
@@ -102,6 +123,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let mut all_matchups = get_all_matchups();
+
+    if args.cont {
+        eprintln!("Cont mode - continue from previous run");
+        let completed_results = read_battle_result_csv(&PathBuf::from(MATCHUPS_CSV_FILE))?;
+        let completed_matchups: Vec<Matchup> = completed_results
+            .iter()
+            .map(|res| Matchup::new(res.god1, res.god2))
+            .collect();
+
+        all_matchups.retain(|m| !completed_matchups.contains(m));
+    }
+
     all_matchups.sort();
     all_matchups.reverse();
     for m in &all_matchups {
@@ -120,17 +153,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let all_matchups_queue = Arc::new(Mutex::new(all_matchups));
 
     let mut done_workers_count = 0;
-    for _ in 0..num_workers {
+    for i in 0..num_workers {
         let tx = tx.clone();
         let matchups_queue = Arc::clone(&all_matchups_queue);
 
         let duration = Duration::from_secs_f32(args.secs);
-        std::thread::spawn(move || {
-            worker_thread(matchups_queue, duration, tx.clone());
-            // Sleep a bit to make sure we don't miss anything
-            std::thread::sleep(Duration::from_secs(1));
-            tx.send(WorkerMessage::Done).unwrap();
-        });
+        thread::Builder::new()
+            .name(format!("thread_{i}"))
+            .spawn(move || {
+                worker_thread(matchups_queue, duration, tx.clone());
+                // Sleep a bit to make sure we don't miss anything
+                std::thread::sleep(Duration::from_secs(1));
+                tx.send(WorkerMessage::Done).unwrap();
+            })
+            .expect(format!("failed to spawn thread {}", i).as_str());
     }
 
     eprintln!("starting {}", timestamp_string());
@@ -141,7 +177,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             WorkerMessage::BattleResult(result) => {
                 eprintln!("{}", result.get_pretty_description());
                 all_results.push(result.clone());
-                write_results_to_csv(&all_results, &PathBuf::from("tmp/all_matchups.csv"))?;
+                write_results_to_csv(&all_results, &PathBuf::from(MATCHUPS_CSV_FILE))?;
 
                 eprintln!(
                     "{} reported: {}/{}",
@@ -164,4 +200,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-// cargo run -p battler --bin run_matchups -r -- -s 10.0
+// cargo run -p battler --bin run_matchups -r -- -s 1.0

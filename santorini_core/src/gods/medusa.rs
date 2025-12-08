@@ -232,13 +232,15 @@ pub(super) fn medusa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let worker_end_move_state =
                 get_worker_end_move_state::<F>(&prelude, &worker_start_state, worker_end_pos);
 
-            let mut final_stone_map = neighbor_stone_map;
-            if worker_end_move_state.worker_end_height > 0 {
-                final_stone_map |= NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize]
+            let final_stone_map = if worker_end_move_state.worker_end_height > 0 {
+                let current_stone_map = NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize]
                     & prelude.oppo_workers
                     & !(prelude.board.height_map[worker_end_move_state.worker_end_height - 1]
                         | prelude.domes_and_frozen);
-            }
+                neighbor_stone_map | current_stone_map
+            } else {
+                neighbor_stone_map
+            };
 
             let unblocked_squares = !(worker_start_state.all_non_moving_workers
                 | worker_end_move_state.worker_end_mask
@@ -259,7 +261,7 @@ pub(super) fn medusa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 &prelude,
                 &worker_next_moves,
                 &worker_end_move_state,
-                unblocked_squares,
+                unblocked_squares | final_stone_map,
             );
 
             for worker_build_pos in narrowed_builds {
