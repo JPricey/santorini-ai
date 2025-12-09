@@ -1,7 +1,7 @@
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex, mpsc},
-    thread::{self, current},
+    thread::{self},
     time::Duration,
 };
 
@@ -25,7 +25,7 @@ struct Args {
     #[arg(short = 's', long, default_value_t = DEFAULT_DURATION_SECS)]
     secs: f32,
 
-    #[arg(short = 'c', long, default_value_t = true)]
+    #[arg(short = 'c', long, default_value_t = false)]
     cont: bool,
 }
 
@@ -123,10 +123,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let mut all_matchups = get_all_matchups();
+    let mut all_results = Vec::<BattleResult>::new();
 
     if args.cont {
         eprintln!("Cont mode - continue from previous run");
         let completed_results = read_battle_result_csv(&PathBuf::from(MATCHUPS_CSV_FILE))?;
+        all_results = completed_results.clone();
+
         let completed_matchups: Vec<Matchup> = completed_results
             .iter()
             .map(|res| Matchup::new(res.god1, res.god2))
@@ -134,6 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         all_matchups.retain(|m| !completed_matchups.contains(m));
     }
+    let base_results = all_results.len();
 
     all_matchups.sort();
     all_matchups.reverse();
@@ -142,7 +146,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let matchups_count = all_matchups.len();
 
-    let mut all_results = Vec::<BattleResult>::new();
     let (tx, rx) = mpsc::channel::<WorkerMessage>();
 
     let num_cpus = num_cpus::get();
@@ -183,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "{} reported: {}/{}",
                     timestamp_string(),
                     all_results.len(),
-                    matchups_count
+                    matchups_count + base_results,
                 );
             }
             WorkerMessage::BattleResultPair(_) => {
