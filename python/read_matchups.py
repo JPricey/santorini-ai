@@ -11,7 +11,9 @@ class Matchup:
     losing_god: str
     moves: int
 
-MATCHUPS_FILE = 'tmp/all_matchups_10s.csv'
+# MATCHUPS_FILE = 'tmp/all_matchups.csv'
+# MATCHUPS_FILE = 'tmp/all_matchups_10s.csv'
+MATCHUPS_FILE = 'tmp/pegasus_v2_matchups.csv'
 
 def read_matchups(csv_path):
     matchups = []
@@ -50,7 +52,7 @@ def fill_counter(counter, all_gods):
     return counter
 
 def main():
-    matchups = read_matchups("tmp/all_matchups.csv")
+    matchups = read_matchups(MATCHUPS_FILE)
     all_gods = get_all_gods(matchups)
 
     non_mirrors = [m for m in matchups if m.gods[0] != m.gods[1]]

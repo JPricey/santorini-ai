@@ -141,7 +141,7 @@ pub(super) fn pegasus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 result.push(build_scored_move::<F, _>(
                     new_action,
                     is_check,
-                    worker_end_move_state.is_now_lvl_2 > 0,
+                    false,
                 ))
             }
         }
