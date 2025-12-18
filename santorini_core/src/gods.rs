@@ -127,7 +127,7 @@ pub enum GodName {
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
