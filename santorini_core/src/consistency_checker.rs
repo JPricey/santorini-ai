@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    bitboard::{BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{
+        BETWEEN_MAPPING, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask,
+    },
     board::{BoardState, FullGameState},
     fen::{game_state_to_fen, parse_fen},
     gods::{
@@ -494,7 +496,10 @@ impl ConsistencyChecker {
         }
 
         let active_god_name = active_god.god_name;
-        if active_god_name == GodName::Proteus || active_god_name == GodName::Hydra {
+        if active_god_name == GodName::Proteus
+            || active_god_name == GodName::Hydra
+            || active_god_name == GodName::Medusa
+        {
             return;
         }
 
@@ -600,6 +605,10 @@ impl ConsistencyChecker {
         if oppo_god.god_name != GodName::Limus {
             return;
         }
+        if active_god.god_name == GodName::Medusa {
+            // Medusa can "build" around limus, by converting limus workers in to stone
+            return;
+        }
 
         let mut dome_build_actions = Vec::new();
 
@@ -648,7 +657,6 @@ impl ConsistencyChecker {
             // Morpheus "domes" over multiple builds, which limus does not allow
             return;
         }
-
         let mut against_mortal_state = self.state.clone();
         against_mortal_state.gods[!current_player as usize] = GodName::Mortal.to_power();
         let mortal_search_moves =
@@ -839,6 +847,13 @@ impl ConsistencyChecker {
                         // Ares can undo his own build, not worth checking for
                         continue;
                     }
+                }
+            }
+
+            if oppo_god.god_name == GodName::Iris {
+                // Jumps
+                if key_moves == BitBoard::MAIN_SECTION_MASK {
+                    continue;
                 }
             }
 
@@ -1106,6 +1121,7 @@ impl ConsistencyChecker {
         let new_pos = new_only.lsb();
         let old_height = state.board.get_height(old_pos) as i32;
         let new_height = won_state.board.get_height(new_pos) as i32;
+
         let is_pan_falling_win =
             active_god.god_name == GodName::Pan && new_height <= old_height - 2;
 
@@ -1180,8 +1196,19 @@ impl ConsistencyChecker {
             }
         }
 
+        // Iris wins by jumping over a worker to level 2
+        if active_god.god_name == GodName::Iris {
+            if let Some(jumped_pos) = BETWEEN_MAPPING[old_pos as usize][new_pos as usize] {
+                let all_workers = won_state.board.workers[0] | won_state.board.workers[1];
+
+                if all_workers.contains_square(jumped_pos) && old_height < 3 && new_height == 3 {
+                    return;
+                }
+            }
+        }
+
         self.errors.push(format!(
-            "Move won with unknown winning condition: {}. {:?} -> {:?}",
+            "Move won with unknown winning condition: {}. {:?} -> {:?}. Old pos: {old_pos} New pos: {new_pos}. Old height: {old_height} New height: {new_height}",
             stringed_action, state, won_state,
         ));
     }

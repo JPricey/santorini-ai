@@ -142,6 +142,33 @@ pub const PUSH_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
     result
 };
 
+// Push mapping for iris
+pub const JUMP_OVER_PUSH_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
+    let mut result = [[None; NUM_SQUARES]; NUM_SQUARES];
+    const_for!(from in 0..25 => {
+        let from_square: Square = transmute_enum!(from as u8);
+        let from_coord = from_square.to_icoord();
+        const_for!(direction_idx in 0..8 => {
+            let direction = Direction::from_u8(direction_idx as u8);
+            let delta = direction.to_icoord();
+
+            let to1 = from_coord.add(delta);
+            let to2 = to1.add(delta);
+            let to3 = to2.add(delta);
+
+            if let Some(to1) = to1.to_square() && let Some(to2) = to2.to_square() {
+                result[from as usize][to1 as usize] = Some(to2);
+
+                if let Some(to3) = to3.to_square() {
+                    result[from as usize][to2 as usize] = Some(to3);
+                }
+            }
+        });
+    });
+
+    result
+};
+
 pub const BETWEEN_MAPPING: [[Option<Square>; NUM_SQUARES]; NUM_SQUARES] = {
     let mut result = [[None; NUM_SQUARES]; NUM_SQUARES];
     const_for!(from in 0..25 => {

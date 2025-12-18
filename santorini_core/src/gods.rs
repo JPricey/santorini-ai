@@ -46,8 +46,10 @@ pub(crate) mod hestia;
 pub(crate) mod hippolyta;
 pub(crate) mod hydra;
 pub(crate) mod hypnus;
+pub(crate) mod iris;
 pub(crate) mod limus;
 pub(crate) mod maenads;
+pub(crate) mod medusa;
 pub(crate) mod minotaur;
 pub(crate) mod morpheus;
 pub(crate) mod mortal;
@@ -120,10 +122,12 @@ pub enum GodName {
     Asteria = 36,
     Hydra = 37,
     ApolloV2 = 38,
+    Medusa = 39,
+    Iris = 40,
 }
 
-pub const WIP_GODS: [GodName; 0] = [];
-// counted_array!(pub const WIP_GODS: [GodName; _] = [ ]);
+// pub const WIP_GODS: [GodName; 0] = [];
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -731,6 +735,8 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     asteria::build_asteria(),
     hydra::build_hydra(),
     apollo_v2::build_apollo_v2(),
+    medusa::build_medusa(),
+    iris::build_iris(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -770,7 +776,8 @@ pub const TOTAL_GOD_DATA_FEATURE_COUNT: usize = {
 };
 pub(crate) const TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE: usize = 120;
 // Break this assertion when training new gods
-const _ASSERTION: () = assert!(TOTAL_GOD_DATA_FEATURE_COUNT == TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE);
+const _ASSERTION: () =
+    assert!(TOTAL_GOD_DATA_FEATURE_COUNT == TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE);
 
 #[macro_export]
 macro_rules! build_god_power_movers {

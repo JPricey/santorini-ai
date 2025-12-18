@@ -366,6 +366,19 @@ impl MyApp {
         }
     }
 
+    pub fn try_engine_move_if_end_of_line(&mut self) {
+        let engine_state = self.engine_thinking.lock();
+        if engine_state.state == self.state {
+            if let Some(last_engine_move) = engine_state.engine_messages.last().clone() {
+                if last_engine_move.0.trigger == BestMoveTrigger::EndOfLine {
+                    let next_state = last_engine_move.0.child_state.clone();
+                    drop(engine_state);
+                    self.update_state(next_state);
+                }
+            }
+        }
+    }
+
     pub fn clear_actions_for_edit(&mut self) {
         self.current_actions.clear();
         self.available_next_actions.clear();
@@ -436,14 +449,17 @@ impl<'a> egui::Widget for GameGrid<'a> {
         if self.app.is_autoplay_enabled
             && self.app.is_autoplay_per_player
                 [self.app.state.get_current_player_consider_placement_mode() as usize]
-            && self
+        {
+            let elapsed_secs = self
                 .app
                 .autoplay_last_status_change_time
                 .elapsed()
-                .as_secs_f32()
-                > self.app.autoplay_speed_secs
-        {
-            self.app.try_engine_move();
+                .as_secs_f32();
+            if elapsed_secs > self.app.autoplay_speed_secs {
+                self.app.try_engine_move();
+            } else if elapsed_secs > 0.1 {
+                self.app.try_engine_move_if_end_of_line();
+            }
         }
 
         let desired_size = ui.available_size();

@@ -52,11 +52,11 @@ fn main() {
     let c2_logs_name = format!("{}-{}", game_name, args.engine2);
 
     let mut c1 = prepare_subprocess(
-        &PathBuf::new().join("logs").join(c1_logs_name),
+        &PathBuf::new().join(c1_logs_name),
         &PathBuf::new().join(BINARY_DIRECTORY).join(args.engine1),
     );
     let mut c2 = prepare_subprocess(
-        &PathBuf::new().join("logs").join(c2_logs_name),
+        &PathBuf::new().join(c2_logs_name),
         &PathBuf::new().join(BINARY_DIRECTORY).join(args.engine2),
     );
 

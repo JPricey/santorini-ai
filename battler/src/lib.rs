@@ -192,6 +192,16 @@ pub fn write_results_to_csv(results: &[BattleResult], path: &PathBuf) -> std::io
     Ok(())
 }
 
+pub fn read_battle_result_csv(path: &PathBuf) -> std::io::Result<Vec<BattleResult>> {
+    let mut results = Vec::new();
+    let mut rdr = csv::Reader::from_path(path)?;
+    for record in rdr.deserialize() {
+        let result: BattleResult = record?;
+        results.push(result);
+    }
+    Ok(results)
+}
+
 pub fn do_battle<'a>(
     start_state: &FullGameState,
     c1: &'a mut EngineSubprocess,
