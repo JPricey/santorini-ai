@@ -30,8 +30,9 @@ pub(crate) mod asteria;
 pub(crate) mod athena;
 pub(crate) mod atlas;
 pub(crate) mod bia;
-pub(crate) mod charon;
 pub(crate) mod castor;
+pub(crate) mod charon;
+pub(crate) mod charon_v2;
 pub(crate) mod clio;
 pub(crate) mod demeter;
 pub(crate) mod eros;
@@ -126,10 +127,11 @@ pub enum GodName {
     Medusa = 39,
     Iris = 40,
     Castor = 41,
+    CharonV2 = 42,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris, GodName::Castor]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris, GodName::Castor, GodName::CharonV2]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -740,6 +742,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     medusa::build_medusa(),
     iris::build_iris(),
     castor::build_castor(),
+    charon_v2::build_charon_v2(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -1061,6 +1064,11 @@ impl HistoryIdxHelper {
     pub(crate) fn add_square_with_height(&mut self, board: &BoardState, square: Square) {
         let height = board.get_height(square);
         self.add_value((square as usize) * 4 + height, 100);
+    }
+
+    pub(crate) fn add_only_square_height(&mut self, board: &BoardState, square: Square) {
+        let height = board.get_height(square);
+        self.add_value(height, 4);
     }
 
     pub(crate) fn add_maybe_square_with_height(

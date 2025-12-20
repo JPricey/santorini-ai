@@ -326,7 +326,7 @@ impl std::fmt::Debug for CastorMove {
             if let Some(move2) = self.maybe_move_from_position_2() {
                 res += &format!(" {}>{}", move2, self.move_to_position_2());
             } else if let Some(build) = self.maybe_build_position_1() {
-                res += &format!(" ^{}", build);
+                res += &format!("^{}", build);
             }
 
             if self.get_is_winning() {
@@ -336,7 +336,7 @@ impl std::fmt::Debug for CastorMove {
             write!(f, "{}", res)
         } else {
             if let Some(build2) = self.maybe_build_position_2() {
-                write!(f, "^{} ^{}", self.definite_build_position_1(), build2)
+                write!(f, "^{}^{}", self.definite_build_position_1(), build2)
             } else {
                 write!(f, "^{}", self.definite_build_position_1())
             }

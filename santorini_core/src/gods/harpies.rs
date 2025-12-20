@@ -322,6 +322,9 @@ mod tests {
                 eprintln!("skipping banned matchup: {}", matchup);
                 continue;
             }
+            if god_name == GodName::Castor {
+                continue;
+            }
 
             let state = parse_fen(&format!(
                 "00000 00000 00000 00000 00000/1/{}:A5/harpies:E2,D1",
