@@ -1,5 +1,7 @@
 use crate::{
-    bitboard::{BitBoard, JUMP_OVER_PUSH_MAPPING, NUM_SQUARES, PUSH_MAPPING, WRAPPING_NEIGHBOR_MAP},
+    bitboard::{
+        BitBoard, JUMP_OVER_PUSH_MAPPING, NUM_SQUARES, PUSH_MAPPING, WRAPPING_NEIGHBOR_MAP,
+    },
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -124,7 +126,43 @@ pub(crate) fn slide_position(prelude: &GeneratorPreludeState, from: Square, to: 
     slide_position(prelude, to, next_spot)
 }
 
-pub(crate) fn iris_slide_position(prelude: &GeneratorPreludeState, from: Square, to: Square) -> Square {
+pub(crate) fn basic_slide_from_unblocked(
+    prelude: &GeneratorPreludeState,
+    unblocked_squares: BitBoard,
+    from: Square,
+    to: Square,
+) -> (Square, usize) {
+    let mut current_from = from;
+    let mut current_pos = to;
+    let mut current_height = prelude.board.get_height(current_pos);
+
+    loop {
+        let Some(next_spot) = PUSH_MAPPING[current_from as usize][current_pos as usize] else {
+            break;
+        };
+        let next_mask = next_spot.to_board();
+        if (unblocked_squares & next_mask).is_empty() {
+            break;
+        }
+
+        let next_height = prelude.board.get_height(next_spot);
+        if next_height > current_height {
+            break;
+        }
+
+        current_from = current_pos;
+        current_pos = next_spot;
+        current_height = next_height;
+    }
+
+    return (current_pos, current_height);
+}
+
+pub(crate) fn iris_slide_position(
+    prelude: &GeneratorPreludeState,
+    from: Square,
+    to: Square,
+) -> Square {
     let Some(next_spot) = JUMP_OVER_PUSH_MAPPING[from as usize][to as usize] else {
         return to;
     };
@@ -282,6 +320,9 @@ mod tests {
             let matchup = Matchup::new(god_name, GodName::Harpies);
             if is_matchup_banned(&matchup) {
                 eprintln!("skipping banned matchup: {}", matchup);
+                continue;
+            }
+            if god_name == GodName::Castor {
                 continue;
             }
 

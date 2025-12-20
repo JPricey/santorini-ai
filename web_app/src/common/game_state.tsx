@@ -6,6 +6,7 @@ export const God = {
     Aeolus: 'aeolus',
     Aphrodite: 'aphrodite',
     Apollo: 'apollo',
+    ApolloV2: 'apollov2',
     Ares: 'ares',
     Artemis: 'artemis',
     Asteria: 'asteria',
@@ -42,10 +43,12 @@ export const God = {
     Zeus: 'zeus',
     Iris: 'iris',
     Medusa: 'medusa',
+    Castor: 'castor',
+    CharonV2: 'charonv2',
 } as const;
 export type GodType = typeof God[keyof typeof God];
 
-export const WIP_GODS: Set<GodType> = new Set([God.Medusa, God.Iris]);
+export const WIP_GODS: Set<GodType> = new Set([God.Medusa, God.Iris, God.Castor, God.CharonV2]);
 
 export const Square = {
     A5: 0,
