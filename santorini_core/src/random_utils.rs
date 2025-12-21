@@ -5,7 +5,7 @@ use rand::{
 
 use crate::{
     board::FullGameState,
-    gods::{ALL_GODS_BY_ID, GodName, StaticGod},
+    gods::{ALL_GODS_BY_ID, GodName, StaticGod, generic::ScoredMove, polyphemus::PolyphemusMove},
     matchup::Matchup,
     placement::get_starting_placement_state,
 };
@@ -40,6 +40,55 @@ pub fn get_random_move(state: &FullGameState, rng: &mut impl Rng) -> Option<Full
     }
     let child_states = state.get_next_states();
     child_states.iter().choose(rng).cloned()
+}
+
+pub fn get_random_move_flattening_powers(
+    state: &FullGameState,
+    rng: &mut impl Rng,
+) -> Option<ScoredMove> {
+    if state.board.get_winner().is_some() {
+        return None;
+    }
+    let active_god = state.get_active_god();
+    let all_moves = active_god.get_all_moves(state, state.board.current_player);
+
+    match active_god.god_name {
+        GodName::Polyphemus => {
+            let has_power = state.board.god_data[state.board.current_player as usize] == 0;
+            if has_power {
+                let skip_using_power = rng.random_bool(0.95);
+
+                if skip_using_power {
+                    let no_power_move = all_moves
+                        .iter()
+                        .filter(|a| {
+                            let poly_move: PolyphemusMove = a.action.into();
+                            poly_move.dome_1().is_none()
+                        })
+                        .choose(rng);
+
+                    if let Some(no_power_move) = no_power_move {
+                        return Some(no_power_move.clone());
+                    }
+                }
+            }
+            all_moves.iter().choose(rng).cloned()
+        }
+        _ => all_moves.iter().choose(rng).cloned(),
+    }
+}
+
+pub fn get_random_state_flattening_powers(
+    state: &FullGameState,
+    rng: &mut impl Rng,
+) -> Option<FullGameState> {
+    let scored_move = get_random_move_flattening_powers(state, rng);
+    if let Some(scored_move) = scored_move {
+        let (active_god, other_god) = state.get_active_non_active_gods();
+        Some(state.next_state(active_god, other_god, scored_move.action))
+    } else {
+        None
+    }
 }
 
 pub struct RandomSingleGameStateGenerator {

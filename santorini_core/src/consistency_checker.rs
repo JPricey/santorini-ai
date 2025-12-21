@@ -627,6 +627,9 @@ impl ConsistencyChecker {
             // Medusa can "build" around limus, by converting limus workers in to stone
             return;
         }
+        if active_god.god_name == GodName::Polyphemus {
+            return;
+        }
 
         let mut dome_build_actions = Vec::new();
 
