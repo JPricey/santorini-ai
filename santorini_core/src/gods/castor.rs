@@ -529,45 +529,6 @@ fn _harpy_slide_with_coverage(
     }
 }
 
-// Returns w2's final position, and if it collided with w1's worker
-fn _harpy_w2_slide(
-    prelude: &GeneratorPreludeState,
-    unblocked_non_own_workers: BitBoard,
-    worker_start_2: Square,
-    to: Square,
-    w1_pos: Square,
-) -> (Square, usize, bool) {
-    let mut current_from = worker_start_2;
-    let mut current_pos = to;
-    let mut current_height = prelude.board.get_height(current_pos);
-
-    loop {
-        let Some(next_spot) = PUSH_MAPPING[current_from as usize][current_pos as usize] else {
-            return (current_pos, current_height, false);
-        };
-
-        let next_mask = next_spot.to_board();
-        if (unblocked_non_own_workers & next_mask).is_empty() {
-            // Hit wall
-            return (current_pos, current_height, false);
-        }
-
-        let new_height = prelude.board.get_height(next_spot);
-        if new_height > current_height {
-            // Can't climb
-            return (current_pos, current_height, false);
-        }
-
-        if next_spot == w1_pos {
-            return (current_pos, current_height, true);
-        }
-
-        current_from = current_pos;
-        current_pos = next_spot;
-        current_height = new_height;
-    }
-}
-
 #[derive(Copy, Clone)]
 struct HarpyWorkerSlideState {
     dir: Square,
