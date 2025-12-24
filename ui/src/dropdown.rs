@@ -56,12 +56,18 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
         };
 
         let mut events = ui.input(|i| i.filtered_events(&event_filter));
-        let items_for_display: Vec<_> = items
+        let mut items_for_display: Vec<_> = items
             .filter(|item| {
                 let item_text = stringer(&item);
                 item_text.to_lowercase().contains(&buf.to_lowercase())
             })
             .collect();
+        if buf.len() > 1 {
+            items_for_display.sort_by_key(|f| {
+                let item_text = stringer(&f);
+                !item_text.to_lowercase().starts_with(&buf.to_lowercase())
+            });
+        }
 
         if Popup::is_id_open(ui.ctx(), popup_id) {
             for event in events.drain(..) {
@@ -70,9 +76,8 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
                         key, pressed: true, ..
                     } => {
                         if key == Key::Enter {
-                            if items_for_display.len() == 1 {
-                                let item = items_for_display[0].clone();
-                                *selected = item;
+                            if let Some(item) = items_for_display.first() {
+                                *selected = item.clone();
                                 *buf = (stringer)(&selected);
 
                                 #[allow(deprecated)]

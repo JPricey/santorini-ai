@@ -64,6 +64,10 @@ const SHORTCUT_STATE_FORWARD: egui::KeyboardShortcut =
     egui::KeyboardShortcut::new(Modifiers::NONE, Key::ArrowRight);
 const SHORTCUT_STATE_BACKWARD: egui::KeyboardShortcut =
     egui::KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft);
+const SHORTCUT_CHANGE_MODE: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::NONE, Key::M);
+const SHORTCUT_AUTOPLAY_START: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::NONE, Key::A);
 
 fn shortcut_text(shortcut: egui::KeyboardShortcut) -> String {
     shortcut.format(&egui::ModifierNames::SYMBOLS, false)
@@ -422,6 +426,15 @@ impl MyApp {
                 self.update_state(state.clone());
             }
         }
+    }
+
+    pub fn rotate_through_mode(&mut self) {
+        self.edit_mode = match self.edit_mode {
+            EditMode::Play => EditMode::EditHeights,
+            EditMode::EditHeights => EditMode::EditWorkers,
+            EditMode::EditWorkers => EditMode::Play,
+        };
+        self.clear_actions_for_edit();
     }
 }
 
@@ -815,7 +828,7 @@ impl<'a> egui::Widget for GodChanger<'a> {
 
         let mut selected = self.app.state.gods[player_id].god_name;
         let before = selected;
-        ui.horizontal(|ui| {
+        let inner = ui.horizontal(|ui| {
             let text = match self.player {
                 Player::One => "P1 God:",
                 Player::Two => "P2 God:",
@@ -841,7 +854,7 @@ impl<'a> egui::Widget for GodChanger<'a> {
                         format!("{:?}", god_name)
                     }
                 },
-            ));
+            ))
         });
 
         if selected != before {
@@ -852,7 +865,7 @@ impl<'a> egui::Widget for GodChanger<'a> {
             self.app.update_state(new_state);
         }
 
-        ui.response()
+        inner.inner
     }
 }
 
@@ -1086,6 +1099,15 @@ impl eframe::App for MyApp {
                         new_state.recalculate_internals();
                         self.update_state(new_state);
                     }
+
+                    if ui
+                        .button("Clear History")
+                        .on_hover_text("Remove old move history")
+                        .clicked()
+                    {
+                        self.state_history = self.state_history.split_off(self.state_idx);
+                        self.state_idx = 0;
+                    }
                 });
 
                 if let Some(fen_error) = &self.editor_fen_error {
@@ -1093,15 +1115,19 @@ impl eframe::App for MyApp {
                 }
 
                 ui.horizontal(|ui| {
-                    ui.add(GodChanger {
+                    if ui.add(GodChanger {
                         app: self,
                         player: Player::One,
-                    });
+                    }).has_focus() {
+                        self.may_arrow_shortcuts = false;
+                    }
 
-                    ui.add(GodChanger {
+                    if ui.add(GodChanger {
                         app: self,
                         player: Player::Two,
-                    });
+                    }).has_focus() {
+                        self.may_arrow_shortcuts = false;
+                    }
                 });
 
                 if WIP_GODS.len() > 0 {
@@ -1113,7 +1139,10 @@ impl eframe::App for MyApp {
                 }
 
                 // MODES
-                ui.heading("Modes");
+                ui.heading("Modes") .on_hover_text(format!(
+                    "Change UI mode between playing a game, edit board heights, or edit worker locations. Shortcut: {}",
+                    shortcut_text_long(SHORTCUT_CHANGE_MODE)
+                ));
                 let before = self.edit_mode;
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.edit_mode, EditMode::Play, "Play");
@@ -1133,7 +1162,11 @@ impl eframe::App for MyApp {
                 // AUTOPLAY
                 ui.horizontal(|ui| {
                     ui.heading("Autoplay");
-                    ui.checkbox(&mut self.is_autoplay_enabled, "Enable Autoplay").on_hover_text("When enabled, engine moves will automatically be made after the timeout");
+                    ui.checkbox(&mut self.is_autoplay_enabled, "Enable Autoplay")
+                        .on_hover_text(
+                            &format!("When enabled, engine moves will automatically be made after the timeout. Shortcut: {}",
+                                shortcut_text_long(SHORTCUT_AUTOPLAY_START)
+                        ));
                 });
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.is_autoplay_per_player[0], "Autoplay for Player 1").on_hover_text("Enable autoplay for Player 1");
@@ -1212,6 +1245,14 @@ impl eframe::App for MyApp {
 
                 if i.consume_shortcut(&SHORTCUT_STATE_BACKWARD) {
                     self.try_back_state();
+                }
+
+                if i.consume_shortcut(&SHORTCUT_CHANGE_MODE) {
+                    self.rotate_through_mode()
+                }
+
+                if i.consume_shortcut(&SHORTCUT_AUTOPLAY_START) {
+                    self.is_autoplay_enabled = !self.is_autoplay_enabled;
                 }
             }
         });
