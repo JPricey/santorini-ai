@@ -428,13 +428,21 @@ impl MyApp {
         }
     }
 
+    pub fn reset_after_mode_change(&mut self) {
+        if self.edit_mode == EditMode::Play {
+            self.clear_actions();
+        } else {
+            self.clear_actions_for_edit();
+        }
+    }
+
     pub fn rotate_through_mode(&mut self) {
         self.edit_mode = match self.edit_mode {
             EditMode::Play => EditMode::EditHeights,
             EditMode::EditHeights => EditMode::EditWorkers,
             EditMode::EditWorkers => EditMode::Play,
         };
-        self.clear_actions_for_edit();
+        self.reset_after_mode_change();
     }
 }
 
@@ -1150,11 +1158,7 @@ impl eframe::App for MyApp {
                         .on_hover_text("Edit worker placements on the game board");
                 });
                 if before != self.edit_mode {
-                    if before == EditMode::Play {
-                        self.clear_actions_for_edit();
-                    } else if self.edit_mode == EditMode::Play {
-                        self.clear_actions();
-                    }
+                    self.reset_after_mode_change();
                 }
 
                 // AUTOPLAY
