@@ -27,7 +27,7 @@ The format of this state is described per relevant god:
 Use `^` If Athena climbed on her last turn, and is now blocking upponents upwards movements. Defaults to non-blocking behaviour. Example: `athena[^]:A1`
 
 #### Morpheus
-Use the number of builds that Morpheus has stored. Defaults to 0. Stored builds are only updated at the _end_ of Morpheus' turn. This means that during his turn, Morpheus always has 1 more build available than indicated. Example: `morpheus[1]:A1`
+Use the number of builds that Morpheus has stored. Defaults to 0. Stored builds are only updated at the _end_ of Morpheus' turn. This means that during his turn, Morpheus always has 1 more build available than indicated. Example: `morpheus[1]:A1` (if this were Morphreus' turn, he would have 2 builds available)
 
 #### Clio
 Clio represents both number of remaining coin placements, and current coin placements using this format: `<remaining coin placements>|<comma separated coin coordinates>`. Defaults to 3 remaining placements.
@@ -38,6 +38,9 @@ The coordinate representing the square that Talus is placed, or empty string. De
 
 #### Aeolus
 One of `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw`, or empty string. Represents the direction of movement that is currently _blocked_ (which is opposite the wind direction). Defaults to no wind. Example: `aeolus[e]:A1`
+
+#### Selene & Hippolyta
+The square of the female worker, or empty if there is none. Must match the location of a worker in the worker list. Example: `selene[A1]:A1,A2`
 
 
 # Commands
