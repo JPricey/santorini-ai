@@ -84,10 +84,14 @@ fn shortcut_button(
         ))
 }
 
-fn next_worker_rotation(current: Option<Player>) -> Option<Player> {
-    let current_idx = WORKER_ROTATION.iter().position(|x| *x == current).unwrap();
-    let new_idx = (current_idx + 1) % WORKER_ROTATION.len();
-    WORKER_ROTATION[new_idx]
+fn next_worker_rotation(current: Option<Player>, forward: bool) -> Option<Player> {
+    let current_idx = WORKER_ROTATION.iter().position(|x| *x == current).unwrap() as i32;
+    let new_idx = if forward {
+        (current_idx + 1).rem_euclid(WORKER_ROTATION.len() as i32)
+    } else {
+        (current_idx - 1).rem_euclid(WORKER_ROTATION.len() as i32)
+    };
+    WORKER_ROTATION[new_idx as usize]
 }
 
 fn square_for_interaction(action: &PartialAction) -> Option<Square> {
@@ -450,8 +454,36 @@ struct GameGrid<'a> {
     app: &'a mut MyApp,
 }
 
+impl<'a> GameGrid<'a> {
+    fn _edit_workers(&mut self, square: Square, forward: bool) {
+        let mut new_state = self.app.state.clone();
+
+        for _ in 0..2 {
+            let current_worker = new_state.board.get_worker_at(square);
+            let new_worker = next_worker_rotation(current_worker, forward);
+
+            if let Some(current_worker) = current_worker {
+                new_state
+                    .board
+                    .worker_xor(current_worker, BitBoard::as_mask(square));
+            }
+
+            if let Some(new_worker) = new_worker {
+                new_state
+                    .board
+                    .worker_xor(new_worker, BitBoard::as_mask(square));
+            }
+            if new_state.representation_err().is_ok() {
+                break;
+            }
+        }
+
+        self.app.update_state(new_state);
+    }
+}
+
 impl<'a> egui::Widget for GameGrid<'a> {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+    fn ui(mut self, ui: &mut egui::Ui) -> egui::Response {
         if self.app.is_autoplay_enabled
             && self.app.is_autoplay_per_player
                 [self.app.state.get_current_player_consider_placement_mode() as usize]
@@ -553,30 +585,33 @@ impl<'a> egui::Widget for GameGrid<'a> {
                             self.app.update_state(new_state);
                         }
                         EditMode::EditWorkers => {
+                            self._edit_workers(square, true);
+                        }
+                    }
+                } else if placed_square.secondary_clicked() {
+                    match self.app.edit_mode {
+                        EditMode::EditHeights => {
                             let mut new_state = self.app.state.clone();
 
                             for _ in 0..2 {
-                                let current_worker = new_state.board.get_worker_at(square);
-                                let new_worker = next_worker_rotation(current_worker);
-
-                                if let Some(current_worker) = current_worker {
-                                    new_state
-                                        .board
-                                        .worker_xor(current_worker, BitBoard::as_mask(square));
-                                }
-
-                                if let Some(new_worker) = new_worker {
-                                    new_state
-                                        .board
-                                        .worker_xor(new_worker, BitBoard::as_mask(square));
+                                let current_height = new_state.board.get_height(square);
+                                if current_height == 0 {
+                                    new_state.board.dome_up(square);
+                                } else if current_height == 4 {
+                                    new_state.board.undome(square, 3);
+                                } else {
+                                    new_state.board.unbuild(square);
                                 }
                                 if new_state.representation_err().is_ok() {
                                     break;
                                 }
                             }
-
                             self.app.update_state(new_state);
                         }
+                        EditMode::EditWorkers => {
+                            self._edit_workers(square, false);
+                        }
+                        _ => {}
                     }
                 }
             }
