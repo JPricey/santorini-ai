@@ -145,6 +145,12 @@ impl GodName {
     }
 }
 
+impl AsRef<str> for GodName {
+    fn as_ref(&self) -> &str {
+        self.into()
+    }
+}
+
 pub trait ResultsMapper<T>: Clone {
     fn new() -> Self;
     fn add_action(&mut self, partial_action: PartialAction);

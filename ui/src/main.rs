@@ -1,3 +1,5 @@
+mod dropdown;
+
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -204,6 +206,9 @@ struct MyApp {
     is_autoplay_per_player: [bool; 2],
     autoplay_speed_secs: f32,
     autoplay_last_status_change_time: Instant,
+
+    // God selector buf
+    god_selector_bufs: [String; 2],
 }
 
 impl MyApp {
@@ -442,6 +447,8 @@ impl Default for MyApp {
             is_autoplay_per_player: [true; 2],
             autoplay_speed_secs: 1.0,
             autoplay_last_status_change_time: Instant::now(),
+
+            god_selector_bufs: Default::default(),
         };
 
         result.update_state(result.state.clone());
@@ -814,22 +821,29 @@ impl<'a> egui::Widget for GodChanger<'a> {
                 Player::Two => "P2 God:",
             };
             ui.label(text);
-            egui::ComboBox::from_id_salt(text)
-                .selected_text(format!("{:?}", selected))
-                .show_ui(ui, |ui| {
-                    for god_name in ordered_god_names() {
-                        let is_wip = WIP_GODS.contains(&god_name);
-                        if self.app.may_show_wip_gods || !is_wip {
-                            let wip_string = if is_wip { " (WIP)" } else { "" };
-                            ui.selectable_value(
-                                &mut selected,
-                                god_name,
-                                format!("{:?} {}", god_name, wip_string),
-                            );
-                        }
+
+            let ordered_gods = ordered_god_names();
+            let available_gods_iter = ordered_gods
+                .iter()
+                .cloned()
+                .filter(|g| self.app.may_show_wip_gods || !WIP_GODS.contains(&g))
+                .map(|g| g);
+
+            ui.add(dropdown::DropdownComboBox::<GodName, _, _>::new(
+                text.to_string(),
+                &mut self.app.god_selector_bufs[self.player as usize],
+                available_gods_iter,
+                &mut selected,
+                |god_name| {
+                    if WIP_GODS.contains(god_name) {
+                        format!("{:?} (WIP)", god_name)
+                    } else {
+                        format!("{:?}", god_name)
                     }
-                });
+                },
+            ));
         });
+
         if selected != before {
             let mut new_state = self.app.state.clone();
             new_state.gods[player_id] = selected.to_power();
