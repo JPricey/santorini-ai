@@ -1,5 +1,5 @@
 use eframe::egui::{
-    EventFilter, Id, Key, Popup, PopupCloseBehavior, ScrollArea, TextEdit, TextWrapMode, Widget,
+    Event, Id, Key, Popup, PopupCloseBehavior, ScrollArea, TextEdit, TextWrapMode, Widget,
 };
 pub struct DropdownComboBox<'a, V: Clone, S: Fn(&V) -> String, I: Iterator<Item = V>> {
     hint_text: String,
@@ -42,6 +42,7 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
             mut selected,
             stringer,
         } = self;
+        let old_selected = selected.clone();
 
         let edit = TextEdit::singleline(buf)
             .hint_text(hint_text)
@@ -49,13 +50,6 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
         let edit_show = edit.show(ui);
         let edit_response = edit_show.response;
 
-        let event_filter = EventFilter {
-            horizontal_arrows: true,
-            vertical_arrows: true,
-            ..Default::default()
-        };
-
-        let mut events = ui.input(|i| i.filtered_events(&event_filter));
         let mut items_for_display: Vec<_> = items
             .filter(|item| {
                 let item_text = stringer(&item);
@@ -69,25 +63,24 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
             });
         }
 
-        if Popup::is_id_open(ui.ctx(), popup_id) {
-            for event in events.drain(..) {
-                match event {
-                    eframe::egui::Event::Key {
-                        key, pressed: true, ..
-                    } => {
-                        if key == Key::Enter {
-                            if let Some(item) = items_for_display.first() {
-                                *selected = item.clone();
-                                *buf = (stringer)(&selected);
-
-                                #[allow(deprecated)]
-                                ui.memory_mut(|m| m.close_popup(popup_id));
-                            }
+        if edit_response.lost_focus() {
+            ui.input(|input| {
+                if input.events.iter().any(|event| {
+                    matches!(
+                        event,
+                        Event::Key {
+                            key: Key::Enter,
+                            pressed: true,
+                            ..
                         }
+                    )
+                }) {
+                    if let Some(item) = items_for_display.first() {
+                        *selected = item.clone();
+                        *buf = (stringer)(selected);
                     }
-                    _ => {}
                 }
-            }
+            });
         }
 
         let close_behavior = PopupCloseBehavior::CloseOnClick;
@@ -131,6 +124,9 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
         let new_selected = selected.clone();
         if !(edit_response.has_focus() || is_popup_open) {
             *buf = (stringer)(&new_selected);
+        } else if new_selected != old_selected {
+            *buf = (stringer)(&new_selected);
+            Popup::close_all(ui.ctx());
         }
 
         edit_response
