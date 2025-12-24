@@ -1080,9 +1080,7 @@ impl eframe::App for MyApp {
                         .clicked()
                     {
                         let mut new_state = self.state.clone();
-                        new_state.gods[0] = self.state.gods[1];
-                        new_state.gods[1] = self.state.gods[0];
-
+                        new_state.gods.swap(0, 1);
                         new_state.board.god_data.swap(0, 1);
 
                         new_state.recalculate_internals();
