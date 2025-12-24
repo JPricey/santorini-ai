@@ -7,3 +7,6 @@ repository="https://github.com/JPricey/santorini-ai"
 [dependencies]
 santorini_core = { path = "../santorini_core" }
 eframe = "0.32.1"
+
+[build-dependencies]
+winres = "0.1"
