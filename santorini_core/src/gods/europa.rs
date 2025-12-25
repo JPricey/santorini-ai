@@ -213,7 +213,7 @@ pub(super) fn europa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_next_moves.worker_moves ^= moves_to_level_3;
         }
 
-        if F & super::generic::MATE_ONLY != 0 {
+        if is_mate_only::<F>() {
             continue;
         }
 

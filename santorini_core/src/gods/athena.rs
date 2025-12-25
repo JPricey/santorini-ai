@@ -21,7 +21,7 @@ const MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
 const DID_IMPROVE_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
-const DID_IMPROVE_MASK: MoveData = 1 << DID_IMPROVE_OFFSET;
+const IS_STOPPING_CLIMBING: MoveData = 1 << DID_IMPROVE_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) struct AthenaMove(pub MoveData);
@@ -39,7 +39,7 @@ impl From<GenericMove> for AthenaMove {
 }
 
 impl AthenaMove {
-    pub fn new_athena_move(
+    pub fn new_move(
         move_from_position: Square,
         move_to_position: Square,
         build_position: Square,
@@ -80,8 +80,8 @@ impl AthenaMove {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 
-    pub fn get_did_climb(&self) -> bool {
-        (self.0 & DID_IMPROVE_MASK) != 0
+    pub fn get_is_stopping_climbing(&self) -> bool {
+        (self.0 & IS_STOPPING_CLIMBING) != 0
     }
 }
 
@@ -98,7 +98,7 @@ impl std::fmt::Debug for AthenaMove {
 
         if is_win {
             write!(f, "{}>{}#", move_from, move_to)
-        } else if self.get_did_climb() {
+        } else if self.get_is_stopping_climbing() {
             write!(f, "{}>{}!^{}", move_from, move_to, build)
         } else {
             write!(f, "{}>{}^{}", move_from, move_to, build)
@@ -132,7 +132,7 @@ impl GodMove for AthenaMove {
         let build_position = self.build_position();
         board.build_up(build_position);
 
-        board.set_god_data(player, self.get_did_climb() as GodData);
+        board.set_god_data(player, self.get_is_stopping_climbing() as GodData);
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
@@ -178,7 +178,7 @@ pub(super) fn athena_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_next_moves.worker_moves ^= moves_to_level_3;
         }
 
-        if F & super::generic::MATE_ONLY != 0 {
+        if is_mate_only::<F>() {
             continue;
         }
 
@@ -227,7 +227,7 @@ pub(super) fn athena_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             );
 
             for worker_build_pos in worker_next_build_state.narrowed_builds {
-                let new_action = AthenaMove::new_athena_move(
+                let new_action = AthenaMove::new_move(
                     worker_start_pos,
                     worker_end_move_state.worker_end_pos,
                     worker_build_pos,

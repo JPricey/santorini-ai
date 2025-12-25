@@ -815,7 +815,7 @@ impl ConsistencyChecker {
                     continue;
                 }
 
-                if active_god.god_name == GodName::Athena {
+                if [GodName::Athena, GodName::Nike].contains(&active_god.god_name)  {
                     let athena_move: AthenaMove = block_action.into();
                     let did_pan_fall = self
                         .state
@@ -823,7 +823,7 @@ impl ConsistencyChecker {
                         .get_height(any_pan_move.move_from_position())
                         >= self.state.board.get_height(any_pan_move.move_to_position()) + 2;
 
-                    if athena_move.get_did_climb() && did_pan_fall {
+                    if athena_move.get_is_stopping_climbing() && did_pan_fall {
                         continue;
                     }
                 }

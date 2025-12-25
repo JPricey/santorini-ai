@@ -23,8 +23,8 @@ Example: `4101202110011400102000100/2/mortal:A3,C3/artemis:E4,A1`
 Some gods have powers that utilize state other than their own worker placements. An example of a game string using these gods is: `0000011000001000000000100/1/aeolus[w]:B3,C2/clio[1|B4,C3]:C3,D3`.  
 The format of this state is described per relevant god:
 
-#### Athena
-Use `^` If Athena climbed on her last turn, and is now blocking upponents upwards movements. Defaults to non-blocking behaviour. Example: `athena[^]:A1`
+#### Athena & Nike
+Use `^` If Athena climbed on her last turn (or if Nike moved down on their last turn), and is now blocking upponents upwards movements. Defaults to non-blocking behaviour. Example: `athena[^]:A1`
 
 #### Morpheus
 Use the number of builds that Morpheus has stored. Defaults to 0. Stored builds are only updated at the _end_ of Morpheus' turn. This means that during his turn, Morpheus always has 1 more build available than indicated. Example: `morpheus[1]:A1` (if this were Morphreus' turn, he would have 2 builds available)
