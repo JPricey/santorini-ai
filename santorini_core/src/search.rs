@@ -150,16 +150,18 @@ const RESPONSE_HISTORY_MAX: HistoryDelta = 8192;
 const FOLLOW_HISTORY_MAX: HistoryDelta = 8192;
 
 pub const BASE_MOVE_HISTORY_TABLE_SIZE: usize = 999_983;
-pub const MOVE_HISTORY_BY_DEPTH_SIZE: usize = 100_001;
+pub const MOVE_HISTORY_BY_DEPTH_SIZE: usize = 200_001;
 pub const MAX_MOVE_HISTORY_DEPTH: usize = 32;
-pub const RESPONSE_HISTORY_SIZE: usize = 999_983;
-pub const FOLLOW_HISTORY_SIZE: usize = 999_983;
+pub const RESPONSE_HISTORY_SIZE: usize = 999_985;
+pub const FOLLOW_HISTORY_SIZE: usize = 999_987;
 
 type HistoryDelta = i32;
 
-pub fn update_history_value(val: &mut MoveScore, bonus: HistoryDelta, max: HistoryDelta) {
+pub fn update_history_value<const MAX: HistoryDelta>(val: &mut MoveScore, bonus: HistoryDelta) {
     let current = HistoryDelta::from(*val);
-    *val += (bonus - (current * bonus.abs() / max)) as MoveScore;
+    let delta_raw = bonus - (current * bonus.abs() / MAX);
+    let new = (*val as HistoryDelta + delta_raw).clamp(-MAX, MAX);
+    *val = new as MoveScore;
 }
 
 pub fn set_min_history_value(val: &mut MoveScore, new_val: HistoryDelta) {
@@ -218,33 +220,29 @@ impl Histories {
         prev_move_idx: Option<usize>,
         follow_move_idx: Option<usize>,
     ) {
-        update_history_value(
+        update_history_value::<GLOBAL_MOVE_HISTORY_MAX>(
             &mut self.global_move_history[move_idx % BASE_MOVE_HISTORY_TABLE_SIZE],
             magnitude,
-            GLOBAL_MOVE_HISTORY_MAX,
         );
-        update_history_value(
+        update_history_value::<PER_PLY_HISTORY_MAX>(
             &mut self.move_history_by_ply[Self::_move_history_ply(ply)]
                 [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE],
             magnitude,
-            PER_PLY_HISTORY_MAX,
         );
 
         if let Some(prev_move_idx) = prev_move_idx {
-            update_history_value(
+            update_history_value::<RESPONSE_HISTORY_MAX>(
                 &mut self.response_history
                     [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE],
                 magnitude,
-                RESPONSE_HISTORY_MAX,
-            );
+            )
         }
 
         if let Some(follow_move_idx) = follow_move_idx {
-            update_history_value(
+            update_history_value::<FOLLOW_HISTORY_MAX>(
                 &mut self.follow_history
                     [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE],
                 magnitude,
-                FOLLOW_HISTORY_MAX,
             );
         }
     }
@@ -291,7 +289,7 @@ impl Default for Histories {
             global_move_history: vec![0; BASE_MOVE_HISTORY_TABLE_SIZE],
             move_history_by_ply: array::from_fn(|_| vec![0; MOVE_HISTORY_BY_DEPTH_SIZE]),
             response_history: vec![0; RESPONSE_HISTORY_SIZE],
-            follow_history: vec![0; RESPONSE_HISTORY_SIZE],
+            follow_history: vec![0; FOLLOW_HISTORY_SIZE],
         }
     }
 }
@@ -1137,7 +1135,7 @@ where
         (6 + lmp_d * lmp_d).max(0) as usize
     };
 
-    let low_score_cutoff = -750 * (remaining_depth.max(0) + 1) as MoveScore;
+    let low_score_cutoff = -750 * (remaining_depth.max(0) + 1).min(40) as MoveScore;
 
     let _nd2 = ((next_depth + 1) * (next_depth + 1)) as HistoryDelta;
     let nd1 = (next_depth + 1) as HistoryDelta;
