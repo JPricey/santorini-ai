@@ -188,7 +188,7 @@ impl std::fmt::Debug for HermesMove {
 }
 
 impl GodMove for HermesMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         if self.get_is_winning() {
             return vec![vec![
                 PartialAction::SelectWorker(self.move_from_position()),

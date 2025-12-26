@@ -31,7 +31,7 @@ const IS_DANCE_WIN_BIT: MoveData = (1 as MoveData) << IS_DANCE_WIN_OFFSET;
 pub struct MaenadsMove(pub MoveData);
 
 impl GodMove for MaenadsMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),

@@ -33,7 +33,7 @@ const MOVE_TO_POSITION_OFFSET: usize = MOVE_FROM_POSITION_OFFSET + POSITION_WIDT
 struct MorpheusMove(pub MoveData);
 
 impl GodMove for MorpheusMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut action = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),

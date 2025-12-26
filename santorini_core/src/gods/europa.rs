@@ -129,7 +129,7 @@ impl std::fmt::Debug for EuropaMove {
 }
 
 impl GodMove for EuropaMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),

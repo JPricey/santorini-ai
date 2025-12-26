@@ -126,11 +126,15 @@ impl std::fmt::Debug for SeleneMove {
 }
 
 impl GodMove for SeleneMove {
-    fn move_to_actions(self, board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(
+        self,
+        board: &BoardState,
+        player: Player,
+        _other_god: StaticGod,
+    ) -> Vec<FullAction> {
         let move_from = self.move_from_position();
         let mut res = vec![PartialAction::SelectWorker(move_from)];
-        let is_female =
-            (BitBoard::as_mask(move_from).0 & board.god_data[board.current_player as usize]) != 0;
+        let is_female = (move_from.to_board().0 & board.god_data[player as usize]) != 0;
         if is_female {
             res.push(PartialAction::new_move_female_worker(
                 self.move_to_position(),
@@ -164,7 +168,7 @@ impl GodMove for SeleneMove {
 
         // Check move F worker
         if (board.god_data[player as usize] & worker_move_mask.0) != 0 {
-            board.delta_god_data(player, worker_move_mask.0);
+            board.xor_god_data(player, worker_move_mask.0);
         }
 
         if self.get_is_winning() {

@@ -31,7 +31,7 @@ const WORKER_SPECIAL_ACTION_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WID
 pub struct HydraMove(pub MoveData);
 
 impl GodMove for HydraMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),

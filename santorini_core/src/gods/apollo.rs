@@ -134,7 +134,7 @@ impl std::fmt::Debug for ApolloMove {
 }
 
 impl GodMove for ApolloMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![PartialAction::SelectWorker(self.move_from_position())];
 
         if let Some(swap_square) = self.swap_from_square() {

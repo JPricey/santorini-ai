@@ -50,7 +50,7 @@ impl FemaleWorkerPlacement {
 }
 
 impl GodMove for FemaleWorkerPlacement {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         vec![
             vec![
                 PartialAction::PlaceWorker(self.female_worker()),

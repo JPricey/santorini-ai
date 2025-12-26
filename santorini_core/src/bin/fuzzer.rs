@@ -11,6 +11,7 @@ use santorini_core::{
 };
 
 fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
+    let mut prev_state = root_state.clone();
     let mut current_state = root_state;
     loop {
         if current_state.board.get_winner().is_some() {
@@ -19,6 +20,7 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
 
         if let Err(err) = consistency_check(&current_state) {
             eprintln!("Consistency check failed: {:?}", current_state);
+            eprintln!("Previous state: {:?}", prev_state);
             current_state.print_to_console();
 
             for error_line in err {
@@ -29,7 +31,7 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
         }
 
         if let Some(next_state) = get_random_state_flattening_powers(&current_state, rng) {
-            // eprintln!("{:?}", next_state);
+            prev_state = current_state;
             current_state = next_state;
         } else {
             return;

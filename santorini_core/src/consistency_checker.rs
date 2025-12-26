@@ -335,7 +335,10 @@ impl ConsistencyChecker {
             return;
         }
 
-        if active_god.god_name == GodName::Proteus || active_god.god_name == GodName::Hydra {
+        if active_god.god_name == GodName::Proteus
+            || active_god.god_name == GodName::Hydra
+            || active_god.god_name == GodName::Nemesis
+        {
             return;
         }
 
@@ -398,7 +401,10 @@ impl ConsistencyChecker {
             return;
         }
 
-        if active_god_name == GodName::Proteus || active_god_name == GodName::Hydra {
+        if active_god_name == GodName::Proteus
+            || active_god_name == GodName::Hydra
+            || active_god_name == GodName::Nemesis
+        {
             return;
         }
 
@@ -585,7 +591,10 @@ impl ConsistencyChecker {
             return;
         }
 
-        if active_god.god_name == GodName::Proteus || active_god.god_name == GodName::Hydra {
+        if active_god.god_name == GodName::Proteus
+            || active_god.god_name == GodName::Hydra
+            || active_god.god_name == GodName::Nemesis
+        {
             return;
         }
 
@@ -653,8 +662,14 @@ impl ConsistencyChecker {
             let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
             let new_dome_builds = new_state.board.height_map[3] & !self.state.board.height_map[3];
 
-            let build_mask =
-                oppo_god.get_build_mask(new_state.board.workers[!current_player as usize]);
+            let state_for_build_mask = if active_god.god_name == GodName::Nemesis {
+                &self.state
+            } else {
+                &new_state
+            };
+
+            let build_mask = oppo_god
+                .get_build_mask(state_for_build_mask.board.workers[!current_player as usize]);
 
             if new_dome_builds.is_not_empty() {
                 dome_build_actions.push(action);
@@ -815,7 +830,7 @@ impl ConsistencyChecker {
                     continue;
                 }
 
-                if [GodName::Athena, GodName::Nike].contains(&active_god.god_name)  {
+                if [GodName::Athena, GodName::Nike].contains(&active_god.god_name) {
                     let athena_move: AthenaMove = block_action.into();
                     let did_pan_fall = self
                         .state

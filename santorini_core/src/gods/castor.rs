@@ -40,7 +40,7 @@ const BUILD_POSITION_2: usize = BUILD_POSITION_1 + POSITION_WIDTH;
 pub struct CastorMove(pub MoveData);
 
 impl GodMove for CastorMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         if let Some(from1) = self.maybe_move_from_position_1() {
             let to1 = self.move_to_position_1();
             let mut res = vec![

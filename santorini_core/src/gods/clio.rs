@@ -32,7 +32,7 @@ const USED_COIN_MASK: GodData = 0b11 << GOD_DATA_COIN_COUNT_OFFSET;
 struct ClioMove(pub MoveData);
 
 impl GodMove for ClioMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),
@@ -68,7 +68,7 @@ impl GodMove for ClioMove {
 
             data_diff |= used_coin_delta << GOD_DATA_COIN_COUNT_OFFSET;
         }
-        board.delta_god_data(player, data_diff);
+        board.xor_god_data(player, data_diff);
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {

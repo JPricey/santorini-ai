@@ -4,7 +4,7 @@ use crate::{
     bitboard::BitBoard,
     board::{FullGameState, GodData},
     gods::{GodName, MoveWorkerMeta, PartialAction},
-    placement::get_starting_placement_state,
+    placement::{PlacementType, get_starting_placement_state},
     player::Player,
     square::Square,
 };
@@ -99,11 +99,18 @@ pub fn game_state_with_partial_actions(
                 selected_square = Some(square);
             }
             PartialAction::ForceOpponentWorker(from, to) => {
-                // TODO: check if opponent is a female worker, and move the female worker token
-                board.worker_xor(
-                    !current_player,
-                    BitBoard::as_mask(from) | BitBoard::as_mask(to),
-                );
+                let xor_mask = from.to_board() ^ to.to_board();
+                board.worker_xor(!current_player, xor_mask);
+
+                if state.gods[!current_player as usize].placement_type
+                    == PlacementType::FemaleWorker
+                {
+                    let is_f_worker_forced =
+                        (board.god_data[!current_player as usize] & xor_mask.0) != 0;
+                    if is_f_worker_forced {
+                        board.xor_god_data(!current_player, xor_mask.0);
+                    }
+                }
             }
             PartialAction::MoveWorker(data) => {
                 let selected_square = selected_square.take().unwrap();
@@ -113,16 +120,26 @@ pub fn game_state_with_partial_actions(
                 if let Some(meta) = data.meta {
                     match meta {
                         MoveWorkerMeta::MoveEnemyWorker(move_enemy_worker) => {
-                            let enemy_worker_mask = BitBoard::as_mask(move_enemy_worker.from)
+                            let xor_mask = BitBoard::as_mask(move_enemy_worker.from)
                                 ^ BitBoard::as_mask(move_enemy_worker.to);
-                            board.worker_xor(!current_player, enemy_worker_mask);
+                            board.worker_xor(!current_player, xor_mask);
+
+                            if state.gods[!current_player as usize].placement_type
+                                == PlacementType::FemaleWorker
+                            {
+                                let is_f_worker_forced =
+                                    (board.god_data[!current_player as usize] & xor_mask.0) != 0;
+                                if is_f_worker_forced {
+                                    board.xor_god_data(!current_player, xor_mask.0);
+                                }
+                            }
                         }
                         MoveWorkerMeta::KillEnemyWorker(kill_enemy_worker) => {
                             let enemy_worker_mask = BitBoard::as_mask(kill_enemy_worker.square);
                             board.worker_xor(!current_player, enemy_worker_mask);
                         }
                         MoveWorkerMeta::IsFWorker => {
-                            board.delta_god_data(current_player, self_mask.0);
+                            board.xor_god_data(current_player, self_mask.0);
                         }
                     }
                 }

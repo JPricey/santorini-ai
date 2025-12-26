@@ -34,7 +34,7 @@ const IS_STONE_BIT_MASK: MoveData = 1 << IS_STONE_BIT_OFFSET;
 pub struct MedusaMove(pub MoveData);
 
 impl GodMove for MedusaMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),

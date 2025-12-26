@@ -35,8 +35,15 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     add_matchup(GodName::Harpies, GodName::Hermes, BannedReason::Game);
 
     // Harpies/Maenads seems fine? Well we implemented it, anyway
-    
-    // add_matchup(GodName::Castor, GodName::Harpies, BannedReason::Game);
+
+    add_matchup(GodName::Nemesis, GodName::Aphrodite, BannedReason::Game);
+    add_matchup(GodName::Nemesis, GodName::Bia, BannedReason::Game);
+    add_matchup(GodName::Nemesis, GodName::Clio, BannedReason::Game);
+    // add_matchup(GodName::Nemesis, GodName::Gaea, BannedReason::Game);
+    add_matchup(GodName::Nemesis, GodName::Graeae, BannedReason::Game);
+    add_matchup(GodName::Nemesis, GodName::Medusa, BannedReason::Game);
+    // add_matchup(GodName::Nemesis, GodName::Terpsichore, BannedReason::Game);
+    // add_matchup(GodName::Nemesis, GodName::Theseus, BannedReason::Game);
 
     set
 });

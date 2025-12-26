@@ -149,7 +149,7 @@ impl std::fmt::Debug for MinotaurMove {
 }
 
 impl GodMove for MinotaurMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut result = vec![PartialAction::SelectWorker(self.move_from_position())];
 
         if let Some(push_to) = self.push_to_position() {

@@ -553,7 +553,7 @@ impl<'a> egui::Widget for GameGrid<'a> {
         let render_state =
             game_state_with_partial_actions(&self.app.state, &self.app.current_actions);
 
-        let (p1_tokens, p2_tokens) = self.app.state.get_token_squares();
+        let (p1_tokens, p2_tokens) = render_state.get_token_squares();
 
         for r in 0..5 {
             for c in 0..5 {

@@ -31,7 +31,7 @@ const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
 pub struct MortalMove(pub MoveData);
 
 impl GodMove for MortalMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),
@@ -196,10 +196,10 @@ pub(super) fn mortal_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     worker_end_move_state.worker_end_pos,
                     worker_build_pos,
                 );
+                let build_mask = worker_build_pos.to_board();
                 let is_check = {
-                    let final_level_3 = (prelude.exactly_level_2
-                        & BitBoard::as_mask(worker_build_pos))
-                        | (prelude.exactly_level_3 & !BitBoard::as_mask(worker_build_pos));
+                    let final_level_3 = (prelude.exactly_level_2 & build_mask)
+                        | (prelude.exactly_level_3 & !build_mask);
                     let check_board = reach_board & final_level_3;
                     check_board.is_not_empty()
                 };

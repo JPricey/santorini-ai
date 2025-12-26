@@ -140,7 +140,7 @@ impl std::fmt::Debug for CharonV2Move {
 }
 
 impl GodMove for CharonV2Move {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut result = vec![];
 
         result.push(PartialAction::SelectWorker(self.move_from_position()));

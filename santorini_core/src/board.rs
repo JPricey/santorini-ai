@@ -200,7 +200,10 @@ impl FullGameState {
         let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
 
         if let Some(placement_mode) = placement_mode {
-            let active_god = self.gods[placement_mode.next_placement as usize];
+            let player = placement_mode.next_placement;
+            let active_god = self.gods[player as usize];
+            let other_god = self.gods[!player as usize];
+
             let placement_actions = active_god.get_all_placement_actions(
                 self.gods,
                 &self.board,
@@ -209,7 +212,9 @@ impl FullGameState {
             let mut res: Vec<GameStateWithAction> = Vec::new();
 
             for p in placement_actions {
-                for series in active_god.placement_move_to_actions(p, &self.board) {
+                for series in
+                    active_god.placement_move_to_actions(p, &self.board, player, other_god)
+                {
                     let new_state = active_god.make_placement_move_on_clone(
                         p,
                         self,
@@ -466,7 +471,7 @@ impl BoardState {
     pub fn oppo_worker_xor(&mut self, other_god: StaticGod, player: Player, xor: BitBoard) {
         if other_god.placement_type == PlacementType::FemaleWorker {
             if (self.god_data[player as usize] & xor.0) != 0 {
-                self.delta_god_data(player, xor.0);
+                self.xor_god_data(player, xor.0);
             }
         }
 
@@ -553,7 +558,7 @@ impl BoardState {
         }
     }
 
-    pub fn delta_god_data(&mut self, player: Player, mut delta: GodData) {
+    pub fn xor_god_data(&mut self, player: Player, mut delta: GodData) {
         self.god_data[player as usize] ^= delta;
 
         while delta > 0 {
@@ -661,14 +666,37 @@ impl BoardState {
                     player
                 ));
             }
-        }
-
-        if own_god.god_name == GodName::Eros {
+        } else if own_god.god_name == GodName::Eros {
             if worker_count > 2 {
                 return Err(format!(
                     "Player {:?} as Eros can't have more than 2 workers",
                     player
                 ));
+            }
+        } else if own_god.god_name == GodName::Nemesis {
+            if worker_count > 2 {
+                return Err(format!(
+                    "Player {:?} as Nemesis can't have more than 2 workers",
+                    player
+                ));
+            }
+        } else if own_god.god_name == GodName::Hypnus
+            || own_god.placement_type == PlacementType::FemaleWorker
+        {
+            if other_god.god_name == GodName::Nemesis {
+                if worker_count != 2 && worker_count != 0 {
+                    return Err(format!(
+                        "Player {:?} as {:?} must have 2 workers vs Nemesis",
+                        player, own_god.god_name
+                    ));
+                }
+
+                if oppo_count != 2 && oppo_count != 0 {
+                    return Err(format!(
+                        "Player {:?} as Nemesis must have 2 workers vs {:?}",
+                        !player, own_god.god_name
+                    ));
+                }
             }
         }
 

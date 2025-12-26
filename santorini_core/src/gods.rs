@@ -56,6 +56,8 @@ pub(crate) mod minotaur;
 pub(crate) mod morpheus;
 pub(crate) mod mortal;
 pub(crate) mod move_helpers;
+pub(crate) mod nemesis;
+pub(crate) mod nike;
 pub(crate) mod pan;
 pub(crate) mod pegasus;
 pub(crate) mod persephone;
@@ -66,7 +68,6 @@ pub(crate) mod scylla;
 pub(crate) mod selene;
 pub(crate) mod urania;
 pub(crate) mod zeus;
-pub(crate) mod nike;
 
 pub type StaticGod = &'static GodPower;
 
@@ -132,10 +133,18 @@ pub enum GodName {
     CharonV2 = 42,
     Polyphemus = 43,
     Nike = 44,
+    Nemesis = 45,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [GodName::Medusa, GodName::Iris, GodName::Castor, GodName::CharonV2, GodName::Polyphemus, GodName::Nike]);
+counted_array!(pub const WIP_GODS: [GodName; _] = [
+    GodName::Medusa,
+    GodName::Iris,
+    GodName::Castor,
+    GodName::CharonV2,
+    GodName::Polyphemus,
+    GodName::Nike,
+]);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -322,7 +331,12 @@ pub(super) struct GodPlacementFns {
     _stringify_placement_move: StringifyMoveFn,
     _make_placement_move:
         fn(action: GenericMove, board: &mut BoardState, player: Player, other_god: StaticGod),
-    _move_to_actions: fn(action: GenericMove, board: &BoardState) -> Vec<FullAction>,
+    _move_to_actions: fn(
+        action: GenericMove,
+        board: &BoardState,
+        player: Player,
+        other_god: StaticGod,
+    ) -> Vec<FullAction>,
     _history_idx: fn(actions: GenericMove, board: &BoardState) -> usize,
 }
 
@@ -350,9 +364,11 @@ pub(super) const fn placement_to_fns<W: WorkerPlacementMove>() -> GodPlacementFn
     fn _move_to_actions<W: WorkerPlacementMove>(
         actions: GenericMove,
         board: &BoardState,
+        player: Player,
+        other_god: StaticGod,
     ) -> Vec<FullAction> {
         let action: W = actions.into();
-        action.move_to_actions(board)
+        action.move_to_actions(board, player, other_god)
     }
 
     GodPlacementFns {
@@ -367,7 +383,12 @@ pub(super) const fn placement_to_fns<W: WorkerPlacementMove>() -> GodPlacementFn
 
 pub(super) struct GodPowerActionFns {
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
-    _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
+    _get_actions_for_move: fn(
+        board: &BoardState,
+        action: GenericMove,
+        player: Player,
+        other_god: StaticGod,
+    ) -> Vec<FullAction>,
 
     _make_move: fn(board: &mut BoardState, action: GenericMove, other_god: StaticGod),
 
@@ -435,7 +456,12 @@ pub struct GodPower {
 
     // Action Fns
     _get_blocker_board: fn(board: &BoardState, action: GenericMove) -> BitBoard,
-    _get_actions_for_move: fn(board: &BoardState, action: GenericMove) -> Vec<FullAction>,
+    _get_actions_for_move: fn(
+        board: &BoardState,
+        action: GenericMove,
+        player: Player,
+        other_god: StaticGod,
+    ) -> Vec<FullAction>,
 
     _make_move: fn(board: &mut BoardState, action: GenericMove, other_god: StaticGod),
     _make_passing_move: MakePassingMoveFn,
@@ -507,7 +533,12 @@ impl GodPower {
             .flat_map(|action| {
                 let mut result_state = state.board.clone();
                 self.make_move(&mut result_state, other_god, action.action);
-                let action_paths = (self._get_actions_for_move)(&state.board, action.action);
+                let action_paths = (self._get_actions_for_move)(
+                    &state.board,
+                    action.action,
+                    active_player,
+                    other_god,
+                );
 
                 action_paths.into_iter().map(move |full_actions| {
                     BoardStateWithAction::new(result_state.clone(), full_actions)
@@ -608,8 +639,10 @@ impl GodPower {
         &self,
         action: GenericMove,
         board: &BoardState,
+        player: Player,
+        other_god: StaticGod,
     ) -> Vec<FullAction> {
-        (self._placement_fns._move_to_actions)(action, board)
+        (self._placement_fns._move_to_actions)(action, board, player, other_god)
     }
 
     pub(crate) fn get_placement_history_hash(
@@ -649,8 +682,14 @@ impl GodPower {
         (self._stringify_move)(action)
     }
 
-    pub fn get_actions_for_move(&self, board: &BoardState, action: GenericMove) -> Vec<FullAction> {
-        (self._get_actions_for_move)(board, action)
+    pub fn get_actions_for_move(
+        &self,
+        board: &BoardState,
+        action: GenericMove,
+        player: Player,
+        other_god: StaticGod,
+    ) -> Vec<FullAction> {
+        (self._get_actions_for_move)(board, action, player, other_god)
     }
 
     pub(super) fn get_history_hash(&self, board: &BoardState, action: GenericMove) -> usize {
@@ -768,6 +807,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     charon_v2::build_charon_v2(),
     polyphemus::build_polyphemus(),
     nike::build_nike(),
+    nemesis::build_nemesis(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -852,9 +892,11 @@ pub(crate) const fn build_god_power_actions<T: GodMove>() -> GodPowerActionFns {
     fn _get_actions_for_move<T: GodMove>(
         board: &BoardState,
         action: GenericMove,
+        player: Player,
+        other_god: StaticGod,
     ) -> Vec<FullAction> {
         let action: T = action.into();
-        action.move_to_actions(board)
+        action.move_to_actions(board, player, other_god)
     }
 
     fn _make_move<T: GodMove>(board: &mut BoardState, action: GenericMove, other_god: StaticGod) {
@@ -1118,7 +1160,6 @@ impl HistoryIdxHelper {
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) fn add_known_maybe_square_with_height(
         &mut self,
         board: &BoardState,

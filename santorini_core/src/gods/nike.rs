@@ -165,8 +165,8 @@ pub const fn build_nike() -> GodPower {
         GodName::Nike,
         build_god_power_movers!(nike_move_gen),
         build_god_power_actions::<AthenaMove>(),
-        1867170053174999423,
-        15381411414297507361,
+        2166638488424994940,
+        8591575656066204147,
     )
     .with_make_passing_move_fn(nike_passing_move)
     .with_can_opponent_climb_fn(can_opponent_climb)

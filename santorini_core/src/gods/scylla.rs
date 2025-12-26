@@ -141,7 +141,7 @@ impl std::fmt::Debug for ScyllaMoveMove {
 }
 
 impl GodMove for ScyllaMoveMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut result = vec![];
         let move_from_position = self.move_from_position();
 

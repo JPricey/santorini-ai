@@ -34,7 +34,7 @@ const KILL_POSITION_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
 struct BiaMove(pub MoveData);
 
 impl GodMove for BiaMove {
-    fn move_to_actions(self, _board: &BoardState) -> Vec<FullAction> {
+    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
         let mut res = vec![PartialAction::SelectWorker(self.move_from_position())];
 
         if let Some(kill_pos) = self.killed_worker_pos() {
