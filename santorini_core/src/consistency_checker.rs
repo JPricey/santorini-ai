@@ -688,7 +688,7 @@ impl ConsistencyChecker {
             }
         }
 
-        if active_god.god_name == GodName::Morpheus {
+        if active_god.god_name == GodName::Morpheus || active_god.god_name == GodName::Poseidon {
             // The check below only works for domers.
             // Morpheus "domes" over multiple builds, which limus does not allow
             return;
@@ -824,7 +824,9 @@ impl ConsistencyChecker {
                     continue;
                 }
 
-                if active_god.god_name == GodName::Morpheus {
+                if active_god.god_name == GodName::Morpheus
+                    || active_god.god_name == GodName::Poseidon
+                {
                     // morpheus can triple build into 0's, allowing pan to make the same move to
                     // win
                     continue;

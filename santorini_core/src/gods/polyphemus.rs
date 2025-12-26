@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, NEIGHBOR_MAP},
+    bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, NEIGHBOR_MAP, UPPER_SPACES_INCLUSIVE_MAP},
     board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
     gods::{
@@ -148,7 +148,12 @@ impl std::fmt::Debug for PolyphemusMove {
 }
 
 impl GodMove for PolyphemusMove {
-    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
+    fn move_to_actions(
+        self,
+        _board: &BoardState,
+        _player: Player,
+        _other_god: StaticGod,
+    ) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),
@@ -313,7 +318,7 @@ fn polyphemus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     if is_stop_on_mate::<F>() && did_build_to_dome {
                         possible_domes &= !(all_possible_builds
                             & prelude.exactly_level_3
-                            & !LOWER_SQUARES_EXCLUSIVE_MASK[worker_build_pos as usize]);
+                            & UPPER_SPACES_INCLUSIVE_MAP[worker_build_pos as usize]);
                     }
 
                     for d1 in possible_domes {

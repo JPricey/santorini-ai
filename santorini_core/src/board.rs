@@ -659,28 +659,23 @@ impl BoardState {
             }
         }
 
-        if own_god.god_name == GodName::Hermes {
+        if [
+            GodName::Hermes,
+            GodName::Eros,
+            GodName::Nemesis,
+            GodName::Poseidon,
+        ]
+        .contains(&own_god.god_name)
+        {
             if worker_count > 2 {
                 return Err(format!(
-                    "Player {:?} as Hermes can't have more than 2 workers",
-                    player
+                    "Player {:?} as {:?} can't have more than 2 workers",
+                    player, own_god.god_name
                 ));
             }
-        } else if own_god.god_name == GodName::Eros {
-            if worker_count > 2 {
-                return Err(format!(
-                    "Player {:?} as Eros can't have more than 2 workers",
-                    player
-                ));
-            }
-        } else if own_god.god_name == GodName::Nemesis {
-            if worker_count > 2 {
-                return Err(format!(
-                    "Player {:?} as Nemesis can't have more than 2 workers",
-                    player
-                ));
-            }
-        } else if own_god.god_name == GodName::Hypnus
+        }
+
+        if own_god.god_name == GodName::Hypnus
             || own_god.placement_type == PlacementType::FemaleWorker
         {
             if other_god.god_name == GodName::Nemesis {

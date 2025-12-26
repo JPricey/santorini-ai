@@ -308,6 +308,14 @@ pub const LOWER_SQUARES_EXCLUSIVE_MASK: BitboardMapping = square_map!(square => 
     res
 });
 
+pub const UPPER_SPACES_INCLUSIVE_MAP: BitboardMapping = square_map!(square => {
+    LOWER_SQUARES_EXCLUSIVE_MASK[square as usize].bit_not()
+});
+
+pub const UPPER_SPACES_EXCLUSIVE_MAP: BitboardMapping = square_map!(square => {
+    LOWER_SQUARES_INCLUSIVE_MASK[square as usize].bit_not()
+});
+
 pub const MIDDLE_SPACES_MASK: BitBoard = BitBoard(0b00000_01110_01110_01110_00000);
 pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
     .bit_not()

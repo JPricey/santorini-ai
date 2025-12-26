@@ -448,7 +448,7 @@ impl MyApp {
 
 impl Default for MyApp {
     fn default() -> Self {
-        let default_state = FullGameState::new_empty_state(GodName::Mortal, GodName::Mortal);
+        let default_state = FullGameState::new_empty_state(GodName::Poseidon, GodName::Mortal);
         let mut result = Self {
             state: default_state.clone(),
             state_history: vec![default_state.clone()],
