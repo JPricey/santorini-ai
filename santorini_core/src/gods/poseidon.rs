@@ -524,6 +524,22 @@ fn _add_b2<const F: MoveGenFlags>(
                 already_checking,
             );
         }
+
+        let next_builds = possible_ground_builds & LOWER_SQUARES_EXCLUSIVE_MASK[b2 as usize];
+        _add_b3::<F>(
+            prelude,
+            result,
+            start_pos,
+            end_pos,
+            b0,
+            b1,
+            b2,
+            next_builds,
+            checking_reach,
+            already_checking,
+            key_squares,
+            did_already_block,
+        );
     }
 }
 
