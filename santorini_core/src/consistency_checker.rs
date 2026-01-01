@@ -10,6 +10,7 @@ use crate::{
         GodName, StaticGod,
         ares::AresMove,
         athena::AthenaMove,
+        bellerophon::BellerophonMove,
         castor::CastorMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_blockers,
@@ -501,6 +502,15 @@ impl ConsistencyChecker {
         if let Some(inc) = increase_move
             && let Some(non_inc) = non_increase_move
         {
+            if active_god.god_name == GodName::Bellerophon {
+                let inc: BellerophonMove = inc.into();
+                let non_inc: BellerophonMove = non_inc.into();
+
+                if inc.is_use_power() && !non_inc.is_use_power() {
+                    return;
+                }
+            }
+
             let inc_str = active_god.stringify_move(inc);
             let non_inc_str = active_god.stringify_move(non_inc);
 
@@ -1183,6 +1193,15 @@ impl ConsistencyChecker {
                 stringed_action, state, won_state,
             ));
             return;
+        }
+
+        if active_god.god_name == GodName::Bellerophon {
+            if old_height == 1 && new_height == 3 {
+                let action: BellerophonMove = action.into();
+                if action.is_use_power() {
+                    return;
+                }
+            }
         }
 
         let win_mask = oppo_god.win_mask;
