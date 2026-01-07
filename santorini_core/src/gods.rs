@@ -150,6 +150,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Nike,
     GodName::Nemesis,
     GodName::Poseidon,
+    GodName::Bellerophon,
 ]);
 
 impl GodName {

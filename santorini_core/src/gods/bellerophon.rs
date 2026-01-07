@@ -1,22 +1,22 @@
 use crate::{
-    bitboard::{BitBoard, apply_mapping_to_mask},
+    bitboard::{apply_mapping_to_mask, BitBoard},
     board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
     gods::{
-        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod, build_god_power_actions,
+        build_god_power_actions,
         generic::{
-            ANY_MOVE_FILTER, GenericMove, GodMove, LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK,
-            MoveData, MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
+            GenericMove, GodMove, MoveData, MoveGenFlags, ScoredMove, ANY_MOVE_FILTER,
+            LOWER_POSITION_MASK, MOVE_IS_WINNING_MASK, NULL_MOVE_DATA, POSITION_WIDTH,
         },
         god_power,
         mortal::mortal_move_gen,
         move_helpers::{
-            GeneratorPreludeState, WorkerStartMoveState, build_scored_move,
-            get_generator_prelude_state, get_sized_result, get_worker_end_move_state,
-            get_worker_next_build_state, get_worker_start_move_state, is_mate_only,
-            is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
-            restrict_moves_by_affinity_area,
+            build_scored_move, get_generator_prelude_state, get_sized_result,
+            get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
+            is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
+            restrict_moves_by_affinity_area, GeneratorPreludeState, WorkerStartMoveState,
         },
+        FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod,
     },
     player::Player,
     search::Heuristic,
@@ -690,7 +690,11 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
 }
 
 fn eval_modifier(data: GodData) -> Heuristic {
-    if data == 0 { 500 } else { 0 }
+    if data == 0 {
+        500
+    } else {
+        0
+    }
 }
 
 pub const fn build_bellerophon() -> GodPower {
