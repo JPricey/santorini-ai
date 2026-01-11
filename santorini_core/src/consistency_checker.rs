@@ -339,6 +339,7 @@ impl ConsistencyChecker {
         if active_god.god_name == GodName::Proteus
             || active_god.god_name == GodName::Hydra
             || active_god.god_name == GodName::Nemesis
+            || active_god.god_name == GodName::Jason
         {
             return;
         }
@@ -405,6 +406,7 @@ impl ConsistencyChecker {
         if active_god_name == GodName::Proteus
             || active_god_name == GodName::Hydra
             || active_god_name == GodName::Nemesis
+            || active_god_name == GodName::Jason
         {
             return;
         }

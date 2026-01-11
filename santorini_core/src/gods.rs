@@ -51,6 +51,7 @@ pub(crate) mod hippolyta;
 pub(crate) mod hydra;
 pub(crate) mod hypnus;
 pub(crate) mod iris;
+pub(crate) mod jason;
 pub(crate) mod limus;
 pub(crate) mod maenads;
 pub(crate) mod medusa;
@@ -142,6 +143,7 @@ pub enum GodName {
     Bellerophon = 47,
     Chronus = 48,
     Theseus = 49,
+    Jason = 50,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -157,6 +159,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Bellerophon,
     GodName::Chronus,
     GodName::Theseus,
+    GodName::Jason,
 ]);
 
 impl GodName {
@@ -825,6 +828,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     bellerophon::build_bellerophon(),
     chronus::build_chronus(),
     theseus::build_theseus(),
+    jason::build_jason(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

@@ -5,7 +5,10 @@ use rand::{
 
 use crate::{
     board::FullGameState,
-    gods::{ALL_GODS_BY_ID, GodName, StaticGod, generic::ScoredMove, polyphemus::PolyphemusMove},
+    gods::{
+        ALL_GODS_BY_ID, GodName, StaticGod, generic::ScoredMove, jason::JasonMove,
+        polyphemus::PolyphemusMove,
+    },
     matchup::Matchup,
     placement::get_starting_placement_state,
 };
@@ -42,6 +45,22 @@ pub fn get_random_move(state: &FullGameState, rng: &mut impl Rng) -> Option<Full
     child_states.iter().choose(rng).cloned()
 }
 
+fn choose_move_flattening_power(
+    state: &FullGameState,
+    all_moves: &[ScoredMove],
+    rng: &mut impl Rng,
+    is_power_move: impl Fn(&ScoredMove) -> bool,
+) -> Option<ScoredMove> {
+    let has_power = state.board.god_data[state.board.current_player as usize] == 0;
+
+    if has_power && rng.random_bool(0.95) {
+        if let Some(no_power_move) = all_moves.iter().filter(|a| !is_power_move(a)).choose(rng) {
+            return Some(no_power_move.clone());
+        }
+    }
+    all_moves.iter().choose(rng).cloned()
+}
+
 pub fn get_random_move_flattening_powers(
     state: &FullGameState,
     rng: &mut impl Rng,
@@ -53,27 +72,14 @@ pub fn get_random_move_flattening_powers(
     let all_moves = active_god.get_all_moves(state, state.board.current_player);
 
     match active_god.god_name {
-        GodName::Polyphemus => {
-            let has_power = state.board.god_data[state.board.current_player as usize] == 0;
-            if has_power {
-                let skip_using_power = rng.random_bool(0.95);
-
-                if skip_using_power {
-                    let no_power_move = all_moves
-                        .iter()
-                        .filter(|a| {
-                            let poly_move: PolyphemusMove = a.action.into();
-                            poly_move.dome_1().is_none()
-                        })
-                        .choose(rng);
-
-                    if let Some(no_power_move) = no_power_move {
-                        return Some(no_power_move.clone());
-                    }
-                }
-            }
-            all_moves.iter().choose(rng).cloned()
-        }
+        GodName::Polyphemus => choose_move_flattening_power(state, &all_moves, rng, |a| {
+            let poly_move: PolyphemusMove = a.action.into();
+            poly_move.dome_1().is_some()
+        }),
+        GodName::Jason => choose_move_flattening_power(state, &all_moves, rng, |a| {
+            let jason_move: JasonMove = a.action.into();
+            jason_move.maybe_place_position().is_some()
+        }),
         _ => all_moves.iter().choose(rng).cloned(),
     }
 }

@@ -328,6 +328,10 @@ mod tests {
             if god_name == GodName::Castor {
                 continue;
             }
+            // Jason's power places a new worker (doesn't move), so doesn't trigger sliding
+            if god_name == GodName::Jason {
+                continue;
+            }
 
             let state = parse_fen(&format!(
                 "00000 00000 00000 00000 00000/1/{}:A5/harpies:E2,D1",

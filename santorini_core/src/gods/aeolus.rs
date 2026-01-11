@@ -478,6 +478,10 @@ mod tests {
                 eprintln!("skipping banned matchup: {}", matchup);
                 continue;
             }
+            // Jason's power places a new worker (doesn't move), so not affected by wind
+            if god_name == GodName::Jason {
+                continue;
+            }
 
             let state = parse_fen(&format!(
                 "04040 04040 04440 00000 00000/1/{}:C4/aeolus[n]:E1,E2",
