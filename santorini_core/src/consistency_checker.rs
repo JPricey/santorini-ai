@@ -565,13 +565,13 @@ impl ConsistencyChecker {
             let new_only = new_workers & !old_workers;
             let new_aphro_workers = new_state.board.workers[!current_player as usize];
 
-            // If Bia enters the affinity area and kills a worker, she's allowed to end her turn outside
-            // the new affinity area, so keep checking against the old one.
-            let new_affinity_area = if active_god.god_name == GodName::Bia {
-                old_affinity_area
-            } else {
-                apply_mapping_to_mask(new_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP)
-            };
+            // Gods which can enter affinity areas, and then kill the worker providing it
+            let new_affinity_area =
+                if active_god.god_name == GodName::Bia || active_god.god_name == GodName::Theseus {
+                    old_affinity_area
+                } else {
+                    apply_mapping_to_mask(new_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP)
+                };
 
             if old_only.count_ones() != new_only.count_ones() {
                 self.errors.push(format!(
