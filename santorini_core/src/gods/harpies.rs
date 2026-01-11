@@ -213,8 +213,11 @@ pub fn harpies_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
+    let other_god = state.gods[!player as usize].god_name;
     // Block detection vs artemis can get pretty complicated... just try every move
-    let final_key_squares = if state.gods[!player as usize].god_name == GodName::Artemis {
+    // Chronus can win on his build, not his move. Instead of checking for ways to block his moves,
+    // just try everything too.
+    let final_key_squares = if other_god == GodName::Artemis || other_god == GodName::Chronus {
         BitBoard::MAIN_SECTION_MASK
     } else {
         key_squares

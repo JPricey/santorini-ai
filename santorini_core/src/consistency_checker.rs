@@ -816,6 +816,11 @@ impl ConsistencyChecker {
                 }
             }
 
+            if oppo_god.god_name == GodName::Chronus {
+                // Hard to detect & prevent dome wins
+                continue;
+            }
+
             if oppo_god.god_name == GodName::Charon {
                 if active_god.god_name == GodName::Hermes {
                     // Hermes thinks that while standing still in Charon's winning square he's blocking a win
@@ -987,7 +992,18 @@ impl ConsistencyChecker {
             let new_oppo_wins = oppo_god.get_winning_moves(&new_state, !current_player);
             if new_oppo_wins.len() < other_wins.len() {
                 if active_god.god_name == GodName::Persephone && oppo_god.god_name == GodName::Pan {
-                    // TODO: comment this? Forget why it's here.
+                    // Persephone can try to force man to move up to prevent him from winning by
+                    // building around him
+                    // But this build might not actually force him to move up, so doesn't chang
+                    // his winning moves at all
+                    if new_oppo_wins.len() > 0 {
+                        continue;
+                    }
+                }
+
+                if oppo_god.god_name == GodName::Chronus {
+                    // If we won on chronus behalf, it removes his winning moves, but he just wins
+                    // anyway...
                     if new_oppo_wins.len() > 0 {
                         continue;
                     }
@@ -1048,6 +1064,13 @@ impl ConsistencyChecker {
                     // maenads dancing kills...
                     // TODO: include these
                     continue;
+                }
+
+                if is_real_checker && active_god.god_name == GodName::Chronus {
+                    // We're not doing check detection on dome wins
+                    if check_state.board.height_map[3].count_ones() >= 4 {
+                        continue;
+                    }
                 }
 
                 if is_real_checker
@@ -1163,12 +1186,27 @@ impl ConsistencyChecker {
             return;
         }
 
+        if active_god.god_name == GodName::Chronus {
+            if won_state.board.height_map[3].count_ones() >= 5 {
+                // chronus dome win
+                return;
+            }
+        }
+
         let old_workers = state.board.workers[current_player as usize];
         let new_workers = won_state.board.workers[current_player as usize];
         let old_only = old_workers & !new_workers;
         let new_only = new_workers & !old_workers;
-        assert_eq!(old_only.count_ones(), 1);
-        assert_eq!(new_only.count_ones(), 1);
+        assert_eq!(
+            old_only.count_ones(),
+            1,
+            "Could not identify old moved worker from winning move check"
+        );
+        assert_eq!(
+            new_only.count_ones(),
+            1,
+            "Could not identify new moved worker from winning move check"
+        );
         let old_pos = old_only.lsb();
         let new_pos = new_only.lsb();
         let old_height = state.board.get_height(old_pos) as i32;

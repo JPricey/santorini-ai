@@ -50,6 +50,7 @@ export const God = {
     Polyphemus: "polyphemus",
     Poseidon: "poseidon",
     Bellerophon: "bellerophon",
+    Chronus: "chronus",
 } as const;
 export type GodType = (typeof God)[keyof typeof God];
 
@@ -63,6 +64,7 @@ export const WIP_GODS: Set<GodType> = new Set([
     God.Nemesis,
     God.Poseidon,
     God.Bellerophon,
+    God.Chronus,
 ]);
 
 export const Square = {
