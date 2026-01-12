@@ -6,8 +6,8 @@ use rand::{
 use crate::{
     board::FullGameState,
     gods::{
-        ALL_GODS_BY_ID, GodName, StaticGod, generic::ScoredMove, jason::JasonMove,
-        polyphemus::PolyphemusMove,
+        ALL_GODS_BY_ID, GodName, StaticGod, achilles::AchillesMove, generic::ScoredMove,
+        jason::JasonMove, polyphemus::PolyphemusMove,
     },
     matchup::Matchup,
     placement::get_starting_placement_state,
@@ -79,6 +79,10 @@ pub fn get_random_move_flattening_powers(
         GodName::Jason => choose_move_flattening_power(state, &all_moves, rng, |a| {
             let jason_move: JasonMove = a.action.into();
             jason_move.maybe_place_position().is_some()
+        }),
+        GodName::Achilles => choose_move_flattening_power(state, &all_moves, rng, |a| {
+            let achilles_move: AchillesMove = a.action.into();
+            achilles_move.pre_build_position().is_some()
         }),
         _ => all_moves.iter().choose(rng).cloned(),
     }

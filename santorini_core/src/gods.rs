@@ -20,6 +20,7 @@ use counted_array::counted_array;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
+pub(crate) mod achilles;
 pub(crate) mod aeolus;
 pub(crate) mod aphrodite;
 pub(crate) mod apollo;
@@ -144,6 +145,7 @@ pub enum GodName {
     Chronus = 48,
     Theseus = 49,
     Jason = 50,
+    Achilles = 51,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -160,6 +162,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Chronus,
     GodName::Theseus,
     GodName::Jason,
+    GodName::Achilles,
 ]);
 
 impl GodName {
@@ -829,6 +832,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     chronus::build_chronus(),
     theseus::build_theseus(),
     jason::build_jason(),
+    achilles::build_achilles(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

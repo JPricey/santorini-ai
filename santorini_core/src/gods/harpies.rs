@@ -89,7 +89,7 @@ pub(crate) fn prometheus_slide(
     to: Square,
     to_height: usize,
 ) -> Square {
-    let Some(next_spot) = MAY_WRAP_FROM_PUSH_MAPPING[from as usize][to as usize] else {
+    let Some(next_spot) = PUSH_MAPPING[from as usize][to as usize] else {
         return to;
     };
 
