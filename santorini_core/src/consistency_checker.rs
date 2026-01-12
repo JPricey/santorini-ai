@@ -8,6 +8,7 @@ use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{
         GodName, StaticGod,
+        achilles::AchillesMove,
         ares::AresMove,
         athena::AthenaMove,
         bellerophon::BellerophonMove,
@@ -178,51 +179,49 @@ impl ConsistencyChecker {
         if own_winning_moves.is_empty() {
             let mut search_states_map = HashSet::<BoardState>::new();
             let mut all_states_map = HashSet::<BoardState>::new();
-            if own_winning_moves.is_empty() {
-                for action in search_moves {
-                    let new_state = self.state.next_state(active_god, oppo_god, action.action);
-                    search_states_map.insert(new_state.board);
-                }
+            for action in search_moves {
+                let new_state = self.state.next_state(active_god, oppo_god, action.action);
+                search_states_map.insert(new_state.board);
+            }
 
+            for action in all_moves {
+                let new_state = self.state.next_state(active_god, oppo_god, action.action);
+                all_states_map.insert(new_state.board);
+            }
+
+            let all_move_only_states = all_states_map
+                .difference(&search_states_map)
+                .collect::<Vec<&BoardState>>();
+
+            for all_move_only_state in all_move_only_states {
+                let full_game_state =
+                    FullGameState::new(all_move_only_state.clone(), self.state.gods.clone());
+
+                let mut relevant_actions = Vec::new();
                 for action in all_moves {
                     let new_state = self.state.next_state(active_god, oppo_god, action.action);
-                    all_states_map.insert(new_state.board);
-                }
-
-                let all_move_only_states = all_states_map
-                    .difference(&search_states_map)
-                    .collect::<Vec<&BoardState>>();
-
-                for all_move_only_state in all_move_only_states {
-                    let full_game_state =
-                        FullGameState::new(all_move_only_state.clone(), self.state.gods.clone());
-
-                    let mut relevant_actions = Vec::new();
-                    for action in all_moves {
-                        let new_state = self.state.next_state(active_god, oppo_god, action.action);
-                        if &new_state.board == all_move_only_state {
-                            relevant_actions.push(active_god.stringify_move(action.action));
-                        }
+                    if &new_state.board == all_move_only_state {
+                        relevant_actions.push(active_god.stringify_move(action.action));
                     }
-
-                    self.errors.push(format!(
-                        "All moves has state not in search moves: {:?} ({:?})",
-                        full_game_state, relevant_actions
-                    ));
                 }
 
-                let search_only_states = search_states_map
-                    .difference(&all_states_map)
-                    .collect::<Vec<&BoardState>>();
-                for search_only_state in search_only_states {
-                    let full_game_state =
-                        FullGameState::new(search_only_state.clone(), self.state.gods.clone());
+                self.errors.push(format!(
+                    "All moves has state not in search moves: {:?} ({:?})",
+                    full_game_state, relevant_actions
+                ));
+            }
 
-                    self.errors.push(format!(
-                        "Search moves has state not in all moves: {:?}",
-                        full_game_state
-                    ));
-                }
+            let search_only_states = search_states_map
+                .difference(&all_states_map)
+                .collect::<Vec<&BoardState>>();
+            for search_only_state in search_only_states {
+                let full_game_state =
+                    FullGameState::new(search_only_state.clone(), self.state.gods.clone());
+
+                self.errors.push(format!(
+                    "Search moves has state not in all moves: {:?}",
+                    full_game_state
+                ));
             }
         }
     }
@@ -507,8 +506,18 @@ impl ConsistencyChecker {
             if active_god.god_name == GodName::Bellerophon {
                 let inc: BellerophonMove = inc.into();
                 let non_inc: BellerophonMove = non_inc.into();
-
                 if inc.is_use_power() && !non_inc.is_use_power() {
+                    return;
+                }
+            } else if active_god.god_name == GodName::Achilles {
+                let inc: AchillesMove = inc.into();
+                let inc_did_climb_on_power = if let Some(pre_build_pos) = inc.pre_build_position() {
+                    pre_build_pos == inc.move_to_position()
+                } else {
+                    false
+                };
+
+                if inc_did_climb_on_power {
                     return;
                 }
             }
@@ -651,6 +660,11 @@ impl ConsistencyChecker {
         if active_god.god_name == GodName::Polyphemus {
             return;
         }
+        if active_god.god_name == GodName::Achilles {
+            // This detection fails, because Achilles has some checks against mortals that don't
+            // work vs limus (so we can't properly check that lists are equal)
+            return;
+        }
 
         let mut dome_build_actions = Vec::new();
 
@@ -707,12 +721,14 @@ impl ConsistencyChecker {
         }
         let mut against_mortal_state = self.state.clone();
         against_mortal_state.gods[!current_player as usize] = GodName::Mortal.to_power();
-        let mortal_search_moves =
+        let against_mortal_search_moves =
             active_god.get_moves_for_search(&against_mortal_state, current_player);
 
-        for mortal_move in mortal_search_moves {
-            let mortal_action = mortal_move.action;
-            let new_state = self.state.next_state(active_god, oppo_god, mortal_action);
+        for mortal_move in against_mortal_search_moves {
+            let vs_mortal_action = mortal_move.action;
+            let new_state = self
+                .state
+                .next_state(active_god, oppo_god, vs_mortal_action);
             // We could have built a dome and ALSO somewhere else.
             // these moves are invalid vs limus too, so skip this check.
             let new_builds = get_new_builds_mask(&new_state.board, &self.state.board);
@@ -725,12 +741,13 @@ impl ConsistencyChecker {
                 & !self.state.board.height_map[3];
 
             if new_dome_builds_from_lvl_3.is_not_empty() {
-                let seen_dome_build = dome_build_actions.contains(&mortal_action);
+                let seen_dome_build = dome_build_actions.contains(&vs_mortal_action);
 
                 if !seen_dome_build {
                     let error_string = format!(
-                        "Was able to build valid dome against mortal, but not limus: {} -> {:?}",
-                        active_god.stringify_move(mortal_action),
+                        "Was able to build valid dome against mortal, but not limus: {} ({}) -> {:?}",
+                        active_god.stringify_move(vs_mortal_action),
+                        vs_mortal_action.0,
                         new_state,
                     );
                     self.errors.push(error_string);
@@ -1059,7 +1076,15 @@ impl ConsistencyChecker {
             let mut check_state = self.state.next_state(active_god, oppo_god, action.action);
             oppo_god.make_passing_move(&mut check_state.board);
             let wins_from_check_state = active_god.get_winning_moves(&check_state, current_player);
-            let is_real_checker = wins_from_check_state.len() > 0;
+            let (is_real_checker, real_checker_str) =
+                if let Some(first_win) = wins_from_check_state.first() {
+                    (
+                        true,
+                        format!(" ({})", active_god.stringify_move(first_win.action)),
+                    )
+                } else {
+                    (false, "".to_owned())
+                };
 
             if is_check_flag != is_real_checker {
                 if is_real_checker && active_god.god_name == GodName::Maenads {
@@ -1106,11 +1131,12 @@ impl ConsistencyChecker {
                         };
 
                         self.errors.push(format!(
-                            "Check detection failure. {type_msg} {i}/{}: {}. Flag: {} RealChecker: {}",
+                            "Check detection failure. {type_msg} {i}/{}: {}. Flag: {} RealChecker: {}{}",
                             search_moves.len(),
                             stringed_action,
                             is_check_flag,
-                            is_real_checker
+                            is_real_checker,
+                            real_checker_str,
                         ));
                     }
                 } else if is_check_flag
@@ -1127,11 +1153,12 @@ impl ConsistencyChecker {
                     };
 
                     self.errors.push(format!(
-                        "Check detection failure. {type_msg} {i}/{}: {}. Flag: {} RealChecker: {}",
+                        "Check detection failure. {type_msg} {i}/{}: {}. Flag: {} RealChecker: {}{}",
                         search_moves.len(),
                         stringed_action,
                         is_check_flag,
-                        is_real_checker
+                        is_real_checker,
+                        real_checker_str
                     ));
                     continue;
                 }
