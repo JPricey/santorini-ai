@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, NEIGHBOR_MAP, apply_mapping_to_mask},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -28,10 +28,8 @@ const MOVE_FROM_POSITION_OFFSET: usize = 0;
 const MOVE_TO_POSITION_OFFSET: usize = POSITION_WIDTH;
 const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
 const PRE_BUILD_POSITION_OFFSET: usize = BUILD_POSITION_OFFSET + POSITION_WIDTH;
-const ARE_BUILDS_INTERCHANGEABLE_OFFSET: usize = PRE_BUILD_POSITION_OFFSET + POSITION_WIDTH;
 
 const NO_PRE_BUILD_VALUE: MoveData = 25 << PRE_BUILD_POSITION_OFFSET;
-const ARE_BUILDS_INTERCHANGEABLE_VALUE: MoveData = 1 << ARE_BUILDS_INTERCHANGEABLE_OFFSET;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 struct PrometheusMove(pub MoveData);
@@ -67,13 +65,11 @@ impl PrometheusMove {
         move_to_position: Square,
         build_position: Square,
         pre_build_position: Square,
-        is_interchangeable: bool,
     ) -> Self {
         let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
             | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
-            | ((pre_build_position as MoveData) << PRE_BUILD_POSITION_OFFSET)
-            | ((is_interchangeable as MoveData) << ARE_BUILDS_INTERCHANGEABLE_OFFSET);
+            | ((pre_build_position as MoveData) << PRE_BUILD_POSITION_OFFSET);
 
         Self(data)
     }
@@ -104,10 +100,6 @@ impl PrometheusMove {
         } else {
             Some(Square::from(value))
         }
-    }
-
-    pub fn are_builds_interchangeable(self) -> bool {
-        self.0 & ARE_BUILDS_INTERCHANGEABLE_VALUE != 0
     }
 
     pub fn move_mask(self) -> BitBoard {
@@ -141,11 +133,19 @@ impl std::fmt::Debug for PrometheusMove {
 }
 
 impl GodMove for PrometheusMove {
-    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
+    fn move_to_actions(
+        self,
+        _board: &BoardState,
+        _player: Player,
+        _other_god: StaticGod,
+    ) -> Vec<FullAction> {
+        let move_from = self.move_from_position();
+        let move_to = self.move_to_position();
+
         if self.get_is_winning() {
             return vec![vec![
-                PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position().into()),
+                PartialAction::SelectWorker(move_from),
+                PartialAction::MoveWorker(move_to.into()),
             ]];
         }
 
@@ -154,15 +154,25 @@ impl GodMove for PrometheusMove {
         if let Some(pre_build_position) = self.pre_build_position() {
             let mut res = vec![vec![
                 PartialAction::Build(pre_build_position),
-                PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position().into()),
+                PartialAction::SelectWorker(move_from),
+                PartialAction::MoveWorker(move_to.into()),
                 PartialAction::Build(build_position),
             ]];
-            if self.are_builds_interchangeable() {
+
+            let from_neighbors = NEIGHBOR_MAP[move_from as usize];
+            let to_neighbors = NEIGHBOR_MAP[move_to as usize];
+            let both_neighbors = from_neighbors & to_neighbors;
+
+            let pre_build_mask = BitBoard::as_mask(pre_build_position);
+            let build_mask = BitBoard::as_mask(build_position);
+            let are_builds_interchangeable = (both_neighbors & pre_build_mask).is_not_empty()
+                && (both_neighbors & build_mask).is_not_empty();
+
+            if are_builds_interchangeable {
                 res.push(vec![
                     PartialAction::Build(build_position),
-                    PartialAction::SelectWorker(self.move_from_position()),
-                    PartialAction::MoveWorker(self.move_to_position().into()),
+                    PartialAction::SelectWorker(move_from),
+                    PartialAction::MoveWorker(move_to.into()),
                     PartialAction::Build(pre_build_position),
                 ]);
             }
@@ -170,8 +180,8 @@ impl GodMove for PrometheusMove {
             res
         } else {
             vec![vec![
-                PartialAction::SelectWorker(self.move_from_position()),
-                PartialAction::MoveWorker(self.move_to_position().into()),
+                PartialAction::SelectWorker(move_from),
+                PartialAction::MoveWorker(move_to.into()),
                 PartialAction::Build(build_position),
             ]]
         }
@@ -313,14 +323,15 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
                     let is_now_lvl_2 = (worker_end_height == 2) as usize;
 
-                    // can't use build_building_masks here due to extra logic before key squares
-                    let mut worker_builds =
-                        NEIGHBOR_MAP[worker_end_pos as usize] & unblocked_squares;
+                    let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize]
+                        & unblocked_squares
+                        & prelude.build_mask;
                     let worker_plausible_next_moves =
                         neighbor_moves_map[worker_end_pos as usize] & unblocked_squares;
-                    worker_builds &= prelude.build_mask;
 
                     let both_buildable = worker_builds & pre_build_locations;
+                    worker_builds ^=
+                        both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
                     worker_builds &= !(pre_build_mask & prelude.exactly_level_3);
 
                     if is_interact_with_key_squares::<F>() {
@@ -346,21 +357,11 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                         let worker_build_mask = BitBoard::as_mask(worker_build_pos);
                         let is_double_build = pre_build_pos == worker_build_pos;
 
-                        let is_either_order = !is_double_build
-                            && (both_buildable | pre_build_mask | worker_build_mask)
-                                == both_buildable;
-
-                        // avoid duplicates
-                        if is_either_order && pre_build_pos > worker_build_pos {
-                            continue;
-                        }
-
                         let new_action = PrometheusMove::new_pre_build_move(
                             worker_start_pos,
                             worker_end_pos,
                             worker_build_pos,
                             pre_build_pos,
-                            is_either_order,
                         );
 
                         let is_check = {
