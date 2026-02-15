@@ -7,8 +7,7 @@ use std::{
 use battler::{BattleResult, WorkerMessage, battling_worker_thread, write_results_to_csv};
 use clap::Parser;
 use santorini_core::{
-    gods::GodName,
-    matchup::{Matchup, MatchupSelector},
+    matchup::{Matchup, MatchupArgs},
     player::Player,
     utils::timestamp_string,
 };
@@ -24,17 +23,15 @@ struct Args {
 
     #[arg(short = 's', long, default_value_t = DEFAULT_DURATION_SECS)]
     secs: f32,
+
+    #[command(flatten)]
+    matchups: MatchupArgs,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let mut all_matchups = MatchupSelector::default()
-        .minus_god_for_both(GodName::Mortal)
-        .with_can_swap()
-        .with_can_mirror_option(true)
-        .get_all();
-    all_matchups.push(Matchup::new(GodName::Mortal, GodName::Mortal));
+    let mut all_matchups = args.matchups.to_selector().get_all();
     all_matchups.sort();
     all_matchups.reverse();
     let matchups_count = all_matchups.len();
@@ -126,3 +123,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 // cargo run -p battler --bin compare_engines -r -- -e v111 -E v112 |& tee compare.txt
+// cargo run -p battler --bin compare_engines -r -- -e v111 -E v112 --p1 chronus
+// cargo run -p battler --bin compare_engines -r -- -e v111 -E v112 --gods chronus athena -s 2.0

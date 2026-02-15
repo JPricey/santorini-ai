@@ -11,6 +11,65 @@ use crate::{
     player::Player,
 };
 
+#[derive(clap::Args, Clone, Debug, Default)]
+pub struct MatchupArgs {
+    /// Restrict Player 1 to these gods
+    #[arg(long, num_args = 1..)]
+    pub p1: Vec<GodName>,
+
+    /// Restrict Player 2 to these gods
+    #[arg(long, num_args = 1..)]
+    pub p2: Vec<GodName>,
+
+    /// Restrict both players to these gods
+    #[arg(long, num_args = 1..)]
+    pub gods: Vec<GodName>,
+
+    /// Exclude these gods for both players
+    #[arg(long, num_args = 1..)]
+    pub exclude: Vec<GodName>,
+
+    /// Disallow mirror matchups (default: mirrors allowed)
+    #[arg(long)]
+    pub no_mirror: bool,
+
+    /// Disallow swapped matchups (default: swaps allowed)
+    #[arg(long)]
+    pub no_swap: bool,
+}
+
+impl MatchupArgs {
+    /// Build a `MatchupSelector` from these CLI arguments.
+    /// Always excludes Mortal. `--p1`/`--p2` override `--gods` per-player.
+    /// `--exclude` is applied after god selection.
+    pub fn to_selector(&self) -> MatchupSelector {
+        let mut selector = MatchupSelector::default()
+            .with_can_mirror_option(!self.no_mirror)
+            .with_can_swap_option(!self.no_swap);
+
+        if !self.gods.is_empty() {
+            selector = selector
+                .with_exact_gods_for_player(Player::One, &self.gods)
+                .with_exact_gods_for_player(Player::Two, &self.gods);
+        }
+
+        if !self.p1.is_empty() {
+            selector = selector.with_exact_gods_for_player(Player::One, &self.p1);
+        }
+        if !self.p2.is_empty() {
+            selector = selector.with_exact_gods_for_player(Player::Two, &self.p2);
+        }
+
+        for god in &self.exclude {
+            selector = selector.minus_god_for_both(*god);
+        }
+
+        selector = selector.minus_god_for_both(GodName::Mortal);
+
+        selector
+    }
+}
+
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub enum BannedReason {
     Game,

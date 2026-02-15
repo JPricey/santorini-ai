@@ -12,8 +12,7 @@ use clap::Parser;
 use santorini_core::{
     board::FullGameState,
     engine::EngineThreadWrapper,
-    gods::GodName,
-    matchup::{Matchup, MatchupSelector},
+    matchup::{Matchup, MatchupArgs},
     utils::timestamp_string,
 };
 
@@ -27,29 +26,17 @@ struct Args {
 
     #[arg(short = 'c', long, default_value_t = false)]
     cont: bool,
+
+    #[command(flatten)]
+    matchups: MatchupArgs,
 }
 
 fn _read_battle_results_csv() -> Vec<BattleResult> {
     read_battle_result_csv(&PathBuf::from(MATCHUPS_CSV_FILE)).unwrap()
 }
 
-pub fn get_all_matchups() -> Vec<Matchup> {
-    let all_matchups = MatchupSelector::default()
-        .minus_god_for_both(GodName::Mortal)
-        .with_can_mirror_option(true)
-        .with_can_swap()
-        // .with_exact_gods_for_player(
-        //     santorini_core::player::Player::One,
-        //     &santorini_core::gods::WIP_GODS,
-        // )
-        .with_exact_gods_for_player(santorini_core::player::Player::One, &[GodName::Chronus])
-        .get_all();
-
-    // for m in &all_matchups {
-    //     eprintln!("matchup: {}", m);
-    // }
-
-    all_matchups
+fn get_all_matchups(args: &Args) -> Vec<Matchup> {
+    args.matchups.to_selector().get_all()
 }
 
 fn worker_thread(
@@ -122,7 +109,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     create_tmp_dir();
     let args = Args::parse();
 
-    let mut all_matchups = get_all_matchups();
+    let mut all_matchups = get_all_matchups(&args);
     let mut all_results = Vec::<BattleResult>::new();
 
     if args.cont {
@@ -205,3 +192,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 // cargo run -p battler --bin run_matchups -r
 // cargo run -p battler --bin run_matchups -r -- -s 10.0
+// cargo run -p battler --bin run_matchups -r -- --p1 chronus
+// cargo run -p battler --bin run_matchups -r -- --p1 chronus --p2 athena
+// cargo run -p battler --bin run_matchups -r -- --p1 medusa iris castor
+// cargo run -p battler --bin run_matchups -r -- --exclude atlas selene --no-mirror
+// cargo run -p battler --bin run_matchups -r -- --p1 chronus -c

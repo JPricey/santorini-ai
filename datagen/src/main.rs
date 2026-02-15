@@ -3,7 +3,7 @@ use rand::distr::Alphanumeric;
 use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::{Rng, rng};
 use santorini_core::gods::{ALL_GODS_BY_ID, GodName};
-use santorini_core::matchup::{Matchup, MatchupSelector};
+use santorini_core::matchup::{Matchup, MatchupArgs};
 use santorini_core::placement::get_starting_placement_state;
 use santorini_core::player::Player;
 use santorini_core::search::{
@@ -17,6 +17,7 @@ use santorini_core::search_terminators::{
 use santorini_core::transposition_table::TranspositionTable;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -62,35 +63,20 @@ fn _get_new_datafile_name(rng: &mut impl Rng) -> PathBuf {
 
 const GAMES_PER_FILE: usize = 1_000;
 
-fn worker_thread() {
-    let result = _inner_worker_thread();
+fn worker_thread(matchups: Arc<Vec<Matchup>>) {
+    let result = _inner_worker_thread(matchups);
     match result {
         Ok(_) => eprintln!("Worker thread completed {} games. Exiting", GAMES_PER_FILE),
         Err(e) => eprintln!("Worker thread encountered an error: {:?}", e),
     }
 }
 
-fn get_matchups_list() -> Vec<Matchup> {
-    let gods_to_always_generate: Vec<GodName> = santorini_core::gods::WIP_GODS.iter().cloned().collect();
-    // let gods_to_always_generate: Vec<GodName> =
-    //     [GodName::Zeus, GodName::Ares].iter().cloned().collect();
-
-    let matchup_selector = MatchupSelector::default()
-        .with_exact_gods_for_player(Player::One, &gods_to_always_generate)
-        .with_can_swap_option(true)
-        .with_can_mirror_option(true);
-
-    matchup_selector.get_all()
-}
-
-fn _inner_worker_thread() -> Result<(), Box<dyn std::error::Error>> {
+fn _inner_worker_thread(matchups: Arc<Vec<Matchup>>) -> Result<(), Box<dyn std::error::Error>> {
     let mut tt = TranspositionTable::new();
     let mut rng = rng();
 
     let file_path = _get_new_datafile_name(&mut rng);
     let mut data_file = std::fs::File::create(file_path).expect("Failed to create error log file");
-
-    let matchups = get_matchups_list();
     // for m in &matchups {
     //     eprintln!("Including matchup: {}", m);
     // }
@@ -291,6 +277,9 @@ fn generate_one(
 struct DatagenArgs {
     #[arg(short = 'j', long)]
     pub threads: Option<usize>,
+
+    #[command(flatten)]
+    pub matchups: MatchupArgs,
 }
 
 pub fn main() {
@@ -301,6 +290,8 @@ pub fn main() {
         sleep(Duration::from_millis(500));
     }
 
+    let matchups = Arc::new(args.matchups.to_selector().get_all());
+
     let num_cpus = num_cpus::get();
     let num_worker_threads = args.threads.unwrap_or_else(|| std::cmp::max(1, num_cpus));
     println!("Found {num_cpus} CPUs. Creating {num_worker_threads} threads",);
@@ -308,7 +299,8 @@ pub fn main() {
     let mut worker_threads = Vec::new();
 
     for _ in 0..num_worker_threads {
-        let new_thread = thread::spawn(&worker_thread);
+        let matchups = Arc::clone(&matchups);
+        let new_thread = thread::spawn(move || worker_thread(matchups));
         worker_threads.push(new_thread);
     }
 
@@ -316,7 +308,8 @@ pub fn main() {
         for i in 0..num_worker_threads {
             if worker_threads[i].is_finished() {
                 eprintln!("Worker thread {i} has died. Recreating.");
-                let new_thread = thread::spawn(&worker_thread);
+                let matchups = Arc::clone(&matchups);
+                let new_thread = thread::spawn(move || worker_thread(matchups));
                 worker_threads.push(new_thread);
                 worker_threads.remove(i);
             }
@@ -327,5 +320,6 @@ pub fn main() {
 }
 
 // cargo run -p datagen -r
-// Specific threadcount:
 // cargo run -p datagen -r -- -j 8
+// cargo run -p datagen -r -- --p1 chronus
+// cargo run -p datagen -r -- --gods medusa iris castor -j 4
