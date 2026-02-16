@@ -29,11 +29,18 @@ const NUM_BITS_FOR_BUILD_SECTION: usize = 20;
 const MOVE_FROM_POSITION_OFFSET: usize = NUM_BITS_FOR_BUILD_SECTION;
 const MOVE_TO_POSITION_OFFSET: usize = MOVE_FROM_POSITION_OFFSET + POSITION_WIDTH;
 
+const BUILD_SECTION_MASK: u32 = (1 << NUM_BITS_FOR_BUILD_SECTION) - 1;
+
 #[derive(Copy, Clone, PartialEq, Eq)]
-struct MorpheusMove(pub MoveData);
+pub struct MorpheusMove(pub MoveData);
 
 impl GodMove for MorpheusMove {
-    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
+    fn move_to_actions(
+        self,
+        _board: &BoardState,
+        _player: Player,
+        _other_god: StaticGod,
+    ) -> Vec<FullAction> {
         let mut action = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),
@@ -93,7 +100,7 @@ impl GodMove for MorpheusMove {
 
         let old_avaiable_builds = board.god_data[player as usize];
 
-        let mut build_bits = self.0 & (1 << NUM_BITS_FOR_BUILD_SECTION) - 1;
+        let mut build_bits = self.0 & BUILD_SECTION_MASK;
         if build_bits.count_ones() == 0 {
             board.set_god_data(player, old_avaiable_builds + 1);
             // No builds
@@ -170,7 +177,7 @@ impl GodMove for MorpheusMove {
         helper.add_square_with_height(board, self.move_to_position());
         let current_res = helper.get();
 
-        let build_mask = self.0 & ((1 << NUM_BITS_FOR_BUILD_SECTION) - 1);
+        let build_mask = self.0 & BUILD_SECTION_MASK;
         hash_u64(current_res) ^ hash_u64(build_mask as usize)
     }
 }
@@ -253,6 +260,10 @@ impl MorpheusMove {
 
     pub fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
+    }
+
+    pub fn num_builds(&self) -> u32 {
+        (self.0 & BUILD_SECTION_MASK).count_ones()
     }
 }
 

@@ -7,7 +7,7 @@ use crate::{
     board::FullGameState,
     gods::{
         ALL_GODS_BY_ID, GodName, StaticGod, achilles::AchillesMove, generic::ScoredMove,
-        jason::JasonMove, polyphemus::PolyphemusMove,
+        jason::JasonMove, morpheus::MorpheusMove, polyphemus::PolyphemusMove,
     },
     matchup::Matchup,
     placement::get_starting_placement_state,
@@ -84,6 +84,23 @@ pub fn get_random_move_flattening_powers(
             let achilles_move: AchillesMove = a.action.into();
             achilles_move.pre_build_position().is_some()
         }),
+        GodName::Morpheus => {
+            let max_builds = all_moves
+                .iter()
+                .map(|a| MorpheusMove::from(a.action).num_builds())
+                .max()
+                .unwrap_or(0);
+            let target_builds = rng.random_range(0..=max_builds);
+            let matching: Vec<_> = all_moves
+                .iter()
+                .filter(|a| MorpheusMove::from(a.action).num_builds() == target_builds)
+                .collect();
+            if let Some(m) = matching.choose(rng) {
+                Some((*m).clone())
+            } else {
+                all_moves.iter().choose(rng).cloned()
+            }
+        }
         _ => all_moves.iter().choose(rng).cloned(),
     }
 }

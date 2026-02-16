@@ -58,6 +58,7 @@ fn _get_worker_pos_height(height_maps: u128, pos: usize) -> usize {
 
 type FType = usize;
 impl BulletSantoriniBoard {
+    #[allow(dead_code)]
     fn map_features<F: FnMut(FType)>(&self, mut f: F) {
         let mut remaining_spaces = BOARD_FULL_MASK;
         for h_idx in (0..4).rev() {
