@@ -63,6 +63,8 @@ fn _get_new_datafile_name(rng: &mut impl Rng) -> PathBuf {
 }
 
 const GAMES_PER_FILE: usize = 1_000;
+const MIN_EXAMPLES_PER_MATCHUP: usize = 50;
+const MIN_GAME_LENGTH: usize = 5;
 
 fn worker_thread(matchups: Arc<Vec<Matchup>>) {
     let result = _inner_worker_thread(matchups);
@@ -96,32 +98,45 @@ fn _inner_worker_thread(matchups: Arc<Vec<Matchup>>) -> Result<(), Box<dyn std::
                 break;
             }
         }
-        let now = Instant::now();
-        let game_history = generate_one(matchup, &mut tt, &mut rng)?;
 
-        eprintln!(
-            "Done single gen. Created {} examples in {:.4}s for {}",
-            game_history.len(),
-            now.elapsed().as_secs_f32(),
-            matchup,
-        );
+        let mut total_examples = 0;
+        while total_examples < MIN_EXAMPLES_PER_MATCHUP {
+            let now = Instant::now();
+            let game_history = generate_one(matchup, &mut tt, &mut rng)?;
+            total_examples += game_history.len();
+            if total_examples <= MIN_GAME_LENGTH {
+                eprintln!(
+                    "Discarding game with only {} examples for {}",
+                    game_history.len(),
+                    matchup
+                );
+                continue;
+            }
 
-        for game_turn in game_history {
-            writeln!(
-                data_file,
-                "{:?} {} {} {} {} {}",
-                game_turn.game_state,
-                game_turn.winner as usize + 1,
-                game_turn.score,
-                game_turn.move_count,
-                game_turn.calculated_depth,
-                game_turn.nodes_visited,
-            )?;
+            eprintln!(
+                "Done single gen. Created {} examples in {:.4}s for {} (total for matchup: {})",
+                game_history.len(),
+                now.elapsed().as_secs_f32(),
+                matchup,
+                total_examples + game_history.len(),
+            );
+
+            for game_turn in game_history {
+                writeln!(
+                    data_file,
+                    "{:?} {} {} {} {} {}",
+                    game_turn.game_state,
+                    game_turn.winner as usize + 1,
+                    game_turn.score,
+                    game_turn.move_count,
+                    game_turn.calculated_depth,
+                    game_turn.nodes_visited,
+                )?;
+            }
+
+            data_file.flush()?;
+            // tt.reset();
         }
-
-        data_file.flush()?;
-
-        tt.reset();
     }
 
     Ok(())
@@ -145,6 +160,9 @@ fn _randomize_gods(state: &mut FullGameState, rng: &mut impl Rng) {
     state.gods[1] = ALL_GODS_BY_ID.choose(rng).unwrap();
 }
 
+/// Plays out a game from the given state, recording positions for training data.
+/// After the game concludes, retroactively branches subgames from earlier positions
+/// so the branching probability can account for who actually won.
 fn playout_subgame(
     rng: &mut impl Rng,
     mut current_state: FullGameState,
@@ -153,7 +171,6 @@ fn playout_subgame(
     subgame_chance: f64,
 ) -> Result<Vec<SingleState>, Box<dyn std::error::Error>> {
     let mut game_history: Vec<SingleState> = Vec::new();
-    let mut subgame_states: Vec<(FullGameState, usize)> = Vec::new();
 
     let winner = loop {
         let mut search_context = SearchContext::new(tt, DatagenStaticSearchTerminator::default());
@@ -193,16 +210,6 @@ fn playout_subgame(
                 nodes_visited: search_result.nodes_visited,
                 move_count,
             });
-
-            if best_child.score.abs() < WINNING_SCORE_BUFFER {
-                if rng.random_bool(subgame_chance) {
-                    if let Some(random_next) = get_random_state_flattening_powers(&current_state, rng) {
-                        if random_next != best_child.child_state {
-                            subgame_states.push((random_next, move_count));
-                        }
-                    }
-                }
-            }
         }
 
         current_state = best_child.child_state.clone();
@@ -213,9 +220,43 @@ fn playout_subgame(
         item.winner = winner;
     }
 
+    // Now that we know the winner, iterate through all positions and probabilistically
+    // branch subgames. The winning player's moves get full subgame_chance (more likely
+    // to "throw away" their advantage), while the losing player gets 0.25x (keeping
+    // their best play more often).
+    let mut mut_subgame_chance = subgame_chance;
+    let mut subgame_states: Vec<(FullGameState, usize)> = Vec::new();
+    for i in 0..game_history.len() {
+        if game_history[i].score.abs() >= WINNING_SCORE_BUFFER {
+            continue;
+        }
+        let is_winners_turn = game_history[i].game_state.board.current_player == winner;
+        // Prefer playing out subgames for the winning player - forcing them to make bad moves to
+        // try to even out the dataset
+        let chance = if is_winners_turn {
+            mut_subgame_chance
+        } else {
+            mut_subgame_chance * 0.25
+        };
+        if rng.random_bool(chance.clamp(0.0, 1.0)) {
+            if let Some(random_next) =
+                get_random_state_flattening_powers(&game_history[i].game_state, rng)
+            {
+                // Ensure the subgame takes a different move than the one actually played
+                let is_same_as_played = game_history
+                    .get(i + 1)
+                    .is_some_and(|next| next.game_state == random_next);
+                if !is_same_as_played {
+                    subgame_states.push((random_next, game_history[i].move_count));
+                }
+            }
+        }
+    }
+
     for (substate, sub_movecount) in subgame_states {
+        mut_subgame_chance *= 0.5;
         let mut child_states =
-            playout_subgame(rng, substate, sub_movecount, tt, subgame_chance / 2.0)?;
+            playout_subgame(rng, substate, sub_movecount, tt, mut_subgame_chance)?;
         game_history.append(&mut child_states);
     }
 
@@ -322,3 +363,4 @@ pub fn main() {
 // cargo run -p datagen -r -- -j 8
 // cargo run -p datagen -r -- --p1 chronus
 // cargo run -p datagen -r -- --gods medusa iris castor -j 4
+// cargo run -p datagen -r -- --p1 wip
