@@ -23,6 +23,7 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use santorini_core::board::FullGameState;
+use santorini_core::random_utils::get_random_state_flattening_powers;
 
 type DatagenStaticSearchTerminator = OrSearchTerminator<
     StaticNodesVisitedSearchTerminator<100_000>,
@@ -195,9 +196,10 @@ fn playout_subgame(
 
             if best_child.score.abs() < WINNING_SCORE_BUFFER {
                 if rng.random_bool(subgame_chance) {
-                    let random_next = current_state.get_next_states().choose(rng).unwrap().clone();
-                    if random_next != best_child.child_state {
-                        subgame_states.push((random_next, move_count));
+                    if let Some(random_next) = get_random_state_flattening_powers(&current_state, rng) {
+                        if random_next != best_child.child_state {
+                            subgame_states.push((random_next, move_count));
+                        }
                     }
                 }
             }
@@ -258,11 +260,8 @@ fn generate_one(
     };
 
     for _ in 0..num_random_moves {
-        let child_states = current_state.get_next_states();
-        current_state = child_states
-            .choose(rng)
-            .ok_or("Failed to find random child")?
-            .clone();
+        current_state = get_random_state_flattening_powers(&current_state, rng)
+            .ok_or("Failed to find random child")?;
         move_count += 1;
 
         if current_state.get_winner().is_some() {
