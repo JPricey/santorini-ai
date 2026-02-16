@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions, remove_file};
 use std::io::{BufReader, BufWriter, prelude::*};
 use std::path::PathBuf;
@@ -12,7 +13,7 @@ use santorini_core::gods::{
     GOD_FEATURE_OFFSETS, GodName, TOTAL_GOD_DATA_FEATURE_COUNT, god_name_to_nnue_size,
 };
 use santorini_core::matchup::Matchup;
-use santorini_core::nnue::{build_feature_set, emit_god_data_features};
+use santorini_core::nnue::emit_god_data_features;
 use santorini_core::player::Player;
 use santorini_core::utils::timestamp_string;
 
@@ -550,133 +551,35 @@ fn consolidate_temp_files(
     Ok(())
 }
 
-#[allow(dead_code)]
-fn filter_atlas_vs_athena() -> Result<(), Box<dyn std::error::Error>> {
-    let all_data_files = all_filenames_in_dir(&PathBuf::from("./tmp/gen_3/"))?;
-
-    let matching_dir_path = PathBuf::from("matching");
-    let non_matching_dir_path = PathBuf::from("not_matching");
-
-    fs::create_dir_all(&matching_dir_path)?;
-    fs::create_dir_all(&non_matching_dir_path)?;
-
-    let m1 = Matchup::new(GodName::Athena, GodName::Atlas);
-
-    for (i, filename) in all_data_files.iter().enumerate() {
-        println!(
-            "{}/{} Processing {:?}",
-            i + 1,
-            all_data_files.len(),
-            filename,
-        );
-
-        let file_handle = File::open(filename).expect("Failed to open file");
-        let reader = BufReader::new(file_handle);
-
-        let matching_path = matching_dir_path.join(filename.file_name().unwrap());
-        let non_matching_path = non_matching_dir_path.join(filename.file_name().unwrap());
-
-        let mut matching_file = BufWriter::new(
-            OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(matching_path)?,
-        );
-        let mut non_matching_file = BufWriter::new(
-            OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(non_matching_path)?,
-        );
-
-        for line in reader.lines() {
-            let line = line?;
-            let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
-                eprintln!("bad line: {:?}", &line);
-                continue;
-            };
-
-            let m = state.get_matchup();
-            if m.is_same_gods(&m1) {
-                writeln!(matching_file, "{}", line)?;
-            } else {
-                writeln!(non_matching_file, "{}", line)?;
-            }
-        }
-    }
-
-    Ok(())
-}
 
 #[derive(Parser, Debug)]
-struct BulletPrepArgs {
-    #[arg(
-        short = 'd',
-        long,
-        default_value_t = false,
-        help = "Delete source raw data files after processing"
-    )]
-    is_delete: bool,
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
 }
 
-fn _test_feature_compat(state: &FullGameState) {
-    let bullet_board = convert_state_to_bullet(&state.board, state.gods, Player::One);
-    let mut bullet_features = Vec::new();
-    bullet_board.map_features(|f| {
-        bullet_features.push(f);
-    });
-
-    let feature_set =
-        build_feature_set(&state.board, state.gods[0].god_name, state.gods[1].god_name);
-
-    let mut nnue_features: Vec<FType> = Vec::new();
-    nnue_features.extend(feature_set.ordered_features.iter().map(|x| *x as FType));
-    nnue_features.extend(feature_set.dynamic_features.iter().map(|x| *x as FType));
-
-    bullet_features.sort();
-    nnue_features.sort();
-
-    if bullet_features != nnue_features {
-        eprintln!("Feature mismatch {:?}", state);
-        eprintln!("Bullet: {:?}", bullet_features);
-        eprintln!("NNUE:   {:?}", nnue_features);
-        eprintln!("");
-    }
+#[derive(clap::Subcommand, Debug)]
+enum Command {
+    /// Convert raw text data files into shuffled bullet-format binary
+    Prep {
+        #[arg(
+            short = 'd',
+            long,
+            default_value_t = false,
+            help = "Delete source raw data files after processing"
+        )]
+        is_delete: bool,
+    },
+    /// Split raw text data files into per-matchup directories
+    SplitMatchups {
+        #[arg(help = "Input directory containing raw .txt data files")]
+        input_dir: PathBuf,
+        #[arg(help = "Output directory where per-matchup files will be written")]
+        output_dir: PathBuf,
+    },
 }
 
-#[allow(dead_code)]
-fn _test_feature_compat_from_files() {
-    let input_path = PathBuf::from("raw_data");
-    let all_data_files = all_filenames_in_dir(&input_path).expect("Failed to list input dir");
-    for (i, filename) in all_data_files.iter().enumerate() {
-        println!(
-            "{}/{} Processing {:?}",
-            i + 1,
-            all_data_files.len(),
-            filename,
-        );
-
-        let file_handle = File::open(filename).expect("Failed to open file");
-        let reader = BufReader::new(file_handle);
-
-        for line in reader.lines() {
-            let Some((state, _)) =
-                convert_row_to_board_and_meta(&line.expect("Failed to read line"))
-            else {
-                continue;
-            };
-
-            _test_feature_compat(&state);
-        }
-    }
-}
-
-#[allow(dead_code)]
-fn _main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = BulletPrepArgs::parse();
-    let is_delete = args.is_delete;
+fn run_prep(is_delete: bool) -> Result<(), Box<dyn std::error::Error>> {
 
     let input_path = PathBuf::from("raw_data");
     let temp_path = PathBuf::from("temp_data");
@@ -692,15 +595,75 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Returns a canonical filename-safe matchup key, with god names sorted alphabetically.
+fn matchup_filename(matchup: &Matchup) -> String {
+    let mut gods = [matchup.gods[0].to_string(), matchup.gods[1].to_string()];
+    gods.sort();
+    format!("{}_vs_{}", gods[0], gods[1])
+}
+
+fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let all_data_files = all_filenames_in_dir(&input_dir)?;
+    println!("Found {} raw data files to split", all_data_files.len());
+
+    fs::create_dir_all(&output_dir)?;
+
+    let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
+
+    for (i, filename) in all_data_files.iter().enumerate() {
+        println!(
+            "{} {}/{} Processing {:?}",
+            timestamp_string(),
+            i + 1,
+            all_data_files.len(),
+            filename,
+        );
+
+        let file_handle = File::open(filename)?;
+        let reader = BufReader::new(file_handle);
+
+        for line in reader.lines() {
+            let line = line?;
+            let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
+                eprintln!("bad line: {:?}", &line);
+                continue;
+            };
+
+            let key = matchup_filename(&state.get_matchup());
+            let writer = writers.entry(key.clone()).or_insert_with(|| {
+                let path = output_dir.join(format!("{}.txt", key));
+                let file = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&path)
+                    .expect("Failed to open matchup output file");
+                BufWriter::new(file)
+            });
+
+            writeln!(writer, "{}", line).expect("Failed to write line");
+        }
+    }
+
+    for (_, mut writer) in writers {
+        writer.flush()?;
+    }
+
+    println!("{} Split complete", timestamp_string());
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    _main()?;
-    // _test_feature_compat_from_files();
-    // filter_atlas_vs_athena()?;
+    let cli = Cli::parse();
+    match cli.command {
+        Command::Prep { is_delete } => run_prep(is_delete)?,
+        Command::SplitMatchups { input_dir, output_dir } => split_matchups(input_dir, output_dir)?,
+    }
     Ok(())
 }
 
 // rm -rf temp_data
 // rm final_data
 // ulimit -n 2048
-// cargo run -p bullet_prep --release
-// cargo run -p bullet_prep --release -- -d
+// cargo run -p bullet_prep --release -- prep
+// cargo run -p bullet_prep --release -- prep -d
+// cargo run -p bullet_prep --release -- split-matchups ./raw_data ./split_output
