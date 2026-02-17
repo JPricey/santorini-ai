@@ -603,31 +603,40 @@ fn matchup_filename(matchup: &Matchup) -> String {
     format!("{}_vs_{}", gods[0], gods[1])
 }
 
-fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let all_data_files = all_filenames_in_dir(&input_dir)?;
-    println!("Found {} raw data files to split", all_data_files.len());
+fn split_matchups_worker(
+    input_dir: Arc<PathBuf>,
+    output_dir: Arc<PathBuf>,
+    queue: Arc<Mutex<Vec<PathBuf>>>,
+    total_files: usize,
+) {
+    loop {
+        let next_file = {
+            let mut q = queue.lock().unwrap();
+            let file = q.pop();
+            if file.is_some() {
+                println!("{} {}/{} remaining", timestamp_string(), q.len(), total_files);
+            }
+            file
+        };
 
-    fs::create_dir_all(&output_dir)?;
+        let Some(filename) = next_file else { break };
 
-    for (i, filename) in all_data_files.iter().enumerate() {
-        let relative_path = filename.strip_prefix(&input_dir)
+        let relative_path = filename.strip_prefix(input_dir.as_ref())
             .expect("input file is not under input_dir");
 
         println!(
-            "{} {}/{} Processing {:?}",
+            "{} Processing {:?}",
             timestamp_string(),
-            i + 1,
-            all_data_files.len(),
             filename,
         );
 
-        let file_handle = File::open(filename)?;
+        let file_handle = File::open(&filename).expect("Failed to open input file");
         let reader = BufReader::new(file_handle);
 
         let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
 
         for line in reader.lines() {
-            let line = line?;
+            let line = line.expect("Failed to read line");
             let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
                 eprintln!("bad line: {:?}", &line);
                 continue;
@@ -650,8 +659,35 @@ fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn
         }
 
         for (_, mut writer) in writers {
-            writer.flush()?;
+            writer.flush().expect("Failed to flush writer");
         }
+    }
+}
+
+fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let all_data_files = all_filenames_in_dir(&input_dir)?;
+    let total_files = all_data_files.len();
+    let num_workers = num_cpus::get();
+    println!("Found {} raw data files to split, using {} threads", total_files, num_workers);
+
+    fs::create_dir_all(&output_dir)?;
+
+    let queue = Arc::new(Mutex::new(all_data_files));
+    let input_dir = Arc::new(input_dir);
+    let output_dir = Arc::new(output_dir);
+
+    let mut handles = Vec::with_capacity(num_workers);
+    for _ in 0..num_workers {
+        let queue = Arc::clone(&queue);
+        let input_dir = Arc::clone(&input_dir);
+        let output_dir = Arc::clone(&output_dir);
+        handles.push(std::thread::spawn(move || {
+            split_matchups_worker(input_dir, output_dir, queue, total_files);
+        }));
+    }
+
+    for handle in handles {
+        handle.join().expect("Thread panicked");
     }
 
     println!("{} Split complete", timestamp_string());
