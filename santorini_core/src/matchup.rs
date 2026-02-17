@@ -74,11 +74,11 @@ pub struct MatchupArgs {
     pub gods: Vec<GodSelector>,
 
     /// Add specific matchups as god1:god2 (e.g. --matchup apollo:pan)
-    #[arg(long, num_args = 1..)]
+    #[arg(short = 'm', long, num_args = 1..)]
     pub matchup: Vec<MatchupPair>,
 
     /// Exclude these gods for both players
-    #[arg(long, num_args = 1..)]
+    #[arg(short = 'e', long, num_args = 1..)]
     pub exclude: Vec<GodName>,
 
     /// Disallow mirror matchups (default: mirrors allowed)
@@ -92,7 +92,7 @@ pub struct MatchupArgs {
 
 impl MatchupArgs {
     /// Build a `MatchupSelector` from these CLI arguments.
-    /// Always excludes Mortal. `--p1`/`--p2` override `--gods` per-player.
+    /// `--p1`/`--p2` override `--gods` per-player.
     /// `--exclude` is applied after god selection.
     pub fn to_selector(&self) -> MatchupSelector {
         let mut selector = MatchupSelector::default()
@@ -115,15 +115,13 @@ impl MatchupArgs {
                 selector.with_exact_gods_for_player(Player::Two, &resolve_god_selectors(&self.p2));
         }
 
-        for pair in &self.matchup {
-            selector = selector.with_extra_matchup(pair.0);
-        }
-
         for god in &self.exclude {
             selector = selector.minus_god_for_both(*god);
         }
 
-        selector = selector.minus_god_for_both(GodName::Mortal);
+        for pair in &self.matchup {
+            selector = selector.with_extra_matchup(pair.0);
+        }
 
         selector
     }
