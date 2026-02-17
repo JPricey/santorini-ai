@@ -103,8 +103,7 @@ fn _inner_worker_thread(matchups: Arc<Vec<Matchup>>) -> Result<(), Box<dyn std::
         while total_examples < MIN_EXAMPLES_PER_MATCHUP {
             let now = Instant::now();
             let game_history = generate_one(matchup, &mut tt, &mut rng)?;
-            total_examples += game_history.len();
-            if total_examples <= MIN_GAME_LENGTH {
+            if game_history.len() <= MIN_GAME_LENGTH {
                 eprintln!(
                     "Discarding game with only {} examples for {}",
                     game_history.len(),
@@ -112,6 +111,7 @@ fn _inner_worker_thread(matchups: Arc<Vec<Matchup>>) -> Result<(), Box<dyn std::
                 );
                 continue;
             }
+            total_examples += game_history.len();
 
             eprintln!(
                 "Done single gen. Created {} examples in {:.4}s for {} (total for matchup: {})",
@@ -160,9 +160,6 @@ fn _randomize_gods(state: &mut FullGameState, rng: &mut impl Rng) {
     state.gods[1] = ALL_GODS_BY_ID.choose(rng).unwrap();
 }
 
-/// Plays out a game from the given state, recording positions for training data.
-/// After the game concludes, retroactively branches subgames from earlier positions
-/// so the branching probability can account for who actually won.
 fn playout_subgame(
     rng: &mut impl Rng,
     mut current_state: FullGameState,
@@ -220,10 +217,6 @@ fn playout_subgame(
         item.winner = winner;
     }
 
-    // Now that we know the winner, iterate through all positions and probabilistically
-    // branch subgames. The winning player's moves get full subgame_chance (more likely
-    // to "throw away" their advantage), while the losing player gets 0.25x (keeping
-    // their best play more often).
     let mut mut_subgame_chance = subgame_chance;
     let mut subgame_states: Vec<(FullGameState, usize)> = Vec::new();
     for i in 0..game_history.len() {
@@ -257,6 +250,14 @@ fn playout_subgame(
         mut_subgame_chance *= 0.5;
         let mut child_states =
             playout_subgame(rng, substate, sub_movecount, tt, mut_subgame_chance)?;
+        // eprintln!(
+        //     "Subgame complete: move={}, examples={}, subgame_player={:?}, main_winner={:?}, subgame_winner={:?}",
+        //     sub_movecount,
+        //     child_states.len(),
+        //     substate.board.current_player,
+        //     winner,
+        //     child_states.first().map(|s| s.winner),
+        // );
         game_history.append(&mut child_states);
     }
 
@@ -289,7 +290,7 @@ fn generate_one(
         active_god.make_placement_move(action, &mut current_state.board, active_player, other_god);
     }
 
-    eprintln!("Random starting state: {:?}", current_state);
+    // eprintln!("Random starting state: {:?}", current_state);
 
     let rand = rng.random_range(0.0..1.0);
     let num_random_moves = match rand {
@@ -310,7 +311,7 @@ fn generate_one(
         }
     }
 
-    playout_subgame(rng, current_state, move_count, tt, 0.3)
+    playout_subgame(rng, current_state, move_count, tt, 0.6)
 }
 
 #[derive(Parser, Debug)]

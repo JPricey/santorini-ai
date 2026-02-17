@@ -609,9 +609,10 @@ fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn
 
     fs::create_dir_all(&output_dir)?;
 
-    let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
-
     for (i, filename) in all_data_files.iter().enumerate() {
+        let relative_path = filename.strip_prefix(&input_dir)
+            .expect("input file is not under input_dir");
+
         println!(
             "{} {}/{} Processing {:?}",
             timestamp_string(),
@@ -623,6 +624,8 @@ fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn
         let file_handle = File::open(filename)?;
         let reader = BufReader::new(file_handle);
 
+        let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
+
         for line in reader.lines() {
             let line = line?;
             let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
@@ -630,9 +633,11 @@ fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn
                 continue;
             };
 
-            let key = matchup_filename(&state.get_matchup());
-            let writer = writers.entry(key.clone()).or_insert_with(|| {
-                let path = output_dir.join(format!("{}.txt", key));
+            let matchup_name = matchup_filename(&state.get_matchup());
+            let writer = writers.entry(matchup_name.clone()).or_insert_with(|| {
+                let path = output_dir.join(&matchup_name).join(relative_path);
+                fs::create_dir_all(path.parent().unwrap())
+                    .expect("Failed to create matchup output directory");
                 let file = OpenOptions::new()
                     .create(true)
                     .append(true)
@@ -643,10 +648,10 @@ fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn
 
             writeln!(writer, "{}", line).expect("Failed to write line");
         }
-    }
 
-    for (_, mut writer) in writers {
-        writer.flush()?;
+        for (_, mut writer) in writers {
+            writer.flush()?;
+        }
     }
 
     println!("{} Split complete", timestamp_string());
@@ -667,4 +672,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // ulimit -n 2048
 // cargo run -p bullet_prep --release -- prep
 // cargo run -p bullet_prep --release -- prep -d
-// cargo run -p bullet_prep --release -- split-matchups ./raw_data ./split_output
+// cargo run -p bullet_prep --release -- split-matchups ./game_data ./split_output
