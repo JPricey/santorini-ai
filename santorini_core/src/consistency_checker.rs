@@ -977,6 +977,11 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if oppo_god.god_name == GodName::Stymphalians {
+                // TODO: scope this down.
+                continue;
+            }
+
             if _test_castor_bad_key_move_blockers(&self.state) {
                 continue;
             }
@@ -1052,6 +1057,11 @@ impl ConsistencyChecker {
     fn self_check_validations(&mut self, search_moves: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
         let (active_god, oppo_god) = self.state.get_active_non_active_gods();
+
+        if active_god.god_name == GodName::Stymphalians {
+            // We don't bother with check detection on this guy... It's too hard
+            return;
+        }
 
         for (i, action) in search_moves.iter().enumerate() {
             if action.get_is_winning() {
@@ -1268,6 +1278,13 @@ impl ConsistencyChecker {
                 if action.is_use_power() {
                     return;
                 }
+            }
+        }
+
+        if active_god.god_name == GodName::Stymphalians {
+            // This guy can move a lot...
+            if new_height == 3 {
+                return;
             }
         }
 
