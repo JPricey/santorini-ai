@@ -74,6 +74,7 @@ pub(crate) mod selene;
 pub(crate) mod theseus;
 pub(crate) mod urania;
 pub(crate) mod zeus;
+pub(crate) mod stymphalians;
 
 pub type StaticGod = &'static GodPower;
 
@@ -146,6 +147,7 @@ pub enum GodName {
     Theseus = 49,
     Jason = 50,
     Achilles = 51,
+    Stymphalians = 52,
 }
 
 // pub const WIP_GODS: [GodName; 0] = [];
@@ -833,6 +835,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     theseus::build_theseus(),
     jason::build_jason(),
     achilles::build_achilles(),
+    stymphalians::build_stymphalians(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

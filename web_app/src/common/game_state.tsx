@@ -45,7 +45,7 @@ export const God = {
     Castor: "castor",
     CharonV2: "charonv2",
     Medusa: "medusa",
-    Nemesis: "nike",
+    Nemesis: "nemesis",
     Nike: "nike",
     Polyphemus: "polyphemus",
     Poseidon: "poseidon",
@@ -54,6 +54,7 @@ export const God = {
     Theseus: "theseus",
     Jason: "jason",
     Achilles: "achilles",
+    Stymphalians: "stymphalians",
 } as const;
 export type GodType = (typeof God)[keyof typeof God];
 
@@ -71,6 +72,7 @@ export const WIP_GODS: Set<GodType> = new Set([
     God.Theseus,
     God.Jason,
     God.Achilles,
+    God.Stymphalians,
 ]);
 
 export const Square = {

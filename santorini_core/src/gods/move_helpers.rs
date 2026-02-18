@@ -714,6 +714,31 @@ pub(super) fn get_basic_moves_from_with_two_movement_maps<const MUST_CLIMB: bool
     )
 }
 
+// Returns all squares below the player - so against hades you also have to !this
+#[allow(dead_code)]
+pub(super) fn get_down_blocker_mask(
+    prelude: &GeneratorPreludeState,
+    worker_start_height: usize,
+) -> BitBoard {
+    if prelude.is_down_prevented && worker_start_height > 0 {
+        !prelude.board.height_map[worker_start_height - 1]
+    } else {
+        BitBoard::EMPTY
+    }
+}
+
+// Returns all squares not below the player - so against hades you also have to & this
+pub(super) fn get_down_allowed_mask(
+    prelude: &GeneratorPreludeState,
+    worker_start_height: usize,
+) -> BitBoard {
+    if prelude.is_down_prevented && worker_start_height > 0 {
+        prelude.board.height_map[worker_start_height - 1]
+    } else {
+        BitBoard::MAIN_SECTION_MASK
+    }
+}
+
 pub(super) fn get_limited_moves_given_move_mask<
     const MUST_CLIMB: bool,
     const APPLY_AFFINITY: bool,
@@ -736,15 +761,11 @@ pub(super) fn get_limited_moves_given_move_mask<
         let worker_moves = move_mask & height_mask & !blockers;
         worker_moves
     } else {
-        let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
-            !prelude.board.height_map[worker_start_height - 1]
-        } else {
-            BitBoard::EMPTY
-        };
+        let down_allowed_mask = get_down_allowed_mask(prelude, worker_start_height);
 
         let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
         let worker_moves =
-            move_mask & !(prelude.board.height_map[climb_height] | down_mask | blockers);
+            move_mask & down_allowed_mask & !(prelude.board.height_map[climb_height] | blockers);
 
         if APPLY_AFFINITY {
             restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)
@@ -769,17 +790,12 @@ pub(super) fn get_basic_moves_from_raw_data_for_hermes<const MUST_CLIMB: bool>(
         );
     }
 
-    let down_mask = if prelude.is_down_prevented && worker_start_height > 0 {
-        !prelude.board.height_map[worker_start_height - 1]
-    } else {
-        BitBoard::EMPTY
-    };
-
+    let down_allowed_mask = get_down_allowed_mask(prelude, worker_start_height);
     let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
     let worker_moves = prelude.standard_neighbor_map[worker_start_pos as usize]
+        & down_allowed_mask
         & !(prelude.board.height_map[climb_height]
             | prelude.board.exactly_level_n(worker_start_height)
-            | down_mask
             | prelude.all_workers_and_frozen_mask);
 
     restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)

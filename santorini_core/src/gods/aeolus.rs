@@ -231,6 +231,12 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
                     break;
                 }
             }
+        } else if other_god == GodName::Stymphalians {
+            // See if any key squares would be impacted by the wind. There will be false positives
+            // here (ex: will always allow opposite wind directions)
+            let next_direction = Direction::from_u8((next_wind_idx - 1) as u8);
+            let shifted_key_squares = prelude.key_squares.shift_in_direction(next_direction);
+            did_interact_with_wind = (shifted_key_squares & prelude.key_squares).is_not_empty();
         } else {
             let oppo_workers = prelude.key_squares & prelude.oppo_workers;
             let win_spots = prelude.key_squares ^ oppo_workers;

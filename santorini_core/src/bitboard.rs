@@ -321,6 +321,9 @@ pub const PERIMETER_SPACES_MASK: BitBoard = MIDDLE_SPACES_MASK
     .bit_not()
     .bit_and(BitBoard::MAIN_SECTION_MASK);
 
+const NOT_COL_A_MASK: BitBoard = BitBoard(0b11110_11110_11110_11110_11110);
+const NOT_COL_E_MASK: BitBoard = BitBoard(0b01111_01111_01111_01111_01111);
+
 pub(crate) fn apply_mapping_to_mask(mask: BitBoard, mapping: &BitboardMapping) -> BitBoard {
     mask.into_iter()
         .fold(BitBoard::EMPTY, |accum: BitBoard, s: Square| {
@@ -507,6 +510,51 @@ impl BitBoard {
         board
     }
 
+    pub const fn shift_north(self) -> BitBoard {
+        BitBoard(self.0 >> 5)
+    }
+
+    pub const fn shift_south(self) -> BitBoard {
+        BitBoard((self.0 << 5) & Self::MAIN_SECTION_MASK.0)
+    }
+
+    pub const fn shift_east(self) -> BitBoard {
+        BitBoard((self.0 << 1) & NOT_COL_A_MASK.0)
+    }
+
+    pub const fn shift_west(self) -> BitBoard {
+        BitBoard((self.0 >> 1) & NOT_COL_E_MASK.0)
+    }
+
+    pub const fn shift_ne(self) -> BitBoard {
+        BitBoard((self.0 >> 4) & NOT_COL_A_MASK.0)
+    }
+
+    pub const fn shift_nw(self) -> BitBoard {
+        BitBoard((self.0 >> 6) & NOT_COL_E_MASK.0)
+    }
+
+    pub const fn shift_se(self) -> BitBoard {
+        BitBoard((self.0 << 6) & NOT_COL_A_MASK.0)
+    }
+
+    pub const fn shift_sw(self) -> BitBoard {
+        BitBoard((self.0 << 4) & NOT_COL_E_MASK.0)
+    }
+
+    pub const fn shift_in_direction(self, direction: Direction) -> BitBoard {
+        match direction {
+            Direction::NW => self.shift_nw(),
+            Direction::N => self.shift_north(),
+            Direction::NE => self.shift_ne(),
+            Direction::E => self.shift_east(),
+            Direction::SE => self.shift_se(),
+            Direction::S => self.shift_south(),
+            Direction::SW => self.shift_sw(),
+            Direction::W => self.shift_west(),
+        }
+    }
+
     /// "Transpose" is to flip across the A5 -> E1 diagonal
     pub fn flip_transpose(self) -> BitBoard {
         // https://stackoverflow.com/questions/72097570/rotate-and-reflect-a-5x5-bitboard
@@ -567,6 +615,54 @@ impl Mul<u32> for BitBoard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_shift_in_direction_single_squares() {
+        // Verify each single-square shift matches the DIRECTION_MAPPING lookup table
+        for square_idx in 0..25usize {
+            let board = BitBoard(1 << square_idx);
+            let square = Square::from(square_idx as u8);
+
+            for dir_idx in 0..8u8 {
+                let direction = Direction::from_u8(dir_idx);
+                let shifted = board.shift_in_direction(direction);
+
+                let expected = match DIRECTION_MAPPING[dir_idx as usize][square_idx] {
+                    Some(target) => BitBoard::as_mask(target),
+                    None => BitBoard::EMPTY,
+                };
+
+                assert_eq!(
+                    shifted, expected,
+                    "mismatch for square {:?} direction {:?}: got {:025b} expected {:025b}",
+                    square, direction, shifted.0, expected.0
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_shift_multi_square_bitboard() {
+        // A multi-square bitboard shifted should equal the OR of individually shifted squares
+        let board = BitBoard(0b00000_00100_01010_00100_00000);
+
+        for dir_idx in 0..8u8 {
+            let direction = Direction::from_u8(dir_idx);
+            let shifted = board.shift_in_direction(direction);
+
+            let mut expected = BitBoard::EMPTY;
+            let mut iter = board;
+            for square in &mut iter {
+                expected = expected | BitBoard::as_mask(square).shift_in_direction(direction);
+            }
+
+            assert_eq!(
+                shifted, expected,
+                "multi-square mismatch for direction {:?}",
+                direction
+            );
+        }
+    }
 
     #[test]
     fn test_flip_board_v() {
