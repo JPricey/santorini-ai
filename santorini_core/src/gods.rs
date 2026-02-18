@@ -71,10 +71,10 @@ pub(crate) mod prometheus;
 pub(crate) mod proteus;
 pub(crate) mod scylla;
 pub(crate) mod selene;
+pub(crate) mod stymphalians;
 pub(crate) mod theseus;
 pub(crate) mod urania;
 pub(crate) mod zeus;
-pub(crate) mod stymphalians;
 
 pub type StaticGod = &'static GodPower;
 
