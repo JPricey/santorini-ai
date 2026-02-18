@@ -165,6 +165,7 @@ counted_array!(pub const WIP_GODS: [GodName; _] = [
     GodName::Theseus,
     GodName::Jason,
     GodName::Achilles,
+    GodName::Stymphalians,
 ]);
 
 impl GodName {
