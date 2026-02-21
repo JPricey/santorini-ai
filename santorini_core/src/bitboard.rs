@@ -331,7 +331,7 @@ pub(crate) fn apply_mapping_to_mask(mask: BitBoard, mapping: &BitboardMapping) -
         })
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
+#[derive(PartialEq, Eq, Clone, Copy, Default, Hash)]
 pub struct BitBoard(pub u32);
 
 impl Ord for BitBoard {
@@ -413,6 +413,12 @@ impl fmt::Display for BitBoard {
         }
         s.push_str("\n\n    A B C D E");
         write!(f, "{s}")
+    }
+}
+
+impl fmt::Debug for BitBoard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

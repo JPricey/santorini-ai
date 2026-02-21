@@ -9,6 +9,8 @@ pub mod fen;
 pub mod gods;
 pub mod hashing;
 pub mod matchup;
+#[cfg(test)]
+pub mod move_verifier;
 pub mod move_container;
 pub mod move_picker;
 pub mod nnue;

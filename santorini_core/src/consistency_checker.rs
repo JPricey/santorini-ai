@@ -17,6 +17,7 @@ use crate::{
         harpies::slide_position_with_custom_blockers,
         hydra::HydraMove,
         mortal::MortalMove,
+        stymphalians::StymphaliansMove,
     },
     hashing::compute_hash_from_scratch,
     player::Player,
@@ -78,6 +79,7 @@ impl ConsistencyChecker {
             self.validate_persephone_moves(&search_moves);
             self.validate_hades_moves(&search_moves);
             self.validate_frozen_moves(&search_moves);
+            self.validate_stymphalians_moves(&search_moves);
         }
 
         if self.errors.len() == 0 {
@@ -327,6 +329,35 @@ impl ConsistencyChecker {
         }
     }
 
+    fn validate_stymphalians_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
+
+        if active_god.god_name != GodName::Stymphalians {
+            return;
+        }
+
+        for action in actions {
+            let stymp_move: StymphaliansMove = action.action.into();
+            let from_pos = stymp_move.move_from_position();
+            let to_pos = stymp_move.move_to_position();
+
+            let is_neighbor_of_start =
+                (INCLUSIVE_NEIGHBOR_MAP[from_pos as usize] & to_pos.to_board()).is_not_empty();
+
+            if is_neighbor_of_start {
+                let new_state = self.state.next_state(active_god, oppo_god, action.action);
+                self.errors.push(format!(
+                    "Stymphalians ended turn neighboring start position: {} (from {} to {}) -> {:?}",
+                    active_god.stringify_move(action.action),
+                    from_pos,
+                    to_pos,
+                    new_state,
+                ));
+                return;
+            }
+        }
+    }
+
     fn validate_hades_moves(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
         let (active_god, oppo_god) = self.state.get_active_non_active_gods();
@@ -406,6 +437,7 @@ impl ConsistencyChecker {
             || active_god_name == GodName::Hydra
             || active_god_name == GodName::Nemesis
             || active_god_name == GodName::Jason
+            || active_god_name == GodName::Stymphalians
         {
             return;
         }

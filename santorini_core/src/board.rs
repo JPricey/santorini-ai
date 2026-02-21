@@ -954,6 +954,50 @@ impl PartialOrd for BoardState {
 }
 
 #[cfg(test)]
+pub struct GameStateBuilder {
+    board: BoardState,
+    gods: GodPair,
+}
+
+#[cfg(test)]
+impl GameStateBuilder {
+    pub fn new(p1: GodName, p2: GodName) -> Self {
+        Self {
+            board: BoardState::default(),
+            gods: [p1.to_power(), p2.to_power()],
+        }
+    }
+
+    pub fn with_p1_worker(mut self, square: Square) -> Self {
+        self.board.workers[0] |= square.to_board();
+        self
+    }
+
+    pub fn with_p2_worker(mut self, square: Square) -> Self {
+        self.board.workers[1] |= square.to_board();
+        self
+    }
+
+    pub fn with_height(mut self, square: Square, height: usize) -> Self {
+        debug_assert!(height <= 4, "Height must be 0-4");
+        let mask = square.to_board();
+        for h in 0..height {
+            self.board.height_map[h] |= mask;
+        }
+        self
+    }
+
+    pub fn with_current_player(mut self, player: Player) -> Self {
+        self.board.current_player = player;
+        self
+    }
+
+    pub fn build(self) -> FullGameState {
+        FullGameState::new(self.board, self.gods)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use crate::square::Square;
 

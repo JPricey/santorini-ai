@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use clap::Parser;
 use rand::{Rng, rng, seq::IndexedRandom};
 
@@ -10,12 +12,13 @@ use santorini_core::{
     random_utils::{get_random_starting_state, get_random_state_flattening_powers},
 };
 
-fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
+/// Returns true if consistency check failed.
+fn run_match(root_state: FullGameState, rng: &mut impl Rng) -> bool {
     let mut prev_state = root_state.clone();
     let mut current_state = root_state;
     loop {
         if current_state.board.get_winner().is_some() {
-            return;
+            return false;
         }
 
         if let Err(err) = consistency_check(&current_state) {
@@ -26,15 +29,14 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) {
             for error_line in err {
                 eprintln!("{error_line}");
             }
-            return;
-            // panic!("Consistency check failed");
+            return true;
         }
 
         if let Some(next_state) = get_random_state_flattening_powers(&current_state, rng) {
             prev_state = current_state;
             current_state = next_state;
         } else {
-            return;
+            return false;
         }
     }
 }
@@ -86,6 +88,14 @@ struct FuzzerArgs {
 
     #[arg(short = 'G', long, num_args=0.., value_delimiter=' ')]
     p2_gods: Vec<GodName>,
+
+    /// Stop the fuzzer on the first failure.
+    #[arg(short = 's', long)]
+    stop_on_failure: bool,
+
+    /// Stop running after this many seconds.
+    #[arg(short = 't', long)]
+    timeout_secs: Option<f64>,
 }
 
 fn maybe_kill_random_worker<T: Rng>(state: &mut FullGameState, player: Player, rng: &mut T) {
@@ -105,6 +115,10 @@ fn main() {
     let mut rng = rng();
     let args = FuzzerArgs::parse();
 
+    let deadline = args
+        .timeout_secs
+        .map(|secs| Instant::now() + std::time::Duration::from_secs_f64(secs));
+
     let mut matchup_selector = MatchupSelector::default().with_can_swap();
     if args.p1_gods.len() > 0 {
         matchup_selector = matchup_selector.with_exact_gods_for_player(Player::One, &args.p1_gods);
@@ -114,6 +128,11 @@ fn main() {
     }
 
     loop {
+        if deadline.is_some_and(|d| Instant::now() >= d) {
+            eprintln!("Timeout reached, stopping fuzzer.");
+            break;
+        }
+
         let mut matchup = matchup_selector.get();
         if rng.random_bool(0.5) {
             matchup = matchup.flip();
@@ -125,11 +144,14 @@ fn main() {
         maybe_kill_random_worker(&mut root_state, Player::Two, &mut rng);
 
         if root_state.validation_err().is_err() {
-            // eprintln!("Invalid Matchup: {:?}", root_state);
             continue;
         }
 
-        run_match(root_state, &mut rng);
+        let is_failure = run_match(root_state, &mut rng);
+        if args.stop_on_failure && is_failure {
+            eprintln!("Failure detected, stopping fuzzer.");
+            break;
+        }
     }
 }
 
