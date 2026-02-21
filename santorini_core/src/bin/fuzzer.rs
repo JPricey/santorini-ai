@@ -12,13 +12,12 @@ use santorini_core::{
     random_utils::{get_random_starting_state, get_random_state_flattening_powers},
 };
 
-/// Returns true if consistency check failed.
-fn run_match(root_state: FullGameState, rng: &mut impl Rng) -> bool {
+fn run_match_return_should_continue(root_state: FullGameState, rng: &mut impl Rng) -> bool {
     let mut prev_state = root_state.clone();
     let mut current_state = root_state;
     loop {
         if current_state.board.get_winner().is_some() {
-            return false;
+            return true;
         }
 
         if let Err(err) = consistency_check(&current_state) {
@@ -29,14 +28,14 @@ fn run_match(root_state: FullGameState, rng: &mut impl Rng) -> bool {
             for error_line in err {
                 eprintln!("{error_line}");
             }
-            return true;
+            return false;
         }
 
         if let Some(next_state) = get_random_state_flattening_powers(&current_state, rng) {
             prev_state = current_state;
             current_state = next_state;
         } else {
-            return false;
+            return true;
         }
     }
 }
@@ -147,8 +146,8 @@ fn main() {
             continue;
         }
 
-        let is_failure = run_match(root_state, &mut rng);
-        if args.stop_on_failure && is_failure {
+        let should_continue = run_match_return_should_continue(root_state, &mut rng);
+        if args.stop_on_failure && !should_continue {
             eprintln!("Failure detected, stopping fuzzer.");
             break;
         }

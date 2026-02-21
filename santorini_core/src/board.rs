@@ -327,12 +327,6 @@ pub(crate) const PLAYER_TO_WINNER_LOOKUP: [BitBoard; 2] = [P1_WINNER, P2_WINNER]
  * 10 for player 1 winning
  * 01 for player 2 winning
  * 11 is invalid state
- *
- * on board 1:
- * 30-31 represent how much a worker can move up (for athena)
- * bit 30 represents the amount that player 1 can move up on their next turn
- * bit 31 represents the amount that player 2 can move up on their next turn
- * move of the time these will be "11", they only change to 0 when playing against athena
  */
 #[derive(Clone, Debug, Default, Hash)]
 pub struct BoardState {

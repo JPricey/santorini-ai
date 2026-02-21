@@ -169,7 +169,44 @@ impl std::fmt::Debug for StymphaliansMove {
     }
 }
 
-fn stymphalians_vs_persephone<const F: MoveGenFlags>(
+/// Finds the first intermediate step in a multi-step winning path by searching
+/// `possible_first_steps` for one that can legally reach `second_step_pos`.
+/// Panics if no valid path is found (indicates a bug in move generation).
+fn find_first_step(
+    board: &BoardState,
+    standard_neighbor_map: &[BitBoard; 25],
+    open_by_height: &[BitBoard; 4],
+    possible_first_steps: BitBoard,
+    second_step_pos: Square,
+    // Debug context for panic message:
+    worker_start_pos: Square,
+    moving_worker_end_pos: Square,
+) -> Square {
+    let second_step_mask = second_step_pos.to_board();
+    for possible_first_step in possible_first_steps {
+        let first_step_height = board.get_height(possible_first_step);
+        let moves_from_first_step =
+            standard_neighbor_map[possible_first_step as usize] & open_by_height[first_step_height];
+        if (moves_from_first_step & second_step_mask).is_not_empty() {
+            return possible_first_step;
+        }
+    }
+    if cfg!(debug_assertions) {
+        let state = FullGameState::new(
+            board.clone(),
+            [GodName::Mortal.to_power(), GodName::Mortal.to_power()],
+        );
+        eprint!("board: {:?}", state);
+        state.print_to_console();
+        eprintln!(
+            "could not find winning path start_pos: {} mid_pos: {} end_pos: {} possible_steps: {}",
+            worker_start_pos, second_step_pos, moving_worker_end_pos, possible_first_steps,
+        );
+    }
+    panic!("Could not find winning path");
+}
+
+fn stymphalians_vs_persephone_must_climb<const F: MoveGenFlags>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
@@ -179,7 +216,6 @@ fn stymphalians_vs_persephone<const F: MoveGenFlags>(
 
     let open_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
 
-    // Against persephone, can_climb is true so open_by_height allows +1 height step
     let open_by_height: [BitBoard; 4] = [
         !prelude.board.height_map[1] & open_squares,
         !prelude.board.height_map[2] & open_squares,
@@ -273,18 +309,18 @@ fn stymphalians_vs_persephone<const F: MoveGenFlags>(
             worker_2d_not_climb_moves |= new_moves_from_non_climbs;
         }
 
-        // For 2d_climb exploration: remove start (occupied) and 1d_climbed (already explored all
-        // their neighbors in the 1d_climbed loop). Keep 1d_not_climbed squares since they may be
-        // reached via a 2d climb and need their 3d neighbors explored as part of climbing paths.
+        // Don't revisit the start or any 1d position where we already climbed - those can't lead
+        // to new spaces
         worker_2d_climb_moves &= !(worker_1d_climbed | worker_start_mask);
         // For 2d_not_climb: remove all 1d squares and start. Also remove level 3+ since we can't
         // climb further from them.
         worker_2d_not_climb_moves &=
             !(worker_1d_moves | worker_start_mask | prelude.board.height_map[2]);
 
+        // Must be on level 2 by now if we're going to win
         if is_mate_only::<F>() {
-            worker_2d_climb_moves &= prelude.board.height_map[1];
-            worker_2d_not_climb_moves &= prelude.board.height_map[1];
+            worker_2d_climb_moves &= prelude.exactly_level_2;
+            worker_2d_not_climb_moves &= prelude.exactly_level_2;
             if (worker_2d_climb_moves | worker_2d_not_climb_moves).is_empty() {
                 continue;
             }
@@ -304,40 +340,21 @@ fn stymphalians_vs_persephone<const F: MoveGenFlags>(
                     let possible_first_steps = worker_1d_moves
                         & get_reverse_direction_neighbor_map(&prelude)[worker_m_pos as usize]
                         & prelude.board.height_map[0];
-                    let first_step = || {
-                        let second_step_mask = worker_m_pos.to_board();
-                        for possible_first_step in possible_first_steps {
-                            let first_step_height = prelude.board.get_height(possible_first_step);
-                            let moves_from_first_step = prelude.standard_neighbor_map
-                                [possible_first_step as usize]
-                                & open_by_height[first_step_height];
-                            if (moves_from_first_step & second_step_mask).is_not_empty() {
-                                return possible_first_step;
-                            }
-                        }
-                        if cfg!(debug_assertions) {
-                            let state = FullGameState::new(
-                                prelude.board.clone(),
-                                [GodName::Mortal.to_power(), GodName::Mortal.to_power()],
-                            );
-                            eprint!("board: {:?}", state);
-                            state.print_to_console();
-                            eprintln!(
-                                "could not find winning path start_pos: {} mid_pos: {} end_pos: {} possible_steps: {}",
-                                worker_start_pos,
-                                worker_m_pos,
-                                moving_worker_end_pos,
-                                possible_first_steps,
-                            );
-                        }
-                        panic!("Could not find winning path");
-                    };
+                    let step = find_first_step(
+                        prelude.board,
+                        &prelude.standard_neighbor_map,
+                        &open_by_height,
+                        possible_first_steps,
+                        worker_m_pos,
+                        worker_start_pos,
+                        moving_worker_end_pos,
+                    );
 
                     let winning_move = ScoredMove::new_winning_move(
                         StymphaliansMove::new_winning_move(
                             worker_start_pos,
                             moving_worker_end_pos,
-                            first_step(),
+                            step,
                             worker_m_pos,
                         )
                         .into(),
@@ -367,40 +384,21 @@ fn stymphalians_vs_persephone<const F: MoveGenFlags>(
                     let possible_first_steps = worker_1d_moves
                         & get_reverse_direction_neighbor_map(&prelude)[worker_m_pos as usize]
                         & prelude.board.height_map[0];
-                    let first_step = || {
-                        let second_step_mask = worker_m_pos.to_board();
-                        for possible_first_step in possible_first_steps {
-                            let first_step_height = prelude.board.get_height(possible_first_step);
-                            let moves_from_first_step = prelude.standard_neighbor_map
-                                [possible_first_step as usize]
-                                & open_by_height[first_step_height];
-                            if (moves_from_first_step & second_step_mask).is_not_empty() {
-                                return possible_first_step;
-                            }
-                        }
-                        if cfg!(debug_assertions) {
-                            let state = FullGameState::new(
-                                prelude.board.clone(),
-                                [GodName::Mortal.to_power(), GodName::Mortal.to_power()],
-                            );
-                            eprint!("board: {:?}", state);
-                            state.print_to_console();
-                            eprintln!(
-                                "could not find winning path start_pos: {} mid_pos: {} end_pos: {} possible_steps: {}",
-                                worker_start_pos,
-                                worker_m_pos,
-                                moving_worker_end_pos,
-                                possible_first_steps,
-                            );
-                        }
-                        panic!("Could not find winning path");
-                    };
+                    let step = find_first_step(
+                        prelude.board,
+                        &prelude.standard_neighbor_map,
+                        &open_by_height,
+                        possible_first_steps,
+                        worker_m_pos,
+                        worker_start_pos,
+                        moving_worker_end_pos,
+                    );
 
                     let winning_move = ScoredMove::new_winning_move(
                         StymphaliansMove::new_winning_move(
                             worker_start_pos,
                             moving_worker_end_pos,
-                            first_step(),
+                            step,
                             worker_m_pos,
                         )
                         .into(),
@@ -527,7 +525,7 @@ fn stymphalians_move_gen_vs_harpies<const F: MoveGenFlags, const MUST_CLIMB: boo
         }
 
         if is_mate_only::<F>() {
-            step_2_destinations &= prelude.board.height_map[1];
+            step_2_destinations &= prelude.exactly_level_2;
             if step_2_destinations.is_empty() {
                 continue;
             }
@@ -616,7 +614,7 @@ fn stymphalians_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
     if MUST_CLIMB {
-        return stymphalians_vs_persephone::<F>(state, player, key_squares);
+        return stymphalians_vs_persephone_must_climb::<F>(state, player, key_squares);
     }
 
     if state.gods[!player as usize].is_harpies() {
@@ -721,8 +719,8 @@ fn stymphalians_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         worker_2d_moves &= new_visitable_squares;
 
         if is_mate_only::<F>() {
-            // After second move, you must be on at least level 2
-            worker_2d_moves &= prelude.board.height_map[1];
+            // After second move, you must be on level 2 to be able to win
+            worker_2d_moves &= prelude.exactly_level_2;
             if worker_2d_moves.is_empty() {
                 continue;
             }
@@ -741,40 +739,21 @@ fn stymphalians_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     let possible_first_steps = worker_1d_moves
                         & reverse_map[worker_m_pos as usize]
                         & prelude.board.height_map[0];
-                    let first_step = || {
-                        let second_step_mask = worker_m_pos.to_board();
-                        for possible_first_step in possible_first_steps {
-                            let first_step_height = prelude.board.get_height(possible_first_step);
-                            let moves_from_first_step = prelude.standard_neighbor_map
-                                [possible_first_step as usize]
-                                & open_by_height[first_step_height];
-                            if (moves_from_first_step & second_step_mask).is_not_empty() {
-                                return possible_first_step;
-                            }
-                        }
-                        if cfg!(debug_assertions) {
-                            let state = FullGameState::new(
-                                prelude.board.clone(),
-                                [GodName::Mortal.to_power(), GodName::Mortal.to_power()],
-                            );
-                            eprint!("board: {:?}", state);
-                            state.print_to_console();
-                            eprintln!(
-                                "could not find winning path start_pos: {} mid_pos: {} end_pos: {} possible_steps: {}",
-                                worker_start_pos,
-                                worker_m_pos,
-                                moving_worker_end_pos,
-                                possible_first_steps,
-                            );
-                        }
-                        panic!("Could not find winning path");
-                    };
+                    let step = find_first_step(
+                        prelude.board,
+                        &prelude.standard_neighbor_map,
+                        &open_by_height,
+                        possible_first_steps,
+                        worker_m_pos,
+                        worker_start_pos,
+                        moving_worker_end_pos,
+                    );
 
                     let winning_move = ScoredMove::new_winning_move(
                         StymphaliansMove::new_winning_move(
                             worker_start_pos,
                             moving_worker_end_pos,
-                            first_step(),
+                            step,
                             worker_m_pos,
                         )
                         .into(),
@@ -849,10 +828,7 @@ mod tests {
     /// (start_square, end_square, is_winning)
     type MoveEntry = (Square, Square, bool);
 
-    /// Brute-force reference: enumerate all reachable (start, end, is_win) triples
-    /// for Stymphalians via 1-3 steps, with a given climb requirement.
-    /// A move is winning if the worker lands on exactly level 3.
-    fn bruteforce_destinations_inner(
+    fn bruteforce_persephone_paths_inner(
         state: &FullGameState,
         player: Player,
         require_climb: bool,
@@ -875,13 +851,11 @@ mod tests {
                     continue;
                 }
                 let step1_height = board.get_height(step1);
-                // can_climb is always true vs Persephone, so max +1 height per step
                 if step1_height > start_height + 1 {
                     continue;
                 }
                 let did_climb_1 = step1_height > start_height;
 
-                // 1-step moves are always adjacent to start — never a valid final position.
                 for step2 in NEIGHBOR_MAP[step1 as usize] {
                     if blocked.contains_square(step2) || step2 == start_pos {
                         continue;
@@ -900,7 +874,6 @@ mod tests {
                         result.insert((start_pos, step2, is_win_2));
                     }
 
-                    // Winning by moving up to level 3 ends the move — no further steps.
                     if is_win_2 && is_non_adjacent && (!require_climb || did_climb_2) {
                         continue;
                     }
@@ -930,18 +903,15 @@ mod tests {
         result
     }
 
-    /// Brute-force reference move generator for Stymphalians vs Persephone.
-    /// Implements Persephone's rule: if any climbing move exists, only climbing
-    /// moves are legal. Otherwise, all moves are legal (fallback).
     fn bruteforce_stymphalians_vs_persephone_destinations(
         state: &FullGameState,
         player: Player,
     ) -> HashSet<MoveEntry> {
-        let climbing = bruteforce_destinations_inner(state, player, true);
+        let climbing = bruteforce_persephone_paths_inner(state, player, true);
         if !climbing.is_empty() {
             climbing
         } else {
-            bruteforce_destinations_inner(state, player, false)
+            bruteforce_persephone_paths_inner(state, player, false)
         }
     }
 
@@ -965,9 +935,7 @@ mod tests {
         result
     }
 
-    /// Compare the brute-force and optimized move generators on a given state.
-    /// If any winning moves exist, asserts both agree on all wins.
-    /// Otherwise, asserts both agree on all (non-winning) moves.
+    // Compare slow vs actual move generators
     fn assert_destinations_match(state: &FullGameState, player: Player) {
         let bruteforce = bruteforce_stymphalians_vs_persephone_destinations(state, player);
         let real = real_stymphalians_vs_persephone_destinations(state, player);
@@ -976,7 +944,7 @@ mod tests {
         let real_wins: HashSet<_> = real.iter().filter(|(_, _, w)| *w).copied().collect();
 
         if !bf_wins.is_empty() || !real_wins.is_empty() {
-            // Winning moves exist — only compare wins
+            // If winning moves exist - only compare wins
             let missing: Vec<_> = bf_wins.difference(&real_wins).collect();
             let extra: Vec<_> = real_wins.difference(&bf_wins).collect();
             if !missing.is_empty() || !extra.is_empty() {

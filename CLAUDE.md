@@ -48,7 +48,8 @@ The 5x5 Santorini board is represented using bitboards (32-bit integers via `Bit
 
 - **`Square`** - Enum of 25 squares (A5..E1), stored as `u8`, indexed row-major from top-left.
 
-- **`BitBoard`** - 32-bit bitboard. Bits 0-24 map to the 25 squares. Bits 25-29 reserved. Bits 30-31 encode winner state (in `height_map[0]`) or climb restrictions (in `height_map[1]`). Has `NEIGHBOR_MAP` precomputed for adjacency.
+- **`BitBoard`** - 32-bit bitboard. Bits 0-24 map to the 25 squares. Bits 25-29 reserved. Bits 30-31 encode winner state (in `height_map[0]`).
+- Many square -> neighbor / push mappings (NEIGHBOR_MAP, INCLUSIVE_NEIGHBOR_MAP, WRAPPING_NEIGHBOR_MAP...) are precomputed.
 
 ### Move Representation
 Moves are encoded as `GenericMove(u32)` - a 32-bit integer with bit-packed fields. Each god defines its own move struct (e.g., `MortalMove`, `ApolloMove`) that transmutes to/from `GenericMove`.
@@ -86,7 +87,7 @@ Pack move fields (from_square, to_square, build_square, etc.) into the u32 using
 3. **Implement `GodMove` trait** for your move struct:
    - `move_to_actions()` - Converts the compact move into a `Vec<FullAction>` (list of `PartialAction` steps for the UI)
    - `make_move()` - Applies the move to a `BoardState` mutably. Call `board.worker_xor()` to move workers, `board.build_up()` to build, `board.set_winner()` for wins
-   - `get_blocker_board()` - Returns a `BitBoard` of squares this move interacts with (used for move ordering)
+   - `get_blocker_board()` - Returns a `BitBoard` of squares this move interacts with during a winning move to help with blocking checks during search (behaviour when not winning is undefined).
    - `get_history_idx()` - Returns a unique index for the move (used for history heuristic in search)
 
 4. **Implement `Into<GenericMove>` and `From<GenericMove>`** using `unsafe { std::mem::transmute(self) }`
@@ -208,7 +209,7 @@ Plays random games and runs the consistency checker on every position. Flags:
 - `-t` — timeout in seconds
 
 ```bash
-cargo run -p santorini_core --bin fuzzer -r -- -g morpheus -s -t 60
+cargo run -p santorini_core --bin fuzzer -r -- -g morpheus -s -t 30
 ```
 
 ## Consistency Checker (`consistency_checker.rs`)
