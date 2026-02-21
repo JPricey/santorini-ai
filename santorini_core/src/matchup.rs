@@ -167,13 +167,6 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     add_matchup(GodName::Chronus, GodName::Asteria, BannedReason::Engine);
     add_matchup(GodName::Chronus, GodName::Polyphemus, BannedReason::Engine);
 
-    // Stymphalians - TODO
-    add_matchup(
-        GodName::Stymphalians,
-        GodName::Harpies,
-        BannedReason::Engine,
-    );
-
     set
 });
 

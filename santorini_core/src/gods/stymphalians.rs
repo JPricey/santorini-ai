@@ -10,6 +10,7 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        harpies::slide_position_with_custom_blockers,
         hypnus::hypnus_moveable_worker_filter,
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_reverse_direction_neighbor_map,
@@ -448,6 +449,167 @@ fn stymphalians_vs_persephone<const F: MoveGenFlags>(
     result
 }
 
+fn stymphalians_move_gen_vs_harpies<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    let mut result = get_sized_result::<F>();
+    let prelude = get_generator_prelude_state::<F>(state, player, key_squares);
+
+    let all_blockers = prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen;
+    let all_open_squares = !all_blockers;
+
+    for worker_start_pos in prelude.own_workers.into_iter() {
+        let worker_start_mask = worker_start_pos.to_board();
+        let worker_start_height = prelude.board.get_height(worker_start_pos);
+        let open_squares = all_open_squares ^ worker_start_mask;
+        let blockers = all_blockers ^ worker_start_mask;
+
+        let non_adjacent_to_start = !INCLUSIVE_NEIGHBOR_MAP[worker_start_pos as usize];
+        let mut all_valid_destinations = open_squares & non_adjacent_to_start;
+
+        let mut step_1_moves = NEIGHBOR_MAP[worker_start_pos as usize]
+            & !prelude.board.height_map[3.min(worker_start_height + 1)]
+            & open_squares;
+
+        if is_mate_only::<F>() {
+            step_1_moves &= prelude.board.height_map[0];
+            if step_1_moves.is_empty() {
+                continue;
+            }
+        }
+
+        let mut step_2_destinations = BitBoard::EMPTY;
+        for step_1_move in step_1_moves {
+            let step_1_pos = slide_position_with_custom_blockers(
+                prelude.board,
+                worker_start_pos,
+                step_1_move,
+                blockers,
+            );
+            let step_1_height = prelude.board.get_height(step_1_pos);
+
+            let mut step_2_moves = NEIGHBOR_MAP[step_1_pos as usize]
+                & !prelude.board.height_map[3.min(step_1_height + 1)]
+                & open_squares;
+
+            if step_1_height == 2 {
+                let step_2_wins = step_2_moves & all_valid_destinations & prelude.exactly_level_3;
+                for win_pos in step_2_wins {
+                    let winning_move = ScoredMove::new_winning_move(
+                        StymphaliansMove::new_winning_move(
+                            worker_start_pos,
+                            win_pos,
+                            step_1_move,
+                            step_1_move,
+                        )
+                        .into(),
+                    );
+                    result.push(winning_move);
+                    if is_stop_on_mate::<F>() {
+                        return result;
+                    }
+                }
+                all_valid_destinations ^= step_2_wins;
+                step_2_moves ^= step_2_wins;
+            }
+
+            for step_2_move in step_2_moves {
+                let slid2_pos = slide_position_with_custom_blockers(
+                    prelude.board,
+                    step_1_pos,
+                    step_2_move,
+                    blockers,
+                );
+                step_2_destinations |= slid2_pos.to_board();
+            }
+        }
+
+        if is_mate_only::<F>() {
+            step_2_destinations &= prelude.board.height_map[1];
+            if step_2_destinations.is_empty() {
+                continue;
+            }
+        }
+
+        let mut step_3_destinations = BitBoard::EMPTY;
+
+        for step_2_pos in step_2_destinations {
+            let step_2_height = prelude.board.get_height(step_2_pos);
+            let mut step_3_moves = NEIGHBOR_MAP[step_2_pos as usize]
+                & !prelude.board.height_map[3.min(step_2_height + 1)]
+                & open_squares;
+
+            if step_2_height == 2 {
+                let step_3_wins = step_3_moves & all_valid_destinations & prelude.exactly_level_3;
+                for win_pos in step_3_wins {
+                    let winning_move = ScoredMove::new_winning_move(
+                        StymphaliansMove::new_winning_move(
+                            worker_start_pos,
+                            win_pos,
+                            // Don't bother showing the whole move trail... Harpies tries all
+                            // blockers anyway
+                            step_2_pos,
+                            step_2_pos,
+                        )
+                        .into(),
+                    );
+                    result.push(winning_move);
+                    if is_stop_on_mate::<F>() {
+                        return result;
+                    }
+                }
+                all_valid_destinations ^= step_3_wins;
+                step_3_moves ^= step_3_wins;
+            }
+
+            if is_mate_only::<F>() {
+                continue;
+            }
+
+            for step_3_move in step_3_moves {
+                let slid3_pos = slide_position_with_custom_blockers(
+                    prelude.board,
+                    step_2_pos,
+                    step_3_move,
+                    blockers,
+                );
+                step_3_destinations |= slid3_pos.to_board();
+            }
+        }
+
+        if is_mate_only::<F>() {
+            continue;
+        }
+
+        let all_destinations = (step_2_destinations | step_3_destinations) & all_valid_destinations;
+
+        for worker_end_pos in all_destinations {
+            let worker_end_mask = worker_end_pos.to_board();
+            let worker_builds =
+                NEIGHBOR_MAP[worker_end_pos as usize] & open_squares & prelude.build_mask;
+            let mut narrowed_builds = worker_builds;
+            if is_interact_with_key_squares::<F>() {
+                let is_key_squares_matched = (worker_end_mask & key_squares).is_not_empty();
+                narrowed_builds &= [prelude.key_squares, BitBoard::MAIN_SECTION_MASK]
+                    [is_key_squares_matched as usize];
+            }
+
+            for worker_build_pos in narrowed_builds {
+                let new_action = StymphaliansMove::new_basic_move(
+                    worker_start_pos,
+                    worker_end_pos,
+                    worker_build_pos,
+                );
+                result.push(build_scored_move::<F, _>(new_action, false, false));
+            }
+        }
+    }
+
+    result
+}
+
 fn stymphalians_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
@@ -457,9 +619,9 @@ fn stymphalians_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         return stymphalians_vs_persephone::<F>(state, player, key_squares);
     }
 
-    // if state.gods[!player as usize].is_harpies() {
-    //     return stymphalians_move_gen_vs_harpies::<F, MUST_CLIMB>(state, player, key_squares);
-    // }
+    if state.gods[!player as usize].is_harpies() {
+        return stymphalians_move_gen_vs_harpies::<F, MUST_CLIMB>(state, player, key_squares);
+    }
 
     let mut result = persephone_check_result!(stymphalians_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
@@ -1028,6 +1190,45 @@ mod tests {
             "Expected to check many states, only checked {}",
             states_checked,
         );
+    }
+
+    #[test]
+    fn test_stymphalians_vs_harpies_fuzzer_case_1() {
+        let state =
+            parse_fen("1432204411410232444101202/1/stymphalians:D5,E2,B1/harpies:A5,C3").unwrap();
+        let mut checker = ConsistencyChecker::new(&state);
+        checker.perform_all_validations().expect("Failed check");
+    }
+
+    #[test]
+    fn test_stymphalians_vs_harpies_fuzzer_case_2() {
+        let state =
+            parse_fen("0422114014424022323422322/1/stymphalians:C2,B1,E1/harpies:C4,D4").unwrap();
+
+        let stymphalians = GodName::Stymphalians.to_power();
+        let wins = stymphalians.get_winning_moves(&state, Player::One);
+        let all = stymphalians.get_all_moves(&state, Player::One);
+
+        eprintln!("Winning moves:");
+        for m in &wins {
+            let sm: StymphaliansMove = m.action.into();
+            eprintln!(
+                "  {:?} from={} to={}",
+                sm,
+                sm.move_from_position(),
+                sm.move_to_position()
+            );
+        }
+        eprintln!("All moves with win flag:");
+        for m in &all {
+            if m.get_is_winning() {
+                let sm: StymphaliansMove = m.action.into();
+                eprintln!("  {:?}", sm);
+            }
+        }
+
+        let mut checker = ConsistencyChecker::new(&state);
+        checker.perform_all_validations().expect("Failed check");
     }
 }
 

@@ -14,7 +14,7 @@ use crate::{
         hypnus::hypnus_moveable_worker_filter,
         move_helpers::{
             build_scored_move, get_generator_prelude_state, get_inclusive_movement_neighbors,
-            get_sized_result, get_reverse_direction_neighbor_map, get_worker_climb_height_raw,
+            get_reverse_direction_neighbor_map, get_sized_result, get_worker_climb_height_raw,
             get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
             is_stop_on_mate,
         },
@@ -35,7 +35,12 @@ const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
 pub struct ArtemisMove(pub MoveData);
 
 impl GodMove for ArtemisMove {
-    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
+    fn move_to_actions(
+        self,
+        _board: &BoardState,
+        _player: Player,
+        _other_god: StaticGod,
+    ) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),
