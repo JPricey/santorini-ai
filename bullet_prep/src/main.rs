@@ -585,6 +585,11 @@ enum Command {
         #[arg(help = "Output directory (will contain 'main' and 'other' subdirs)")]
         output_dir: PathBuf,
     },
+    /// Print line counts in the "main" vs "other" custom-split bins
+    SplitMatchupsStats {
+        #[arg(help = "Input directory containing raw .txt data files")]
+        input_dir: PathBuf,
+    },
     /// Print game counts per matchup (or per god with --gods)
     Stats {
         #[arg(help = "Input directory containing raw .txt data files")]
@@ -778,12 +783,16 @@ fn custom_split(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn s
     Ok(())
 }
 
-fn run_stats(
-    input_dir: PathBuf,
-    by_god: bool,
-    delimiter: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let all_data_files = all_filenames_in_dir(&input_dir)?;
+/// Parallelizes over all .txt files in `input_dir`, classifies each line's matchup
+/// via `classify_fn`, and returns merged counts per key.
+fn parallel_count_by<K>(
+    input_dir: &PathBuf,
+    classify_fn: impl Fn(&Matchup) -> K + Send + Sync + 'static,
+) -> Result<HashMap<K, usize>, Box<dyn std::error::Error>>
+where
+    K: Hash + Eq + Send + 'static,
+{
+    let all_data_files = all_filenames_in_dir(input_dir)?;
     let total_files = all_data_files.len();
     let num_workers = num_cpus::get();
 
@@ -797,13 +806,15 @@ fn run_stats(
 
     let queue = Arc::new(Mutex::new(all_data_files));
     let pb = Arc::new(pb);
+    let classify_fn = Arc::new(classify_fn);
 
     let mut handles = Vec::with_capacity(num_workers);
     for _ in 0..num_workers {
         let queue = Arc::clone(&queue);
         let pb = Arc::clone(&pb);
+        let classify_fn = Arc::clone(&classify_fn);
         handles.push(std::thread::spawn(move || {
-            let mut local_counts: HashMap<Matchup, usize> = HashMap::new();
+            let mut local_counts: HashMap<K, usize> = HashMap::new();
             loop {
                 let next_file = queue.lock().unwrap().pop();
                 let Some(file_path) = next_file else { break };
@@ -816,7 +827,7 @@ fn run_stats(
                     let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
                         continue;
                     };
-                    *local_counts.entry(state.get_matchup()).or_default() += 1;
+                    *local_counts.entry(classify_fn(&state.get_matchup())).or_default() += 1;
                 }
 
                 pb.inc(1);
@@ -825,15 +836,25 @@ fn run_stats(
         }));
     }
 
-    let mut matchup_counts: BTreeMap<Matchup, usize> = BTreeMap::new();
+    let mut counts: HashMap<K, usize> = HashMap::new();
     for handle in handles {
         let local = handle.join().expect("Thread panicked");
         for (key, count) in local {
-            *matchup_counts.entry(key).or_default() += count;
+            *counts.entry(key).or_default() += count;
         }
     }
 
     pb.finish_and_clear();
+    Ok(counts)
+}
+
+fn run_stats(
+    input_dir: PathBuf,
+    by_god: bool,
+    delimiter: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let counts = parallel_count_by(&input_dir, |matchup| matchup.clone())?;
+    let matchup_counts: BTreeMap<Matchup, usize> = counts.into_iter().collect();
 
     if by_god {
         let mut god_counts: BTreeMap<GodName, usize> = BTreeMap::new();
@@ -857,6 +878,15 @@ fn run_stats(
     Ok(())
 }
 
+fn run_split_matchups_stats(input_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let counts = parallel_count_by(&input_dir, |matchup| is_custom_split_other(matchup))?;
+    let main_count = counts.get(&false).copied().unwrap_or(0);
+    let other_count = counts.get(&true).copied().unwrap_or(0);
+    println!("main: {}", main_count);
+    println!("other: {}", other_count);
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
@@ -869,6 +899,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             input_dir,
             output_dir,
         } => custom_split(input_dir, output_dir)?,
+        Command::SplitMatchupsStats { input_dir } => run_split_matchups_stats(input_dir)?,
         Command::Stats {
             input_dir,
             gods,
@@ -884,5 +915,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // cargo run -p bullet_prep -r -- prep
 // cargo run -p bullet_prep -r -- prep -d
 // cargo run -p bullet_prep -r -- split-matchups ./game_data ./split_output
+// cargo run -p bullet_prep -r -- custom-split ./game_data ./custom_output
+// cargo run -p bullet_prep -r -- split-matchups-stats ./game_data
 // cargo run -p bullet_prep -r -- stats ./game_data
 // cargo run -p bullet_prep -r -- stats ./game_data --gods
