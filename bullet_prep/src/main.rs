@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File, OpenOptions, remove_file};
+use std::hash::Hash;
 use std::io::{BufReader, BufWriter, prelude::*};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -577,6 +578,13 @@ enum Command {
         #[arg(help = "Output directory where per-matchup files will be written")]
         output_dir: PathBuf,
     },
+    /// Split raw data into "main" and "other" based on a custom predicate
+    CustomSplit {
+        #[arg(help = "Input directory containing raw .txt data files")]
+        input_dir: PathBuf,
+        #[arg(help = "Output directory (will contain 'main' and 'other' subdirs)")]
+        output_dir: PathBuf,
+    },
     /// Print game counts per matchup (or per god with --gods)
     Stats {
         #[arg(help = "Input directory containing raw .txt data files")]
@@ -615,94 +623,53 @@ fn matchup_filename(matchup: &Matchup) -> String {
     format!("{}_vs_{}", gods[0], gods[1])
 }
 
-fn split_matchups_worker(
-    input_dir: Arc<PathBuf>,
-    output_dir: Arc<PathBuf>,
-    queue: Arc<Mutex<Vec<PathBuf>>>,
-    total_files: usize,
-) {
-    loop {
-        let next_file = {
-            let mut q = queue.lock().unwrap();
-            let file = q.pop();
-            if file.is_some() {
-                println!(
-                    "{} {}/{} remaining",
-                    timestamp_string(),
-                    q.len(),
-                    total_files
-                );
-            }
-            file
-        };
-
-        let Some(filename) = next_file else { break };
-
-        let relative_path = filename
-            .strip_prefix(input_dir.as_ref())
-            .expect("input file is not under input_dir");
-
-        println!("{} Processing {:?}", timestamp_string(), filename,);
-
-        let file_handle = File::open(&filename).expect("Failed to open input file");
-        let reader = BufReader::new(file_handle);
-
-        let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
-
-        for line in reader.lines() {
-            let line = line.expect("Failed to read line");
-            let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
-                eprintln!("bad line: {:?}", &line);
-                continue;
-            };
-
-            let matchup_name = matchup_filename(&state.get_matchup());
-            let writer = writers.entry(matchup_name.clone()).or_insert_with(|| {
-                let path = output_dir.join(&matchup_name).join(relative_path);
-                fs::create_dir_all(path.parent().unwrap())
-                    .expect("Failed to create matchup output directory");
-                let file = OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&path)
-                    .expect("Failed to open matchup output file");
-                BufWriter::new(file)
-            });
-
-            writeln!(writer, "{}", line).expect("Failed to write line");
-        }
-
-        for (_, mut writer) in writers {
-            writer.flush().expect("Failed to flush writer");
-        }
-    }
-}
-
-fn split_matchups(
-    input_dir: PathBuf,
-    output_dir: PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let all_data_files = all_filenames_in_dir(&input_dir)?;
+/// Runs a parallel work queue over all .txt files in `input_dir`.
+/// Each worker pops files from the queue and calls `process_file(input_dir, filename)`.
+fn run_parallel_file_workers<F>(
+    input_dir: &PathBuf,
+    process_file: F,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    F: Fn(&PathBuf, PathBuf) + Send + Sync + 'static,
+{
+    let all_data_files = all_filenames_in_dir(input_dir)?;
     let total_files = all_data_files.len();
     let num_workers = num_cpus::get();
     println!(
-        "Found {} raw data files to split, using {} threads",
+        "Found {} raw data files, using {} threads",
         total_files, num_workers
     );
 
-    fs::create_dir_all(&output_dir)?;
-
     let queue = Arc::new(Mutex::new(all_data_files));
-    let input_dir = Arc::new(input_dir);
-    let output_dir = Arc::new(output_dir);
+    let process_file = Arc::new(process_file);
+    let input_dir = Arc::new(input_dir.clone());
 
     let mut handles = Vec::with_capacity(num_workers);
     for _ in 0..num_workers {
         let queue = Arc::clone(&queue);
+        let process_file = Arc::clone(&process_file);
         let input_dir = Arc::clone(&input_dir);
-        let output_dir = Arc::clone(&output_dir);
         handles.push(std::thread::spawn(move || {
-            split_matchups_worker(input_dir, output_dir, queue, total_files);
+            loop {
+                let next_file = {
+                    let mut q = queue.lock().unwrap();
+                    let file = q.pop();
+                    if file.is_some() {
+                        println!(
+                            "{} {}/{} remaining",
+                            timestamp_string(),
+                            q.len(),
+                            total_files
+                        );
+                    }
+                    file
+                };
+
+                let Some(filename) = next_file else { break };
+
+                println!("{} Processing {:?}", timestamp_string(), filename);
+                process_file(&input_dir, filename);
+            }
         }));
     }
 
@@ -710,7 +677,104 @@ fn split_matchups(
         handle.join().expect("Thread panicked");
     }
 
+    Ok(())
+}
+
+/// Reads a file line-by-line, parses each line's matchup, and routes the raw line
+/// to a `BufWriter` keyed by `classify_fn`'s return value. `to_path_fn` maps each
+/// key to a subdirectory name under `base_output_dir`.
+fn route_lines_to_dirs<K: Hash + Eq>(
+    input_dir: &PathBuf,
+    filename: PathBuf,
+    base_output_dir: &PathBuf,
+    classify_fn: &dyn Fn(&Matchup) -> K,
+    to_path_fn: &dyn Fn(&K) -> PathBuf,
+) {
+    let relative_path = filename
+        .strip_prefix(input_dir)
+        .expect("input file is not under input_dir");
+
+    let file_handle = File::open(&filename).expect("Failed to open input file");
+    let reader = BufReader::new(file_handle);
+
+    let mut writers: HashMap<K, BufWriter<File>> = HashMap::new();
+
+    for line in reader.lines() {
+        let line = line.expect("Failed to read line");
+        let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
+            eprintln!("bad line: {:?}", &line);
+            continue;
+        };
+
+        let key = classify_fn(&state.get_matchup());
+        let writer = writers.entry(key).or_insert_with_key(|k| {
+            let path = base_output_dir.join(to_path_fn(k)).join(relative_path);
+            fs::create_dir_all(path.parent().unwrap()).expect("Failed to create output directory");
+            let file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+                .expect("Failed to open output file");
+            BufWriter::new(file)
+        });
+
+        writeln!(writer, "{}", line).expect("Failed to write line");
+    }
+
+    for (_, mut writer) in writers {
+        writer.flush().expect("Failed to flush writer");
+    }
+}
+
+fn split_matchups(
+    input_dir: PathBuf,
+    output_dir: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(&output_dir)?;
+    let output_dir = Arc::new(output_dir);
+
+    run_parallel_file_workers(&input_dir, {
+        let output_dir = Arc::clone(&output_dir);
+        move |input_dir, filename| {
+            route_lines_to_dirs(
+                input_dir,
+                filename,
+                &output_dir,
+                &|matchup| matchup.clone(),
+                &|matchup| PathBuf::from(matchup_filename(matchup)),
+            );
+        }
+    })?;
+
     println!("{} Split complete", timestamp_string());
+    Ok(())
+}
+
+fn is_custom_split_other(matchup: &Matchup) -> bool {
+    let has_morpheus = matchup.gods.iter().any(|g| *g == GodName::Morpheus);
+    let is_atlas_vs_limus = matchup.is_same_gods(&Matchup::new(GodName::Atlas, GodName::Limus));
+    has_morpheus || is_atlas_vs_limus
+}
+
+fn custom_split(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(output_dir.join("main"))?;
+    fs::create_dir_all(output_dir.join("other"))?;
+    let output_dir = Arc::new(output_dir);
+
+    run_parallel_file_workers(&input_dir, {
+        let output_dir = Arc::clone(&output_dir);
+        move |input_dir, filename| {
+            route_lines_to_dirs(
+                input_dir,
+                filename,
+                &output_dir,
+                &|matchup| is_custom_split_other(matchup),
+                &|&is_other| PathBuf::from(if is_other { "other" } else { "main" }),
+            );
+        }
+    })?;
+
+    println!("{} Custom split complete", timestamp_string());
     Ok(())
 }
 
@@ -801,6 +865,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             input_dir,
             output_dir,
         } => split_matchups(input_dir, output_dir)?,
+        Command::CustomSplit {
+            input_dir,
+            output_dir,
+        } => custom_split(input_dir, output_dir)?,
         Command::Stats {
             input_dir,
             gods,
