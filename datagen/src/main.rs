@@ -118,7 +118,7 @@ fn _inner_worker_thread(matchups: Arc<Vec<Matchup>>) -> Result<(), Box<dyn std::
                 game_history.len(),
                 now.elapsed().as_secs_f32(),
                 matchup,
-                total_examples + game_history.len(),
+                total_examples,
             );
 
             for game_turn in game_history {
