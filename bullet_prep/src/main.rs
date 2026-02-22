@@ -827,7 +827,9 @@ where
                     let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
                         continue;
                     };
-                    *local_counts.entry(classify_fn(&state.get_matchup())).or_default() += 1;
+                    *local_counts
+                        .entry(classify_fn(&state.get_matchup()))
+                        .or_default() += 1;
                 }
 
                 pb.inc(1);
@@ -879,9 +881,83 @@ fn run_stats(
 }
 
 fn run_split_matchups_stats(input_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let counts = parallel_count_by(&input_dir, |matchup| is_custom_split_other(matchup))?;
-    let main_count = counts.get(&false).copied().unwrap_or(0);
-    let other_count = counts.get(&true).copied().unwrap_or(0);
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let all_data_files = all_filenames_in_dir(&input_dir)?;
+    let total_files = all_data_files.len();
+    let num_workers = num_cpus::get();
+
+    let pb = indicatif::ProgressBar::new(total_files as u64);
+    pb.set_style(
+        indicatif::ProgressStyle::with_template(
+            "{bar:40} {pos}/{len} files ({percent}%) [{elapsed_precise} elapsed, {eta_precise} remaining] {msg}",
+        )
+        .unwrap(),
+    );
+
+    let queue = Arc::new(Mutex::new(all_data_files));
+    let pb = Arc::new(pb);
+    let global_main = Arc::new(AtomicUsize::new(0));
+    let global_other = Arc::new(AtomicUsize::new(0));
+
+    let mut handles = Vec::with_capacity(num_workers);
+    for _ in 0..num_workers {
+        let queue = Arc::clone(&queue);
+        let pb = Arc::clone(&pb);
+        let global_main = Arc::clone(&global_main);
+        let global_other = Arc::clone(&global_other);
+        handles.push(std::thread::spawn(move || {
+            let mut local_main: usize = 0;
+            let mut local_other: usize = 0;
+            let mut files_since_flush: usize = 0;
+            loop {
+                let next_file = queue.lock().unwrap().pop();
+                let Some(file_path) = next_file else { break };
+
+                let file_handle = File::open(&file_path).expect("Failed to open file");
+                let reader = BufReader::new(file_handle);
+
+                for line in reader.lines() {
+                    let line = line.expect("Failed to read line");
+                    let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
+                        continue;
+                    };
+                    if is_custom_split_other(&state.get_matchup()) {
+                        local_other += 1;
+                    } else {
+                        local_main += 1;
+                    }
+                }
+
+                pb.inc(1);
+                files_since_flush += 1;
+
+                if files_since_flush >= 5 {
+                    global_main.fetch_add(local_main, Ordering::Relaxed);
+                    global_other.fetch_add(local_other, Ordering::Relaxed);
+                    local_main = 0;
+                    local_other = 0;
+                    files_since_flush = 0;
+
+                    let m = global_main.load(Ordering::Relaxed);
+                    let o = global_other.load(Ordering::Relaxed);
+                    pb.set_message(format!("main: {}, other: {}", m, o));
+                }
+            }
+
+            global_main.fetch_add(local_main, Ordering::Relaxed);
+            global_other.fetch_add(local_other, Ordering::Relaxed);
+        }));
+    }
+
+    for handle in handles {
+        handle.join().expect("Thread panicked");
+    }
+
+    pb.finish_and_clear();
+
+    let main_count = global_main.load(Ordering::Relaxed);
+    let other_count = global_other.load(Ordering::Relaxed);
     println!("main: {}", main_count);
     println!("other: {}", other_count);
     Ok(())
