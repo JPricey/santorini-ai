@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File, OpenOptions, remove_file};
 use std::io::{BufReader, BufWriter, prelude::*};
 use std::path::PathBuf;
@@ -552,7 +552,6 @@ fn consolidate_temp_files(
     Ok(())
 }
 
-
 #[derive(Parser, Debug)]
 struct Cli {
     #[command(subcommand)]
@@ -578,10 +577,23 @@ enum Command {
         #[arg(help = "Output directory where per-matchup files will be written")]
         output_dir: PathBuf,
     },
+    /// Print game counts per matchup (or per god with --gods)
+    Stats {
+        #[arg(help = "Input directory containing raw .txt data files")]
+        input_dir: PathBuf,
+        #[arg(
+            short = 'g',
+            long,
+            default_value_t = false,
+            help = "Aggregate by individual god instead of matchup"
+        )]
+        gods: bool,
+        #[arg(short, long, default_value = ",", help = "Output field delimiter")]
+        delimiter: String,
+    },
 }
 
 fn run_prep(is_delete: bool) -> Result<(), Box<dyn std::error::Error>> {
-
     let input_path = PathBuf::from("raw_data");
     let temp_path = PathBuf::from("temp_data");
     let output_path = PathBuf::from("final_data");
@@ -614,21 +626,23 @@ fn split_matchups_worker(
             let mut q = queue.lock().unwrap();
             let file = q.pop();
             if file.is_some() {
-                println!("{} {}/{} remaining", timestamp_string(), q.len(), total_files);
+                println!(
+                    "{} {}/{} remaining",
+                    timestamp_string(),
+                    q.len(),
+                    total_files
+                );
             }
             file
         };
 
         let Some(filename) = next_file else { break };
 
-        let relative_path = filename.strip_prefix(input_dir.as_ref())
+        let relative_path = filename
+            .strip_prefix(input_dir.as_ref())
             .expect("input file is not under input_dir");
 
-        println!(
-            "{} Processing {:?}",
-            timestamp_string(),
-            filename,
-        );
+        println!("{} Processing {:?}", timestamp_string(), filename,);
 
         let file_handle = File::open(&filename).expect("Failed to open input file");
         let reader = BufReader::new(file_handle);
@@ -664,11 +678,17 @@ fn split_matchups_worker(
     }
 }
 
-fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn split_matchups(
+    input_dir: PathBuf,
+    output_dir: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
     let all_data_files = all_filenames_in_dir(&input_dir)?;
     let total_files = all_data_files.len();
     let num_workers = num_cpus::get();
-    println!("Found {} raw data files to split, using {} threads", total_files, num_workers);
+    println!(
+        "Found {} raw data files to split, using {} threads",
+        total_files, num_workers
+    );
 
     fs::create_dir_all(&output_dir)?;
 
@@ -694,11 +714,98 @@ fn split_matchups(input_dir: PathBuf, output_dir: PathBuf) -> Result<(), Box<dyn
     Ok(())
 }
 
+fn run_stats(
+    input_dir: PathBuf,
+    by_god: bool,
+    delimiter: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let all_data_files = all_filenames_in_dir(&input_dir)?;
+    let total_files = all_data_files.len();
+    let num_workers = num_cpus::get();
+
+    let pb = indicatif::ProgressBar::new(total_files as u64);
+    pb.set_style(
+        indicatif::ProgressStyle::with_template(
+            "{bar:40} {pos}/{len} files ({percent}%) [{elapsed_precise} elapsed, {eta_precise} remaining]",
+        )
+        .unwrap(),
+    );
+
+    let queue = Arc::new(Mutex::new(all_data_files));
+    let pb = Arc::new(pb);
+
+    let mut handles = Vec::with_capacity(num_workers);
+    for _ in 0..num_workers {
+        let queue = Arc::clone(&queue);
+        let pb = Arc::clone(&pb);
+        handles.push(std::thread::spawn(move || {
+            let mut local_counts: HashMap<Matchup, usize> = HashMap::new();
+            loop {
+                let next_file = queue.lock().unwrap().pop();
+                let Some(file_path) = next_file else { break };
+
+                let file_handle = File::open(&file_path).expect("Failed to open file");
+                let reader = BufReader::new(file_handle);
+
+                for line in reader.lines() {
+                    let line = line.expect("Failed to read line");
+                    let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
+                        continue;
+                    };
+                    *local_counts.entry(state.get_matchup()).or_default() += 1;
+                }
+
+                pb.inc(1);
+            }
+            local_counts
+        }));
+    }
+
+    let mut matchup_counts: BTreeMap<Matchup, usize> = BTreeMap::new();
+    for handle in handles {
+        let local = handle.join().expect("Thread panicked");
+        for (key, count) in local {
+            *matchup_counts.entry(key).or_default() += count;
+        }
+    }
+
+    pb.finish_and_clear();
+
+    if by_god {
+        let mut god_counts: BTreeMap<GodName, usize> = BTreeMap::new();
+        for (matchup, count) in &matchup_counts {
+            for god in &matchup.gods {
+                *god_counts.entry(*god).or_default() += count;
+            }
+        }
+        for (god, count) in &god_counts {
+            println!("{}{}{}", god, delimiter, count);
+        }
+    } else {
+        for (matchup, count) in &matchup_counts {
+            println!(
+                "{}{}{}{}{}",
+                matchup.gods[0], delimiter, matchup.gods[1], delimiter, count
+            );
+        }
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
         Command::Prep { is_delete } => run_prep(is_delete)?,
-        Command::SplitMatchups { input_dir, output_dir } => split_matchups(input_dir, output_dir)?,
+        Command::SplitMatchups {
+            input_dir,
+            output_dir,
+        } => split_matchups(input_dir, output_dir)?,
+        Command::Stats {
+            input_dir,
+            gods,
+            delimiter,
+        } => run_stats(input_dir, gods, &delimiter)?,
     }
     Ok(())
 }
@@ -706,6 +813,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // rm -rf temp_data
 // rm final_data
 // ulimit -n 2048
-// cargo run -p bullet_prep --release -- prep
-// cargo run -p bullet_prep --release -- prep -d
-// cargo run -p bullet_prep --release -- split-matchups ./game_data ./split_output
+// cargo run -p bullet_prep -r -- prep
+// cargo run -p bullet_prep -r -- prep -d
+// cargo run -p bullet_prep -r -- split-matchups ./game_data ./split_output
+// cargo run -p bullet_prep -r -- stats ./game_data
+// cargo run -p bullet_prep -r -- stats ./game_data --gods
