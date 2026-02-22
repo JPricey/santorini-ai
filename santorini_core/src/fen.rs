@@ -6,6 +6,7 @@ use crate::{
     bitboard::{BitBoard, NUM_SQUARES},
     board::{BoardState, FullGameState, GodData},
     gods::{ALL_GODS_BY_ID, GodName},
+    matchup::Matchup,
     player::Player,
     square::Square,
 };
@@ -227,6 +228,28 @@ pub fn parse_fen(s: &str) -> Result<FullGameState, String> {
     Ok(full_result)
 }
 
+/// Extracts just the matchup (god names) from a FEN string without doing a full parse.
+/// Avoids all the expensive work (height bitboards, regex, zobrist hashing, validation).
+pub fn extract_matchup_from_fen(fen: &str) -> Option<Matchup> {
+    let mut slash_iter = fen.splitn(4, '/');
+    slash_iter.next()?; // heights
+    slash_iter.next()?; // player
+    let god1_section = slash_iter.next()?;
+    let god2_section = slash_iter.next()?;
+
+    let god1 = extract_god_name_from_fen_section(god1_section)?;
+    let god2 = extract_god_name_from_fen_section(god2_section)?;
+    Some(Matchup::new(god1, god2))
+}
+
+/// Parses just the god name from a FEN player section like `#athena[^]:C2,D3`.
+/// Skips leading `#`/`-` markers and stops at `:` or `[`.
+fn extract_god_name_from_fen_section(section: &str) -> Option<GodName> {
+    let s = section.trim_start_matches(&['#', '-']);
+    let name_end = s.find(&[':', '[']).unwrap_or(s.len());
+    GodName::from_str(&s[..name_end]).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::random_utils::GameStateFuzzer;
@@ -299,6 +322,54 @@ mod tests {
                 state, rebuilt_state,
                 "State mismatch after string conversion"
             );
+        }
+    }
+
+    #[test]
+    fn test_extract_matchup_basic() {
+        let fen = "0000000000000000000000000/1/mortal:B3,D3/pan:C2,C4";
+        let matchup = extract_matchup_from_fen(fen).unwrap();
+        assert_eq!(matchup, Matchup::new(GodName::Mortal, GodName::Pan));
+    }
+
+    #[test]
+    fn test_extract_matchup_with_winner_marker() {
+        let fen = "0000000000000000000000000/1/#athena:B3,D3/mortal:C2,C4";
+        let matchup = extract_matchup_from_fen(fen).unwrap();
+        assert_eq!(matchup, Matchup::new(GodName::Athena, GodName::Mortal));
+    }
+
+    #[test]
+    fn test_extract_matchup_with_god_data() {
+        let fen = "0000000000000000000000000/1/athena[^]:B3,D3/mortal:C2,C4";
+        let matchup = extract_matchup_from_fen(fen).unwrap();
+        assert_eq!(matchup, Matchup::new(GodName::Athena, GodName::Mortal));
+    }
+
+    #[test]
+    fn test_extract_matchup_with_up_limited() {
+        let fen = "0000000000000000000000000/1/-mortal:B3,D3/athena[^]:C2,C4";
+        let matchup = extract_matchup_from_fen(fen).unwrap();
+        assert_eq!(matchup, Matchup::new(GodName::Mortal, GodName::Athena));
+    }
+
+    #[test]
+    fn test_extract_matchup_no_workers() {
+        let fen = "0000000000000000000000000/1/mortal/mortal";
+        let matchup = extract_matchup_from_fen(fen).unwrap();
+        assert_eq!(matchup, Matchup::new(GodName::Mortal, GodName::Mortal));
+    }
+
+    #[test]
+    fn test_extract_matchup_agrees_with_full_parse() {
+        let game_state_fuzzer = GameStateFuzzer::default();
+
+        for state in game_state_fuzzer {
+            let fen = game_state_to_fen(&state);
+            let expected = state.get_matchup();
+            let actual = extract_matchup_from_fen(&fen)
+                .expect(&format!("extract_matchup_from_fen failed on: {}", fen));
+            assert_eq!(actual, expected, "Matchup mismatch for FEN: {}", fen);
         }
     }
 }

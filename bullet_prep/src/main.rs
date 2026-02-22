@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File, OpenOptions, remove_file};
 use std::hash::Hash;
-use std::io::{BufReader, BufWriter, prelude::*};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -141,6 +141,12 @@ fn _extract_god_data_to_u32(god: GodName, data: GodData) -> u32 {
     });
 
     res
+}
+
+/// Extracts just the matchup from a raw data line (space-separated fields starting with a FEN).
+fn extract_matchup_from_line(line: &str) -> Option<Matchup> {
+    let fen = line.split_once(' ')?.0;
+    santorini_core::fen::extract_matchup_from_fen(fen)
 }
 
 fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player)> {
@@ -700,18 +706,23 @@ fn route_lines_to_dirs<K: Hash + Eq>(
         .expect("input file is not under input_dir");
 
     let file_handle = File::open(&filename).expect("Failed to open input file");
-    let reader = BufReader::new(file_handle);
+    let mut reader = BufReader::new(file_handle);
 
     let mut writers: HashMap<K, BufWriter<File>> = HashMap::new();
+    let mut line_buf = String::new();
 
-    for line in reader.lines() {
-        let line = line.expect("Failed to read line");
-        let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
-            eprintln!("bad line: {:?}", &line);
+    while reader
+        .read_line(&mut line_buf)
+        .expect("Failed to read line")
+        > 0
+    {
+        let Some(matchup) = extract_matchup_from_line(&line_buf) else {
+            eprintln!("bad line: {:?}", &line_buf);
+            line_buf.clear();
             continue;
         };
 
-        let key = classify_fn(&state.get_matchup());
+        let key = classify_fn(&matchup);
         let writer = writers.entry(key).or_insert_with_key(|k| {
             let path = base_output_dir.join(to_path_fn(k)).join(relative_path);
             fs::create_dir_all(path.parent().unwrap()).expect("Failed to create output directory");
@@ -723,7 +734,8 @@ fn route_lines_to_dirs<K: Hash + Eq>(
             BufWriter::new(file)
         });
 
-        writeln!(writer, "{}", line).expect("Failed to write line");
+        write!(writer, "{}", line_buf).expect("Failed to write line");
+        line_buf.clear();
     }
 
     for (_, mut writer) in writers {
@@ -815,21 +827,24 @@ where
         let classify_fn = Arc::clone(&classify_fn);
         handles.push(std::thread::spawn(move || {
             let mut local_counts: HashMap<K, usize> = HashMap::new();
+            let mut line_buf = String::new();
             loop {
                 let next_file = queue.lock().unwrap().pop();
                 let Some(file_path) = next_file else { break };
 
                 let file_handle = File::open(&file_path).expect("Failed to open file");
-                let reader = BufReader::new(file_handle);
+                let mut reader = BufReader::new(file_handle);
 
-                for line in reader.lines() {
-                    let line = line.expect("Failed to read line");
-                    let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
-                        continue;
-                    };
-                    *local_counts
-                        .entry(classify_fn(&state.get_matchup()))
-                        .or_default() += 1;
+                line_buf.clear();
+                while reader
+                    .read_line(&mut line_buf)
+                    .expect("Failed to read line")
+                    > 0
+                {
+                    if let Some(matchup) = extract_matchup_from_line(&line_buf) {
+                        *local_counts.entry(classify_fn(&matchup)).or_default() += 1;
+                    }
+                    line_buf.clear();
                 }
 
                 pb.inc(1);
@@ -910,23 +925,28 @@ fn run_split_matchups_stats(input_dir: PathBuf) -> Result<(), Box<dyn std::error
             let mut local_main: usize = 0;
             let mut local_other: usize = 0;
             let mut files_since_flush: usize = 0;
+            let mut line_buf = String::new();
             loop {
                 let next_file = queue.lock().unwrap().pop();
                 let Some(file_path) = next_file else { break };
 
                 let file_handle = File::open(&file_path).expect("Failed to open file");
-                let reader = BufReader::new(file_handle);
+                let mut reader = BufReader::new(file_handle);
 
-                for line in reader.lines() {
-                    let line = line.expect("Failed to read line");
-                    let Some((state, _)) = convert_row_to_board_and_meta(&line) else {
-                        continue;
-                    };
-                    if is_custom_split_other(&state.get_matchup()) {
-                        local_other += 1;
-                    } else {
-                        local_main += 1;
+                line_buf.clear();
+                while reader
+                    .read_line(&mut line_buf)
+                    .expect("Failed to read line")
+                    > 0
+                {
+                    if let Some(matchup) = extract_matchup_from_line(&line_buf) {
+                        if is_custom_split_other(&matchup) {
+                            local_other += 1;
+                        } else {
+                            local_main += 1;
+                        }
                     }
+                    line_buf.clear();
                 }
 
                 pb.inc(1);
