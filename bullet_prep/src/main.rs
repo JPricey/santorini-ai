@@ -952,7 +952,7 @@ fn run_split_matchups_stats(input_dir: PathBuf) -> Result<(), Box<dyn std::error
                 pb.inc(1);
                 files_since_flush += 1;
 
-                if files_since_flush >= 5 {
+                if files_since_flush > 0 {
                     global_main.fetch_add(local_main, Ordering::Relaxed);
                     global_other.fetch_add(local_other, Ordering::Relaxed);
                     local_main = 0;
