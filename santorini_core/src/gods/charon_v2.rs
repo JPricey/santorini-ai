@@ -410,5 +410,4 @@ pub(crate) const fn build_charon_v2() -> GodPower {
         2583676188350615135,
         4632020203302486643,
     )
-    .with_nnue_god_name(GodName::ApolloV2)
 }

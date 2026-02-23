@@ -447,5 +447,4 @@ pub const fn build_iris() -> GodPower {
         9272470162271642607,
         1980090300899199513,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

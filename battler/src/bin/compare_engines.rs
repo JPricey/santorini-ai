@@ -122,6 +122,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-// cargo run -p battler --bin compare_engines -r -- -e v111 -E v112 |& tee compare.txt
+// cargo run -p battler --bin compare_engines -r -- -e v119 -E v120 --exclude mortal --p1 stymphalians |& tee compare.txt
 // cargo run -p battler --bin compare_engines -r -- -e v111 -E v112 --p1 chronus
 // cargo run -p battler --bin compare_engines -r -- -e v111 -E v112 --gods chronus athena -s 2.0

@@ -150,23 +150,8 @@ pub enum GodName {
     Stymphalians = 52,
 }
 
-// pub const WIP_GODS: [GodName; 0] = [];
-counted_array!(pub const WIP_GODS: [GodName; _] = [
-    GodName::Medusa,
-    GodName::Iris,
-    GodName::Castor,
-    GodName::CharonV2,
-    GodName::Polyphemus,
-    GodName::Nike,
-    GodName::Nemesis,
-    GodName::Poseidon,
-    GodName::Bellerophon,
-    GodName::Chronus,
-    GodName::Theseus,
-    GodName::Jason,
-    GodName::Achilles,
-    GodName::Stymphalians,
-]);
+pub const WIP_GODS: [GodName; 0] = [];
+// counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
 impl GodName {
     pub const fn to_power(&self) -> StaticGod {
@@ -718,12 +703,13 @@ impl GodPower {
         (self._get_history_hash)(board, action)
     }
 
-    pub(super) fn get_eval_modifier(&self, god_data: GodData) -> Heuristic {
-        if let Some(modifier_fn) = self._eval_score_modifier_fn {
-            modifier_fn(god_data)
-        } else {
-            0
-        }
+    pub(super) fn get_eval_modifier(&self, _god_data: GodData) -> Heuristic {
+        0
+        // if let Some(modifier_fn) = self._eval_score_modifier_fn {
+        //     modifier_fn(god_data)
+        // } else {
+        //     0
+        // }
     }
 
     pub(super) fn can_opponent_climb(&self, board: &BoardState, player: Player) -> bool {
@@ -848,6 +834,11 @@ pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
         GodName::Clio => 26,
         GodName::Hippolyta => 25,
         GodName::Selene => 25,
+        GodName::Polyphemus => 1,
+        GodName::Bellerophon => 1,
+        GodName::Theseus => 1,
+        GodName::Jason => 1,
+        GodName::Achilles => 1,
         _ => 0,
     }
 }
@@ -874,8 +865,13 @@ pub const TOTAL_GOD_DATA_FEATURE_COUNT: usize = {
 
     res
 };
-pub(crate) const TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE: usize = 120;
-// Break this assertion when training new gods
+
+// pub const TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE: usize = 120;
+pub const TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE: usize = 125;
+// When training a new NNUE, update god_name_to_nnue_size to include the new gods
+// Then keep TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE to be = the old TOTAL_GOD_DATA_FEATURE_COUNT, and
+// comment this out.
+// After training, uncomment this:
 const _ASSERTION: () =
     assert!(TOTAL_GOD_DATA_FEATURE_COUNT == TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE);
 
@@ -1145,6 +1141,7 @@ impl GodPower {
         self
     }
 
+    #[allow(dead_code)]
     pub(super) const fn with_eval_score_modifier_fn(
         mut self,
         eval_score_modifier_fn: EvalScoreModifierFn,

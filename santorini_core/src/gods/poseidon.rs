@@ -852,5 +852,4 @@ pub(crate) const fn build_poseidon() -> GodPower {
         39626542716481940,
         12412485317668298438,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

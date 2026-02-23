@@ -50,12 +50,11 @@ pub struct Network {
     pub feature_bias: Accumulator,
     pub output_weights: [i16; HIDDEN_SIZE],
     pub output_bias: i16,
-    pub asdf: u32,
+    // pub asdf: u32,
 }
 
 type FType = u16;
-// pub const NNUE_GOD_COUNT: usize = 29;
-pub const NNUE_GOD_COUNT: usize = 39;
+pub const NNUE_GOD_COUNT: usize = 53;
 
 // Neutral Features
 const BOARD_FEATURES_COUNT: usize = 5 * 25;
@@ -95,7 +94,7 @@ const PER_GOD_NORMALIZING_FEATURE_TOTAL_SIZE: usize = NNUE_GOD_COUNT * 2;
 
 pub const TOTAL_NUM_FEATURES: usize = TOTAL_BASE_FEATURES_COUNT
     + PER_GOD_MAIN_FEATURE_SECTION_TOTAL_SIZE
-    // + PER_GOD_NORMALIZING_FEATURE_TOTAL_SIZE
+    // + PER_GOD_NORMALIZING_FEATURE_TOTAL_SIZE // WITHGODBIT
     ;
 pub const HIDDEN_SIZE: usize = 1024;
 
@@ -106,12 +105,12 @@ pub struct FeatureSet {
     // ordered_features are always present, and will always map 1-1 between different board states
     // Ex: the height of A3 will always be at the 3rd index, regardless of feature values
     pub ordered_features: [u16; 26], // Heights + matchup
-    // pub ordered_features: [u16; 28], // Heights + matchup
+    // pub ordered_features: [u16; 28], // Heights + matchup WITHGODBIT
     pub dynamic_features: ArrayVec<u16, MAX_DYNAMIC_FEATURE_COUNT>,
 }
 
-// pub static MODEL: Network = unsafe { mem::transmute(*include_bytes!("../.././models/full.bin")) };
-pub static MODEL: Network = unsafe { mem::transmute(*include_bytes!("../.././models/final.bin")) };
+pub static MODEL: Network =
+    unsafe { mem::transmute(*include_bytes!("../.././models/batch5_final.bin")) };
 
 impl Accumulator {
     pub fn new() -> Self {
@@ -473,6 +472,15 @@ pub fn emit_god_data_features<Extractor: FnMut(FType)>(
                 f(25);
             }
         }
+        GodName::Polyphemus
+        | GodName::Bellerophon
+        | GodName::Theseus
+        | GodName::Jason
+        | GodName::Achilles => {
+            if data > 0 {
+                f(0)
+            }
+        }
         _ => (),
     }
 }
@@ -496,8 +504,8 @@ pub fn build_feature_set(board: &BoardState, god1: GodName, god2: GodName) -> Fe
 
     res.ordered_features[25] = _matchup_feature(own_god_idx, other_god_idx);
 
-    // res.ordered_features[26] = ACTIVE_PLAYER_GOD_OFFSET + own_god_idx as FType;
-    // res.ordered_features[27] = OPPO_PLAYER_GOD_OFFSET + other_god_idx as FType;
+    // res.ordered_features[26] = ACTIVE_PLAYER_GOD_OFFSET + own_god_idx as FType; WITHGODBIT
+    // res.ordered_features[27] = OPPO_PLAYER_GOD_OFFSET + other_god_idx as FType; WITHGODBIT
 
     fn _add_worker_features(
         board: &BoardState,

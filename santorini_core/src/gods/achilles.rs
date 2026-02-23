@@ -18,7 +18,6 @@ use crate::{
         },
     },
     player::Player,
-    search::Heuristic,
     square::Square,
 };
 
@@ -803,10 +802,6 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
     }
 }
 
-fn eval_modifier(data: GodData) -> Heuristic {
-    if data == 0 { 400 } else { 0 }
-}
-
 pub const fn build_achilles() -> GodPower {
     god_power(
         GodName::Achilles,
@@ -815,8 +810,6 @@ pub const fn build_achilles() -> GodPower {
         4823901567482390156,
         9182736450918273645,
     )
-    .with_nnue_god_name(GodName::Mortal)
-    .with_eval_score_modifier_fn(eval_modifier)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)

@@ -292,8 +292,9 @@ pub fn do_battle<'a>(
 
         let Some(saved_best_move) = saved_best_move else {
             panic!(
-                "{:?}: Expected engine to output at least 1 move",
-                current_state
+                "{:?}, {}: Expected engine to output at least 1 move",
+                current_state,
+                engine.engine_name
             );
         };
 

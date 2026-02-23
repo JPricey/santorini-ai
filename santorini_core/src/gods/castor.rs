@@ -1162,7 +1162,6 @@ pub const fn build_castor() -> GodPower {
         2979614850588903286,
         362356524330526493,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }
 
 #[cfg(test)]

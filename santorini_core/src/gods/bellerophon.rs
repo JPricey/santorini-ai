@@ -19,7 +19,6 @@ use crate::{
         FullAction, GodName, GodPower, HistoryIdxHelper, StaticGod,
     },
     player::Player,
-    search::Heuristic,
     square::Square,
 };
 
@@ -689,14 +688,6 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
     }
 }
 
-fn eval_modifier(data: GodData) -> Heuristic {
-    if data == 0 {
-        500
-    } else {
-        0
-    }
-}
-
 pub const fn build_bellerophon() -> GodPower {
     god_power(
         GodName::Bellerophon,
@@ -705,8 +696,6 @@ pub const fn build_bellerophon() -> GodPower {
         5298741033339150823,
         11489085425414648714,
     )
-    .with_nnue_god_name(GodName::Mortal)
-    .with_eval_score_modifier_fn(eval_modifier)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)

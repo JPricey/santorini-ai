@@ -1209,5 +1209,4 @@ pub const fn build_stymphalians() -> GodPower {
         4854231340135741197,
     )
     .with_placement_type(PlacementType::ThreeWorkers)
-    .with_nnue_god_name(GodName::Mortal)
 }

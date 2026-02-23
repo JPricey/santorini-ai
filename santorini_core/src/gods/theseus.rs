@@ -18,7 +18,6 @@ use crate::{
     },
     persephone_check_result,
     player::Player,
-    search::Heuristic,
     square::Square,
 };
 
@@ -362,10 +361,6 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
     }
 }
 
-fn eval_modifier(data: GodData) -> Heuristic {
-    if data == 0 { 100 } else { 0 }
-}
-
 pub const fn build_theseus() -> GodPower {
     god_power(
         GodName::Theseus,
@@ -374,8 +369,6 @@ pub const fn build_theseus() -> GodPower {
         3436485852601412104,
         11014775580519688057,
     )
-    .with_nnue_god_name(GodName::Mortal)
-    .with_eval_score_modifier_fn(eval_modifier)
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)

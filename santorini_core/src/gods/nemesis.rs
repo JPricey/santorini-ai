@@ -769,5 +769,4 @@ pub const fn build_nemesis() -> GodPower {
         13902774959503976241,
         8706614857531094214,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

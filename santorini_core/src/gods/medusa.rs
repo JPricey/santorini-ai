@@ -299,5 +299,4 @@ pub const fn build_medusa() -> GodPower {
         8549903969002325999,
         1897019337165897523,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }

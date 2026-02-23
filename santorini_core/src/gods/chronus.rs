@@ -339,5 +339,4 @@ pub(crate) const fn build_chronus() -> GodPower {
         14553547426435464403,
         3013502386383907053,
     )
-    .with_nnue_god_name(GodName::Mortal)
 }
