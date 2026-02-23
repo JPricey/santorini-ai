@@ -58,22 +58,7 @@ export const God = {
 } as const;
 export type GodType = (typeof God)[keyof typeof God];
 
-export const WIP_GODS: Set<GodType> = new Set([
-    God.Medusa,
-    God.Iris,
-    God.Castor,
-    God.CharonV2,
-    God.Polyphemus,
-    God.Nike,
-    God.Nemesis,
-    God.Poseidon,
-    God.Bellerophon,
-    God.Chronus,
-    God.Theseus,
-    God.Jason,
-    God.Achilles,
-    God.Stymphalians,
-]);
+export const WIP_GODS: Set<GodType> = new Set([]);
 
 export const Square = {
     A5: 0,
