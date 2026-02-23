@@ -848,6 +848,11 @@ pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
         GodName::Clio => 26,
         GodName::Hippolyta => 25,
         GodName::Selene => 25,
+        GodName::Polyphemus => 1,
+        GodName::Bellerophon => 1,
+        GodName::Theseus => 1,
+        GodName::Jason => 1,
+        GodName::Achilles => 1,
         _ => 0,
     }
 }
@@ -874,7 +879,7 @@ pub const TOTAL_GOD_DATA_FEATURE_COUNT: usize = {
 
     res
 };
-pub(crate) const TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE: usize = 120;
+pub(crate) const TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE: usize = 125;
 // Break this assertion when training new gods
 const _ASSERTION: () =
     assert!(TOTAL_GOD_DATA_FEATURE_COUNT == TOTAL_GOD_DATA_FEATURE_COUNT_FOR_NNUE);

@@ -473,6 +473,15 @@ pub fn emit_god_data_features<Extractor: FnMut(FType)>(
                 f(25);
             }
         }
+        GodName::Polyphemus
+        | GodName::Bellerophon
+        | GodName::Theseus
+        | GodName::Jason
+        | GodName::Achilles => {
+            if data > 0 {
+                f(0)
+            }
+        }
         _ => (),
     }
 }
