@@ -4,7 +4,7 @@ import time
 
 # rsync -chavzP -e "ssh -p $REMOTE_PORT" root@$REMOTE_HOST:/root/santorini/game_data/* tmp/gen_3/
 
-DEST_PATH = 'tmp/gen_3/new_gods_batch_4_and_atlas_limus'
+DEST_PATH = 'tmp/gen_3/batch_5_stymphalians'
 
 def read_remotes_file():
     remotes = []
