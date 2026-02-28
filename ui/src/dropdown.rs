@@ -30,6 +30,14 @@ impl<'a, V: Clone, S: Fn(&V) -> String, I: Iterator<Item = V>> DropdownComboBox<
     }
 }
 
+fn get_highlighted(ctx: &eframe::egui::Context, id: Id) -> Option<usize> {
+    ctx.data(|d| d.get_temp::<Option<usize>>(id)).flatten()
+}
+
+fn set_highlighted(ctx: &eframe::egui::Context, id: Id, val: Option<usize>) {
+    ctx.data_mut(|d| d.insert_temp(id, val));
+}
+
 impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widget
     for DropdownComboBox<'a, V, S, I>
 {
@@ -43,6 +51,7 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
             stringer,
         } = self;
         let old_selected = selected.clone();
+        let highlight_id = popup_id.with("_highlight");
 
         let edit = TextEdit::singleline(buf)
             .hint_text(hint_text)
@@ -63,6 +72,67 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
             });
         }
 
+        let item_count = items_for_display.len();
+        let mut highlighted_idx = get_highlighted(ui.ctx(), highlight_id);
+
+        // Handle keyboard navigation while the text field has focus
+        if edit_response.has_focus() && item_count > 0 {
+            let mut arrow_pressed = false;
+            let mut enter_pressed = false;
+            ui.input(|input| {
+                for event in &input.events {
+                    match event {
+                        Event::Key { key: Key::ArrowDown, pressed: true, .. } => {
+                            arrow_pressed = true;
+                            highlighted_idx = Some(match highlighted_idx {
+                                Some(i) => (i + 1).min(item_count - 1),
+                                None => 0,
+                            });
+                        }
+                        Event::Key { key: Key::ArrowUp, pressed: true, .. } => {
+                            arrow_pressed = true;
+                            highlighted_idx = Some(match highlighted_idx {
+                                Some(i) => i.saturating_sub(1),
+                                None => 0,
+                            });
+                        }
+                        Event::Key { key: Key::Enter, pressed: true, .. } => {
+                            if highlighted_idx.is_some() {
+                                enter_pressed = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            });
+
+            if enter_pressed {
+                if let Some(idx) = highlighted_idx {
+                    if let Some(item) = items_for_display.get(idx) {
+                        *selected = item.clone();
+                        *buf = (stringer)(selected);
+                        highlighted_idx = None;
+                        Popup::close_all(ui.ctx());
+                        edit_response.surrender_focus();
+                    }
+                }
+            }
+
+            // Prevent arrow keys from moving the text cursor
+            if arrow_pressed {
+                edit_show.state.store(ui.ctx(), edit_response.id);
+            }
+        }
+
+        // Clamp highlighted index to valid range when filter changes
+        if let Some(idx) = highlighted_idx {
+            if item_count == 0 {
+                highlighted_idx = None;
+            } else if idx >= item_count {
+                highlighted_idx = Some(item_count - 1);
+            }
+        }
+
         if edit_response.lost_focus() {
             ui.input(|input| {
                 if input.events.iter().any(|event| {
@@ -75,19 +145,25 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
                         }
                     )
                 }) {
-                    if let Some(item) = items_for_display.first() {
+                    let pick_idx = highlighted_idx.unwrap_or(0);
+                    if let Some(item) = items_for_display.get(pick_idx) {
                         *selected = item.clone();
                         *buf = (stringer)(selected);
                     }
                 }
             });
+            highlighted_idx = None;
         }
 
         let close_behavior = PopupCloseBehavior::CloseOnClick;
 
         if edit_response.gained_focus() {
             buf.clear();
+            highlighted_idx = None;
         }
+
+        let current_highlighted = highlighted_idx;
+        set_highlighted(ui.ctx(), highlight_id, highlighted_idx);
 
         let _inner = Popup::menu(&edit_response)
             .id(popup_id)
@@ -106,15 +182,21 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
                         // Instead, we turn it off by default so that the labels
                         // expand the width of the menu.
                         ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
-                        for item in items_for_display {
+                        for (i, item) in items_for_display.iter().enumerate() {
                             let item_text = stringer(&item);
 
                             if !item_text.to_lowercase().contains(&buf.to_lowercase()) {
                                 continue;
                             }
 
-                            let item: V = item;
-                            ui.selectable_value::<V>(&mut selected, item, item_text);
+                            let is_highlighted = current_highlighted == Some(i);
+                            let item: V = item.clone();
+
+                            let resp = ui.selectable_value::<V>(&mut selected, item, item_text);
+                            if is_highlighted {
+                                resp.scroll_to_me(None);
+                                resp.highlight();
+                            }
                         }
                     })
                     .inner
