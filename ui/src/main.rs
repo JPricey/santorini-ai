@@ -1058,12 +1058,24 @@ impl eframe::App for MyApp {
                 let fen = game_state_to_fen(&self.state);
                 ui.label(fen);
 
-                let fen_input = egui::TextEdit::singleline(&mut self.editor_fen_string)
+                let mut fen_input = egui::TextEdit::singleline(&mut self.editor_fen_string)
                     .clip_text(false)
-                    .desired_width(available_size.x);
+                    .desired_width(available_size.x)
+                    .show(ui);
 
-                if ui.add(fen_input).has_focus() {
+                if fen_input.response.gained_focus() {
+                    let select_all = egui::text::CCursorRange::two(
+                        egui::text::CCursor::new(0),
+                        egui::text::CCursor::new(self.editor_fen_string.len()),
+                    );
+                    fen_input.state.cursor.set_char_range(Some(select_all));
+                    fen_input.state.store(ui.ctx(), fen_input.response.id);
+                }
+                if fen_input.response.has_focus() {
                     self.may_arrow_shortcuts = false;
+                }
+                if fen_input.response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    self.try_set_editor_fen();
                 }
 
                 ui.horizontal(|ui| {
