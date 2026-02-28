@@ -513,8 +513,8 @@ impl<'a> GameGrid<'a> {
 impl<'a> egui::Widget for GameGrid<'a> {
     fn ui(mut self, ui: &mut egui::Ui) -> egui::Response {
         if self.app.is_autoplay_enabled
-            && self.app.is_autoplay_per_player
-                [self.app.state.get_current_player_consider_placement_mode() as usize]
+            && get_acting_player(&self.app.state)
+                .is_ok_and(|p| self.app.is_autoplay_per_player[p as usize])
         {
             let elapsed_secs = self
                 .app
@@ -891,11 +891,12 @@ impl<'a> egui::Widget for EvalBar<'a> {
             }
         } else {
             let engine = self.app.engine_thinking.lock();
-            let active_player = engine.state.get_current_player_consider_placement_mode();
-            if let Some(message) = engine.engine_messages.last() {
-                eval_for_p1 = match active_player {
-                    Player::One => message.0.score,
-                    Player::Two => -message.0.score,
+            if let Ok(active_player) = get_acting_player(&engine.state) {
+                if let Some(message) = engine.engine_messages.last() {
+                    eval_for_p1 = match active_player {
+                        Player::One => message.0.score,
+                        Player::Two => -message.0.score,
+                    }
                 }
             }
         }
@@ -943,7 +944,7 @@ impl<'a> egui::Widget for PlayerInfo<'a> {
             if winner == self.player {
                 header_text += " (Winner!)";
             }
-        } else if get_acting_player(&self.state) == self.player {
+        } else if get_acting_player(&self.state) == Ok(self.player) {
             header_text += " (To Play)";
         }
         let resp = ui.heading(header_text);

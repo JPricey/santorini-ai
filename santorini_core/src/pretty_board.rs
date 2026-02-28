@@ -47,11 +47,11 @@ fn _set_pretty_player(state: &FullGameState, player: Player, pretty_player: &mut
     pretty_player.special_text = player_god.pretty_stringify_god_data(&state.board, player);
 }
 
-pub fn get_acting_player(state: &FullGameState) -> Player {
-    if let Some(placement_state) = get_starting_placement_state(&state.board, state.gods).unwrap() {
-        placement_state.next_placement
-    } else {
-        state.board.current_player
+pub fn get_acting_player(state: &FullGameState) -> Result<Player, String> {
+    let placement_state = get_starting_placement_state(&state.board, state.gods)?;
+    match placement_state {
+        Some(placement_state) => Ok(placement_state.next_placement),
+        None => Ok(state.board.current_player),
     }
 }
 
@@ -63,7 +63,7 @@ pub fn state_to_pretty_board(state: &FullGameState) -> PrettyBoard {
             result.heights[r][c] = state.board.height_lookup[r * 5 + c];
         }
     }
-    result.acting_player = get_acting_player(state);
+    result.acting_player = get_acting_player(state).unwrap_or(state.board.current_player);
     result.winner = state.get_winner();
 
     _set_pretty_player(state, Player::One, &mut result.players[0]);
@@ -80,9 +80,12 @@ pub fn game_state_with_partial_actions(
         return state.clone();
     }
 
+    let Ok(current_player) = get_acting_player(&state) else {
+        return state.clone();
+    };
+
     let mut result = state.clone();
     let board = &mut result.board;
-    let current_player = get_acting_player(&state);
 
     let mut selected_square: Option<Square> = None;
 
