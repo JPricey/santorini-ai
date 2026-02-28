@@ -327,6 +327,7 @@ pub(super) type StringifyMoveFn = fn(action: GenericMove) -> String;
 pub(super) struct GodPowerMoveFns {
     _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
+    _get_any_win: MoveGeneratorFn,
     _get_unscored_win_blockers: MoveGeneratorFn,
     _get_scored_win_blockers: MoveGeneratorFn,
     _get_moves_for_search: MoveGeneratorFn,
@@ -442,6 +443,7 @@ pub struct GodPower {
     // Move Fns
     pub _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
+    _get_any_win: MoveGeneratorFn,
     _get_scored_win_blockers: MoveGeneratorFn,
     _get_unscored_win_blockers: MoveGeneratorFn,
     _get_moves_for_search: MoveGeneratorFn,
@@ -578,6 +580,20 @@ impl GodPower {
 
     pub fn get_winning_moves(&self, state: &FullGameState, player: Player) -> Vec<ScoredMove> {
         (self._get_wins)(state, player, BitBoard::EMPTY)
+    }
+
+    pub fn get_any_winning_move(
+        &self,
+        state: &FullGameState,
+        player: Player,
+    ) -> Option<GenericMove> {
+        (self._get_any_win)(state, player, BitBoard::EMPTY)
+            .first()
+            .map(|m| m.action)
+    }
+
+    pub fn has_any_winning_move(&self, state: &FullGameState, player: Player) -> bool {
+        self.get_any_winning_move(state, player).is_some()
     }
 
     pub fn get_scored_blocker_moves(
@@ -888,6 +904,10 @@ macro_rules! build_god_power_movers {
                     false,
                 >,
                 _get_wins: $move_gen::<{ crate::gods::generic::MATE_ONLY }, false>,
+                _get_any_win: $move_gen::<
+                    { crate::gods::generic::MATE_ONLY | crate::gods::generic::STOP_ON_MATE },
+                    false,
+                >,
                 _get_scored_win_blockers: $move_gen::<
                     {
                         crate::gods::generic::STOP_ON_MATE
@@ -961,6 +981,7 @@ const fn god_power(
         _get_all_moves: movers._get_all_moves,
         _get_moves_for_search: movers._get_moves_for_search,
         _get_wins: movers._get_wins,
+        _get_any_win: movers._get_any_win,
         _get_scored_win_blockers: movers._get_scored_win_blockers,
         _get_unscored_win_blockers: movers._get_unscored_win_blockers,
 

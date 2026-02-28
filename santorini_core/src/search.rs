@@ -3,7 +3,6 @@ use std::{array, fmt::Debug};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    bitboard::BitBoard,
     board::FullGameState,
     gods::generic::{GenericMove, KILLER_MATCH_SCORE, MoveScore},
     move_picker::{MovePicker, MovePickerStage},
@@ -549,10 +548,7 @@ where
 {
     let (_active_god, other_god) = state.get_active_non_active_gods();
 
-    let is_in_check = other_god
-        .get_winning_moves(&state, !state.board.current_player)
-        .len()
-        > 0;
+    let is_in_check = other_god.has_any_winning_move(&state, !state.board.current_player);
 
     _inner_search::<T, NT>(
         search_context,
@@ -745,11 +741,7 @@ where
     let (active_god, other_god) = state.get_active_non_active_gods();
 
     // If we have a win right now, just take it
-    if active_god
-        .get_winning_moves(&state, state.board.current_player)
-        .len()
-        > 0
-    {
+    if active_god.has_any_winning_move(&state, state.board.current_player) {
         let score = win_at_ply(ply);
         return score;
     }
@@ -762,15 +754,12 @@ where
 
     let eval;
     let child_moves;
-    let opponent_wins = other_god.get_winning_moves(&state, !state.board.current_player);
+    let oppo_win = other_god.get_any_winning_move(&state, !state.board.current_player);
 
     // Don't bother taking the current eval if we're in check - we have to respond to it.
-    if opponent_wins.len() > 0 {
+    if let Some(oppo_win) = oppo_win {
         eval = -win_at_ply(ply + 1);
-        let mut blocker_board = BitBoard::EMPTY;
-        for action in &opponent_wins {
-            blocker_board |= other_god.get_blocker_board(&state.board, action.action);
-        }
+        let blocker_board = other_god.get_blocker_board(&state.board, oppo_win);
         child_moves = active_god.get_unscored_blocker_moves(
             &state,
             state.board.current_player,
@@ -946,30 +935,19 @@ where
 
     let key_squares = if is_in_check {
         let passed_state = state.next_state_passing(active_god);
-        let other_wins = other_god.get_winning_moves(&passed_state, other_player_idx);
+        let oppo_winning_move = other_god.get_any_winning_move(&passed_state, other_player_idx);
 
-        if other_wins.len() == 0 {
+        if let Some(oppo_winning_move) = oppo_winning_move {
+            remaining_depth += 1;
+            let oppo_blocker_board = other_god.get_blocker_board(&state.board, oppo_winning_move);
+            Some(oppo_blocker_board)
+        } else {
             // TODO: fix all these?
             // Or maybe it's not worth being so precise, if these are rare cases
             // I think this breaks if you walk from level 3 to level 3?
             // ...checks should just be a test in move gen, no need for the threats only stuff i
             // think
-            // eprintln!(
-            //     "claimed to be in check but wasn't?: {:?}",
-            //     state.as_basic_game_state()
-            // );
-            // state.print_to_console();
-            // assert_ne!(other_wins.len(), 0);
             None
-        } else {
-            let mut key_squares = BitBoard::EMPTY;
-            for action in &other_wins {
-                key_squares |= other_god.get_blocker_board(&state.board, action.action);
-            }
-
-            remaining_depth += 1;
-
-            Some(key_squares)
         }
     } else {
         None
