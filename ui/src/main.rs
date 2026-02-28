@@ -845,8 +845,7 @@ impl<'a> egui::Widget for GodChanger<'a> {
             let available_gods_iter = ordered_gods
                 .iter()
                 .cloned()
-                .filter(|g| self.app.may_show_wip_gods || !WIP_GODS.contains(&g))
-                .map(|g| g);
+                .filter(|g| self.app.may_show_wip_gods || !WIP_GODS.contains(&g));
 
             ui.add(dropdown::DropdownComboBox::<GodName, _, _>::new(
                 text.to_string(),
