@@ -10,7 +10,7 @@ Board states are represented in this format:
 - `height_map`: 25 digits representing the height map of the board. Each digit must be a number from 0-4 inclusive. Domes are always represented as 4s, even for techincally incomplete towers (this is a known limitation). The digits are ordered row-wise, starting with `A5` as in: `A5, B5, C5, D5, E4, A4...`
 - `current_player_id`: either `1` or `2` representing whose turn it is
 - `player_details`: A string in this format: `<god_name>[#][<optional god state>]:<worker_position>,...`. Broken down as:
-    - First, a god name in lowercase
+    - First, a god name in lowercase.
     - Then, optionally a `#` if the game is over and this player is the winner.
     - Then, optional square brackets with a god state string. The form of this state depends on the god, and is outlined below.
     - Then a `:`, marking the start of the worker positions section
@@ -41,6 +41,9 @@ One of `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw`, or empty string. Represents t
 
 #### Selene & Hippolyta
 The square of the female worker, or empty if there is none. Must match the location of a worker in the worker list. Example: `selene[A1]:A1,A2`
+
+#### Heroes (Achilles, Bellerophon, Jason, Polyphemus, Theseus)
+Use `x` if the hero's power is already used, or empty string if it is still available. Defaults to considering the power as available. Example: `achilles[x]:A1`
 
 
 # Commands
