@@ -202,7 +202,6 @@ struct MyApp {
 
     // Edit mode
     edit_mode: EditMode,
-    may_arrow_shortcuts: bool,
     may_show_wip_gods: bool,
 
     // Autoplay
@@ -461,7 +460,6 @@ impl Default for MyApp {
             engine: EngineThreadWrapper::new(),
             engine_thinking: Arc::new(Mutex::new(EngineThinkingState::new(default_state.clone()))),
             edit_mode: Default::default(),
-            may_arrow_shortcuts: Default::default(),
             may_show_wip_gods: Default::default(),
             // Autoplay
             is_autoplay_enabled: false,
@@ -973,8 +971,6 @@ impl eframe::App for MyApp {
             .resizable(false)
             .exact_width(450.0)
             .show(ctx, |ui| {
-                self.may_arrow_shortcuts = true;
-
                 ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 12.0);
                 let available_size = ui.available_size();
 
@@ -1071,9 +1067,6 @@ impl eframe::App for MyApp {
                     fen_input.state.cursor.set_char_range(Some(select_all));
                     fen_input.state.store(ui.ctx(), fen_input.response.id);
                 }
-                if fen_input.response.has_focus() {
-                    self.may_arrow_shortcuts = false;
-                }
                 if fen_input.response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     self.try_set_editor_fen();
                 }
@@ -1134,19 +1127,15 @@ impl eframe::App for MyApp {
                 }
 
                 ui.horizontal(|ui| {
-                    if ui.add(GodChanger {
+                    ui.add(GodChanger {
                         app: self,
                         player: Player::One,
-                    }).has_focus() {
-                        self.may_arrow_shortcuts = false;
-                    }
+                    });
 
-                    if ui.add(GodChanger {
+                    ui.add(GodChanger {
                         app: self,
                         player: Player::Two,
-                    }).has_focus() {
-                        self.may_arrow_shortcuts = false;
-                    }
+                    });
                 });
 
                 if WIP_GODS.len() > 0 {
@@ -1237,6 +1226,7 @@ impl eframe::App for MyApp {
             }
         });
 
+        let is_no_widget_focused = ctx.memory(|mem| mem.focused().is_none());
         ctx.input_mut(|i| {
             if i.consume_shortcut(&egui::KeyboardShortcut::new(Modifiers::CTRL, Key::W)) {
                 let ctx = ctx.clone();
@@ -1245,7 +1235,7 @@ impl eframe::App for MyApp {
                 });
             }
 
-            if self.may_arrow_shortcuts {
+            if is_no_widget_focused {
                 if i.consume_shortcut(&SHORTCUT_ENGINE_MOVE) {
                     self.try_engine_move();
                 }
