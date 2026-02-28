@@ -202,7 +202,6 @@ struct MyApp {
 
     // Edit mode
     edit_mode: EditMode,
-    may_arrow_shortcuts: bool,
     may_show_wip_gods: bool,
 
     // Autoplay
@@ -461,7 +460,6 @@ impl Default for MyApp {
             engine: EngineThreadWrapper::new(),
             engine_thinking: Arc::new(Mutex::new(EngineThinkingState::new(default_state.clone()))),
             edit_mode: Default::default(),
-            may_arrow_shortcuts: Default::default(),
             may_show_wip_gods: Default::default(),
             // Autoplay
             is_autoplay_enabled: false,
@@ -513,8 +511,8 @@ impl<'a> GameGrid<'a> {
 impl<'a> egui::Widget for GameGrid<'a> {
     fn ui(mut self, ui: &mut egui::Ui) -> egui::Response {
         if self.app.is_autoplay_enabled
-            && self.app.is_autoplay_per_player
-                [self.app.state.get_current_player_consider_placement_mode() as usize]
+            && get_acting_player(&self.app.state)
+                .is_ok_and(|p| self.app.is_autoplay_per_player[p as usize])
         {
             let elapsed_secs = self
                 .app
@@ -847,8 +845,7 @@ impl<'a> egui::Widget for GodChanger<'a> {
             let available_gods_iter = ordered_gods
                 .iter()
                 .cloned()
-                .filter(|g| self.app.may_show_wip_gods || !WIP_GODS.contains(&g))
-                .map(|g| g);
+                .filter(|g| self.app.may_show_wip_gods || !WIP_GODS.contains(&g));
 
             ui.add(dropdown::DropdownComboBox::<GodName, _, _>::new(
                 text.to_string(),
@@ -891,11 +888,12 @@ impl<'a> egui::Widget for EvalBar<'a> {
             }
         } else {
             let engine = self.app.engine_thinking.lock();
-            let active_player = engine.state.get_current_player_consider_placement_mode();
-            if let Some(message) = engine.engine_messages.last() {
-                eval_for_p1 = match active_player {
-                    Player::One => message.0.score,
-                    Player::Two => -message.0.score,
+            if let Ok(active_player) = get_acting_player(&engine.state) {
+                if let Some(message) = engine.engine_messages.last() {
+                    eval_for_p1 = match active_player {
+                        Player::One => message.0.score,
+                        Player::Two => -message.0.score,
+                    }
                 }
             }
         }
@@ -943,7 +941,7 @@ impl<'a> egui::Widget for PlayerInfo<'a> {
             if winner == self.player {
                 header_text += " (Winner!)";
             }
-        } else if get_acting_player(&self.state) == self.player {
+        } else if get_acting_player(&self.state) == Ok(self.player) {
             header_text += " (To Play)";
         }
         let resp = ui.heading(header_text);
@@ -972,8 +970,6 @@ impl eframe::App for MyApp {
             .resizable(false)
             .exact_width(450.0)
             .show(ctx, |ui| {
-                self.may_arrow_shortcuts = true;
-
                 ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 12.0);
                 let available_size = ui.available_size();
 
@@ -1057,12 +1053,21 @@ impl eframe::App for MyApp {
                 let fen = game_state_to_fen(&self.state);
                 ui.label(fen);
 
-                let fen_input = egui::TextEdit::singleline(&mut self.editor_fen_string)
+                let mut fen_input = egui::TextEdit::singleline(&mut self.editor_fen_string)
                     .clip_text(false)
-                    .desired_width(available_size.x);
+                    .desired_width(available_size.x)
+                    .show(ui);
 
-                if ui.add(fen_input).has_focus() {
-                    self.may_arrow_shortcuts = false;
+                if fen_input.response.gained_focus() {
+                    let select_all = egui::text::CCursorRange::two(
+                        egui::text::CCursor::new(0),
+                        egui::text::CCursor::new(self.editor_fen_string.len()),
+                    );
+                    fen_input.state.cursor.set_char_range(Some(select_all));
+                    fen_input.state.store(ui.ctx(), fen_input.response.id);
+                }
+                if fen_input.response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    self.try_set_editor_fen();
                 }
 
                 ui.horizontal(|ui| {
@@ -1121,19 +1126,15 @@ impl eframe::App for MyApp {
                 }
 
                 ui.horizontal(|ui| {
-                    if ui.add(GodChanger {
+                    ui.add(GodChanger {
                         app: self,
                         player: Player::One,
-                    }).has_focus() {
-                        self.may_arrow_shortcuts = false;
-                    }
+                    });
 
-                    if ui.add(GodChanger {
+                    ui.add(GodChanger {
                         app: self,
                         player: Player::Two,
-                    }).has_focus() {
-                        self.may_arrow_shortcuts = false;
-                    }
+                    });
                 });
 
                 if WIP_GODS.len() > 0 {
@@ -1224,6 +1225,7 @@ impl eframe::App for MyApp {
             }
         });
 
+        let is_no_widget_focused = ctx.memory(|mem| mem.focused().is_none());
         ctx.input_mut(|i| {
             if i.consume_shortcut(&egui::KeyboardShortcut::new(Modifiers::CTRL, Key::W)) {
                 let ctx = ctx.clone();
@@ -1232,7 +1234,7 @@ impl eframe::App for MyApp {
                 });
             }
 
-            if self.may_arrow_shortcuts {
+            if is_no_widget_focused {
                 if i.consume_shortcut(&SHORTCUT_ENGINE_MOVE) {
                     self.try_engine_move();
                 }

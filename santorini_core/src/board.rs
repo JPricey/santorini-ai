@@ -154,15 +154,6 @@ impl FullGameState {
         )
     }
 
-    pub fn get_current_player_consider_placement_mode(&self) -> Player {
-        let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
-        if let Some(placement_mode) = placement_mode {
-            placement_mode.next_placement
-        } else {
-            self.board.current_player
-        }
-    }
-
     pub fn get_all_next_states_with_actions(&self) -> Vec<(FullGameState, GenericMove)> {
         let placement_mode = get_starting_placement_state(&self.board, self.gods).unwrap();
 
