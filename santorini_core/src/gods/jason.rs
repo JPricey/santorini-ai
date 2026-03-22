@@ -10,11 +10,12 @@ use crate::{
         },
         god_power,
         move_helpers::{
-            build_scored_move, get_generator_prelude_state, get_standard_reach_board,
-            get_worker_end_move_state, get_worker_next_move_state, get_worker_start_move_state,
-            is_interact_with_key_squares, is_mate_only, modify_prelude_for_checking_workers,
-            push_winning_moves,
+            build_scored_move, get_basic_moves_from_raw_data, get_generator_prelude_state,
+            get_standard_reach_board, get_worker_end_move_state, get_worker_next_move_state,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
         },
+        placement_to_fns,
     },
     persephone_check_result,
     player::Player,
@@ -59,7 +60,8 @@ impl JasonMove {
     }
 
     fn new_power_move(place_position: Square, build_position: Square) -> Self {
-        let data: MoveData = ((build_position as MoveData) << BUILD_POSITION_OFFSET)
+        let data: MoveData = 0
+            | ((build_position as MoveData) << BUILD_POSITION_OFFSET)
             | ((place_position as MoveData) << PLACE_POSITION_OFFSET);
 
         Self(data)
@@ -115,8 +117,9 @@ impl std::fmt::Debug for JasonMove {
             let move_to = self.move_to_position();
             write!(f, "{}>{}#", move_from, move_to)
         } else if let Some(place_pos) = self.maybe_place_position() {
+            let move_to = self.move_to_position();
             let build = self.build_position();
-            write!(f, "+{}^{}", place_pos, build)
+            write!(f, "+{}>{}^{}", place_pos, move_to, build)
         } else {
             let move_from = self.move_from_position();
             let move_to = self.move_to_position();
@@ -181,6 +184,7 @@ impl GodMove for JasonMove {
         let mut helper = HistoryIdxHelper::new();
         if let Some(place_position) = self.maybe_place_position() {
             helper.add_square_with_height(board, place_position);
+            helper.add_square_with_height(board, self.move_to_position());
         } else {
             helper.add_square_with_height(board, self.move_from_position());
             helper.add_square_with_height(board, self.move_to_position());
@@ -276,6 +280,7 @@ fn jason_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let has_power_available = state.board.god_data[player as usize] == 0;
     if has_power_available && !is_mate_only::<F>() {
         let unblocked_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
+        let buildable_squares = unblocked_squares & prelude.build_mask;
         let valid_placements = PERIMETER_SPACES_MASK & prelude.exactly_level_0 & unblocked_squares;
 
         let threatening_workers = prelude.own_workers & prelude.exactly_level_2;
@@ -283,36 +288,47 @@ fn jason_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             BitBoard::EMPTY
         } else {
             apply_mapping_to_mask(threatening_workers, prelude.standard_neighbor_map)
-                & prelude.win_mask
                 & unblocked_squares
         };
 
-        for place_pos in valid_placements {
-            let place_mask = place_pos.to_board();
+        let mut seen_move_to = BitBoard::EMPTY;
 
-            let all_possible_builds =
-                NEIGHBOR_MAP[place_pos as usize] & unblocked_squares & prelude.build_mask;
+        for init_pos in valid_placements {
+            let place_mask = init_pos.to_board();
 
-            let mut narrowed_builds = all_possible_builds;
-            if is_interact_with_key_squares::<F>() {
-                let is_already_matched = (place_mask & prelude.key_squares).is_not_empty() as usize;
-                narrowed_builds &=
-                    [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
-            }
+            let worker_moves =
+                get_basic_moves_from_raw_data::<MUST_CLIMB>(&prelude, init_pos, place_mask, 0)
+                    & !seen_move_to;
 
-            for build_pos in narrowed_builds {
-                let build_mask = build_pos.to_board();
+            seen_move_to |= worker_moves;
 
-                let is_check = {
-                    let final_level_3 = (prelude.exactly_level_2 & build_mask)
-                        | (prelude.exactly_level_3 & !build_mask);
-                    let check_board = reach_board & final_level_3;
-                    check_board.is_not_empty()
-                };
+            for move_to in worker_moves {
+                let move_to_mask = move_to.to_board();
 
-                let new_action = JasonMove::new_power_move(place_pos, build_pos);
+                let all_possible_builds = NEIGHBOR_MAP[move_to as usize] & buildable_squares;
+                let mut narrowed_builds = all_possible_builds;
 
-                result.push(build_scored_move::<F, _>(new_action, is_check, false));
+                if is_interact_with_key_squares::<F>() {
+                    let is_already_matched =
+                        (move_to_mask & prelude.key_squares).is_not_empty() as usize;
+                    narrowed_builds &=
+                        [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
+                }
+
+                for build_pos in narrowed_builds {
+                    let build_mask = build_pos.to_board();
+
+                    let is_check = {
+                        let final_level_3 = (prelude.exactly_level_2 & build_mask)
+                            | (prelude.exactly_level_3 & !build_mask);
+                        let check_board = reach_board & final_level_3;
+                        check_board.is_not_empty()
+                    };
+
+                    let new_action = JasonMove::new_power_move(move_to, build_pos);
+
+                    result.push(build_scored_move::<F, _>(new_action, is_check, false));
+                }
             }
         }
     }
