@@ -219,7 +219,7 @@ pub fn harpies_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     // Chronus can win on his build, not his move. Instead of checking for ways to block his moves,
     // just try everything too.
     let final_key_squares = if other_god == GodName::Artemis
-        || other_god == GodName::Chronus
+        || other_god.is_chronus_variant()
         || other_god == GodName::Stymphalians
     {
         BitBoard::MAIN_SECTION_MASK

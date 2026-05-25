@@ -500,7 +500,10 @@ mod tests {
                 eprintln!("{:?} {}", god_name, god.stringify_move(action.action));
             }
             let expected_moves =
-                if [GodName::Hermes, GodName::Castor, GodName::Chronus].contains(&god_name) {
+                if god_name == GodName::Hermes
+                    || god_name == GodName::Castor
+                    || god_name.is_chronus_variant()
+                {
                     1
                 } else {
                     0

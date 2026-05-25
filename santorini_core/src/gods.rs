@@ -148,9 +148,11 @@ pub enum GodName {
     Jason = 50,
     Achilles = 51,
     Stymphalians = 52,
+    Chronus4T = 53,
+    Chronus3T = 54,
 }
 
-pub const WIP_GODS: [GodName; 0] = [];
+pub const WIP_GODS: [GodName; 2] = [GodName::Chronus4T, GodName::Chronus3T];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
 impl GodName {
@@ -160,6 +162,13 @@ impl GodName {
 
     pub const fn is_equal(self, other: GodName) -> bool {
         self as usize == other as usize
+    }
+
+    pub const fn is_chronus_variant(self) -> bool {
+        matches!(
+            self,
+            GodName::Chronus | GodName::Chronus4T | GodName::Chronus3T
+        )
     }
 }
 
@@ -840,6 +849,8 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     jason::build_jason(),
     achilles::build_achilles(),
     stymphalians::build_stymphalians(),
+    chronus::build_chronus_4t(),
+    chronus::build_chronus_3t(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

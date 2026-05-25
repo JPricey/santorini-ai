@@ -55,6 +55,8 @@ export const God = {
     Jason: "jason",
     Achilles: "achilles",
     Stymphalians: "stymphalians",
+    Chronus4T: "chronus4t",
+    Chronus3T: "chronus3t",
 } as const;
 export type GodType = (typeof God)[keyof typeof God];
 
@@ -73,6 +75,8 @@ export const WIP_GODS: Set<GodType> = new Set([
     God.Jason,
     God.Achilles,
     God.Stymphalians,
+    God.Chronus4T,
+    God.Chronus3T,
 ]);
 
 export const Square = {

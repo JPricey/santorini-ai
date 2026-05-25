@@ -164,10 +164,29 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     add_matchup(GodName::Ares, GodName::Ares, BannedReason::Engine);
 
     // We don't represent non-complete domes, so ban any domer vs chronus
-    add_matchup(GodName::Chronus, GodName::Atlas, BannedReason::Engine);
-    add_matchup(GodName::Chronus, GodName::Selene, BannedReason::Engine);
-    add_matchup(GodName::Chronus, GodName::Asteria, BannedReason::Engine);
-    add_matchup(GodName::Chronus, GodName::Polyphemus, BannedReason::Engine);
+    let chronus_variants = [
+        GodName::Chronus,
+        GodName::Chronus4T,
+        GodName::Chronus3T,
+    ];
+    let domers = [
+        GodName::Atlas,
+        GodName::Selene,
+        GodName::Asteria,
+        GodName::Polyphemus,
+    ];
+    for chronus in chronus_variants {
+        for domer in domers {
+            add_matchup(chronus, domer, BannedReason::Engine);
+        }
+    }
+
+    // Ban every pair of chronus variants playing each other
+    for i in 0..chronus_variants.len() {
+        for j in i..chronus_variants.len() {
+            add_matchup(chronus_variants[i], chronus_variants[j], BannedReason::Game);
+        }
+    }
 
     set
 });
