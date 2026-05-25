@@ -144,7 +144,7 @@ impl GodMove for JasonMove {
 
         if let Some(place_pos) = self.maybe_place_position() {
             vec![vec![
-                PartialAction::HeroPower(place_pos),
+                PartialAction::HeroActionPlacement(place_pos),
                 PartialAction::Build(self.build_position()),
             ]]
         } else {

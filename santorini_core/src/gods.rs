@@ -226,6 +226,7 @@ pub enum PartialAction {
     Destroy(Square),
     SetTalusPosition(Square),
     HeroPower(Square),
+    HeroActionPlacement(Square),
     SetWindDirection(Option<Direction>),
     NoMoves,
     EndTurn,
