@@ -288,6 +288,7 @@ fn jason_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         } else {
             apply_mapping_to_mask(threatening_workers, prelude.standard_neighbor_map)
                 & unblocked_squares
+                & prelude.win_mask
         };
 
         let mut seen_move_to = BitBoard::EMPTY;
