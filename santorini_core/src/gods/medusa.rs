@@ -34,7 +34,12 @@ const IS_STONE_BIT_MASK: MoveData = 1 << IS_STONE_BIT_OFFSET;
 pub struct MedusaMove(pub MoveData);
 
 impl GodMove for MedusaMove {
-    fn move_to_actions(self, _board: &BoardState, _player: Player, _other_god: StaticGod) -> Vec<FullAction> {
+    fn move_to_actions(
+        self,
+        _board: &BoardState,
+        _player: Player,
+        _other_god: StaticGod,
+    ) -> Vec<FullAction> {
         let mut res = vec![
             PartialAction::SelectWorker(self.move_from_position()),
             PartialAction::MoveWorker(self.move_to_position().into()),
@@ -64,6 +69,7 @@ impl GodMove for MedusaMove {
             if other_god.god_name == GodName::Clio {
                 frozen_squares = other_god.get_frozen_mask(board, !player);
             }
+            let oppo_build_mask = other_god.get_build_mask(oppo_workers);
 
             let mut all_stones = BitBoard::EMPTY;
             for own_worker_pos in board.workers[player as usize] {
@@ -73,7 +79,8 @@ impl GodMove for MedusaMove {
                 }
                 all_stones |= NEIGHBOR_MAP[own_worker_pos as usize]
                     & oppo_workers
-                    & !(board.height_map[own_worker_height - 1] | frozen_squares);
+                    & !(board.height_map[own_worker_height - 1] | frozen_squares)
+                    & oppo_build_mask;
             }
 
             board.oppo_worker_kill(other_god, !player, all_stones);
@@ -193,6 +200,8 @@ pub(super) fn medusa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
+    let stoneable_workers = prelude.oppo_workers & prelude.build_mask;
+
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
@@ -224,8 +233,8 @@ pub(super) fn medusa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 continue;
             }
             neighbor_stone_map |= NEIGHBOR_MAP[other_worker as usize]
-                & prelude.oppo_workers
-                & !(prelude.board.height_map[worker_height - 1] | prelude.domes_and_frozen);
+                & !(prelude.board.height_map[worker_height - 1] | prelude.domes_and_frozen)
+                & stoneable_workers;
         }
 
         for worker_end_pos in worker_next_moves.worker_moves {
@@ -234,9 +243,9 @@ pub(super) fn medusa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             let final_stone_map = if worker_end_move_state.worker_end_height > 0 {
                 let current_stone_map = NEIGHBOR_MAP[worker_end_move_state.worker_end_pos as usize]
-                    & prelude.oppo_workers
                     & !(prelude.board.height_map[worker_end_move_state.worker_end_height - 1]
-                        | prelude.domes_and_frozen);
+                        | prelude.domes_and_frozen)
+                    & stoneable_workers;
                 neighbor_stone_map | current_stone_map
             } else {
                 neighbor_stone_map
@@ -299,4 +308,64 @@ pub const fn build_medusa() -> GodPower {
         8549903969002325999,
         1897019337165897523,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::board::GameStateBuilder;
+
+    #[test]
+    fn test_medusa_cannot_stone_limus_workers_adjacent_to_each_other() {
+        // Medusa at A2 (height 2) is adjacent to both Limus workers at A1 and B1, who are
+        // also adjacent to each other. Limus's build mask forbids opponents from building
+        // adjacent to a Limus worker, so neither A1 nor B1 should ever be stoneable.
+        let state = GameStateBuilder::new(GodName::Medusa, GodName::Limus)
+            .with_p1_worker(Square::A2)
+            .with_p1_worker(Square::E5)
+            .with_p2_worker(Square::A1)
+            .with_p2_worker(Square::B1)
+            .with_height(Square::A2, 2)
+            .with_height(Square::B2, 1)
+            .build();
+
+        let medusa = GodName::Medusa.to_power();
+        let limus = GodName::Limus.to_power();
+
+        let moves = medusa.get_all_moves(&state, Player::One);
+        let expected_limus_workers = Square::A1.to_board() | Square::B1.to_board();
+
+        let mut saw_move_adjacent_to_limus = false;
+        for scored_move in moves {
+            let action = scored_move.action;
+            if action.get_is_winning() {
+                continue;
+            }
+            let medusa_move: MedusaMove = action.into();
+            assert!(
+                !medusa_move.is_stone_end_of_turn(),
+                "Medusa should not be able to stone Limus workers \
+                 adjacent to other Limus workers, move: {:?}",
+                medusa_move
+            );
+
+            if medusa_move.move_to_position() == Square::B2 {
+                saw_move_adjacent_to_limus = true;
+            }
+
+            let mut next_board = state.board.clone();
+            medusa.make_move(&mut next_board, limus, action);
+            assert_eq!(
+                next_board.workers[Player::Two as usize] & BitBoard::MAIN_SECTION_MASK,
+                expected_limus_workers,
+                "Limus workers should remain alive after move {:?}",
+                medusa_move
+            );
+        }
+
+        assert!(
+            saw_move_adjacent_to_limus,
+            "Test setup should produce at least one move ending adjacent to the Limus workers"
+        );
+    }
 }
