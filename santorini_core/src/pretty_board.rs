@@ -91,7 +91,8 @@ pub fn game_state_with_partial_actions(
 
     for action in actions.iter().cloned() {
         match action {
-            PartialAction::PlaceWorker(square) => {
+            PartialAction::PlaceWorker(square)
+            | PartialAction::HeroActionPlacement(square) => {
                 board.worker_xor(current_player, BitBoard::as_mask(square));
             }
             PartialAction::SetFemaleWorker(square) => {

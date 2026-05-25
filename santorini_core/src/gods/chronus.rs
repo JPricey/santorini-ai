@@ -27,6 +27,8 @@ const MOVE_TO_POSITION_OFFSET: usize = MOVE_FROM_POSITION_OFFSET + POSITION_WIDT
 const BUILD_POSITION_OFFSET: usize = MOVE_TO_POSITION_OFFSET + POSITION_WIDTH;
 
 const CHRONUS_DOME_COUNT_TO_WIN: u32 = 5;
+const CHRONUS_4T_DOME_COUNT_TO_WIN: u32 = 4;
+const CHRONUS_3T_DOME_COUNT_TO_WIN: u32 = 3;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ChronusMove(pub MoveData);
@@ -206,15 +208,18 @@ impl std::fmt::Debug for ChronusMove {
     }
 }
 
-pub(super) fn chronus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+fn chronus_move_gen_impl<
+    const F: MoveGenFlags,
+    const MUST_CLIMB: bool,
+    const DOME_COUNT_TO_WIN: u32,
+>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
+    mut result: Vec<ScoredMove>,
 ) -> Vec<ScoredMove> {
-    let mut result = persephone_check_result!(chronus_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
-
     let dome_count = state.board.height_map[3].count_ones();
-    if dome_count >= CHRONUS_DOME_COUNT_TO_WIN {
+    if dome_count >= DOME_COUNT_TO_WIN {
         result.push(build_scored_move::<F, _>(
             ChronusMove::new_winning_null_move(),
             false,
@@ -245,7 +250,7 @@ pub(super) fn chronus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_next_moves.worker_moves ^= moves_to_level_3;
         }
 
-        if is_mate_only::<F>() && dome_count < CHRONUS_DOME_COUNT_TO_WIN - 1 {
+        if is_mate_only::<F>() && dome_count < DOME_COUNT_TO_WIN - 1 {
             continue;
         }
 
@@ -260,7 +265,7 @@ pub(super) fn chronus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 & unblocked_squares
                 & prelude.build_mask;
             let mut narrowed_builds = all_possible_builds;
-            let winning_builds = if dome_count == CHRONUS_DOME_COUNT_TO_WIN - 1 {
+            let winning_builds = if dome_count == DOME_COUNT_TO_WIN - 1 {
                 prelude.exactly_level_3
             } else {
                 BitBoard::EMPTY
@@ -289,7 +294,7 @@ pub(super) fn chronus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             for worker_build_pos in narrowed_builds {
                 let build_mask = worker_build_pos.to_board();
                 if is_mate_only::<F>()
-                    || dome_count == CHRONUS_DOME_COUNT_TO_WIN - 1
+                    || dome_count == DOME_COUNT_TO_WIN - 1
                         && (prelude.exactly_level_3 & build_mask).is_not_empty()
                 {
                     result.push(build_scored_move::<F, _>(
@@ -331,6 +336,48 @@ pub(super) fn chronus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     result
 }
 
+pub(super) fn chronus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    let result = persephone_check_result!(chronus_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+    chronus_move_gen_impl::<F, MUST_CLIMB, CHRONUS_DOME_COUNT_TO_WIN>(
+        state,
+        player,
+        key_squares,
+        result,
+    )
+}
+
+pub(super) fn chronus_4t_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    let result = persephone_check_result!(chronus_4t_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+    chronus_move_gen_impl::<F, MUST_CLIMB, CHRONUS_4T_DOME_COUNT_TO_WIN>(
+        state,
+        player,
+        key_squares,
+        result,
+    )
+}
+
+pub(super) fn chronus_3t_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    let result = persephone_check_result!(chronus_3t_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
+    chronus_move_gen_impl::<F, MUST_CLIMB, CHRONUS_3T_DOME_COUNT_TO_WIN>(
+        state,
+        player,
+        key_squares,
+        result,
+    )
+}
+
 pub(crate) const fn build_chronus() -> GodPower {
     god_power(
         GodName::Chronus,
@@ -340,3 +387,26 @@ pub(crate) const fn build_chronus() -> GodPower {
         3013502386383907053,
     )
 }
+
+pub(crate) const fn build_chronus_4t() -> GodPower {
+    god_power(
+        GodName::Chronus4T,
+        build_god_power_movers!(chronus_4t_move_gen),
+        build_god_power_actions::<ChronusMove>(),
+        7642915380152719261,
+        11985740263849175302,
+    )
+    .with_nnue_god_name(GodName::Chronus)
+}
+
+pub(crate) const fn build_chronus_3t() -> GodPower {
+    god_power(
+        GodName::Chronus3T,
+        build_god_power_movers!(chronus_3t_move_gen),
+        build_god_power_actions::<ChronusMove>(),
+        4836217598402176548,
+        15021384769523018472,
+    )
+    .with_nnue_god_name(GodName::Chronus)
+}
+

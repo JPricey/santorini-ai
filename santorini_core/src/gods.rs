@@ -148,9 +148,11 @@ pub enum GodName {
     Jason = 50,
     Achilles = 51,
     Stymphalians = 52,
+    Chronus4T = 53,
+    Chronus3T = 54,
 }
 
-pub const WIP_GODS: [GodName; 0] = [];
+pub const WIP_GODS: [GodName; 2] = [GodName::Chronus4T, GodName::Chronus3T];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
 impl GodName {
@@ -160,6 +162,13 @@ impl GodName {
 
     pub const fn is_equal(self, other: GodName) -> bool {
         self as usize == other as usize
+    }
+
+    pub const fn is_chronus_variant(self) -> bool {
+        matches!(
+            self,
+            GodName::Chronus | GodName::Chronus4T | GodName::Chronus3T
+        )
     }
 }
 
@@ -226,6 +235,7 @@ pub enum PartialAction {
     Destroy(Square),
     SetTalusPosition(Square),
     HeroPower(Square),
+    HeroActionPlacement(Square),
     SetWindDirection(Option<Direction>),
     NoMoves,
     EndTurn,
@@ -327,6 +337,7 @@ pub(super) type StringifyMoveFn = fn(action: GenericMove) -> String;
 pub(super) struct GodPowerMoveFns {
     _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
+    _get_any_win: MoveGeneratorFn,
     _get_unscored_win_blockers: MoveGeneratorFn,
     _get_scored_win_blockers: MoveGeneratorFn,
     _get_moves_for_search: MoveGeneratorFn,
@@ -442,6 +453,7 @@ pub struct GodPower {
     // Move Fns
     pub _get_all_moves: MoveGeneratorFn,
     _get_wins: MoveGeneratorFn,
+    _get_any_win: MoveGeneratorFn,
     _get_scored_win_blockers: MoveGeneratorFn,
     _get_unscored_win_blockers: MoveGeneratorFn,
     _get_moves_for_search: MoveGeneratorFn,
@@ -578,6 +590,20 @@ impl GodPower {
 
     pub fn get_winning_moves(&self, state: &FullGameState, player: Player) -> Vec<ScoredMove> {
         (self._get_wins)(state, player, BitBoard::EMPTY)
+    }
+
+    pub fn get_any_winning_move(
+        &self,
+        state: &FullGameState,
+        player: Player,
+    ) -> Option<GenericMove> {
+        (self._get_any_win)(state, player, BitBoard::EMPTY)
+            .first()
+            .map(|m| m.action)
+    }
+
+    pub fn has_any_winning_move(&self, state: &FullGameState, player: Player) -> bool {
+        self.get_any_winning_move(state, player).is_some()
     }
 
     pub fn get_scored_blocker_moves(
@@ -823,6 +849,8 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     jason::build_jason(),
     achilles::build_achilles(),
     stymphalians::build_stymphalians(),
+    chronus::build_chronus_4t(),
+    chronus::build_chronus_3t(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -888,6 +916,10 @@ macro_rules! build_god_power_movers {
                     false,
                 >,
                 _get_wins: $move_gen::<{ crate::gods::generic::MATE_ONLY }, false>,
+                _get_any_win: $move_gen::<
+                    { crate::gods::generic::MATE_ONLY | crate::gods::generic::STOP_ON_MATE },
+                    false,
+                >,
                 _get_scored_win_blockers: $move_gen::<
                     {
                         crate::gods::generic::STOP_ON_MATE
@@ -961,6 +993,7 @@ const fn god_power(
         _get_all_moves: movers._get_all_moves,
         _get_moves_for_search: movers._get_moves_for_search,
         _get_wins: movers._get_wins,
+        _get_any_win: movers._get_any_win,
         _get_scored_win_blockers: movers._get_scored_win_blockers,
         _get_unscored_win_blockers: movers._get_unscored_win_blockers,
 

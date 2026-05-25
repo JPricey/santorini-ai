@@ -867,7 +867,7 @@ impl ConsistencyChecker {
                 }
             }
 
-            if oppo_god.god_name == GodName::Chronus {
+            if oppo_god.god_name.is_chronus_variant() {
                 // Hard to detect & prevent dome wins
                 continue;
             }
@@ -1057,7 +1057,7 @@ impl ConsistencyChecker {
                     }
                 }
 
-                if oppo_god.god_name == GodName::Chronus {
+                if oppo_god.god_name.is_chronus_variant() {
                     // If we won on chronus behalf, it removes his winning moves, but he just wins
                     // anyway...
                     if new_oppo_wins.len() > 0 {
@@ -1135,9 +1135,15 @@ impl ConsistencyChecker {
                     continue;
                 }
 
-                if is_real_checker && active_god.god_name == GodName::Chronus {
+                if is_real_checker && active_god.god_name.is_chronus_variant() {
                     // We're not doing check detection on dome wins
-                    if check_state.board.height_map[3].count_ones() >= 4 {
+                    let threshold = match active_god.god_name {
+                        GodName::Chronus => 4,
+                        GodName::Chronus4T => 3,
+                        GodName::Chronus3T => 2,
+                        _ => unreachable!(),
+                    };
+                    if check_state.board.height_map[3].count_ones() >= threshold {
                         continue;
                     }
                 }
@@ -1257,8 +1263,14 @@ impl ConsistencyChecker {
             return;
         }
 
-        if active_god.god_name == GodName::Chronus {
-            if won_state.board.height_map[3].count_ones() >= 5 {
+        if active_god.god_name.is_chronus_variant() {
+            let dome_threshold = match active_god.god_name {
+                GodName::Chronus => 5,
+                GodName::Chronus4T => 4,
+                GodName::Chronus3T => 3,
+                _ => unreachable!(),
+            };
+            if won_state.board.height_map[3].count_ones() >= dome_threshold {
                 // chronus dome win
                 return;
             }

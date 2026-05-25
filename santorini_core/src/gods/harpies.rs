@@ -219,7 +219,7 @@ pub fn harpies_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     // Chronus can win on his build, not his move. Instead of checking for ways to block his moves,
     // just try everything too.
     let final_key_squares = if other_god == GodName::Artemis
-        || other_god == GodName::Chronus
+        || other_god.is_chronus_variant()
         || other_god == GodName::Stymphalians
     {
         BitBoard::MAIN_SECTION_MASK
@@ -332,7 +332,9 @@ mod tests {
             if god_name == GodName::Castor {
                 continue;
             }
-            // Jason's power places a new worker (doesn't move), so doesn't trigger sliding
+            // Jason's power places a new worker on the perimeter that then slides; in this
+            // setup it can legitimately land at a neighbor of A5 (blocked by the existing
+            // worker), so the "no neighbor" check doesn't apply to him.
             if god_name == GodName::Jason {
                 continue;
             }

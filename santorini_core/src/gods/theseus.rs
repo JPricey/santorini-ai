@@ -229,8 +229,8 @@ fn theseus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             neighbor_kill_range |= NEIGHBOR_MAP[other as usize]
                 & targetable_oppo_workers
                 & match other_height {
-                    0 => prelude.board.height_map[2],
-                    1 => prelude.board.height_map[3],
+                    0 => prelude.exactly_level_2,
+                    1 => prelude.board.height_map[2],
                     _ => unreachable!(),
                 }
         }
@@ -256,7 +256,7 @@ fn theseus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             match worker_end_move_state.worker_end_height {
                 0 => {
                     full_kill_range |=
-                        end_neighbors & prelude.board.height_map[1] & targetable_oppo_workers
+                        end_neighbors & prelude.exactly_level_2 & targetable_oppo_workers
                 }
                 1 => {
                     full_kill_range |=
@@ -372,4 +372,31 @@ pub const fn build_theseus() -> GodPower {
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{fen::parse_fen, player::Player};
+
+    use super::*;
+
+    #[test]
+    fn test_theseus_cannot_kill_worker_not_exactly_2_levels_higher() {
+        // Theseus worker at C3 (height 0), opponent worker at D3 (height 3).
+        // Kill power requires exactly 2 levels higher (target should be height 2),
+        // but D3 is 3 levels higher. No kill should be generated.
+        let state = parse_fen("0000000000000300000000000/1/theseus:C3,A1/mortal:D3,E1").unwrap();
+        let theseus = GodName::Theseus.to_power();
+
+        let moves = theseus.get_moves_for_search(&state, Player::One);
+        for m in moves {
+            let theseus_move = TheseusMove::from(m.action);
+            if let Some(kill_sq) = theseus_move.maybe_kill_square() {
+                panic!(
+                    "Theseus should not be able to kill a worker that isn't exactly 2 levels higher, but generated kill at {:?}: {:?}",
+                    kill_sq, theseus_move,
+                );
+            }
+        }
+    }
 }
