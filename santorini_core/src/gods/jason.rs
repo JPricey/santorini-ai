@@ -9,11 +9,12 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        harpies::slide_position,
         move_helpers::{
-            build_scored_move, get_basic_moves_from_raw_data, get_generator_prelude_state,
-            get_standard_reach_board, get_worker_end_move_state, get_worker_next_move_state,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            modify_prelude_for_checking_workers, push_winning_moves,
+            GeneratorPreludeState, build_scored_move, get_basic_moves_from_raw_data,
+            get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state,
+            get_worker_next_move_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
         },
     },
     persephone_check_result,
@@ -278,62 +279,132 @@ fn jason_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let has_power_available = state.board.god_data[player as usize] == 0;
     if has_power_available && !is_mate_only::<F>() {
-        let unblocked_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
-        let buildable_squares = unblocked_squares & prelude.build_mask;
-        let valid_placements = PERIMETER_SPACES_MASK & prelude.exactly_level_0 & unblocked_squares;
-
-        let threatening_workers = prelude.own_workers & prelude.exactly_level_2;
-        let reach_board = if prelude.is_against_hypnus && threatening_workers.count_ones() < 2 {
-            BitBoard::EMPTY
+        if prelude.is_against_harpies {
+            add_hero_power_moves_vs_harpies::<F>(&prelude, &mut result);
         } else {
-            apply_mapping_to_mask(threatening_workers, prelude.standard_neighbor_map)
-                & unblocked_squares
-                & prelude.win_mask
-        };
-
-        let mut seen_move_to = BitBoard::EMPTY;
-
-        for init_pos in valid_placements {
-            let place_mask = init_pos.to_board();
-
-            let worker_moves =
-                get_basic_moves_from_raw_data::<MUST_CLIMB>(&prelude, init_pos, place_mask, 0)
-                    & !seen_move_to;
-
-            seen_move_to |= worker_moves;
-
-            for move_to in worker_moves {
-                let move_to_mask = move_to.to_board();
-
-                let all_possible_builds = NEIGHBOR_MAP[move_to as usize] & buildable_squares;
-                let mut narrowed_builds = all_possible_builds;
-
-                if is_interact_with_key_squares::<F>() {
-                    let is_already_matched =
-                        (move_to_mask & prelude.key_squares).is_not_empty() as usize;
-                    narrowed_builds &=
-                        [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
-                }
-
-                for build_pos in narrowed_builds {
-                    let build_mask = build_pos.to_board();
-
-                    let is_check = {
-                        let final_level_3 = (prelude.exactly_level_2 & build_mask)
-                            | (prelude.exactly_level_3 & !build_mask);
-                        let check_board = reach_board & final_level_3;
-                        check_board.is_not_empty()
-                    };
-
-                    let new_action = JasonMove::new_power_move(move_to, build_pos);
-
-                    result.push(build_scored_move::<F, _>(new_action, is_check, false));
-                }
-            }
+            add_hero_power_moves_vs_everyone_else::<F>(&prelude, &mut result);
         }
     }
 
     result
+}
+
+fn add_hero_power_moves_vs_everyone_else<const F: MoveGenFlags>(
+    prelude: &GeneratorPreludeState,
+    result: &mut Vec<ScoredMove>,
+) {
+    let unblocked_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
+    let buildable_squares = unblocked_squares & prelude.build_mask;
+    let valid_placements = PERIMETER_SPACES_MASK & prelude.exactly_level_0 & unblocked_squares;
+
+    let threatening_workers = prelude.own_workers & prelude.exactly_level_2;
+    let reach_board = if prelude.is_against_hypnus && threatening_workers.count_ones() < 2 {
+        BitBoard::EMPTY
+    } else {
+        apply_mapping_to_mask(threatening_workers, prelude.standard_neighbor_map)
+            & unblocked_squares
+            & prelude.win_mask
+    };
+
+    let mut seen_move_to = BitBoard::EMPTY;
+
+    for init_pos in valid_placements {
+        let place_mask = init_pos.to_board();
+
+        let worker_moves = get_basic_moves_from_raw_data::<false>(prelude, init_pos, place_mask, 0);
+
+        for move_to in worker_moves {
+            let move_to_mask = move_to.to_board();
+
+            if (move_to_mask & seen_move_to).is_not_empty() {
+                continue;
+            }
+            seen_move_to |= move_to_mask;
+
+            let all_possible_builds = NEIGHBOR_MAP[move_to as usize] & buildable_squares;
+            let mut narrowed_builds = all_possible_builds;
+
+            if is_interact_with_key_squares::<F>() {
+                let is_already_matched =
+                    (move_to_mask & prelude.key_squares).is_not_empty() as usize;
+                narrowed_builds &=
+                    [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
+            }
+
+            for build_pos in narrowed_builds {
+                let build_mask = build_pos.to_board();
+
+                let is_check = {
+                    let final_level_3 = (prelude.exactly_level_2 & build_mask)
+                        | (prelude.exactly_level_3 & !build_mask);
+                    let check_board = reach_board & final_level_3;
+                    check_board.is_not_empty()
+                };
+
+                let new_action = JasonMove::new_power_move(move_to, build_pos);
+
+                result.push(build_scored_move::<F, _>(new_action, is_check, false));
+            }
+        }
+    }
+}
+
+// Harpies bans Hypnus / Hera / Limus / Aphrodite / Aeolus / Hippolyta as the opposing god,
+// so we don't need the alternate-worker, win_mask, build_mask, affinity, or neighbor-map
+// adjustments here. The only Harpies-specific behavior is that the placed worker slides as
+// far as it can in the direction of its move.
+fn add_hero_power_moves_vs_harpies<const F: MoveGenFlags>(
+    prelude: &GeneratorPreludeState,
+    result: &mut Vec<ScoredMove>,
+) {
+    let unblocked_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
+    let valid_placements = PERIMETER_SPACES_MASK & prelude.exactly_level_0 & unblocked_squares;
+
+    let threatening_workers = prelude.own_workers & prelude.exactly_level_2;
+    let reach_board = apply_mapping_to_mask(threatening_workers, &NEIGHBOR_MAP) & unblocked_squares;
+
+    let mut seen_move_to = BitBoard::EMPTY;
+
+    for init_pos in valid_placements {
+        let place_mask = init_pos.to_board();
+
+        let worker_moves = get_basic_moves_from_raw_data::<false>(prelude, init_pos, place_mask, 0);
+
+        for direction_target in worker_moves {
+            let move_to = slide_position(prelude, init_pos, direction_target);
+            let move_to_mask = move_to.to_board();
+
+            if (move_to_mask & seen_move_to).is_not_empty() {
+                continue;
+            }
+            seen_move_to |= move_to_mask;
+
+            let all_possible_builds = NEIGHBOR_MAP[move_to as usize] & unblocked_squares;
+            let mut narrowed_builds = all_possible_builds;
+
+            if is_interact_with_key_squares::<F>() {
+                let is_already_matched =
+                    (move_to_mask & prelude.key_squares).is_not_empty() as usize;
+                narrowed_builds &=
+                    [prelude.key_squares, BitBoard::MAIN_SECTION_MASK][is_already_matched];
+            }
+
+            for build_pos in narrowed_builds {
+                let build_mask = build_pos.to_board();
+
+                let is_check = {
+                    let final_level_3 = (prelude.exactly_level_2 & build_mask)
+                        | (prelude.exactly_level_3 & !build_mask);
+                    let check_board = reach_board & final_level_3;
+                    check_board.is_not_empty()
+                };
+
+                let new_action = JasonMove::new_power_move(move_to, build_pos);
+
+                result.push(build_scored_move::<F, _>(new_action, is_check, false));
+            }
+        }
+    }
 }
 
 fn parse_god_data(data: &str) -> Result<GodData, String> {

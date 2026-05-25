@@ -332,7 +332,9 @@ mod tests {
             if god_name == GodName::Castor {
                 continue;
             }
-            // Jason's power places a new worker (doesn't move), so doesn't trigger sliding
+            // Jason's power places a new worker on the perimeter that then slides; in this
+            // setup it can legitimately land at a neighbor of A5 (blocked by the existing
+            // worker), so the "no neighbor" check doesn't apply to him.
             if god_name == GodName::Jason {
                 continue;
             }

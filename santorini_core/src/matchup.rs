@@ -146,7 +146,6 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     add_matchup(GodName::Aphrodite, GodName::Urania, BannedReason::Game);
 
     add_matchup(GodName::Harpies, GodName::Hermes, BannedReason::Game);
-    add_matchup(GodName::Harpies, GodName::Jason, BannedReason::Game);
 
     add_matchup(GodName::Persephone, GodName::Jason, BannedReason::Game);
 
