@@ -18,6 +18,7 @@ use crate::{
         hydra::HydraMove,
         mortal::MortalMove,
         stymphalians::StymphaliansMove,
+        terpsichore::TerpsichoreMove,
     },
     hashing::compute_hash_from_scratch,
     player::Player,
@@ -1346,6 +1347,18 @@ impl ConsistencyChecker {
                 }
             }
 
+            if active_god.god_name == GodName::Terpsichore {
+                if _validate_terpsichore_double_move_win(
+                    state,
+                    &won_state,
+                    current_player,
+                    action,
+                    win_mask,
+                ) {
+                    return;
+                }
+            }
+
             self.errors.push(format!(
                 "Winning move did not move to win mask: {}. {:?} -> {:?}",
                 stringed_action, state, won_state,
@@ -1404,6 +1417,18 @@ impl ConsistencyChecker {
             }
         }
 
+        if active_god.god_name == GodName::Terpsichore {
+            if _validate_terpsichore_double_move_win(
+                state,
+                &won_state,
+                current_player,
+                action,
+                win_mask,
+            ) {
+                return;
+            }
+        }
+
         // Iris wins by jumping over a worker to level 2
         if active_god.god_name == GodName::Iris {
             if let Some(jumped_pos) = BETWEEN_MAPPING[old_pos as usize][new_pos as usize] {
@@ -1449,17 +1474,15 @@ impl ConsistencyChecker {
 }
 
 fn _test_castor_bad_key_move_blockers(state: &FullGameState) -> bool {
-    // Castor has you in check
-    // One of his workers is on lvl 3, the other on lvl 2
-    // And the check is to move the lvl 3 worker out of the way, so the lvl 2 worker can step up
-    // The spot that the lvl 2 worker moves into is a key square, so you try to build there to
-    // block it.
-    // If that doesn't dome the square, that's not enough. But whatever.
+    // Same vacate-and-climb pattern as Castor: opponent has a worker on lvl 3 and one on
+    // lvl 2 adjacent. The win is "h3 worker vacates, h2 worker steps up", and a build on
+    // the vacator's destination square shows up as a key square — but unless that build
+    // domes, it doesn't actually block the move. Terpsichore inherits the same shape.
 
     let current_player = state.board.current_player;
     let (_active_god, oppo_god) = state.get_active_non_active_gods();
 
-    if oppo_god.god_name != GodName::Castor {
+    if oppo_god.god_name != GodName::Castor && oppo_god.god_name != GodName::Terpsichore {
         return false;
     }
 
@@ -1498,6 +1521,38 @@ fn _validate_castor_double_move_win(
         return false;
     };
 
+    let t1 = action.move_to_position_1();
+    let t2 = action.move_to_position_2();
+
+    let o1 = prev_state.board.get_height(f1) as i32;
+    let n1 = won_state.board.get_height(t1) as i32;
+    if o1 == 2 && n1 == 3 && (t1.to_board() & win_mask).is_not_empty() {
+        return true;
+    }
+
+    let o2 = prev_state.board.get_height(f2) as i32;
+    let n2 = won_state.board.get_height(t2) as i32;
+    if o2 == 2 && n2 == 3 && (t2.to_board() & win_mask).is_not_empty() {
+        return true;
+    }
+
+    false
+}
+
+fn _validate_terpsichore_double_move_win(
+    prev_state: &FullGameState,
+    won_state: &FullGameState,
+    _player: Player,
+    action: GenericMove,
+    win_mask: BitBoard,
+) -> bool {
+    let action: TerpsichoreMove = action.into();
+
+    let Some(f2) = action.maybe_move_from_position_2() else {
+        return false;
+    };
+
+    let f1 = action.move_from_position_1();
     let t1 = action.move_to_position_1();
     let t2 = action.move_to_position_2();
 

@@ -75,6 +75,7 @@ pub(crate) mod stymphalians;
 pub(crate) mod theseus;
 pub(crate) mod urania;
 pub(crate) mod zeus;
+pub(crate) mod terpsichore;
 
 pub type StaticGod = &'static GodPower;
 
@@ -150,9 +151,10 @@ pub enum GodName {
     Stymphalians = 52,
     Chronus4T = 53,
     Chronus3T = 54,
+    Terpsichore = 55,
 }
 
-pub const WIP_GODS: [GodName; 2] = [GodName::Chronus4T, GodName::Chronus3T];
+pub const WIP_GODS: [GodName; 3] = [GodName::Chronus4T, GodName::Chronus3T, GodName::Terpsichore];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
 impl GodName {
@@ -851,6 +853,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     stymphalians::build_stymphalians(),
     chronus::build_chronus_4t(),
     chronus::build_chronus_3t(),
+    terpsichore::build_terpsichore(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
