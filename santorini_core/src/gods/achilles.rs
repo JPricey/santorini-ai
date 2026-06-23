@@ -636,8 +636,9 @@ fn achilles_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 let pre_build_height = prelude.board.get_height(pre_build_pos);
 
                 let mut power_worker_moves = worker_next_moves.worker_moves;
-                if pre_build_height + (!prelude.can_climb as usize)
-                    > worker_start_state.worker_start_height
+                if pre_build_height >= 3
+                    || pre_build_height + (!prelude.can_climb as usize)
+                        > worker_start_state.worker_start_height
                 {
                     power_worker_moves &= !pre_build_mask;
                 } else if prelude.is_down_prevented {
@@ -673,9 +674,11 @@ fn achilles_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                         & prelude.build_mask
                         & !(worker_end_mask | prelude.exactly_level_3 & pre_build_mask);
 
-                    let both_buildable = worker_builds & pre_build_locations;
-                    worker_builds ^=
-                        both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
+                    if worker_end_pos != pre_build_pos {
+                        let both_buildable = worker_builds & pre_build_locations;
+                        worker_builds ^=
+                            both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
+                    }
 
                     let worker_plausible_next_moves =
                         neighbor_moves_map[worker_end_pos as usize] & unblocked_squares;
@@ -813,4 +816,46 @@ pub const fn build_achilles() -> GodPower {
     .with_parse_god_data_fn(parse_god_data)
     .with_stringify_god_data_fn(stringify_god_data)
     .with_pretty_stringify_god_data_fn(pretty_stringify_god_data)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{fen::parse_fen, move_verifier::MoveVerifier, square::Square::*};
+
+    #[test]
+    fn test_power_build_onto_square_keeps_all_second_builds() {
+        let state =
+            parse_fen("1000200310000101000100000/1/achilles:B5,E2/hephaestus:D4,D3").unwrap();
+
+        let next_states = state.get_next_states_interactive();
+
+        for second_build in [D1, E1] {
+            MoveVerifier::new()
+                .with_p1_worker_at(D2)
+                .with_height_at(D2, 1)
+                .with_height_at(second_build, 1)
+                .no_winner()
+                .any(&next_states);
+        }
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+    }
+
+    // Pre-building on a level-3 neighbour caps it with a dome, so the worker must never be
+    // allowed to step onto the square it just power-built. Regression: an h3 worker pre-built
+    // a dome on an adjacent h3 square and then moved onto it, landing a worker on a dome.
+    #[test]
+    fn test_power_build_dome_blocks_stepping_onto_it() {
+        let state = parse_fen("2040223404231431344310143/1/achilles:B5,E1/hera:D5,C3").unwrap();
+
+        let next_states = state.get_next_states_interactive();
+
+        // No generated move may leave a worker standing on E2 once it has been domed.
+        MoveVerifier::new()
+            .with_p1_worker_at(E2)
+            .with_height_at(E2, 4)
+            .none(&next_states);
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+    }
 }
