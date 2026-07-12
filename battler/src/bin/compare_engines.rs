@@ -7,6 +7,7 @@ use std::{
 use battler::{BattleResult, WorkerMessage, battling_worker_thread, write_results_to_csv};
 use clap::Parser;
 use santorini_core::{
+    gods::GodName,
     matchup::{Matchup, MatchupArgs},
     player::Player,
     utils::timestamp_string,
@@ -31,9 +32,21 @@ struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let mut all_matchups = args.matchups.to_selector().get_all();
-    all_matchups.sort();
-    all_matchups.reverse();
+    // Mortal is only interesting as a mirror: drop mortal vs other gods
+    // (still reachable explicitly via -m mortal:god), but always include
+    // mortal v mortal as the most even baseline matchup.
+    let mortal_mirror = Matchup::new(GodName::Mortal, GodName::Mortal);
+    let selector = args
+        .matchups
+        .to_selector()
+        .minus_god_for_both(GodName::Mortal)
+        .with_extra_matchup(mortal_mirror);
+
+    let mut all_matchups = selector.get_all();
+    // Workers pop() from the end of the queue: sort so mirror matchups (our
+    // most even games) land at the end and therefore run first, with mortal
+    // v mortal as the very first.
+    all_matchups.sort_by_key(|m| (*m == mortal_mirror, m.is_mirror(), std::cmp::Reverse(*m)));
     let matchups_count = all_matchups.len();
 
     let mut all_results = Vec::<BattleResult>::new();
