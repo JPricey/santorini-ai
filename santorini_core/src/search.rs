@@ -147,13 +147,10 @@ impl NodeType for OffPV {
 }
 
 const GLOBAL_MOVE_HISTORY_MAX: HistoryDelta = 1024;
-const PER_PLY_HISTORY_MAX: HistoryDelta = 4096;
 const RESPONSE_HISTORY_MAX: HistoryDelta = 8192;
 const FOLLOW_HISTORY_MAX: HistoryDelta = 8192;
 
 pub const BASE_MOVE_HISTORY_TABLE_SIZE: usize = 999_983;
-pub const MOVE_HISTORY_BY_DEPTH_SIZE: usize = 200_001;
-pub const MAX_MOVE_HISTORY_DEPTH: usize = 32;
 pub const RESPONSE_HISTORY_SIZE: usize = 999_985;
 pub const FOLLOW_HISTORY_SIZE: usize = 999_987;
 
@@ -166,13 +163,8 @@ pub fn update_history_value<const MAX: HistoryDelta>(val: &mut MoveScore, bonus:
     *val = new as MoveScore;
 }
 
-pub fn set_min_history_value(val: &mut MoveScore, new_val: HistoryDelta) {
-    *val = (*val).max(new_val as MoveScore);
-}
-
 pub struct Histories {
     pub global_move_history: Vec<MoveScore>,
-    pub move_history_by_ply: [Vec<MoveScore>; MAX_MOVE_HISTORY_DEPTH],
     pub response_history: Vec<MoveScore>,
     pub follow_history: Vec<MoveScore>,
 }
@@ -181,7 +173,7 @@ impl Histories {
     pub fn get_move_score(
         &self,
         move_idx: usize,
-        ply: usize,
+        _ply: usize,
         prev_move_hash: Option<usize>,
         follow_move_hash: Option<usize>,
     ) -> MoveScore {
@@ -203,19 +195,10 @@ impl Histories {
         res
     }
 
-    // If ply > our history limit, use the last entry for that player instead
-    fn _move_history_ply(ply: usize) -> usize {
-        if ply < MAX_MOVE_HISTORY_DEPTH {
-            ply
-        } else {
-            MAX_MOVE_HISTORY_DEPTH - 2 + ((ply - MAX_MOVE_HISTORY_DEPTH) % 2)
-        }
-    }
-
     pub fn update_move(
         &mut self,
         move_idx: usize,
-        ply: usize,
+        _ply: usize,
         magnitude: HistoryDelta,
         prev_move_idx: Option<usize>,
         follow_move_idx: Option<usize>,
@@ -244,49 +227,12 @@ impl Histories {
         }
     }
 
-    pub fn set_move_min(
-        &mut self,
-        move_idx: usize,
-        ply: usize,
-        magnitude: HistoryDelta,
-        prev_move_idx: Option<usize>,
-        follow_move_idx: Option<usize>,
-    ) {
-        set_min_history_value(
-            &mut self.global_move_history[move_idx % BASE_MOVE_HISTORY_TABLE_SIZE],
-            magnitude,
-        );
-        set_min_history_value(
-            &mut self.move_history_by_ply[Self::_move_history_ply(ply)]
-                [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE],
-            magnitude,
-        );
-
-        if let Some(prev_move_idx) = prev_move_idx {
-            set_min_history_value(
-                &mut self.response_history[hash_u64(
-                    move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ prev_move_idx,
-                ) % RESPONSE_HISTORY_SIZE],
-                magnitude,
-            );
-        }
-
-        if let Some(follow_move_idx) = follow_move_idx {
-            set_min_history_value(
-                &mut self.follow_history[hash_u64(
-                    move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ follow_move_idx,
-                ) % FOLLOW_HISTORY_SIZE],
-                magnitude,
-            );
-        }
-    }
 }
 
 impl Default for Histories {
     fn default() -> Self {
         Self {
             global_move_history: vec![0; BASE_MOVE_HISTORY_TABLE_SIZE],
-            move_history_by_ply: array::from_fn(|_| vec![0; MOVE_HISTORY_BY_DEPTH_SIZE]),
             response_history: vec![0; RESPONSE_HISTORY_SIZE],
             follow_history: vec![0; FOLLOW_HISTORY_SIZE],
         }
