@@ -187,8 +187,6 @@ impl Histories {
     ) -> MoveScore {
         let mut res = 0;
         res += self.global_move_history[move_idx % BASE_MOVE_HISTORY_TABLE_SIZE];
-        res += self.move_history_by_ply[Self::_move_history_ply(ply)]
-            [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE];
 
         if let Some(prev_move_idx) = prev_move_hash {
             res += self.response_history[hash_u64(
@@ -224,11 +222,6 @@ impl Histories {
     ) {
         update_history_value::<GLOBAL_MOVE_HISTORY_MAX>(
             &mut self.global_move_history[move_idx % BASE_MOVE_HISTORY_TABLE_SIZE],
-            magnitude,
-        );
-        update_history_value::<PER_PLY_HISTORY_MAX>(
-            &mut self.move_history_by_ply[Self::_move_history_ply(ply)]
-                [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE],
             magnitude,
         );
 
