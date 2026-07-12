@@ -26,7 +26,10 @@ pub const fn win_at_ply(ply: usize) -> Heuristic {
     WINNING_SCORE - ply as Heuristic
 }
 
-const HALF_USIZE: u32 = size_of::<usize>() as u32 / 2;
+/// Rotation applied to the move hash before mixing with the previous move's
+/// hash for response/follow history. Must be identical on the read and write
+/// paths or the tables address different slots.
+const HISTORY_HASH_ROTATION: u32 = usize::BITS / 2;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -188,15 +191,15 @@ impl Histories {
             [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE];
 
         if let Some(prev_move_idx) = prev_move_hash {
-            res +=
-                self.response_history[hash_u64(move_idx.rotate_left(HALF_USIZE) ^ prev_move_idx)
-                    % RESPONSE_HISTORY_SIZE];
+            res += self.response_history[hash_u64(
+                move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ prev_move_idx,
+            ) % RESPONSE_HISTORY_SIZE];
         }
 
         if let Some(follow_move_idx) = follow_move_hash {
-            res +=
-                self.follow_history[hash_u64(move_idx.rotate_left(HALF_USIZE) ^ follow_move_idx)
-                    % FOLLOW_HISTORY_SIZE];
+            res += self.follow_history[hash_u64(
+                move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ follow_move_idx,
+            ) % FOLLOW_HISTORY_SIZE];
         }
 
         res
@@ -231,16 +234,18 @@ impl Histories {
 
         if let Some(prev_move_idx) = prev_move_idx {
             update_history_value::<RESPONSE_HISTORY_MAX>(
-                &mut self.response_history
-                    [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE],
+                &mut self.response_history[hash_u64(
+                    move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ prev_move_idx,
+                ) % RESPONSE_HISTORY_SIZE],
                 magnitude,
             )
         }
 
         if let Some(follow_move_idx) = follow_move_idx {
             update_history_value::<FOLLOW_HISTORY_MAX>(
-                &mut self.follow_history
-                    [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE],
+                &mut self.follow_history[hash_u64(
+                    move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ follow_move_idx,
+                ) % FOLLOW_HISTORY_SIZE],
                 magnitude,
             );
         }
@@ -266,16 +271,18 @@ impl Histories {
 
         if let Some(prev_move_idx) = prev_move_idx {
             set_min_history_value(
-                &mut self.response_history
-                    [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE],
+                &mut self.response_history[hash_u64(
+                    move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ prev_move_idx,
+                ) % RESPONSE_HISTORY_SIZE],
                 magnitude,
             );
         }
 
         if let Some(follow_move_idx) = follow_move_idx {
             set_min_history_value(
-                &mut self.follow_history
-                    [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE],
+                &mut self.follow_history[hash_u64(
+                    move_idx.rotate_left(HISTORY_HASH_ROTATION) ^ follow_move_idx,
+                ) % FOLLOW_HISTORY_SIZE],
                 magnitude,
             );
         }
@@ -299,7 +306,6 @@ pub struct SearchState {
     pub nodes_visited: usize,
     pub killer_move_table: [Option<GenericMove>; MAX_PLY],
     pub search_stack: [SearchStackEntry; MAX_PLY],
-    pub history: [Histories; 2],
 }
 
 impl Debug for SearchState {
@@ -325,7 +331,6 @@ impl Default for SearchState {
             nodes_visited: 0,
             killer_move_table: [None; MAX_PLY],
             search_stack: array::from_fn(|_| Default::default()),
-            history: Default::default(),
         }
     }
 }
@@ -357,6 +362,7 @@ where
     T: SearchTerminator,
 {
     let mut search_state = SearchState::default();
+    search_context.tt.new_search();
 
     root_state.validate();
     if root_state.get_winner().is_some() {
@@ -440,6 +446,8 @@ where
             &mut root_state,
             &mut nnue_acc,
             depth,
+            -INFINITY,
+            INFINITY,
         );
 
         search_state.last_fully_completed_depth = depth;
@@ -502,6 +510,8 @@ fn _root_search<T>(
     state: &FullGameState,
     nnue_acc: &mut LabeledAccumulator,
     remaining_depth: usize,
+    alpha: Heuristic,
+    beta: Heuristic,
 ) -> Heuristic
 where
     T: SearchTerminator,
@@ -515,8 +525,8 @@ where
             starting_mode,
             0,
             remaining_depth,
-            -INFINITY,
-            INFINITY,
+            alpha,
+            beta,
         )
     } else {
         _start_inner_search::<T, Root>(
@@ -526,11 +536,17 @@ where
             nnue_acc,
             0,
             remaining_depth,
-            -INFINITY,
-            INFINITY,
+            alpha,
+            beta,
         )
     }
 }
+
+// NOTE(2026-07-12): aspiration windows were implemented and measured here -
+// even parity-aware windows (Santorini evals oscillate with depth parity)
+// with fail-to-full widening cost +6..25% nodes at fixed depth on the
+// visit_tester suites. Likely blocked by the always-replace single-slot TT:
+// bounded re-searches stomp each other's entries. Revisit after TT bucketing.
 
 fn _start_inner_search<T, NT>(
     search_context: &mut SearchContext<T>,
@@ -651,7 +667,12 @@ where
             best_score = score;
             best_action = action;
 
-            if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
+            // See the matching guard in _inner_search: don't report
+            // fail-low (upper bound) scores from aspiration re-searches.
+            if NT::ROOT
+                && (score > alpha || search_state.best_move.is_none())
+                && (!should_stop || search_state.best_move.is_none())
+            {
                 let new_best_move = BestSearchResult::new(
                     child_state.clone(),
                     best_action.into(),
@@ -1020,6 +1041,13 @@ where
         return score;
     }
 
+    // NOTE(2026-07-12): keeping this update eager is deliberate - a "lazy"
+    // variant (skip when the TT provides eval) measured ~48% SLOWER on
+    // tree_perf: the diff-based accumulator's cost scales with the feature
+    // distance between consecutive evals, and staying synced along the tree
+    // path is much cheaper than jumping across it.
+    // (A per-ply-parity accumulator pair was also tried - no measurable
+    // timing difference; kept the simpler single accumulator.)
     nnue_acc.replace_from_state(&state);
     let eval = if let Some(tt_value) = &tt_entry {
         tt_value.eval
@@ -1034,11 +1062,14 @@ where
     let ss = &mut search_state.search_stack;
     ss[ply].eval = eval;
 
-    let (improving, eval_delta) = if ply >= 2 {
-        let delta = eval - ss[ply - 2].eval;
-        (delta > 0, delta)
-    } else if ply >= 4 {
+    // Compare against 4 plies back (two full rounds): measured much better
+    // than the chess-conventional 2 plies (+19..27% nodes on ply-2) - the
+    // longer gap smooths Santorini's per-round eval oscillation.
+    let (improving, eval_delta) = if ply >= 4 {
         let delta = eval - ss[ply - 4].eval;
+        (delta > 0, delta)
+    } else if ply >= 2 {
+        let delta = eval - ss[ply - 2].eval;
         (delta > 0, delta)
     } else {
         (true, 0)
@@ -1048,15 +1079,19 @@ where
     if !NT::ROOT && !NT::PV && key_squares.is_none() {
         // Reverse Futility Pruning
         if remaining_depth <= 8 {
+            // Margin tuned 2026-07-12: 150+100d was too fat (v127 A/B ~+93
+            // elo lean for this setting), 75+60d overpruned (~-38 vs this).
             let rfp_margin =
-                150 + 100 * remaining_depth as Heuristic - (improving as Heuristic) * 80;
+                100 + 80 * remaining_depth as Heuristic - (improving as Heuristic) * 80;
             if eval - rfp_margin >= beta {
                 return beta;
             }
         }
 
         // Null move pruning
-        if remaining_depth > 3
+        // Depth > 2 measured best (all suites improved vs > 3; > 1 regressed
+        // on mortal).
+        if remaining_depth > 2
             && eval + 45 * (improving as Heuristic) >= beta
             && !ss[ply - 1].is_null_move
         {
@@ -1132,7 +1167,7 @@ where
 
     while let Some(child_scored_action) = move_picker.next(
         &state,
-        &search_state.history[current_player_idx],
+        &search_context.tt.histories[current_player_idx],
         ply,
         prev_move_idx,
         follow_move_idx,
@@ -1266,7 +1301,13 @@ where
             best_score = score;
             best_action = child_action;
 
-            if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
+            // Only report root moves whose score is inside the window: a
+            // fail-low aspiration re-search produces upper-bound scores that
+            // must not displace the previous iteration's best move.
+            if NT::ROOT
+                && (score > alpha || search_state.best_move.is_none())
+                && (!should_stop || search_state.best_move.is_none())
+            {
                 let new_best_move = BestSearchResult::new(
                     child_state.clone(),
                     best_action,
@@ -1290,7 +1331,7 @@ where
                     }
 
                     move_score_adjustment += 75 * nd;
-                    search_state.history[current_player_idx].update_move(
+                    search_context.tt.histories[current_player_idx].update_move(
                         history_move_hash,
                         ply,
                         move_score_adjustment,
@@ -1307,8 +1348,8 @@ where
         let delta = delta_scaled.clamp(-4 * nd, 0 * nd);
         move_score_adjustment += delta;
 
-        search_state.history[current_player_idx].update_move(
-            move_idx,
+        search_context.tt.histories[current_player_idx].update_move(
+            history_move_hash,
             ply,
             move_score_adjustment,
             prev_move_idx,
@@ -1330,7 +1371,7 @@ where
         };
 
         let history_move_hash = active_god.get_history_hash(&state.board, best_action);
-        search_state.history[current_player_idx].update_move(
+        search_context.tt.histories[current_player_idx].update_move(
             history_move_hash,
             ply,
             3 * nd,
