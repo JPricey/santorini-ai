@@ -26,7 +26,12 @@ pub const fn win_at_ply(ply: usize) -> Heuristic {
     WINNING_SCORE - ply as Heuristic
 }
 
-const HALF_USIZE: u32 = size_of::<usize>() as u32 / 2;
+const HISTORY_HASH_ROTATION: u32 = usize::BITS / 2;
+
+#[inline]
+const fn combine_move_hashes(move_hash: usize, context_move_hash: usize) -> usize {
+    hash_u64(move_hash.rotate_left(HISTORY_HASH_ROTATION) ^ context_move_hash)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -188,15 +193,13 @@ impl Histories {
             [move_idx % MOVE_HISTORY_BY_DEPTH_SIZE];
 
         if let Some(prev_move_idx) = prev_move_hash {
-            res +=
-                self.response_history[hash_u64(move_idx.rotate_left(HALF_USIZE) ^ prev_move_idx)
-                    % RESPONSE_HISTORY_SIZE];
+            res += self.response_history
+                [combine_move_hashes(move_idx, prev_move_idx) % RESPONSE_HISTORY_SIZE];
         }
 
         if let Some(follow_move_idx) = follow_move_hash {
-            res +=
-                self.follow_history[hash_u64(move_idx.rotate_left(HALF_USIZE) ^ follow_move_idx)
-                    % FOLLOW_HISTORY_SIZE];
+            res += self.follow_history
+                [combine_move_hashes(move_idx, follow_move_idx) % FOLLOW_HISTORY_SIZE];
         }
 
         res
@@ -232,7 +235,7 @@ impl Histories {
         if let Some(prev_move_idx) = prev_move_idx {
             update_history_value::<RESPONSE_HISTORY_MAX>(
                 &mut self.response_history
-                    [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE],
+                    [combine_move_hashes(move_idx, prev_move_idx) % RESPONSE_HISTORY_SIZE],
                 magnitude,
             )
         }
@@ -240,7 +243,7 @@ impl Histories {
         if let Some(follow_move_idx) = follow_move_idx {
             update_history_value::<FOLLOW_HISTORY_MAX>(
                 &mut self.follow_history
-                    [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE],
+                    [combine_move_hashes(move_idx, follow_move_idx) % FOLLOW_HISTORY_SIZE],
                 magnitude,
             );
         }
@@ -267,7 +270,7 @@ impl Histories {
         if let Some(prev_move_idx) = prev_move_idx {
             set_min_history_value(
                 &mut self.response_history
-                    [hash_u64(move_idx.rotate_left(32) ^ prev_move_idx) % RESPONSE_HISTORY_SIZE],
+                    [combine_move_hashes(move_idx, prev_move_idx) % RESPONSE_HISTORY_SIZE],
                 magnitude,
             );
         }
@@ -275,7 +278,7 @@ impl Histories {
         if let Some(follow_move_idx) = follow_move_idx {
             set_min_history_value(
                 &mut self.follow_history
-                    [hash_u64(move_idx.rotate_left(32) ^ follow_move_idx) % FOLLOW_HISTORY_SIZE],
+                    [combine_move_hashes(move_idx, follow_move_idx) % FOLLOW_HISTORY_SIZE],
                 magnitude,
             );
         }
