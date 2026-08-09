@@ -7,7 +7,7 @@ use crate::{
     board::FullGameState,
     gods::generic::GenericMove,
     hashing::{HashType, compute_hash_from_scratch},
-    search::{MAX_PLY, WINNING_SCORE_BUFFER},
+    search::{Histories, MAX_PLY, WINNING_SCORE_BUFFER},
 };
 
 use super::search::Heuristic;
@@ -21,7 +21,6 @@ pub enum SearchScoreType {
 
 #[derive(Clone, Debug)]
 pub struct TTValue {
-    // TODO: should be best action?
     pub best_action: GenericMove,
     pub search_depth: u8,
     pub score_type: SearchScoreType,
@@ -76,13 +75,11 @@ pub struct TranspositionTable {
     pub lmr_table: LMRTable,
     pub entries: Vec<TTEntry>,
     pub stats: TTStats,
+    pub histories: [Histories; 2],
 }
 
 // const TABLE_SIZE: HashType = 999_983;
 const TABLE_SIZE: HashType = 5_000_011;
-// const TABLE_SIZE: HashType = 10_000_019;
-// const TABLE_SIZE: HashType = 22_633_363; // 1 GB
-// const TABLE_SIZE: HashType = 100_000_007; // too big
 
 fn _hash_obj<T>(obj: T) -> u64
 where
@@ -123,6 +120,7 @@ impl TranspositionTable {
                 TABLE_SIZE as usize
             ],
             stats: Default::default(),
+            histories: Default::default(),
         }
     }
 
@@ -246,6 +244,7 @@ impl TranspositionTable {
             .iter_mut()
             .for_each(|entry| *entry = Default::default());
         self.stats = Default::default();
+        self.histories = Default::default();
     }
 }
 

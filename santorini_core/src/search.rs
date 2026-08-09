@@ -302,7 +302,6 @@ pub struct SearchState {
     pub nodes_visited: usize,
     pub killer_move_table: [Option<GenericMove>; MAX_PLY],
     pub search_stack: [SearchStackEntry; MAX_PLY],
-    pub history: [Histories; 2],
 }
 
 impl Debug for SearchState {
@@ -328,7 +327,6 @@ impl Default for SearchState {
             nodes_visited: 0,
             killer_move_table: [None; MAX_PLY],
             search_stack: array::from_fn(|_| Default::default()),
-            history: Default::default(),
         }
     }
 }
@@ -1135,7 +1133,7 @@ where
 
     while let Some(child_scored_action) = move_picker.next(
         &state,
-        &search_state.history[current_player_idx],
+        &search_context.tt.histories[current_player_idx],
         ply,
         prev_move_idx,
         follow_move_idx,
@@ -1293,7 +1291,7 @@ where
                     }
 
                     move_score_adjustment += 75 * nd;
-                    search_state.history[current_player_idx].update_move(
+                    search_context.tt.histories[current_player_idx].update_move(
                         history_move_hash,
                         ply,
                         move_score_adjustment,
@@ -1310,7 +1308,7 @@ where
         let delta = delta_scaled.clamp(-4 * nd, 0 * nd);
         move_score_adjustment += delta;
 
-        search_state.history[current_player_idx].update_move(
+        search_context.tt.histories[current_player_idx].update_move(
             history_move_hash,
             ply,
             move_score_adjustment,
@@ -1333,7 +1331,7 @@ where
         };
 
         let history_move_hash = active_god.get_history_hash(&state.board, best_action);
-        search_state.history[current_player_idx].update_move(
+        search_context.tt.histories[current_player_idx].update_move(
             history_move_hash,
             ply,
             3 * nd,
