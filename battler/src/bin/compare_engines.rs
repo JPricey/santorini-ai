@@ -7,6 +7,7 @@ use std::{
 use battler::{BattleResult, WorkerMessage, battling_worker_thread, write_results_to_csv};
 use clap::Parser;
 use santorini_core::{
+    gods::GodName,
     matchup::{Matchup, MatchupArgs},
     player::Player,
     utils::timestamp_string,
@@ -31,9 +32,17 @@ struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let mut all_matchups = args.matchups.to_selector().get_all();
-    all_matchups.sort();
-    all_matchups.reverse();
+    // Mortal mirror, plus all other god v god matchups
+    let mortal_mirror = Matchup::new(GodName::Mortal, GodName::Mortal);
+    let selector = args
+        .matchups
+        .to_selector()
+        .minus_god_for_both(GodName::Mortal)
+        .with_extra_matchup(mortal_mirror);
+
+    let mut all_matchups = selector.get_all();
+    // Mortal mirror, other mirrors, then other matchups
+    all_matchups.sort_by_key(|m| (*m == mortal_mirror, m.is_mirror(), std::cmp::Reverse(*m)));
     let matchups_count = all_matchups.len();
 
     let mut all_results = Vec::<BattleResult>::new();
