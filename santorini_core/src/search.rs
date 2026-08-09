@@ -1311,7 +1311,7 @@ where
         move_score_adjustment += delta;
 
         search_state.history[current_player_idx].update_move(
-            move_idx,
+            history_move_hash,
             ply,
             move_score_adjustment,
             prev_move_idx,
