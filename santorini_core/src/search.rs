@@ -1057,7 +1057,7 @@ where
         }
 
         // Null move pruning
-        if remaining_depth > 3
+        if remaining_depth > 2
             && eval + 45 * (improving as Heuristic) >= beta
             && !ss[ply - 1].is_null_move
         {
