@@ -38,6 +38,7 @@ pub(crate) mod charon_v2;
 pub(crate) mod chronus;
 pub(crate) mod clio;
 pub(crate) mod demeter;
+pub mod descriptions;
 pub(crate) mod eros;
 pub(crate) mod europa;
 pub mod generic;

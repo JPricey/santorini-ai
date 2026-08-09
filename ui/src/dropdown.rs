@@ -8,6 +8,7 @@ pub struct DropdownComboBox<'a, V: Clone, S: Fn(&V) -> String, I: Iterator<Item 
     items: I,
     selected: &'a mut V,
     stringer: S,
+    hover_stringer: Option<Box<dyn Fn(&V) -> String + 'a>>,
 }
 
 impl<'a, V: Clone, S: Fn(&V) -> String, I: Iterator<Item = V>> DropdownComboBox<'a, V, S, I> {
@@ -26,7 +27,14 @@ impl<'a, V: Clone, S: Fn(&V) -> String, I: Iterator<Item = V>> DropdownComboBox<
             items,
             selected,
             stringer,
+            hover_stringer: None,
         }
+    }
+
+    /// Show a tooltip for each item in the popup list.
+    pub fn with_hover_text(mut self, hover_stringer: impl Fn(&V) -> String + 'a) -> Self {
+        self.hover_stringer = Some(Box::new(hover_stringer));
+        self
     }
 }
 
@@ -49,6 +57,7 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
             items,
             mut selected,
             stringer,
+            hover_stringer,
         } = self;
         let old_selected = selected.clone();
         let highlight_id = popup_id.with("_highlight");
@@ -190,9 +199,13 @@ impl<'a, V: Clone + PartialEq, S: Fn(&V) -> String, I: Iterator<Item = V>> Widge
                             }
 
                             let is_highlighted = current_highlighted == Some(i);
+                            let hover_text = hover_stringer.as_ref().map(|f| f(item));
                             let item: V = item.clone();
 
-                            let resp = ui.selectable_value::<V>(&mut selected, item, item_text);
+                            let mut resp = ui.selectable_value::<V>(&mut selected, item, item_text);
+                            if let Some(hover_text) = hover_text {
+                                resp = resp.on_hover_text(hover_text);
+                            }
                             if is_highlighted {
                                 resp.scroll_to_me(None);
                                 resp.highlight();

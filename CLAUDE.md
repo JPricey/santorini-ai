@@ -73,6 +73,8 @@ Example: `10000 00000 00000 00000 00000/1/mortal:A1,A2 pan:E4,E5`
 ### Architecture Overview
 Gods are implemented as **static function pointers** assembled into a `GodPower` struct, not as trait objects. The `GodPower` struct holds ~20 function pointers covering move generation, move application, placement, and serialization.
 
+Refer to santorini_core/src/gods/descriptions.rs for a description of each god power.
+
 ### Pattern for Adding a New God
 
 1. **Create a new file** `santorini_core/src/gods/your_god.rs`

@@ -850,19 +850,22 @@ impl<'a> egui::Widget for GodChanger<'a> {
                 .cloned()
                 .filter(|g| self.app.may_show_wip_gods || !WIP_GODS.contains(&g));
 
-            ui.add(dropdown::DropdownComboBox::<GodName, _, _>::new(
-                text.to_string(),
-                &mut self.app.god_selector_bufs[self.player as usize],
-                available_gods_iter,
-                &mut selected,
-                |god_name| {
-                    if WIP_GODS.contains(god_name) {
-                        format!("{:?} (WIP)", god_name)
-                    } else {
-                        format!("{:?}", god_name)
-                    }
-                },
-            ))
+            ui.add(
+                dropdown::DropdownComboBox::<GodName, _, _>::new(
+                    text.to_string(),
+                    &mut self.app.god_selector_bufs[self.player as usize],
+                    available_gods_iter,
+                    &mut selected,
+                    |god_name| {
+                        if WIP_GODS.contains(god_name) {
+                            format!("{:?} (WIP)", god_name)
+                        } else {
+                            format!("{:?}", god_name)
+                        }
+                    },
+                )
+                .with_hover_text(|god_name: &GodName| god_name.description().to_string()),
+            )
         });
 
         if selected != before {
@@ -950,6 +953,8 @@ impl<'a> egui::Widget for PlayerInfo<'a> {
         let resp = ui.heading(header_text);
 
         let god = self.state.gods[self.player as usize];
+        ui.add(Label::new(RichText::new(god.god_name.description()).small()).wrap());
+
         if let Some(text) = god.pretty_stringify_god_data(&self.state.board, self.player) {
             ui.label(text);
         }
