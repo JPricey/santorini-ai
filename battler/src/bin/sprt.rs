@@ -16,21 +16,11 @@ use santorini_core::{
 };
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_DB_PATH: &str = "data/sprt_history.csv";
+const DEFAULT_DB_PATH: &str = "tmp/sprt_history.csv";
+const DEFAULT_EVALS_PATH: &str = "data/matchup_evals.csv";
 const DEFAULT_DURATION_SECS: f32 = 0.5;
 
-/// SPRT engine comparison.
-///
-/// Plays color-swapped pairs per matchup like compare_engines, but:
-/// - Scores pairs pentanomial-style (candidate sweep = 1, split = 0.5,
-///   baseline sweep = 0) and runs a GSPRT, stopping early once the log
-///   likelihood ratio crosses a bound.
-/// - Records every pair outcome to a persistent CSV database.
-/// - Uses that database to order matchups by historical *sweep rate*
-///   (engine-decided rate). In a color-swapped pair a split always means the
-///   same god won both games - position-decided, zero engine signal - so
-///   matchups that historically always split ("known forced wins") are
-///   skipped, and the most engine-sensitive (even) matchups run first.
+/// Compare two engines over colour-swapped matchup pairs, scored by GSPRT.
 #[derive(Parser, Debug)]
 struct Args {
     /// Baseline engine (name under all_versions/)
@@ -58,6 +48,14 @@ struct Args {
     #[arg(long, default_value = DEFAULT_DB_PATH)]
     db: PathBuf,
 
+    /// Run only matchups whose screened opening eval is within this margin.
+    #[arg(long)]
+    max_eval: Option<f32>,
+
+    // Evals results read by max_eval, produced by screen_matchups tool.
+    #[arg(long, default_value = DEFAULT_EVALS_PATH)]
+    evals: PathBuf,
+
     /// Also run matchups the database says are forced (never swept)
     #[arg(long, default_value_t = false)]
     include_forced: bool,
@@ -69,6 +67,10 @@ struct Args {
     /// Stop after this many pairs even without a verdict (0 = play all)
     #[arg(long, default_value_t = 0)]
     max_pairs: usize,
+
+    /// Replay the whole matchup list this many times.
+    #[arg(long, default_value_t = 1)]
+    repeats: usize,
 
     #[command(flatten)]
     matchups: MatchupArgs,
@@ -92,9 +94,8 @@ struct PairRecord {
 enum PairOutcome {
     CandSweep,
     BaseSweep,
-    /// Split where god1 (as player 1) won both games
+    // Splits mean the same side won both games, so the engines had no say.
     SplitGod1,
-    /// Split where god2 (as player 2) won both games
     SplitGod2,
 }
 
@@ -112,7 +113,7 @@ impl PairOutcome {
     }
 }
 
-/// game1: baseline as player 1. game2: candidate as player 1.
+// game1: baseline as player 1. game2: candidate as player 1.
 fn classify_pair(game1: &BattleResult, game2: &BattleResult) -> PairOutcome {
     match (game1.winning_player, game2.winning_player) {
         (Player::Two, Player::One) => PairOutcome::CandSweep,
@@ -126,6 +127,31 @@ fn classify_pair(game1: &BattleResult, game2: &BattleResult) -> PairOutcome {
 struct MatchupStats {
     pairs: usize,
     sweeps: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct MatchupEvalRow {
+    god1: GodName,
+    god2: GodName,
+    mean_eval: f32,
+    is_decisive: bool,
+}
+
+fn load_matchup_screen(path: &PathBuf) -> HashMap<Matchup, MatchupEvalRow> {
+    let mut rdr = csv::Reader::from_path(path).unwrap_or_else(|e| {
+        panic!(
+            "--max-eval needs the balance screen at {}: {e}. Generate it with:\n  \
+             cargo run -p battler --bin screen_matchups -r",
+            path.display()
+        )
+    });
+
+    rdr.deserialize()
+        .map(|row| {
+            let row: MatchupEvalRow = row.expect("Malformed row in matchup screen");
+            (Matchup::new(row.god1, row.god2), row)
+        })
+        .collect()
 }
 
 fn load_db(path: &PathBuf) -> HashMap<Matchup, MatchupStats> {
@@ -165,9 +191,6 @@ fn append_to_db(path: &PathBuf, record: &PairRecord) {
     wtr.flush().expect("Failed to flush results db");
 }
 
-/// Smoothed engine-decided rate. Mirrors get a higher prior: with identical
-/// gods the position is even by construction, so any decisiveness must come
-/// from the engines.
 fn matchup_utility(matchup: &Matchup, stats: Option<&MatchupStats>) -> f64 {
     let prior_sweeps = if matchup.is_mirror() { 0.5 } else { 0.25 };
     let (pairs, sweeps) = stats.map_or((0, 0), |s| (s.pairs, s.sweeps));
@@ -178,10 +201,6 @@ fn is_known_forced(stats: Option<&MatchupStats>) -> bool {
     stats.is_some_and(|s| s.pairs >= 3 && s.sweeps == 0)
 }
 
-/// Arrange matchups so that popping from the END of the vec yields the
-/// execution order: mortal v mortal first, then all remaining mirrors, then
-/// all non-mirrors - within each tier by historical evenness (sweep rate)
-/// descending, tie-broken by god id order.
 fn order_matchups_into_pop_stack(
     all_matchups: &mut Vec<Matchup>,
     db_stats: &HashMap<Matchup, MatchupStats>,
@@ -212,10 +231,7 @@ fn logistic_score(elo: f64) -> f64 {
     1.0 / (1.0 + 10f64.powf(-elo / 400.0))
 }
 
-/// Generalized SPRT log likelihood ratio over pair scores {0, 0.5, 1}.
-/// Regularized with half a virtual win, draw, and loss so the variance can
-/// never collapse to zero (an all-draw start would otherwise explode the
-/// ratio and instantly cross a bound).
+// Generalized SPRT log likelihood ratio over pair scores {0, 0.5, 1}.
 fn gsprt_llr(wins: usize, draws: usize, losses: usize, elo0: f64, elo1: f64) -> f64 {
     let (w, d, l) = (
         wins as f64 + 0.5,
@@ -249,13 +265,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.db.display()
     );
 
-    // Mortal is only interesting as a mirror: drop mortal vs other gods
-    // (still reachable explicitly via -m mortal:god), but always include
-    // mortal v mortal as the most even baseline matchup.
+    // Mortal is only interesting as a mirror; -m mortal:god still reaches the rest.
     let mortal_mirror = Matchup::new(GodName::Mortal, GodName::Mortal);
     let selector = args
         .matchups
         .to_selector()
+        .exclude_wip()
         .minus_god_for_both(GodName::Mortal)
         .with_extra_matchup(mortal_mirror);
 
@@ -263,6 +278,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if args.mirrors_only {
         all_matchups.retain(|m| m.is_mirror());
+    }
+
+    if let Some(max_eval) = args.max_eval {
+        let screen = load_matchup_screen(&args.evals);
+        let before = all_matchups.len();
+        all_matchups.retain(|m| {
+            screen
+                .get(m)
+                .is_some_and(|row| !row.is_decisive && row.mean_eval.abs() <= max_eval)
+        });
+        eprintln!(
+            "Balance screen ({}): kept {} of {before} matchups with |mean eval| <= {max_eval} and no forced win in the opening",
+            args.evals.display(),
+            all_matchups.len(),
+        );
     }
 
     if !args.include_forced {
@@ -275,6 +305,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     order_matchups_into_pop_stack(&mut all_matchups, &db_stats);
+
+    // Concatenating the stack replays the full order per repeat, so an early
+    // stop still covers every matchup once.
+    let one_pass = all_matchups.clone();
+    for _ in 1..args.repeats {
+        all_matchups.extend(one_pass.iter().copied());
+    }
+
     let matchups_count = all_matchups.len();
 
     let lower_bound = (args.beta / (1.0 - args.alpha)).ln();
@@ -419,14 +457,12 @@ mod tests {
 
     #[test]
     fn test_llr_no_explosion_on_all_draws() {
-        // A handful of draws is weak evidence - it must not cross a bound
-        // (pre-fix, zero variance exploded the ratio to ~-200k at n=1).
+        // Weak evidence must not cross a bound; zero variance once exploded this.
         for n in [1, 3, 10, 20] {
             let llr = gsprt_llr(0, n, 0, 0.0, 10.0);
             assert!(llr.abs() < 2.944, "all-draw llr exploded: {llr} at n={n}");
         }
-        // ...but a long pure-draw record SHOULD eventually accept H0:
-        // drawing forever is proof the candidate is not +10 elo stronger.
+        // But drawing forever is proof the candidate is not +10 elo stronger.
         assert!(gsprt_llr(0, 200, 0, 0.0, 10.0) < -2.944);
         // Decisive records move the ratio in the right direction.
         assert!(gsprt_llr(10, 0, 0, 0.0, 10.0) > 0.5);
@@ -444,8 +480,7 @@ mod tests {
             Matchup::new(GodName::Hephaestus, GodName::Hephaestus),
         ];
 
-        // Give a non-mirror a perfect historical sweep rate: it must still
-        // run after every mirror.
+        // A perfect non-mirror sweep rate must still run after every mirror.
         let mut stats = HashMap::new();
         stats.insert(
             Matchup::new(GodName::Pan, GodName::Artemis),

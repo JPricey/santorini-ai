@@ -362,6 +362,13 @@ impl MatchupSelector {
         res
     }
 
+    // Subtracts from the current pool, so chaining after the "wip" selector empties it.
+    pub fn exclude_wip(self) -> Self {
+        let wip_gods = WIP_GODS.to_vec();
+        self.minus_gods_for_player(Player::One, &wip_gods)
+            .minus_gods_for_player(Player::Two, &wip_gods)
+    }
+
     pub fn with_can_swap(self) -> Self {
         self.with_can_swap_option(true)
     }
