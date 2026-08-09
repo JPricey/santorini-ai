@@ -26,6 +26,8 @@ pub const fn win_at_ply(ply: usize) -> Heuristic {
     WINNING_SCORE - ply as Heuristic
 }
 
+const QS_TT_MIN_SUBTREE_NODES: usize = 128;
+
 const HISTORY_HASH_ROTATION: u32 = usize::BITS / 2;
 
 #[inline]
@@ -718,6 +720,7 @@ where
     T: SearchTerminator,
 {
     search_state.nodes_visited += 1;
+    let nodes_at_entry = search_state.nodes_visited;
 
     let tt_entry = search_context.tt.fetch(&state, ply);
     if let Some(tt_value) = &tt_entry {
@@ -815,7 +818,11 @@ where
         }
     }
 
-    if q_depth < 2 && !should_stop {
+    // Cache QS nodes only if they are very shallow, or if they were very expensove to compute
+    // (many child nodes).
+    // Saving every record is a waste of time and pollutes the TT
+    let subtree_nodes = search_state.nodes_visited - nodes_at_entry;
+    if (q_depth < 2 || subtree_nodes >= QS_TT_MIN_SUBTREE_NODES) && !should_stop {
         let tt_score_type = if best_score <= alpha_orig {
             SearchScoreType::UpperBound
         } else if best_score >= beta {
