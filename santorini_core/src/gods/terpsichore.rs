@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP},
+    bitboard::{BitBoard, NEIGHBOR_MAP, NUM_SQUARES},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -9,6 +9,10 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
+        harpies::{
+            basic_slide_from_unblocked, for_each_harpy_double_move,
+            get_harpy_double_move_first_steps,
+        },
         move_helpers::{
             GeneratorPreludeState, build_scored_move,
             get_basic_moves_from_raw_data_with_custom_blockers, get_generator_prelude_state,
@@ -421,6 +425,91 @@ fn emit_double_move_with_builds<const F: MoveGenFlags>(
     }
 }
 
+/// The squares a worker standing at `start_height` would be climbing onto.
+fn climb_targets(prelude: &GeneratorPreludeState, start_height: usize) -> BitBoard {
+    match start_height {
+        0 => prelude.exactly_level_1,
+        1 => prelude.exactly_level_2,
+        2 => prelude.exactly_level_3,
+        _ => BitBoard::EMPTY,
+    }
+}
+
+fn handle_harpies_double_moves<const F: MoveGenFlags>(
+    prelude: &GeneratorPreludeState,
+    non_own_worker_blockers: BitBoard,
+    worker_start_1: Square,
+    worker_start_2: Square,
+    start_height_1: usize,
+    start_height_2: usize,
+    key_squares: BitBoard,
+    result: &mut Vec<ScoredMove>,
+) {
+    let unblocked_non_own_workers = !non_own_worker_blockers;
+
+    let all_moves_1 = get_harpy_double_move_first_steps(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_1,
+        start_height_1,
+    );
+    let all_moves_2 = get_harpy_double_move_first_steps(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_2,
+        start_height_2,
+    );
+
+    // Distinct push orderings can resolve to the same destination pair, and each pair fans out
+    // into up to 64 builds, so gather and dedup the pairs first
+    let mut w1_ends = BitBoard::EMPTY;
+    let mut w2_ends_by_w1_end = [BitBoard::EMPTY; NUM_SQUARES];
+
+    for_each_harpy_double_move(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_1,
+        worker_start_2,
+        all_moves_1,
+        all_moves_2,
+        |w1_end, _w1_height, w2_end, _w2_height| {
+            w1_ends |= w1_end.to_board();
+            w2_ends_by_w1_end[w1_end as usize] |= w2_end.to_board();
+        },
+    );
+
+    for w1_end in w1_ends {
+        let w1_end_mask = w1_end.to_board();
+        let end_height_1 = prelude.board.get_height(w1_end);
+
+        for w2_end in w2_ends_by_w1_end[w1_end as usize] {
+            // A pair and its mirror leave the board identical, so keep only the lower-first one
+            if (w2_end as u8) < (w1_end as u8)
+                && w2_ends_by_w1_end[w2_end as usize].contains_square(w1_end)
+            {
+                continue;
+            }
+
+            emit_double_move_with_builds::<F>(
+                prelude,
+                worker_start_1,
+                w1_end,
+                worker_start_2,
+                w2_end,
+                start_height_1,
+                start_height_2,
+                end_height_1,
+                prelude.board.get_height(w2_end),
+                w1_end_mask,
+                w2_end.to_board(),
+                non_own_worker_blockers,
+                key_squares,
+                result,
+            );
+        }
+    }
+}
+
 pub(super) fn terpsichore_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
@@ -458,14 +547,28 @@ pub(super) fn terpsichore_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool
 
         for blocker_pos in blocked_by_own {
             let blocker_mask = BitBoard::as_mask(blocker_pos);
+            // The climber stays put until the vacator has left, so it blocks the vacator
+            let vacator_blockers = non_own_worker_blockers | worker_start_mask;
             let vacator_moves = get_basic_moves_from_raw_data_with_custom_blockers::<false>(
                 &prelude,
                 blocker_pos,
                 blocker_mask,
                 3,
-                non_own_worker_blockers | worker_start_mask,
+                vacator_blockers,
             );
-            for vacator_to in vacator_moves & !worker_start_mask {
+            for vacator_step in vacator_moves & !worker_start_mask {
+                let vacator_to = if prelude.is_against_harpies {
+                    basic_slide_from_unblocked(
+                        &prelude,
+                        !vacator_blockers,
+                        blocker_pos,
+                        vacator_step,
+                    )
+                    .0
+                } else {
+                    vacator_step
+                };
+
                 let action = TerpsichoreMove::new_winning_double_move(
                     blocker_pos,
                     vacator_to,
@@ -490,11 +593,23 @@ pub(super) fn terpsichore_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool
     };
 
     if let Some(worker_start_2) = own_workers_iter.next() {
-        // TODO!
-        // if prelude.is_against_harpies {
-        // }
         let start_height_1 = prelude.board.get_height(worker_start_1);
         let start_height_2 = prelude.board.get_height(worker_start_2);
+
+        if prelude.is_against_harpies {
+            handle_harpies_double_moves::<F>(
+                &prelude,
+                non_own_worker_blockers,
+                worker_start_1,
+                worker_start_2,
+                start_height_1,
+                start_height_2,
+                key_squares,
+                &mut result,
+            );
+            return result;
+        }
+
         let start_mask_1 = BitBoard::as_mask(worker_start_1);
         let start_mask_2 = BitBoard::as_mask(worker_start_2);
 
@@ -525,11 +640,30 @@ pub(super) fn terpsichore_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool
             moves_2
         };
 
+        // Winning climbs are stripped above, so these are the non-winning ways to end higher
+        let (improvers_1, improvers_2) = if MUST_CLIMB {
+            (
+                non_win_moves_1 & climb_targets(&prelude, start_height_1),
+                non_win_moves_2 & climb_targets(&prelude, start_height_2),
+            )
+        } else {
+            (BitBoard::EMPTY, BitBoard::EMPTY)
+        };
+
+        // Persephone only needs one worker to climb, so w1 landing flat leaves w2 carrying the
+        // requirement. Partitioning on w1's destination emits each climbing pair exactly once
+        let w2_destinations = |w1_end_mask: BitBoard| {
+            if MUST_CLIMB && (w1_end_mask & improvers_1).is_empty() {
+                improvers_2
+            } else {
+                non_win_moves_2
+            }
+        };
+
         for to1 in non_win_moves_1 {
             let end_mask_1 = BitBoard::as_mask(to1);
             let end_height_1 = prelude.board.get_height(to1);
-            let to1_reachable_by_w2 = (end_mask_1 & non_win_moves_2).is_not_empty();
-            let mut moves_2_filtered = non_win_moves_2 & !end_mask_1;
+            let mut moves_2_filtered = w2_destinations(end_mask_1) & !end_mask_1;
             if to1 == worker_start_2 {
                 // Workers can't simultaneously swap squares: if w1 takes w2's start,
                 // w2 can't take w1's start (whichever moves first walks into the other).
@@ -540,8 +674,8 @@ pub(super) fn terpsichore_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool
                 let end_mask_2 = BitBoard::as_mask(to2);
 
                 if is_stop_on_mate::<F>() {
-                    let worker_swap_exists =
-                        to1_reachable_by_w2 && (end_mask_2 & non_win_moves_1).is_not_empty();
+                    let worker_swap_exists = non_win_moves_1.contains_square(to2)
+                        && w2_destinations(end_mask_2).contains_square(to1);
                     if worker_swap_exists && (to2 as u8) < (to1 as u8) {
                         continue;
                     }
@@ -690,6 +824,191 @@ mod tests {
             .is_winner(Player::One)
             .with_p1_worker_at(A1)
             .without_p1_worker_at(B1)
+            .any(&next_states);
+    }
+
+    #[test]
+    fn test_terpsichore_vs_harpies_pushes_both_workers() {
+        // Flat board: both terpsi workers must move, each pushed until it hits an edge or worker
+        let state = GameStateBuilder::new(GodName::Terpsichore, GodName::Harpies)
+            .with_p1_worker(A5)
+            .with_p1_worker(A1)
+            .with_p2_worker(E5)
+            .with_p2_worker(E1)
+            .build();
+
+        let next_states = state.get_next_states_interactive();
+
+        // Both slide east along their row until the harpies worker stops them
+        MoveVerifier::new()
+            .with_p1_worker_at(D5)
+            .with_p1_worker_at(D1)
+            .any(&next_states);
+
+        // Nothing stops the A5 worker part way along row 5
+        MoveVerifier::new().with_p1_worker_at(B5).none(&next_states);
+        MoveVerifier::new().with_p1_worker_at(C5).none(&next_states);
+
+        // Unless the other terpsi worker does it: A1 heading north runs into its partner on A5
+        MoveVerifier::new()
+            .with_p1_worker_at(A4)
+            .with_p1_worker_at(D5)
+            .any(&next_states);
+
+        // Both want to travel down column A, so move order matters.
+        // A5 first: stopped at A2 by the worker still on A1, which then leaves
+        MoveVerifier::new()
+            .with_p1_worker_at(A2)
+            .with_p1_worker_at(D1)
+            .any(&next_states);
+        // A1 first: column A is clear, so A5 rides all the way down
+        MoveVerifier::new()
+            .with_p1_worker_at(A1)
+            .with_p1_worker_at(D1)
+            .any(&next_states);
+    }
+
+    #[test]
+    fn test_terpsichore_wins_via_vacate_and_climb_vs_harpies() {
+        // The vacating worker is pushed on its way out: it aims at D4 and ends up on D5
+        let state = GameStateBuilder::new(GodName::Terpsichore, GodName::Harpies)
+            .with_p1_worker(C3)
+            .with_p1_worker(D3)
+            .with_p2_worker(A1)
+            .with_p2_worker(B1)
+            .with_height(C3, 2)
+            .with_height(D3, 3)
+            .build();
+
+        let next_states = state.get_next_states_interactive();
+
+        MoveVerifier::new()
+            .is_winner(Player::One)
+            .with_p1_worker_at(D3)
+            .with_p1_worker_at(D5)
+            .any(&next_states);
+
+        // The push means the vacator can't stop on D4
+        MoveVerifier::new().with_p1_worker_at(D4).none(&next_states);
+    }
+
+    fn _any_worker_climbs(state: &FullGameState, action: GenericMove) -> bool {
+        let action: TerpsichoreMove = action.into();
+        let board = &state.board;
+
+        let mut climbed = board.get_height(action.move_to_position_1())
+            > board.get_height(action.move_from_position_1());
+
+        if let Some(from2) = action.maybe_move_from_position_2() {
+            climbed |= board.get_height(action.move_to_position_2()) > board.get_height(from2);
+        }
+
+        climbed
+    }
+
+    #[test]
+    fn test_terpsichore_vs_persephone_climbs_whenever_it_can() {
+        // B1 is the only raised square and both workers can reach it, so every turn must use it
+        let state = GameStateBuilder::new(GodName::Terpsichore, GodName::Persephone)
+            .with_p1_worker(A1)
+            .with_p1_worker(C1)
+            .with_p2_worker(E5)
+            .with_p2_worker(E4)
+            .with_height(B1, 1)
+            .build();
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+
+        let terpsichore = GodName::Terpsichore.to_power();
+        let moves = terpsichore.get_moves_for_search(&state, Player::One);
+        assert!(!moves.is_empty());
+
+        for scored_move in &moves {
+            assert!(
+                _any_worker_climbs(&state, scored_move.action),
+                "Neither worker climbed: {}",
+                terpsichore.stringify_move(scored_move.action)
+            );
+        }
+
+        let next_states = state.get_next_states_interactive();
+        MoveVerifier::new().with_p1_worker_at(B1).all(&next_states);
+
+        // Without Persephone this pair of flat destinations would be a perfectly good turn
+        MoveVerifier::new()
+            .with_p1_worker_at(A2)
+            .with_p1_worker_at(D1)
+            .none(&next_states);
+    }
+
+    #[test]
+    fn test_terpsichore_vs_persephone_falls_back_when_no_climb_exists() {
+        // Neither worker can climb, so the restriction can't be met and ordinary turns stay legal
+        let state = GameStateBuilder::new(GodName::Terpsichore, GodName::Persephone)
+            .with_p1_worker(A1)
+            .with_p1_worker(C1)
+            .with_p2_worker(E5)
+            .with_p2_worker(E4)
+            .with_height(A1, 2)
+            .with_height(C1, 2)
+            .with_height(A2, 1)
+            .with_height(B1, 1)
+            .build();
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+
+        let next_states = state.get_next_states_interactive();
+        MoveVerifier::new()
+            .with_p1_worker_at(A2)
+            .with_p1_worker_at(D1)
+            .any(&next_states);
+    }
+
+    #[test]
+    fn test_terpsichore_vs_persephone_leaves_the_non_climber_free() {
+        // Only A1 can climb, so it takes A2 every turn while E1 keeps its full choice
+        let state = GameStateBuilder::new(GodName::Terpsichore, GodName::Persephone)
+            .with_p1_worker(A1)
+            .with_p1_worker(E1)
+            .with_p2_worker(C5)
+            .with_p2_worker(D5)
+            .with_height(A2, 1)
+            .build();
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+
+        let next_states = state.get_next_states_interactive();
+        MoveVerifier::new().with_p1_worker_at(A2).all(&next_states);
+
+        for free_square in [D1, D2, E2] {
+            MoveVerifier::new()
+                .with_p1_worker_at(A2)
+                .with_p1_worker_at(free_square)
+                .any(&next_states);
+        }
+    }
+
+    #[test]
+    fn test_terpsichore_vs_harpies_walks_along_level_3() {
+        // A worker already on level 3 doesn't win by moving, so it may walk across to the level
+        // 3 square next door, where the dome on E3 stops the push. Unreachable in a real game.
+        let state = GameStateBuilder::new(GodName::Terpsichore, GodName::Harpies)
+            .with_p1_worker(C3)
+            .with_p1_worker(A1)
+            .with_p2_worker(E5)
+            .with_p2_worker(E1)
+            .with_height(C3, 3)
+            .with_height(D3, 3)
+            .with_height(E3, 4)
+            .build();
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+
+        let next_states = state.get_next_states_interactive();
+
+        MoveVerifier::new()
+            .no_winner()
+            .with_p1_worker_at(D3)
             .any(&next_states);
     }
 }

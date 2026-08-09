@@ -491,6 +491,19 @@ impl ConsistencyChecker {
             } else if active_god.god_name == GodName::Castor {
                 // TODO: detect this properly
                 return;
+            } else if active_god.god_name == GodName::Terpsichore {
+                // One worker can land on the other's start square, hiding the climb from a diff
+                // of the worker masks. Read it off the move instead.
+                let terpsichore_move: TerpsichoreMove = action.into();
+                let board = &self.state.board;
+
+                did_any_increase = board.get_height(terpsichore_move.move_to_position_1())
+                    > board.get_height(terpsichore_move.move_from_position_1());
+
+                if let Some(from2) = terpsichore_move.maybe_move_from_position_2() {
+                    did_any_increase |= board.get_height(terpsichore_move.move_to_position_2())
+                        > board.get_height(from2);
+                }
             } else {
                 let mut old_heights = Vec::new();
                 let mut new_heights = Vec::new();

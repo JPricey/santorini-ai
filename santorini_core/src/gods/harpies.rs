@@ -1,6 +1,9 @@
+use arrayvec::ArrayVec;
+
 use crate::{
     bitboard::{
-        BitBoard, JUMP_OVER_PUSH_MAPPING, NUM_SQUARES, PUSH_MAPPING, WRAPPING_NEIGHBOR_MAP,
+        BitBoard, JUMP_OVER_PUSH_MAPPING, NEIGHBOR_MAP, NUM_SQUARES, PUSH_MAPPING,
+        WRAPPING_NEIGHBOR_MAP,
     },
     board::{BoardState, FullGameState},
     build_god_power_movers,
@@ -156,6 +159,234 @@ pub(crate) fn basic_slide_from_unblocked(
     }
 
     return (current_pos, current_height);
+}
+
+#[derive(Copy, Clone)]
+pub(crate) struct HarpyWorkerSlideState {
+    /// The square the worker steps onto before the push takes over.
+    pub dir: Square,
+    pub dest: Square,
+    pub height: usize,
+    /// Every square the worker touches, start and dest included.
+    pub cover: BitBoard,
+}
+
+pub(crate) fn harpy_slide_with_coverage(
+    prelude: &GeneratorPreludeState,
+    unblocked_squares: BitBoard,
+    mut from: Square,
+    mut to: Square,
+) -> HarpyWorkerSlideState {
+    let dir = to;
+    let mut current_height = prelude.board.get_height(to);
+    let mut cover = from.to_board() | to.to_board();
+
+    loop {
+        let Some(next_spot) = PUSH_MAPPING[from as usize][to as usize] else {
+            break;
+        };
+
+        let next_mask = next_spot.to_board();
+        if (unblocked_squares & next_mask).is_empty() {
+            break;
+        }
+
+        let new_height = prelude.board.get_height(next_spot);
+        if new_height > current_height {
+            // Can't climb
+            break;
+        }
+
+        cover |= next_mask;
+
+        from = to;
+        to = next_spot;
+        current_height = new_height;
+    }
+
+    HarpyWorkerSlideState {
+        dir,
+        dest: to,
+        cover,
+        height: current_height,
+    }
+}
+
+/// First steps of a harpies-pushed move, for gods that move both workers in one turn.
+/// Winning climbs are excluded, but a worker already on level 3 may still walk across to another.
+pub(crate) fn get_harpy_double_move_first_steps(
+    prelude: &GeneratorPreludeState,
+    unblocked_non_own_workers: BitBoard,
+    worker_start_pos: Square,
+    worker_start_height: usize,
+) -> BitBoard {
+    let max_height = if worker_start_height == 3 {
+        3
+    } else {
+        2.min(worker_start_height + 1)
+    };
+
+    NEIGHBOR_MAP[worker_start_pos as usize]
+        & unblocked_non_own_workers
+        & !prelude.board.height_map[max_height]
+}
+
+fn _resolve_harpy_double_move_with_first_mover<Emit: FnMut(Square, usize, Square, usize)>(
+    prelude: &GeneratorPreludeState,
+    unblocked_non_own_workers: BitBoard,
+    first_start: Square,
+    second_start: Square,
+    first_mask: BitBoard,
+    second_mask: BitBoard,
+    first: &HarpyWorkerSlideState,
+    second: &HarpyWorkerSlideState,
+    is_swapped: bool,
+    emit: &mut Emit,
+) -> bool {
+    // `first` moves first when:
+    // - first's start is in second's way, and we want first to move out of the way first
+    // - first's end is in second's way, and we want to see how that collision works
+    // - second's start is in first's way
+
+    let mut push = |first_dest: Square, first_height: usize, second_dest, second_height| {
+        if is_swapped {
+            emit(second_dest, second_height, first_dest, first_height);
+        } else {
+            emit(first_dest, first_height, second_dest, second_height);
+        }
+    };
+
+    if (first.cover & second_mask).is_not_empty() {
+        // Second starts in first's way
+        if first.dir == second_start {
+            // can't move first first at all, skip, but record that there was an interaction
+            return true;
+        }
+
+        let (first_dest, first_dest_height) = basic_slide_from_unblocked(
+            prelude,
+            unblocked_non_own_workers & !second_mask,
+            first_start,
+            first.dir,
+        );
+
+        // First moved and now blocks second. Skip, but record that there was an interaction
+        if first_dest == second.dir {
+            return true;
+        }
+
+        // Second moves as if nothing was in the way now
+        push(first_dest, first_dest_height, second.dest, second.height);
+        return true;
+    }
+
+    let first_end_in_the_way = (second.cover & first.dest.to_board()).is_not_empty();
+    if first_end_in_the_way {
+        // First blocks second entirely
+        if first.dest == second.dir {
+            return true;
+        }
+
+        let (second_dest, second_dest_height) = basic_slide_from_unblocked(
+            prelude,
+            unblocked_non_own_workers & !first.dest.to_board(),
+            second_start,
+            second.dir,
+        );
+
+        push(first.dest, first.height, second_dest, second_dest_height);
+        return true;
+    }
+
+    let first_start_in_the_way = (second.cover & first_mask).is_not_empty();
+    if first_start_in_the_way {
+        // First moves out of second's way to start
+        // But we know that first doesn't end in second's way
+        push(first.dest, first.height, second.dest, second.height);
+    }
+
+    false
+}
+
+/// Resolves where two workers end up when a god moves both in one turn and harpies pushes each
+/// along. `emit` is called per legal ordering with `(w1_dest, w1_height, w2_dest, w2_height)`.
+pub(crate) fn for_each_harpy_double_move<Emit: FnMut(Square, usize, Square, usize)>(
+    prelude: &GeneratorPreludeState,
+    unblocked_non_own_workers: BitBoard,
+    worker_start_1: Square,
+    worker_start_2: Square,
+    all_moves_1: BitBoard,
+    all_moves_2: BitBoard,
+    mut emit: Emit,
+) {
+    let w1_mask = worker_start_1.to_board();
+    let w2_mask = worker_start_2.to_board();
+
+    let mut w1_moves: ArrayVec<HarpyWorkerSlideState, 8> = Default::default();
+    for dir in all_moves_1 {
+        w1_moves.push(harpy_slide_with_coverage(
+            prelude,
+            unblocked_non_own_workers,
+            worker_start_1,
+            dir,
+        ));
+    }
+
+    for dir2 in all_moves_2 {
+        let w2_move =
+            harpy_slide_with_coverage(prelude, unblocked_non_own_workers, worker_start_2, dir2);
+
+        // Let's try to break down the cases....
+        // 1. w1 goes first then w2
+        //  - maybe because w1 hits w2 before it moves (w2 start in w1 coverage)
+        //  - maybe because w2 hits w1 after it moves (w1 end in w2 coverage)
+        //  - but never both
+        // 2. w2 goes first then w1
+        //  - maybe because w2 hits w1 before it moves (w1 start in w2 coverage)
+        //  - maybe because w1 hits w2 after it moves (w2 end in w1 coverage)
+        //  - but never both
+        // 3. if we haven't emit a move yet, it's because they are independant, so we can safely
+        //    emit them both
+        // 2/3 are weird because maybe you want to go first to "get there" first, or maybe you want
+        // to go first to collide with the other worker first
+        //
+        // recalculate first if coverage line hits other worker start
+        // recalculate second if coverage line hits other worker dest
+        // force order when dir == other worker start or dest
+
+        for w1_move in &w1_moves {
+            let did_move_w1_first = _resolve_harpy_double_move_with_first_mover(
+                prelude,
+                unblocked_non_own_workers,
+                worker_start_1,
+                worker_start_2,
+                w1_mask,
+                w2_mask,
+                w1_move,
+                &w2_move,
+                false,
+                &mut emit,
+            );
+
+            let did_move_w2_first = _resolve_harpy_double_move_with_first_mover(
+                prelude,
+                unblocked_non_own_workers,
+                worker_start_2,
+                worker_start_1,
+                w2_mask,
+                w1_mask,
+                &w2_move,
+                w1_move,
+                true,
+                &mut emit,
+            );
+
+            if !did_move_w1_first && !did_move_w2_first {
+                // independent moves
+                emit(w1_move.dest, w1_move.height, w2_move.dest, w2_move.height);
+            }
+        }
+    }
 }
 
 pub(crate) fn iris_slide_position(

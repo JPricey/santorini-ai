@@ -1,7 +1,5 @@
-use arrayvec::ArrayVec;
-
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
+    bitboard::{BitBoard, NEIGHBOR_MAP},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -11,7 +9,10 @@ use crate::{
             MoveGenFlags, NULL_MOVE_DATA, POSITION_WIDTH, ScoredMove,
         },
         god_power,
-        harpies::basic_slide_from_unblocked,
+        harpies::{
+            basic_slide_from_unblocked, for_each_harpy_double_move,
+            get_harpy_double_move_first_steps,
+        },
         move_helpers::{
             GeneratorPreludeState, build_scored_move,
             get_basic_moves_from_raw_data_with_custom_blockers, get_generator_prelude_state,
@@ -488,55 +489,6 @@ fn handle_must_climb_double_moves<const F: MoveGenFlags>(
     );
 }
 
-fn _harpy_slide_with_coverage(
-    prelude: &GeneratorPreludeState,
-    unblocked_squares: BitBoard,
-    mut from: Square,
-    mut to: Square,
-) -> HarpyWorkerSlideState {
-    let dir = to;
-    let mut current_height = prelude.board.get_height(to);
-    let mut cover = from.to_board() | to.to_board();
-
-    loop {
-        let Some(next_spot) = PUSH_MAPPING[from as usize][to as usize] else {
-            break;
-        };
-
-        let next_mask = next_spot.to_board();
-        if (unblocked_squares & next_mask).is_empty() {
-            break;
-        }
-
-        let new_height = prelude.board.get_height(next_spot);
-        if new_height > current_height {
-            // Can't climb
-            break;
-        }
-
-        cover |= next_mask;
-
-        from = to;
-        to = next_spot;
-        current_height = new_height;
-    }
-
-    HarpyWorkerSlideState {
-        dir,
-        dest: to,
-        cover,
-        height: current_height,
-    }
-}
-
-#[derive(Copy, Clone)]
-struct HarpyWorkerSlideState {
-    dir: Square,
-    dest: Square,
-    height: usize,
-    cover: BitBoard,
-}
-
 fn _push_harpy_double_move<const F: MoveGenFlags>(
     w1_start: Square,
     w2_start: Square,
@@ -578,110 +530,57 @@ fn _push_harpy_double_move<const F: MoveGenFlags>(
     result.push(build_scored_move::<F, _>(new_action, is_check, improver));
 }
 
-fn _handle_harpy_move_did_force_w1_move_first<const F: MoveGenFlags>(
+/// A level 3 worker steps aside so the other climbs onto the square it left, but harpies pushes
+/// the vacator on its way out. Returns true if the caller should stop searching.
+fn _push_harpies_vacate_and_climb_wins<const F: MoveGenFlags>(
     prelude: &GeneratorPreludeState,
     unblocked_non_own_workers: BitBoard,
-    worker_start_1: Square,
-    worker_start_2: Square,
-    w1_mask: BitBoard,
-    w2_mask: BitBoard,
-    start_height_1: usize,
-    start_height_2: usize,
-    w1: &HarpyWorkerSlideState,
-    w2: &HarpyWorkerSlideState,
-    checkable_squares: BitBoard,
-    key_squares: BitBoard,
+    vacator_start: Square,
+    climber_start: Square,
+    climber_start_height: usize,
     result: &mut Vec<ScoredMove>,
 ) -> bool {
-    // w1 is forced to move first when:
-    // - w1 start is in w2s way, and we want w1 to move out of the way first
-    // - w1 end is in w2s way, and we want to see how that collision works
-    // - w2 start is in w1s way
-
-    if (w1.cover & w2_mask).is_not_empty() {
-        // W2 starts in W1's way
-        if w1.dir == worker_start_2 {
-            // can't move w1 first at all, skip, but record that there was an interaction
-            return true;
-        }
-
-        let (w1_dest, w1_dest_height) = basic_slide_from_unblocked(
-            prelude,
-            unblocked_non_own_workers & !w2_mask,
-            worker_start_1,
-            w1.dir,
-        );
-
-        // W1 moved and now blocks w2. Skip, but record that there was an interaction
-        if w1_dest == w2.dir {
-            return true;
-        }
-
-        // W2 moves as if nothing was in the way now
-        _push_harpy_double_move::<F>(
-            worker_start_1,
-            worker_start_2,
-            w1_dest,
-            w2.dest,
-            start_height_1,
-            start_height_2,
-            w1_dest_height,
-            w2.height,
-            checkable_squares,
-            key_squares,
-            result,
-        );
-        return true;
+    if climber_start_height != 2 {
+        return false;
     }
 
-    let w1_end_in_the_way = (w2.cover & w1.dest.to_board()).is_not_empty();
-    if w1_end_in_the_way {
-        // w1 blocks w2 entirely
-        if w1.dest == w2.dir {
-            return true;
-        }
+    let climber_wins = get_basic_moves_from_raw_data_with_custom_blockers::<false>(
+        prelude,
+        climber_start,
+        climber_start.to_board(),
+        climber_start_height,
+        !unblocked_non_own_workers,
+    ) & prelude.exactly_level_3
+        & prelude.win_mask;
 
-        let (w2_dest, w2_dest_height) = basic_slide_from_unblocked(
-            prelude,
-            unblocked_non_own_workers & !w1.dest.to_board(),
-            worker_start_2,
-            w2.dir,
-        );
-
-        _push_harpy_double_move::<F>(
-            worker_start_1,
-            worker_start_2,
-            w1.dest,
-            w2_dest,
-            start_height_1,
-            start_height_2,
-            w1.height,
-            w2_dest_height,
-            checkable_squares,
-            key_squares,
-            result,
-        );
-        return true;
+    if (climber_wins & vacator_start.to_board()).is_empty() {
+        return false;
     }
 
-    let w1_start_in_the_way = (w2.cover & w1_mask).is_not_empty();
-    if w1_start_in_the_way {
-        // W1 moves out of w2s way to start
-        // But we know that w1 doesn't end in w2s way
+    // The climber doesn't budge until the square is free, so it blocks the vacator's push
+    let vacator_unblocked = unblocked_non_own_workers & !climber_start.to_board();
+    let vacator_steps = get_harpy_double_move_first_steps(
+        prelude,
+        vacator_unblocked,
+        vacator_start,
+        prelude.board.get_height(vacator_start),
+    );
 
-        _push_harpy_double_move::<F>(
-            worker_start_1,
-            worker_start_2,
-            w1.dest,
-            w2.dest,
-            start_height_1,
-            start_height_2,
-            w1.height,
-            w2.height,
-            checkable_squares,
-            key_squares,
-            result,
+    for vacator_step in vacator_steps {
+        let (vacator_dest, _) =
+            basic_slide_from_unblocked(prelude, vacator_unblocked, vacator_start, vacator_step);
+
+        let new_action = CastorMove::new_winning_double_move(
+            vacator_start,
+            vacator_dest,
+            climber_start,
+            vacator_start,
         );
+        result.push(ScoredMove::new_winning_move(new_action.into()));
+
+        if is_stop_on_mate::<F>() {
+            return true;
+        }
     }
 
     false
@@ -692,13 +591,7 @@ fn handle_harpies_double_moves<const F: MoveGenFlags>(
     unblocked_non_own_workers: BitBoard,
     key_squares: BitBoard,
     result: &mut Vec<ScoredMove>,
-) {
-    // don't bother calculating winning moves, since any double winning move vs harpies will be possible with
-    // a single move anyway
-    if is_mate_only::<F>() {
-        return;
-    }
-
+) -> bool {
     let mut own_workers = prelude.own_workers.into_iter();
     let worker_start_1 = own_workers
         .next()
@@ -706,106 +599,77 @@ fn handle_harpies_double_moves<const F: MoveGenFlags>(
     let worker_start_2 = own_workers
         .next()
         .expect("Castor must have 2 workers vs harpies");
-    let w1_mask = worker_start_1.to_board();
-    let w2_mask = worker_start_2.to_board();
 
     let start_height_1 = prelude.board.get_height(worker_start_1);
     let start_height_2 = prelude.board.get_height(worker_start_2);
-    let max_height_1 = 2.min(start_height_1 + 1);
-    let max_height_2 = 2.min(start_height_2 + 1);
 
-    let all_moves_1 = NEIGHBOR_MAP[worker_start_1 as usize]
-        & unblocked_non_own_workers
-        & !(prelude.board.height_map[max_height_1]);
-    let all_moves_2 = NEIGHBOR_MAP[worker_start_2 as usize]
-        & unblocked_non_own_workers
-        & !(prelude.board.height_map[max_height_2]);
-
-    let mut w1_moves: ArrayVec<HarpyWorkerSlideState, 8> = Default::default();
-    for dir in all_moves_1 {
-        w1_moves.push(_harpy_slide_with_coverage(
-            prelude,
-            unblocked_non_own_workers,
-            worker_start_1,
-            dir,
-        ));
+    if _push_harpies_vacate_and_climb_wins::<F>(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_1,
+        worker_start_2,
+        start_height_2,
+        result,
+    ) {
+        return true;
     }
+
+    if _push_harpies_vacate_and_climb_wins::<F>(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_2,
+        worker_start_1,
+        start_height_1,
+        result,
+    ) {
+        return true;
+    }
+
+    // Any other double winning move vs harpies is possible with a single move anyway
+    if is_mate_only::<F>() {
+        return false;
+    }
+
+    let all_moves_1 = get_harpy_double_move_first_steps(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_1,
+        start_height_1,
+    );
+    let all_moves_2 = get_harpy_double_move_first_steps(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_2,
+        start_height_2,
+    );
 
     let checkable_squares = prelude.exactly_level_3 & unblocked_non_own_workers;
 
-    for dir2 in all_moves_2 {
-        let w2_move =
-            _harpy_slide_with_coverage(prelude, unblocked_non_own_workers, worker_start_2, dir2);
-
-        // Let's try to break down the cases....
-        // 1. w1 goes first then w2
-        //  - maybe because w1 hits w2 before it moves (w2 start in w1 coverage)
-        //  - maybe because w2 hits w1 after it moves (w1 end in w2 coverage)
-        //  - but never both
-        // 2. w2 goes first then w1
-        //  - maybe because w2 hits w1 before it moves (w1 start in w2 coverage)
-        //  - maybe because w1 hits w2 after it moves (w2 end in w1 coverage)
-        //  - but never both
-        // 3. if we haven't emit a move yet, it's because they are independant, so we can safely
-        //    emit them both
-        // 2/3 are weird because maybe you want to go first to "get there" first, or maybe you want
-        // to go first to collide with the other worker first
-        //
-        // recalculate first if coverage line hits other worker start
-        // recalculate second if coverage line hits other worker dest
-        // force order when dir == other worker start or dest
-
-        for w1_move in &w1_moves {
-            let did_move_w1_first = _handle_harpy_move_did_force_w1_move_first::<F>(
-                prelude,
-                unblocked_non_own_workers,
+    for_each_harpy_double_move(
+        prelude,
+        unblocked_non_own_workers,
+        worker_start_1,
+        worker_start_2,
+        all_moves_1,
+        all_moves_2,
+        |w1_dest, w1_height, w2_dest, w2_height| {
+            _push_harpy_double_move::<F>(
                 worker_start_1,
                 worker_start_2,
-                w1_mask,
-                w2_mask,
+                w1_dest,
+                w2_dest,
                 start_height_1,
                 start_height_2,
-                w1_move,
-                &w2_move,
+                w1_height,
+                w2_height,
                 checkable_squares,
                 key_squares,
                 result,
             );
+        },
+    );
 
-            let did_move_w2_first = _handle_harpy_move_did_force_w1_move_first::<F>(
-                prelude,
-                unblocked_non_own_workers,
-                worker_start_2,
-                worker_start_1,
-                w2_mask,
-                w1_mask,
-                start_height_2,
-                start_height_1,
-                &w2_move,
-                w1_move,
-                checkable_squares,
-                key_squares,
-                result,
-            );
-
-            if !did_move_w1_first && !did_move_w2_first {
-                // independent moves
-                _push_harpy_double_move::<F>(
-                    worker_start_1,
-                    worker_start_2,
-                    w1_move.dest,
-                    w2_move.dest,
-                    start_height_1,
-                    start_height_2,
-                    w1_move.height,
-                    w2_move.height,
-                    checkable_squares,
-                    key_squares,
-                    result,
-                );
-            }
-        }
-    }
+    false
 }
 
 pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
@@ -887,12 +751,14 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     if MUST_CLIMB {
         handle_must_climb_double_moves::<F>(&prelude, key_squares, &mut result);
     } else if prelude.is_against_harpies {
-        handle_harpies_double_moves::<F>(
+        if handle_harpies_double_moves::<F>(
             &prelude,
             unblocked_non_own_workers,
             key_squares,
             &mut result,
-        );
+        ) {
+            return result;
+        }
     } else {
         let mut own_workers = prelude.own_workers.into_iter();
         let Some(worker_start_1) = own_workers.next() else {
@@ -1200,6 +1066,41 @@ mod tests {
         }
 
         assert!(false, "Could not find expected win");
+    }
+
+    #[test]
+    fn test_castor_wins_move_out_of_eachothers_way_vs_harpies() {
+        // Same as the two tests above, but the vacating worker gets pushed on its way out
+        let fen = "0000000000002300000000000/1/castor:C3,D3/harpies:A1,B1";
+        let state = parse_fen(fen).unwrap();
+        let castor = GodName::Castor.to_power();
+
+        let next_moves = castor.get_moves_for_search(&state, Player::One);
+        for m in next_moves {
+            if m.action.get_is_winning() {
+                return;
+            }
+        }
+
+        assert!(false, "Could not find expected win");
+    }
+
+    #[test]
+    fn test_castor_walks_along_level_3_vs_harpies() {
+        // A worker already on level 3 doesn't win by moving, so it may walk across to the level
+        // 3 square next door, where the dome on E3 stops the push. Unreachable in a real game.
+        let fen = "0000000000003340000000000/1/castor:C3,A1/harpies:E5,E1";
+        let state = parse_fen(fen).unwrap();
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+
+        let castor = GodName::Castor.to_power();
+        let has_walk = castor
+            .get_all_next_states(&state)
+            .iter()
+            .any(|s| s.get_winner().is_none() && s.workers[0].contains_square(Square::D3));
+
+        assert!(has_walk, "Could not find the level 3 walk");
     }
 
     #[test]
