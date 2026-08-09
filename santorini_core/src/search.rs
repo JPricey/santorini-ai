@@ -1131,6 +1131,9 @@ where
         None
     };
 
+    let mut tried_hashes: [usize; 64] = [0; 64];
+    let mut tried_count: usize = 0;
+
     while let Some(child_scored_action) = move_picker.next(
         &state,
         &search_context.tt.histories[current_player_idx],
@@ -1146,6 +1149,11 @@ where
 
         let history_move_hash = active_god.get_history_hash(&state.board, child_action);
         search_state.search_stack[ply].move_hash = history_move_hash;
+
+        if tried_count < 64 {
+            tried_hashes[tried_count] = history_move_hash;
+            tried_count += 1;
+        }
 
         let mut move_score_adjustment = 0;
 
@@ -1298,23 +1306,22 @@ where
                         prev_move_idx,
                         follow_move_idx,
                     );
+
+                    for &tried_hash in &tried_hashes[..tried_count] {
+                        if tried_hash != history_move_hash {
+                            search_context.tt.histories[current_player_idx].update_move(
+                                tried_hash,
+                                ply,
+                                -15 * nd,
+                                prev_move_idx,
+                                follow_move_idx,
+                            );
+                        }
+                    }
                     break;
                 }
             }
         }
-
-        let mut delta_scaled = (score - best_score) as HistoryDelta;
-        delta_scaled /= 60;
-        let delta = delta_scaled.clamp(-4 * nd, 0 * nd);
-        move_score_adjustment += delta;
-
-        search_context.tt.histories[current_player_idx].update_move(
-            history_move_hash,
-            ply,
-            move_score_adjustment,
-            prev_move_idx,
-            follow_move_idx,
-        );
 
         if should_stop {
             break;
