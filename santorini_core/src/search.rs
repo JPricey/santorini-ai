@@ -1037,11 +1037,11 @@ where
     let ss = &mut search_state.search_stack;
     ss[ply].eval = eval;
 
-    let (improving, eval_delta) = if ply >= 2 {
-        let delta = eval - ss[ply - 2].eval;
-        (delta > 0, delta)
-    } else if ply >= 4 {
+    let (improving, eval_delta) = if ply >= 4 {
         let delta = eval - ss[ply - 4].eval;
+        (delta > 0, delta)
+    } else if ply >= 2 {
+        let delta = eval - ss[ply - 2].eval;
         (delta > 0, delta)
     } else {
         (true, 0)
