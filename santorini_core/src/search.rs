@@ -1050,7 +1050,7 @@ where
         // Reverse Futility Pruning
         if remaining_depth <= 8 {
             let rfp_margin =
-                150 + 100 * remaining_depth as Heuristic - (improving as Heuristic) * 80;
+                100 + 80 * remaining_depth as Heuristic - (improving as Heuristic) * 80;
             if eval - rfp_margin >= beta {
                 return beta;
             }
