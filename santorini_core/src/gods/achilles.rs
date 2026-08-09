@@ -1,5 +1,8 @@
 use crate::{
-    bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{
+        BETWEEN_MAPPING, BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, NEIGHBOR_MAP,
+        apply_mapping_to_mask,
+    },
     board::{BoardState, FullGameState, GodData},
     build_god_power_movers,
     gods::{
@@ -187,10 +190,18 @@ impl GodMove for AchillesMove {
             let to_neighbors = NEIGHBOR_MAP[move_to as usize];
             let both_neighbors = from_neighbors & to_neighbors;
 
+            // Harpies can push the worker through a square on its way to move_to. Building on
+            // that square before the move can block the step onto it or change where the push
+            // ends, so a build there is not interchangeable. Pushes of more than one square
+            // leave nothing adjacent to both ends, so the single between square covers it.
+            let pushed_through_mask = BETWEEN_MAPPING[move_from as usize][move_to as usize]
+                .map_or(BitBoard::EMPTY, BitBoard::as_mask);
+
             let pre_build_mask = BitBoard::as_mask(pre_build_position);
             let build_mask = BitBoard::as_mask(build_position);
             let are_builds_interchangeable = (both_neighbors & pre_build_mask).is_not_empty()
-                && (both_neighbors & build_mask).is_not_empty();
+                && (both_neighbors & build_mask).is_not_empty()
+                && ((pre_build_mask | build_mask) & pushed_through_mask).is_empty();
 
             if are_builds_interchangeable {
                 res.push(vec![
@@ -444,15 +455,24 @@ fn _achilles_must_climb_using_power<const F: MoveGenFlags>(
                 | (worker_end_neighbors & BitBoard::CONDITIONAL_MASK[is_now_lvl_2]))
                 & (unblocked_squares ^ end_mask);
 
+            let post_build_locations = worker_end_neighbors & unblocked_squares;
+
             for pre_build_pos in allowed_prebuilds {
                 let pre_build_mask = pre_build_pos.to_board();
 
-                let mut worker_builds = worker_end_neighbors
-                    & unblocked_squares
-                    & !(prelude.exactly_level_3 & pre_build_mask);
-                let both_buildable = worker_builds & allowed_prebuilds;
-                worker_builds ^=
-                    both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
+                // Can't dome the power build square and then build on it again
+                let mut worker_builds =
+                    post_build_locations & !(prelude.exactly_level_3 & pre_build_mask);
+
+                // An interchangeable pair of builds reaches the same position in either order, so
+                // only keep the ordering where the power build square sorts last. That square has
+                // to be buildable after the move for this, otherwise the swapped ordering never
+                // gets generated and dropping this one loses the move.
+                if (post_build_locations & pre_build_mask).is_not_empty() {
+                    let both_buildable = worker_builds & allowed_prebuilds;
+                    worker_builds ^=
+                        both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
+                }
 
                 if is_interact_with_key_squares::<F>() {
                     if ((pre_build_mask | end_mask) & key_squares).is_empty() {
@@ -491,6 +511,22 @@ fn _achilles_must_climb_using_power<const F: MoveGenFlags>(
 }
 
 fn achilles_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    if state.gods[!player as usize].is_harpies() {
+        _achilles_move_gen::<F, MUST_CLIMB, true>(state, player, key_squares)
+    } else {
+        _achilles_move_gen::<F, MUST_CLIMB, false>(state, player, key_squares)
+    }
+}
+
+fn _achilles_move_gen<
+    const F: MoveGenFlags,
+    const MUST_CLIMB: bool,
+    const AGAINST_HARPIES: bool,
+>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
@@ -630,9 +666,9 @@ fn achilles_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 pre_build_locations ^= mate_builds;
             }
 
-            for pre_build_pos in pre_build_locations {
+            // Where the worker may step once the power build has been spent on a given square
+            let moves_with_power_build_on = |pre_build_pos: Square| {
                 let pre_build_mask = BitBoard::as_mask(pre_build_pos);
-
                 let pre_build_height = prelude.board.get_height(pre_build_pos);
 
                 let mut power_worker_moves = worker_next_moves.worker_moves;
@@ -650,32 +686,84 @@ fn achilles_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     }
                 }
 
-                for mut worker_end_pos in power_worker_moves {
+                power_worker_moves
+            };
+
+            // Where harpies pushes the worker depends only on its destination, and on whether
+            // the power build landed on that destination - not on where else it could have gone.
+            // Both outcomes are worth precomputing once per destination rather than once per
+            // (power build, destination) pair.
+            let mut slide_ends = [(Square::A5, Square::A5); 25];
+            if AGAINST_HARPIES {
+                for dest in worker_next_moves.worker_moves | pre_build_locations {
+                    let dest_height = prelude.board.get_height(dest);
+                    slide_ends[dest as usize] = (
+                        prometheus_slide(&prelude, worker_start_pos, dest, dest_height),
+                        prometheus_slide(&prelude, worker_start_pos, dest, dest_height + 1),
+                    );
+                }
+            }
+
+            for pre_build_pos in pre_build_locations {
+                let pre_build_mask = BitBoard::as_mask(pre_build_pos);
+
+                for worker_dest_pos in moves_with_power_build_on(pre_build_pos) {
+                    let mut worker_end_pos = worker_dest_pos;
                     let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
                     let mut worker_end_height = prelude.board.get_height(worker_end_pos)
                         + (worker_end_pos == pre_build_pos) as usize;
 
-                    if prelude.is_against_harpies {
-                        worker_end_pos = prometheus_slide(
-                            &prelude,
-                            worker_start_pos,
-                            worker_end_pos,
-                            worker_end_height,
-                        );
+                    // Squares that can be built on interchangeably before or after the move.
+                    // Only harpies can break that for the destination square, by pushing the
+                    // worker on further depending on whether it was built up first.
+                    let mut interchangeable_builds = pre_build_locations;
 
+                    if AGAINST_HARPIES {
+                        let dest_mask = BitBoard::as_mask(worker_dest_pos);
+                        let (plain_end, raised_end) = slide_ends[worker_dest_pos as usize];
+
+                        worker_end_pos = if worker_dest_pos == pre_build_pos {
+                            raised_end
+                        } else {
+                            plain_end
+                        };
                         worker_end_mask = BitBoard::as_mask(worker_end_pos);
                         worker_end_height = prelude.board.get_height(worker_end_pos)
                             + (worker_end_pos == pre_build_pos) as usize;
+
+                        // Building on the destination before the move is only interchangeable
+                        // with building on it after if the worker gets pushed to the same square
+                        // either way, and is allowed to step there either way.
+                        let is_dest_interchangeable = plain_end == raised_end
+                            && (moves_with_power_build_on(worker_dest_pos)
+                                & worker_next_moves.worker_moves
+                                & dest_mask)
+                                .is_not_empty();
+
+                        if !is_dest_interchangeable {
+                            interchangeable_builds &= !dest_mask;
+                        }
                     }
+
                     let is_now_lvl_2 = (worker_end_height == 2) as usize;
 
-                    let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize]
+                    let post_build_locations = NEIGHBOR_MAP[worker_end_pos as usize]
                         & unblocked_squares
                         & prelude.build_mask
-                        & !(worker_end_mask | prelude.exactly_level_3 & pre_build_mask);
+                        & !worker_end_mask;
 
-                    if worker_end_pos != pre_build_pos {
-                        let both_buildable = worker_builds & pre_build_locations;
+                    // Can't dome the power build square and then build on it again
+                    let mut worker_builds =
+                        post_build_locations & !(prelude.exactly_level_3 & pre_build_mask);
+
+                    // An interchangeable pair of builds reaches the same position in either order,
+                    // so only keep the ordering where the power build square sorts last. That
+                    // square has to be interchangeable itself for this, otherwise the swapped
+                    // ordering never gets generated and dropping this one loses the move.
+                    if (post_build_locations & interchangeable_builds & pre_build_mask)
+                        .is_not_empty()
+                    {
+                        let both_buildable = worker_builds & interchangeable_builds;
                         worker_builds ^=
                             both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
                     }
@@ -820,7 +908,9 @@ pub const fn build_achilles() -> GodPower {
 
 #[cfg(test)]
 mod tests {
-    use crate::{fen::parse_fen, move_verifier::MoveVerifier, square::Square::*};
+    use crate::{
+        fen::parse_fen, gods::PartialAction, move_verifier::MoveVerifier, square::Square::*,
+    };
 
     #[test]
     fn test_power_build_onto_square_keeps_all_second_builds() {
@@ -855,6 +945,75 @@ mod tests {
             .with_p1_worker_at(E2)
             .with_height_at(E2, 4)
             .none(&next_states);
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+    }
+
+    // Harpies pushes the C1 worker through D1 on its way to E1. Building D1 first would put it
+    // two levels above the worker, so that ordering must not be offered even though D1
+    // neighbours both ends of the move.
+    #[test]
+    fn test_no_interchangeable_build_on_pushed_through_square() {
+        let state = parse_fen("0000000000000000000000010/1/achilles:C1,A5/harpies:E5,A1").unwrap();
+
+        let illegal_ordering = vec![
+            PartialAction::Build(D1),
+            PartialAction::SelectWorker(C1),
+            PartialAction::MoveWorker(E1.into()),
+            PartialAction::Build(D2),
+        ];
+
+        assert!(
+            !state
+                .get_next_states_interactive()
+                .iter()
+                .any(|s| s.actions == illegal_ordering)
+        );
+    }
+
+    // The power build and the post-move build are interchangeable only when both squares can be
+    // built on before *and* after the move, so only then may one of the two orderings be dropped.
+    // Regression: the ordering was pruned by square index alone, which silently lost every build
+    // square shared by the start and end squares whenever the power build square was out of reach
+    // after the move.
+    #[test]
+    fn test_power_build_keeps_shared_build_squares() {
+        let state = parse_fen("0000000000000000000000000/1/achilles:C3,A1/mortal:E5,E4").unwrap();
+
+        let next_states = state.get_next_states_interactive();
+
+        // Power build on B4 (only reachable from C3), step C3 -> C2, then build on any neighbour
+        // of C2 -- including the squares that neighbour both C3 and C2.
+        for second_build in [B3, D3, B2, D2] {
+            MoveVerifier::new()
+                .with_p1_worker_at(C2)
+                .without_p1_worker_at(C3)
+                .with_height_at(B4, 1)
+                .with_height_at(second_build, 1)
+                .no_winner()
+                .any(&next_states);
+        }
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+    }
+
+    // Same as above, for the separate generator used when persephone forces the climb.
+    #[test]
+    fn test_power_build_keeps_shared_build_squares_when_forced_to_climb() {
+        let state =
+            parse_fen("0000000000001000020000000/1/achilles:C3,A1/persephone:E5,E4").unwrap();
+
+        let next_states = state.get_next_states_interactive();
+
+        for second_build in [B3, D3, B2, D2] {
+            MoveVerifier::new()
+                .with_p1_worker_at(C2)
+                .without_p1_worker_at(C3)
+                .with_height_at(B4, 1)
+                .with_height_at(second_build, 1)
+                .no_winner()
+                .any(&next_states);
+        }
 
         crate::consistency_checker::consistency_check(&state).unwrap();
     }

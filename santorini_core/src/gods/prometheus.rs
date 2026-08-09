@@ -1,5 +1,8 @@
 use crate::{
-    bitboard::{BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, NEIGHBOR_MAP, apply_mapping_to_mask},
+    bitboard::{
+        BETWEEN_MAPPING, BitBoard, LOWER_SQUARES_EXCLUSIVE_MASK, NEIGHBOR_MAP,
+        apply_mapping_to_mask,
+    },
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -163,10 +166,18 @@ impl GodMove for PrometheusMove {
             let to_neighbors = NEIGHBOR_MAP[move_to as usize];
             let both_neighbors = from_neighbors & to_neighbors;
 
+            // Harpies can push the worker through a square on its way to move_to. Building on
+            // that square before the move can block the step onto it or change where the push
+            // ends, so a build there is not interchangeable. Pushes of more than one square
+            // leave nothing adjacent to both ends, so the single between square covers it.
+            let pushed_through_mask = BETWEEN_MAPPING[move_from as usize][move_to as usize]
+                .map_or(BitBoard::EMPTY, BitBoard::as_mask);
+
             let pre_build_mask = BitBoard::as_mask(pre_build_position);
             let build_mask = BitBoard::as_mask(build_position);
             let are_builds_interchangeable = (both_neighbors & pre_build_mask).is_not_empty()
-                && (both_neighbors & build_mask).is_not_empty();
+                && (both_neighbors & build_mask).is_not_empty()
+                && ((pre_build_mask | build_mask) & pushed_through_mask).is_empty();
 
             if are_builds_interchangeable {
                 res.push(vec![
@@ -221,6 +232,22 @@ impl GodMove for PrometheusMove {
 }
 
 pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> Vec<ScoredMove> {
+    if state.gods[!player as usize].is_harpies() {
+        _prometheus_move_gen::<F, MUST_CLIMB, true>(state, player, key_squares)
+    } else {
+        _prometheus_move_gen::<F, MUST_CLIMB, false>(state, player, key_squares)
+    }
+}
+
+fn _prometheus_move_gen<
+    const F: MoveGenFlags,
+    const MUST_CLIMB: bool,
+    const AGAINST_HARPIES: bool,
+>(
     state: &FullGameState,
     player: Player,
     key_squares: BitBoard,
@@ -296,43 +323,87 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 moveable_ontop_of_prebuild
             };
 
+            // Destinations the worker can step to whether or not the pre-build landed there
+            let dests_reachable_either_way = pre_build_worker_moves & moveable_ontop_of_prebuild;
+
+            // Precompute harpies slides for each neighboring dest, whether or not the pre-build
+            // was there
+            let mut slide_ends = [(Square::A5, Square::A5); 25];
+            if AGAINST_HARPIES {
+                for dest in pre_build_worker_moves | moveable_ontop_of_prebuild {
+                    let dest_height = prelude.board.get_height(dest);
+                    slide_ends[dest as usize] = (
+                        prometheus_slide(&prelude, worker_start_pos, dest, dest_height),
+                        prometheus_slide(&prelude, worker_start_pos, dest, dest_height + 1),
+                    );
+                }
+            }
+
             // If we pre-build
             for pre_build_pos in pre_build_locations {
                 let pre_build_mask = BitBoard::as_mask(pre_build_pos);
 
-                let pre_build_worker_moves = pre_build_worker_moves & !pre_build_mask
+                let worker_moves_with_pre_build = pre_build_worker_moves & !pre_build_mask
                     | pre_build_mask & moveable_ontop_of_prebuild;
 
-                for mut worker_end_pos in pre_build_worker_moves.into_iter() {
+                for worker_dest_pos in worker_moves_with_pre_build.into_iter() {
+                    let mut worker_end_pos = worker_dest_pos;
                     let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
                     let mut worker_end_height = prelude.board.get_height(worker_end_pos)
                         + ((worker_end_pos == pre_build_pos) as usize);
 
-                    if prelude.is_against_harpies {
-                        worker_end_pos = prometheus_slide(
-                            &prelude,
-                            worker_start_pos,
-                            worker_end_pos,
-                            worker_end_height,
-                        );
+                    // Squares that can be built on interchangeably before or after the move.
+                    // Only harpies can break that for the destination square, by pushing the
+                    // worker on further depending on whether it was built up first.
+                    let mut interchangeable_builds = pre_build_locations;
 
+                    if AGAINST_HARPIES {
+                        let dest_mask = BitBoard::as_mask(worker_dest_pos);
+                        let (plain_end, raised_end) = slide_ends[worker_dest_pos as usize];
+
+                        worker_end_pos = if worker_dest_pos == pre_build_pos {
+                            raised_end
+                        } else {
+                            plain_end
+                        };
                         worker_end_mask = BitBoard::as_mask(worker_end_pos);
                         worker_end_height = prelude.board.get_height(worker_end_pos)
                             + ((worker_end_pos == pre_build_pos) as usize);
+
+                        // Building on the destination before the move is only interchangeable
+                        // with building on it after if the worker gets pushed to the same square
+                        // either way, and is allowed to step there either way.
+                        let is_dest_interchangeable = plain_end == raised_end
+                            && (dests_reachable_either_way & dest_mask).is_not_empty();
+
+                        if !is_dest_interchangeable {
+                            interchangeable_builds &= !dest_mask;
+                        }
                     }
 
                     let is_now_lvl_2 = (worker_end_height == 2) as usize;
 
-                    let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize]
+                    let post_build_locations = NEIGHBOR_MAP[worker_end_pos as usize]
                         & unblocked_squares
                         & prelude.build_mask;
                     let worker_plausible_next_moves =
                         neighbor_moves_map[worker_end_pos as usize] & unblocked_squares;
 
-                    let both_buildable = worker_builds & pre_build_locations;
-                    worker_builds ^=
-                        both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
-                    worker_builds &= !(pre_build_mask & prelude.exactly_level_3);
+                    // Can't dome the pre-build square and then build on it again
+                    let mut worker_builds =
+                        post_build_locations & !(pre_build_mask & prelude.exactly_level_3);
+
+                    // An interchangeable pair of builds reaches the same position in either order,
+                    // so only keep the ordering where the pre-build square sorts last. The
+                    // pre-build square has to be interchangeable itself for that, otherwise the
+                    // swapped ordering never gets generated and dropping this one loses the move.
+                    if (post_build_locations & interchangeable_builds & pre_build_mask)
+                        .is_not_empty()
+                    {
+                        let both_buildable = worker_builds & interchangeable_builds;
+                        worker_builds ^=
+                            both_buildable & LOWER_SQUARES_EXCLUSIVE_MASK[pre_build_pos as usize];
+                    }
 
                     if is_interact_with_key_squares::<F>() {
                         if ((worker_end_mask | pre_build_mask) & key_squares).is_empty() {
@@ -428,6 +499,72 @@ pub fn prometheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        fen::parse_fen, gods::PartialAction, move_verifier::MoveVerifier, square::Square::*,
+    };
+
+    // The pre-build and the post-move build are interchangeable only when both squares can be
+    // built on before *and* after the move, so only then may one of the two orderings be
+    // dropped. Regression: the ordering was pruned by square index alone, which silently lost
+    // every build square shared by the start and end squares whenever the pre-build square was
+    // out of reach after the move.
+    #[test]
+    fn test_pre_build_keeps_shared_build_squares() {
+        let state = parse_fen("0000000000000000000000000/1/prometheus:C3,A1/mortal:E5,E4").unwrap();
+
+        let next_states = state.get_next_states_interactive();
+
+        // Pre-build on B4 (only reachable from C3), step C3 -> C2, then build on any neighbour
+        // of C2 -- including the squares that neighbour both C3 and C2.
+        for second_build in [B3, D3, B2, D2] {
+            MoveVerifier::new()
+                .with_p1_worker_at(C2)
+                .without_p1_worker_at(C3)
+                .with_height_at(B4, 1)
+                .with_height_at(second_build, 1)
+                .no_winner()
+                .any(&next_states);
+        }
+
+        crate::consistency_checker::consistency_check(&state).unwrap();
+    }
+
+    // Harpies pushes the C1 worker through D1 on its way to E1. Building D1 first would leave
+    // the height 0 worker unable to step onto it, so that ordering must not be offered even
+    // though D1 neighbours both ends of the move.
+    #[test]
+    fn test_no_interchangeable_build_on_pushed_through_square() {
+        let state =
+            parse_fen("0000000000000000011001000/1/prometheus:C4,C1/harpies:D3,B2").unwrap();
+
+        let illegal_ordering = vec![
+            PartialAction::Build(D1),
+            PartialAction::SelectWorker(C1),
+            PartialAction::MoveWorker(E1.into()),
+            PartialAction::Build(D2),
+        ];
+
+        assert!(
+            !state
+                .get_next_states_interactive()
+                .iter()
+                .any(|s| s.actions == illegal_ordering)
+        );
+    }
+
+    // The same pair of builds must not be emitted in both orders when either order is legal.
+    #[test]
+    fn test_interchangeable_builds_are_not_duplicated() {
+        let state = parse_fen("0000000000000000000000000/1/prometheus:C3,A1/mortal:E5,E4").unwrap();
+
+        let all_states = state.get_active_god().get_all_next_states(&state);
+        let distinct = all_states.iter().collect::<std::collections::HashSet<_>>();
+        assert_eq!(all_states.len(), distinct.len());
+    }
 }
 
 pub const fn build_prometheus() -> GodPower {
