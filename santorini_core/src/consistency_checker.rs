@@ -16,6 +16,7 @@ use crate::{
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_blockers,
         hydra::HydraMove,
+        jason::JasonMove,
         mortal::MortalMove,
         stymphalians::StymphaliansMove,
         terpsichore::TerpsichoreMove,
@@ -437,9 +438,14 @@ impl ConsistencyChecker {
         if active_god_name == GodName::Proteus
             || active_god_name == GodName::Hydra
             || active_god_name == GodName::Nemesis
-            || active_god_name == GodName::Jason
             || active_god_name == GodName::Stymphalians
         {
+            return;
+        }
+
+        // Jason's power adds a worker rather than moving one, hiding the climb from the diff below
+        if active_god_name == GodName::Jason {
+            self.validate_jason_persephone_moves(actions);
             return;
         }
 
@@ -574,6 +580,56 @@ impl ConsistencyChecker {
             self.errors.push(format!(
                 "Vs Persephone, has some moves to increase height({}) and some non({}): {:?}",
                 inc_str, non_inc_str, self.state
+            ));
+        }
+    }
+
+    // An ordinary move may skip the climb only if no ordinary move climbs, likewise for power
+    fn validate_jason_persephone_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let board = &self.state.board;
+
+        let mut ordinary_climbs = false;
+        let mut power_climbs = false;
+        let mut flat_ordinary_move = None;
+        let mut flat_power_move = None;
+
+        for action in actions {
+            let action = action.action;
+            let jason_move: JasonMove = action.into();
+
+            let (is_power_move, did_climb) = if action.get_is_winning() {
+                (false, true)
+            } else if let Some(end_pos) = jason_move.maybe_place_position() {
+                // The placed worker starts on the ground, so any height at all is a climb
+                (true, board.get_height(end_pos) > 0)
+            } else {
+                let did_climb = board.get_height(jason_move.move_to_position())
+                    > board.get_height(jason_move.move_from_position());
+                (false, did_climb)
+            };
+
+            match (is_power_move, did_climb) {
+                (false, true) => ordinary_climbs = true,
+                (true, true) => power_climbs = true,
+                (false, false) => flat_ordinary_move = Some(action),
+                (true, false) => flat_power_move = Some(action),
+            }
+        }
+
+        let offender = if ordinary_climbs {
+            flat_ordinary_move.or(flat_power_move)
+        } else if power_climbs {
+            flat_power_move
+        } else {
+            None
+        };
+
+        if let Some(offender) = offender {
+            let (active_god, _) = self.state.get_active_non_active_gods();
+            self.errors.push(format!(
+                "Vs Persephone, jason generated a non-climbing move ({}) alongside a climb he was obliged to take: {:?}",
+                active_god.stringify_move(offender),
+                self.state
             ));
         }
     }

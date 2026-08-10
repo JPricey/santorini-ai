@@ -191,8 +191,8 @@ impl GodName {
                  opponent Worker, remove that opponent Worker from play."
             }
             GodName::Jason => {
-                "Once per game, instead of your normal turn, place your extra Worker on an \
-                 unoccupied ground-level perimeter space."
+                "Once per game, before moving, place your extra Worker on an unoccupied \
+                 ground-level perimeter space, then take your turn with that Worker."
             }
             GodName::Achilles => {
                 "Once per game, your Worker builds both before and after moving."
