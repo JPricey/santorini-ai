@@ -162,7 +162,11 @@ fn convert_row_to_board_and_meta(row: &str) -> Option<(FullGameState, Player)> {
     let _depth_str = parts[4];
     let _nodes_str = parts[5];
 
-    let full_state = FullGameState::try_from(fen_str).expect("Could not parse fen");
+    // Rows the current build can't represent: matchups added to BANNED_MATCHUPS
+    // since the data was generated, gods that no longer exist, etc. Skipped
+    // rather than logged per-row -- at corpus scale that's tens of thousands of
+    // lines. The caller tallies them and prints a total.
+    let full_state = FullGameState::try_from(fen_str).ok()?;
     // let score: i16 = score_str.parse().expect("Could not parse score");
     let winner_idx: i32 = winner_str.parse().expect("Could not parse winner");
 
@@ -313,6 +317,8 @@ fn process_raw_data_files_worker(
     output_files: Arc<Mutex<Vec<File>>>,
     used_features: Arc<Mutex<Vec<u32>>>,
     total_records: Arc<Mutex<usize>>,
+    // (rows accepted, rows skipped) -- input lines, not expanded records
+    row_counts: Arc<Mutex<(usize, usize)>>,
     delete_source: bool,
 ) {
     let try_fetch_next_input = move || {
@@ -325,6 +331,8 @@ fn process_raw_data_files_worker(
     };
 
     let mut total_examples = 0;
+    let mut rows_accepted = 0;
+    let mut rows_skipped = 0;
     let mut current_buffer = Vec::new();
     let mut temp_file_buffers: Vec<Vec<BulletSantoriniBoard>> =
         vec![Vec::new(); TMP_OUTPUT_FILE_COUNT];
@@ -349,8 +357,10 @@ fn process_raw_data_files_worker(
             let Some((state, winner)) =
                 convert_row_to_board_and_meta(&line.expect("Failed to read line"))
             else {
+                rows_skipped += 1;
                 continue;
             };
+            rows_accepted += 1;
 
             for perm in state
                 .board
@@ -413,6 +423,12 @@ fn process_raw_data_files_worker(
         let mut total = total_records.lock().unwrap();
         *total += total_examples;
     }
+
+    {
+        let mut counts = row_counts.lock().unwrap();
+        counts.0 += rows_accepted;
+        counts.1 += rows_skipped;
+    }
 }
 
 // Step 1: Convert raw data files to temporary bullet format files, distributing across multiple outputs
@@ -448,6 +464,7 @@ fn process_raw_data_files(
         santorini_core::gods::ALL_GODS_BY_ID.len()
     ]));
     let total_records = Arc::new(Mutex::new(0_usize));
+    let row_counts = Arc::new(Mutex::new((0_usize, 0_usize)));
 
     let mut handles = Vec::with_capacity(num_workers);
     for _ in 0..num_workers {
@@ -455,12 +472,14 @@ fn process_raw_data_files(
         let output_files = Arc::clone(&output_files);
         let used_features = Arc::clone(&used_features);
         let total_records = Arc::clone(&total_records);
+        let row_counts = Arc::clone(&row_counts);
         let handle = std::thread::spawn(move || {
             process_raw_data_files_worker(
                 input_files_queue,
                 output_files,
                 used_features,
                 total_records,
+                row_counts,
                 delete_source,
             );
         });
@@ -478,6 +497,22 @@ fn process_raw_data_files(
         total_examples,
         TMP_OUTPUT_FILE_COUNT
     );
+
+    let (rows_accepted, rows_skipped) = *row_counts.lock().unwrap();
+    if rows_skipped > 0 {
+        let total_rows = rows_accepted + rows_skipped;
+        let pct = 100.0 * rows_skipped as f64 / total_rows as f64;
+        println!(
+            "{}: Skipped {} of {} input rows ({:.4}%). Expected causes: matchups added to \
+             BANNED_MATCHUPS since the data was generated, or gods this build no longer accepts. \
+             A large percentage means the data and the engine have diverged -- investigate before \
+             training on it.",
+            timestamp_string(),
+            rows_skipped,
+            total_rows,
+            pct
+        );
+    }
 
     let all_god_datas = used_features.lock().unwrap();
     for god in santorini_core::gods::ALL_GODS_BY_ID {
