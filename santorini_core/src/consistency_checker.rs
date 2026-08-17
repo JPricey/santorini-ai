@@ -18,12 +18,30 @@ use crate::{
         hydra::HydraMove,
         jason::JasonMove,
         mortal::MortalMove,
+        odysseus,
         stymphalians::StymphaliansMove,
         terpsichore::TerpsichoreMove,
     },
     hashing::compute_hash_from_scratch,
     player::Player,
 };
+
+/// How many genuinely different ways there are to win, as opposed to how many encoded moves.
+///
+/// Odysseus emits one winning move per free corner he could fling somebody into, so the raw count
+/// shrinks whenever a corner fills up or the opponent steps off the winning square — neither of
+/// which is a block. Collapsing those variants makes "did this move remove a win?" mean what it
+/// says. Every other god encodes one move per win already.
+fn count_distinct_wins(god: StaticGod, wins: &Vec<ScoredMove>) -> usize {
+    if god.god_name != GodName::Odysseus {
+        return wins.len();
+    }
+
+    wins.iter()
+        .map(|win| odysseus::strip_displacement(win.action).0)
+        .collect::<HashSet<_>>()
+        .len()
+}
 
 pub fn consistency_check(state: &FullGameState) -> Result<(), Vec<String>> {
     let mut checker = ConsistencyChecker::new(state);
@@ -669,13 +687,6 @@ impl ConsistencyChecker {
 
             let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
-
-            let old_only = old_workers & !new_workers;
-            if (old_only & old_affinity_area).is_empty() {
-                continue;
-            }
-
-            let new_only = new_workers & !old_workers;
             let new_aphro_workers = new_state.board.workers[!current_player as usize];
 
             // Gods which can enter affinity areas, and then kill the worker providing it
@@ -686,6 +697,22 @@ impl ConsistencyChecker {
                     apply_mapping_to_mask(new_aphro_workers, &INCLUSIVE_NEIGHBOR_MAP)
                 };
 
+            // Odysseus resolves his forcing before he moves, so whether he is subject to the pull
+            // at all is decided by where Aphrodite stands *after* the forcing. Flinging her to a
+            // far corner legitimately releases the worker that was neighboring her.
+            let starting_affinity_area = if active_god.god_name == GodName::Odysseus {
+                new_affinity_area
+            } else {
+                old_affinity_area
+            };
+
+            let old_only = old_workers & !new_workers;
+            if (old_only & starting_affinity_area).is_empty() {
+                continue;
+            }
+
+            let new_only = new_workers & !old_workers;
+
             if old_only.count_ones() != new_only.count_ones() {
                 self.errors.push(format!(
                     "Unexpected worker change? {} -> {:?}",
@@ -694,7 +721,7 @@ impl ConsistencyChecker {
                 ));
             }
 
-            if (old_only & old_affinity_area).count_ones()
+            if (old_only & starting_affinity_area).count_ones()
                 > (new_only & new_affinity_area).count_ones()
             {
                 self.errors.push(format!(
@@ -1105,6 +1132,7 @@ impl ConsistencyChecker {
         }
 
         let mut did_output_key_moves = false;
+        let old_distinct_win_count = count_distinct_wins(oppo_god, other_wins);
 
         // Test that we didn't miss any blockers
         for action in search_moves {
@@ -1116,7 +1144,7 @@ impl ConsistencyChecker {
 
             let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_oppo_wins = oppo_god.get_winning_moves(&new_state, !current_player);
-            if new_oppo_wins.len() < other_wins.len() {
+            if count_distinct_wins(oppo_god, &new_oppo_wins) < old_distinct_win_count {
                 if active_god.god_name == GodName::Persephone && oppo_god.god_name == GodName::Pan {
                     // Persephone can try to force man to move up to prevent him from winning by
                     // building around him
@@ -1131,6 +1159,26 @@ impl ConsistencyChecker {
                     // If we won on chronus behalf, it removes his winning moves, but he just wins
                     // anyway...
                     if new_oppo_wins.len() > 0 {
+                        continue;
+                    }
+                }
+
+                if oppo_god.god_name == GodName::Odysseus {
+                    // Walking out of Odysseus' reach denies him the power entirely, but key
+                    // squares are matched against where a move *lands*, so "stop standing next to
+                    // him" is not something the blocker generator can be asked for. If this move
+                    // relocated a worker he could have forced, that is the mechanism at work.
+                    let old_forcible = odysseus::get_forcible_workers(
+                        &self.state.board,
+                        !current_player,
+                        active_god,
+                    );
+                    let new_forcible = odysseus::get_forcible_workers(
+                        &new_state.board,
+                        !current_player,
+                        active_god,
+                    );
+                    if old_forcible != new_forcible {
                         continue;
                     }
                 }

@@ -210,6 +210,10 @@ impl GodName {
                  the board."
             }
             GodName::Terpsichore => "All of your Workers must move, and then all must build.",
+            GodName::Odysseus => {
+                "Once per game at the start of your turn, force to unoccupied corner spaces any \
+                 number of opponent Workers that neighbor your Workers."
+            }
         }
     }
 }

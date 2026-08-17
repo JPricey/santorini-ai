@@ -165,6 +165,10 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // Gets stuck in infinite loop
     add_matchup(GodName::Ares, GodName::Ares, BannedReason::Engine);
 
+    // Odysseus names each forced worker with a 3 bit slot in the move, so it can only address 7
+    // opponent workers. Hydra is the only god whose worker count grows past that.
+    add_matchup(GodName::Odysseus, GodName::Hydra, BannedReason::Engine);
+
     // We don't represent non-complete domes, so ban any domer vs chronus
     let chronus_variants = [GodName::Chronus, GodName::Chronus4T, GodName::Chronus3T];
     let domers = [

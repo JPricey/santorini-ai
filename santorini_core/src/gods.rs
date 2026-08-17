@@ -63,6 +63,7 @@ pub(crate) mod mortal;
 pub(crate) mod move_helpers;
 pub(crate) mod nemesis;
 pub(crate) mod nike;
+pub(crate) mod odysseus;
 pub(crate) mod pan;
 pub(crate) mod pegasus;
 pub(crate) mod persephone;
@@ -153,9 +154,15 @@ pub enum GodName {
     Chronus4T = 53,
     Chronus3T = 54,
     Terpsichore = 55,
+    Odysseus = 56,
 }
 
-pub const WIP_GODS: [GodName; 3] = [GodName::Chronus4T, GodName::Chronus3T, GodName::Terpsichore];
+pub const WIP_GODS: [GodName; 4] = [
+    GodName::Chronus4T,
+    GodName::Chronus3T,
+    GodName::Terpsichore,
+    GodName::Odysseus,
+];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
 impl GodName {
@@ -732,13 +739,12 @@ impl GodPower {
         (self._get_history_hash)(board, action)
     }
 
-    pub(super) fn get_eval_modifier(&self, _god_data: GodData) -> Heuristic {
-        0
-        // if let Some(modifier_fn) = self._eval_score_modifier_fn {
-        //     modifier_fn(god_data)
-        // } else {
-        //     0
-        // }
+    pub(super) fn get_eval_modifier(&self, god_data: GodData) -> Heuristic {
+        if let Some(modifier_fn) = self._eval_score_modifier_fn {
+            modifier_fn(god_data)
+        } else {
+            0
+        }
     }
 
     pub(super) fn can_opponent_climb(&self, board: &BoardState, player: Player) -> bool {
@@ -855,6 +861,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     chronus::build_chronus_4t(),
     chronus::build_chronus_3t(),
     terpsichore::build_terpsichore(),
+    odysseus::build_odysseus(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {

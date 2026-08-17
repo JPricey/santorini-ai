@@ -191,7 +191,6 @@ impl std::fmt::Debug for ChronusMove {
 
         let move_from = self.move_from_position();
         let move_to = self.move_to_position();
-        let build = self.build_position();
         let is_win = self.get_is_winning();
 
         if is_win {
@@ -200,10 +199,12 @@ impl std::fmt::Debug for ChronusMove {
             } else if let Some(build_pos) = self.maybe_build_position() {
                 return write!(f, "{}>{}^{}#", move_from, move_to, build_pos);
             } else {
+                // A climbing win carries the "no build" sentinel, which is not a Square. Decoding
+                // it eagerly panics under debug assertions, so it must stay inside this branch.
                 write!(f, "{}>{}#", move_from, move_to)
             }
         } else {
-            write!(f, "{}>{}^{}", move_from, move_to, build)
+            write!(f, "{}>{}^{}", move_from, move_to, self.build_position())
         }
     }
 }

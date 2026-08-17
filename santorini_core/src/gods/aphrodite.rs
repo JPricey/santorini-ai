@@ -82,9 +82,17 @@ pub(super) fn aphrodite_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                                 apply_mapping_to_mask(all_own_workers, &INCLUSIVE_NEIGHBOR_MAP);
                             let affinity_match = affinity_mask & key_squares;
 
+                            // Odysseus can simply fling us into a corner at the start of his turn,
+                            // which drags the affinity area away with us. Holding him inside it is
+                            // no kind of block while he still has the power in hand.
+                            let can_escape_affinity_area = prelude.other_god.god_name
+                                == GodName::Odysseus
+                                && crate::gods::odysseus::power_is_live(prelude.board, !player);
+
                             // We're blocking checks as long as we have key square opponents in the affinity area,
                             // and have some key squares (we're assuming the check spot) outside the affinity area
                             (affinity_match & prelude.oppo_workers).is_not_empty()
+                                && !can_escape_affinity_area
                                 && (affinity_match != key_squares
                                 // Charon may have to flip aphrodite workers out of a level 3 spot in order to win
                                 // In doing so, it puts the aphrodite worker behind charon, which changes the affinity area in a bad way for charon
