@@ -9,10 +9,11 @@ use crate::{
         harpies::urania_slide,
         mortal::MortalMove,
         move_helpers::{
-            GeneratorPreludeState, WorkerStartMoveState, build_scored_move,
+            GeneratorPreludeState, WorkerStartMoveState, build_scored_move, get_active_portal,
             get_generator_prelude_state, get_urania_movement_neighbors, get_worker_climb_height,
             get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
             is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
+            put_moves_through_portals,
         },
     },
     persephone_check_result,
@@ -68,6 +69,15 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     | down_mask
                     | prelude.all_workers_and_frozen_mask)
         };
+
+        // Urania builds her destinations by hand rather than going through
+        // `get_limited_moves_given_move_mask`, so the whirlpool swap has to be applied explicitly.
+        // It belongs here, after the height filters: only the entry leg of a portal move has a
+        // height delta.
+        worker_moves = put_moves_through_portals(
+            worker_moves,
+            get_active_portal(&prelude, worker_start_state.worker_start_mask),
+        );
 
         if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;

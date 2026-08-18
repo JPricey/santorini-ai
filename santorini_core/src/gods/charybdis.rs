@@ -960,4 +960,96 @@ mod tests {
         let json = serde_json::to_string(&pretty).unwrap();
         assert!(json.contains("C4"), "whirlpools must reach the web UI too: {json}");
     }
+
+    /// Where a given worker can end up, read off the board rather than the move encoding.
+    ///
+    /// Every god packs its move struct differently, so decoding `move_to_position` only works for
+    /// the gods that happen to share Mortal's layout. Applying the move and diffing the worker
+    /// masks works for all of them.
+    fn outcomes_for_worker(state: &FullGameState, player: Player, from: Square) -> BitBoard {
+        let active = state.gods[player as usize];
+        let oppo = state.gods[!player as usize];
+        let before = state.board.workers[player as usize];
+
+        let mut res = BitBoard::EMPTY;
+        for scored in active.get_all_moves(state, player) {
+            let next = state.next_state(active, oppo, scored.action);
+            let after = next.board.workers[player as usize];
+
+            let vacated = before & !after;
+            let arrived = after & !before;
+
+            if vacated == BitBoard::as_mask(from) && arrived.count_ones() == 1 {
+                res |= arrived;
+            }
+        }
+
+        res
+    }
+
+    #[test]
+    fn test_every_audited_opponent_routes_moves_through_the_portal() {
+        // A whirlpool is only real if the *opponent's* generator sends its destinations through
+        // it. Gods that build their move list by hand can silently skip that, and no amount of
+        // fuzzing will notice: the move list stays perfectly self-consistent, it is just missing
+        // the teleport. So assert it directly for every god allowed to face her.
+        use crate::matchup::{Matchup, is_matchup_banned};
+
+        let mut checked = 0;
+        let mut unattributable = Vec::new();
+
+        for god in crate::gods::ALL_GODS_BY_ID.iter() {
+            if is_matchup_banned(&Matchup::new(GodName::Charybdis, god.god_name)) {
+                continue;
+            }
+
+            let state = with_whirlpools(
+                GameStateBuilder::new(GodName::Charybdis, god.god_name)
+                    .with_p1_worker(A1)
+                    .with_p1_worker(A2)
+                    .with_p2_worker(C3)
+                    .with_p2_worker(E5)
+                    .with_current_player(Player::Two)
+                    .build(),
+                Player::One,
+                &[D4, E1],
+            );
+
+            let outcomes = outcomes_for_worker(&state, Player::Two, C3);
+
+            if outcomes.is_empty() {
+                // No move moved exactly this one worker and nothing else, so there is nothing to
+                // read. Collected and asserted below rather than skipped quietly, so that a god
+                // that stops being checkable has to be noticed.
+                unattributable.push(god.god_name);
+                continue;
+            }
+
+            assert!(
+                outcomes.contains_square(E1),
+                "{:?} does not route its moves through the whirlpool - stepping into D4 has to \
+                 surface at E1. Its generator probably builds destinations by hand instead of \
+                 going through get_limited_moves_given_move_mask. Outcomes: {}",
+                god.god_name,
+                outcomes
+            );
+            assert!(
+                !outcomes.contains_square(D4),
+                "{:?} left a worker standing on the whirlpool it entered",
+                god.god_name
+            );
+
+            checked += 1;
+        }
+
+        // Hydra's moves can turn a worker into a tower, so a worker mask diff cannot attribute
+        // them to a single move. She reaches her destinations through the shared funnel, which is
+        // what actually matters here.
+        assert_eq!(
+            unattributable,
+            vec![GodName::Hydra],
+            "the set of gods this test cannot read has changed"
+        );
+        assert!(checked >= 30, "expected to check most gods, got {checked}");
+    }
 }

@@ -14,7 +14,7 @@ use crate::{
         god_power,
         harpies::iris_slide_position,
         move_helpers::{
-            GeneratorPreludeState, WorkerEndMoveState, WorkerStartMoveState, build_scored_move,
+            GeneratorPreludeState, WorkerEndMoveState, WorkerStartMoveState, build_scored_move, get_active_portal, put_moves_through_portals,
             get_generator_prelude_state, get_reverse_direction_neighbor_map,
             get_worker_next_build_state, get_worker_start_move_state, is_mate_only,
             modify_prelude_for_checking_workers, push_winning_moves,
@@ -158,6 +158,12 @@ fn _iris_get_worker_next_moves<const MUST_CLIMB: bool>(
     worker_start_state: &WorkerStartMoveState,
     all_jumpable_workers: BitBoard,
 ) -> BitBoard {
+    // Iris builds her destinations by hand rather than going through
+    // `get_limited_moves_given_move_mask`, so each branch below has to apply the whirlpool swap
+    // itself - after the height filters, and before the affinity filter. Landing on a whirlpool by
+    // jumping over a worker is still moving onto it, so the jump destinations swap too.
+    let portal = get_active_portal(prelude, worker_start_state.worker_start_mask);
+
     let base_worker_moves =
         prelude.standard_neighbor_map[worker_start_state.worker_start_pos as usize];
     let jump_overs = base_worker_moves & all_jumpable_workers;
@@ -190,7 +196,7 @@ fn _iris_get_worker_next_moves<const MUST_CLIMB: bool>(
 
         let worker_moves = (step_up_base_moves | rising_jump_moves)
             & !(prelude.all_workers_and_frozen_mask | prelude.board.height_map[3]);
-        worker_moves
+        put_moves_through_portals(worker_moves, portal)
     } else {
         if prelude.can_climb {
             let down_mask =
@@ -204,6 +210,7 @@ fn _iris_get_worker_next_moves<const MUST_CLIMB: bool>(
             let all_worker_moves = not_too_high_base_moves | jumping_moves;
             let worker_moves = all_worker_moves
                 & !(down_mask | prelude.all_workers_and_frozen_mask | prelude.board.height_map[3]);
+            let worker_moves = put_moves_through_portals(worker_moves, portal);
 
             restrict_moves_by_affinity_area(
                 worker_start_state.worker_start_mask,
@@ -215,7 +222,7 @@ fn _iris_get_worker_next_moves<const MUST_CLIMB: bool>(
             let worker_moves = all_worker_moves
                 & !(prelude.board.height_map[worker_start_state.worker_start_height]
                     | prelude.all_workers_and_frozen_mask);
-            worker_moves
+            put_moves_through_portals(worker_moves, portal)
         }
     }
 }

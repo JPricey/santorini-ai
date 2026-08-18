@@ -1658,14 +1658,14 @@ impl ConsistencyChecker {
             let portal = get_portal_squares(state, current_player);
             if (portal & new_only).is_not_empty() {
                 let entry = portal ^ new_only;
-                let entry_height = state.board.get_height(entry.lsb()) as i32;
                 let others = (state.board.workers[0] | state.board.workers[1]) & !old_only;
-                let climb = oppo_god.can_opponent_climb(&state.board, !current_player) as i32;
 
-                if (NEIGHBOR_MAP[old_pos as usize] & entry).is_not_empty()
-                    && (entry & others).is_empty()
-                    && entry_height <= old_height + climb
-                {
+                // A worker can only be standing on this whirlpool by having been flushed through
+                // from the other one, and that only happens while the other one is free. *How* it
+                // reached the entry square is movement legality - gods jump over workers, wrap
+                // around the board and chain moves to get there - and that is checked elsewhere,
+                // so this deliberately does not second-guess the route.
+                if (entry & others).is_empty() && (oppo_god.win_mask & new_only).is_not_empty() {
                     return;
                 }
             }

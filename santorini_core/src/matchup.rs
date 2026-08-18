@@ -189,7 +189,7 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // ordinary way, by climbing to level 3. Everything else - displacement, multi-step movement,
     // hand-rolled destination sets, or a win condition that reads a height delta - needs its own
     // audit, so it is banned until that audit happens.
-    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 35] = [
+    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 34] = [
         GodName::Mortal,
         GodName::Pan,
         GodName::Atlas,
@@ -222,11 +222,17 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         GodName::Bia,
         GodName::Nike,
         GodName::Eros,
-        GodName::Iris,
         GodName::Hydra,
         GodName::Urania,
     ];
-    // Three of these are out for concrete reasons rather than "not audited yet". Harpies: her
+    // What makes a god safe to face her is narrow: its movement has to go through
+    // `get_limited_moves_given_move_mask`, which is where destinations get routed through the
+    // portal. Gods that build a destination set by hand, walk it in several steps, or relocate an
+    // opponent's worker mid-turn all need their own handling and are banned until they get it.
+    // Note that fuzzing cannot clear them - a missing teleport produces a self-consistent move
+    // list, so the consistency checker sees nothing wrong.
+    //
+    // Four of these are out for concrete reasons rather than "not audited yet". Harpies: her
     // slide is forced movement, which by the card does not trigger a whirlpool, but a slide that
     // ends on one - or starts from one - needs an ordering ruling nobody has written down. Europa: the Talus
     // and a whirlpool can end up on the same square, and nothing in either card says what that
