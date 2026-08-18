@@ -437,6 +437,30 @@ pub(super) fn get_active_portal_after_displacement(
     }
 }
 
+/// Where a *displacer* (Apollo, Minotaur) ends up after stepping onto `entry`.
+///
+/// If `entry` is one of Charybdis' whirlpools and the other whirlpool is on the board and free of
+/// every worker except the one making this move, the mover is teleported there. Unlike a lone
+/// mover, a displacer may step onto an *occupied* whirlpool - it shoves the occupant out and still
+/// teleports - so only the exit has to be free. That is why this is not `get_active_portal`, which
+/// requires both whirlpools unoccupied.
+pub(super) fn displacer_portal_exit(
+    portal: BitBoard,
+    exit_blockers: BitBoard,
+    entry: Square,
+) -> Option<Square> {
+    let entry_mask = BitBoard::as_mask(entry);
+    if portal.count_ones() != 2 || (portal & entry_mask).is_empty() {
+        return None;
+    }
+    let exit = portal ^ entry_mask;
+    if (exit & exit_blockers).is_empty() {
+        Some(exit.lsb())
+    } else {
+        None
+    }
+}
+
 /// Rewrite a set of destinations so that entering a whirlpool lands on the other one.
 ///
 /// If exactly one whirlpool is reachable, swap it for its partner. If both are reachable the set

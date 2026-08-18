@@ -1,5 +1,5 @@
 use crate::{
-    bitboard::{BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
+    bitboard::{BETWEEN_MAPPING, BitBoard, NEIGHBOR_MAP, PUSH_MAPPING},
     board::{BoardState, FullGameState},
     build_god_power_movers,
     gods::{
@@ -11,7 +11,8 @@ use crate::{
         god_power,
         harpies::slide_position,
         move_helpers::{
-            build_scored_move, get_basic_moves_from_raw_data_with_custom_blockers,
+            build_scored_move, displacer_portal_exit,
+            get_basic_moves_from_raw_data_with_custom_blockers_no_portal,
             get_generator_prelude_state, get_worker_start_move_state, is_interact_with_key_squares,
             is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers,
         },
@@ -153,9 +154,14 @@ impl GodMove for MinotaurMove {
         let mut result = vec![PartialAction::SelectWorker(self.move_from_position())];
 
         if let Some(push_to) = self.push_to_position() {
+            // The pushed worker was on the square between where Minotaur started and where it was
+            // shoved to. That is usually where Minotaur lands, but a whirlpool teleports him past
+            // it, so read the source off the geometry rather than assuming it is `move_to`.
+            let push_from = BETWEEN_MAPPING[self.move_from_position() as usize][push_to as usize]
+                .unwrap_or(self.move_to_position());
             result.push(PartialAction::new_move_with_displace(
                 self.move_to_position(),
-                self.move_to_position(),
+                push_from,
                 push_to,
             ));
         } else {
@@ -183,8 +189,13 @@ impl GodMove for MinotaurMove {
         board.build_up(build_position);
 
         if let Some(push_to) = self.push_to_position() {
+            // The pushed worker started on the square between Minotaur's start and its shove
+            // destination - `move_to` only when no whirlpool teleported him elsewhere.
+            let push_from = BETWEEN_MAPPING[self.move_from_position() as usize][push_to as usize]
+                .map(BitBoard::as_mask)
+                .unwrap_or(move_to);
             let push_mask = BitBoard::as_mask(push_to);
-            board.oppo_worker_xor(other_god, !player, move_to | push_mask);
+            board.oppo_worker_xor(other_god, !player, push_from | push_mask);
         }
     }
 
@@ -225,63 +236,78 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let mut worker_moves = get_basic_moves_from_raw_data_with_custom_blockers::<MUST_CLIMB>(
-            &prelude,
-            worker_start_state.worker_start_pos,
-            worker_start_state.worker_start_mask,
-            worker_start_state.worker_start_height,
-            worker_start_state.other_own_workers | prelude.domes_and_frozen,
-        );
+        // Raw entries, not portal-swapped: Minotaur remaps entry->exit himself so he can also
+        // push whoever stands on the entry whirlpool straight back.
+        let mut worker_moves =
+            get_basic_moves_from_raw_data_with_custom_blockers_no_portal::<MUST_CLIMB>(
+                &prelude,
+                worker_start_state.worker_start_pos,
+                worker_start_state.worker_start_mask,
+                worker_start_state.worker_start_height,
+                worker_start_state.other_own_workers | prelude.domes_and_frozen,
+            );
 
-        if is_mate_only::<F>() || worker_start_state.can_mate {
-            let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
+        let portal = prelude.portal_squares;
+        let exit_blockers =
+            (prelude.own_workers ^ worker_start_state.worker_start_mask) | prelude.oppo_workers;
 
-            for worker_end_pos in moves_to_level_3.into_iter() {
-                let moving_worker_end_mask = BitBoard::as_mask(worker_end_pos);
-                if (moving_worker_end_mask & prelude.oppo_workers).is_not_empty() {
-                    if let Some(push_to) = PUSH_MAPPING
-                        [worker_start_state.worker_start_pos as usize]
-                        [worker_end_pos as usize]
-                    {
-                        let push_to_mask = BitBoard::as_mask(push_to);
-                        if (push_to_mask & blocked_squares).is_empty() {
-                            let winning_move = ScoredMove::new_winning_move(
-                                MinotaurMove::new_minotaur_winning_push_move(
-                                    worker_start_state.worker_start_pos,
-                                    worker_end_pos,
-                                    push_to,
-                                )
-                                .into(),
-                            );
-                            result.push(winning_move);
-                            if is_stop_on_mate::<F>() {
-                                return result;
-                            }
-                        }
+        // Wins are scanned over the move's *outcome*: stepping onto a whirlpool lands the worker on
+        // the other one, which wins at any height. With no portal this collapses to the old scan.
+        if is_mate_only::<F>() || worker_start_state.can_mate || portal.is_not_empty() {
+            let mut winning_entries = BitBoard::EMPTY;
+
+            for entry_pos in worker_moves {
+                let entry_mask = BitBoard::as_mask(entry_pos);
+                let outcome_pos =
+                    displacer_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
+
+                if (BitBoard::as_mask(outcome_pos) & prelude.exactly_level_3 & prelude.win_mask)
+                    .is_empty()
+                {
+                    continue;
+                }
+
+                let winning_move = if (entry_mask & prelude.oppo_workers).is_not_empty() {
+                    // Pushing whoever holds the entry straight back; if they cannot be pushed
+                    // (blocked/off board) Minotaur cannot step there, so no win here.
+                    let Some(push_to) =
+                        PUSH_MAPPING[worker_start_pos as usize][entry_pos as usize]
+                    else {
+                        continue;
+                    };
+                    if (BitBoard::as_mask(push_to) & blocked_squares).is_not_empty() {
+                        continue;
                     }
+                    MinotaurMove::new_minotaur_winning_push_move(
+                        worker_start_pos,
+                        outcome_pos,
+                        push_to,
+                    )
                 } else {
-                    let winning_move = ScoredMove::new_winning_move(
-                        MinotaurMove::new_winning_move(
-                            worker_start_state.worker_start_pos,
-                            worker_end_pos,
-                        )
-                        .into(),
-                    );
-                    result.push(winning_move);
-                    if is_stop_on_mate::<F>() {
-                        return result;
-                    }
+                    MinotaurMove::new_winning_move(worker_start_pos, outcome_pos)
+                };
+
+                result.push(ScoredMove::new_winning_move(winning_move.into()));
+                winning_entries |= entry_mask;
+                if is_stop_on_mate::<F>() {
+                    return result;
                 }
             }
 
-            worker_moves ^= moves_to_level_3;
+            worker_moves ^= winning_entries;
         }
 
         if is_mate_only::<F>() {
             continue;
         }
 
-        for mut worker_end_pos in worker_moves {
+        for entry_pos in worker_moves {
+            let entry_mask = BitBoard::as_mask(entry_pos);
+
+            // The push is decided at the entry Minotaur steps onto; the whirlpool may then teleport
+            // him past it to the exit, which is where he ends up and builds from.
+            let mut worker_end_pos =
+                displacer_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
             let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
 
             let mut push_to_spot: Option<Square> = None;
@@ -290,9 +316,9 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let mut final_build_mask = prelude.build_mask;
             let mut other_workers_post_push = prelude.oppo_workers;
 
-            if (worker_end_mask & prelude.oppo_workers).is_not_empty() {
-                if let Some(push_to) = PUSH_MAPPING[worker_start_state.worker_start_pos as usize]
-                    [worker_end_pos as usize]
+            if (entry_mask & prelude.oppo_workers).is_not_empty() {
+                if let Some(push_to) =
+                    PUSH_MAPPING[worker_start_state.worker_start_pos as usize][entry_pos as usize]
                 {
                     let tmp_push_to_mask = BitBoard::as_mask(push_to);
                     if (tmp_push_to_mask & blocked_squares).is_empty() {
@@ -300,7 +326,7 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                         push_to_mask = tmp_push_to_mask;
 
                         other_workers_post_push =
-                            prelude.oppo_workers ^ push_to_mask ^ worker_end_mask;
+                            prelude.oppo_workers ^ push_to_mask ^ entry_mask;
                         final_build_mask =
                             prelude.other_god.get_build_mask(other_workers_post_push)
                                 | prelude.exactly_level_3;
@@ -313,6 +339,8 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
 
             if prelude.is_against_harpies && push_to_spot.is_none() {
+                // Harpies and Charybdis can never both be the opponent, so `portal` is empty and
+                // `worker_end_pos` is just the entry - the slide behaves exactly as before.
                 worker_end_pos = slide_position(
                     &prelude,
                     worker_start_state.worker_start_pos,
@@ -324,9 +352,12 @@ pub(super) fn minotaur_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let worker_end_height = prelude.board.get_height(worker_end_pos);
             let is_improving = worker_end_height > worker_start_state.worker_start_height;
 
+            // Post-push occupancy, so Minotaur may build on a whirlpool he just cleared. (Without a
+            // portal this equals the old `all_non_moving_workers` mask, since the pushed worker was
+            // where he now stands and is excluded by the neighbour map anyway.)
             let mut worker_builds = NEIGHBOR_MAP[worker_end_pos as usize]
-                & !(push_to_mask
-                    | worker_start_state.all_non_moving_workers
+                & !(other_workers_post_push
+                    | worker_start_state.other_own_workers
                     | prelude.domes_and_frozen);
             worker_builds &= final_build_mask;
 
@@ -424,4 +455,87 @@ pub const fn build_minotaur() -> GodPower {
         16532879311019593353,
         196173323035994051,
     )
+}
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(mut state: FullGameState, player: Player, squares: &[Square]) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    #[test]
+    fn test_minotaur_pushes_off_a_whirlpool_and_teleports() {
+        // Charybdis' worker sits on whirlpool D4. Minotaur steps onto D4 from C5, shoving her
+        // straight back to E3, and is teleported to the free partner E1.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Minotaur)
+                .with_p1_worker(D4)
+                .with_p1_worker(A1)
+                .with_p2_worker(C5)
+                .with_p2_worker(E5)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E1],
+        );
+
+        let minotaur = GodName::Minotaur.to_power();
+        let mut found = false;
+        for scored in minotaur.get_all_moves(&state, Player::Two) {
+            let m: MinotaurMove = scored.action.into();
+            if m.get_is_winning() || m.move_from_position() != C5 || m.move_to_position() != E1 {
+                continue;
+            }
+            found = true;
+            let next = state.next_state(minotaur, GodName::Charybdis.to_power(), scored.action);
+            assert!(next.board.workers[Player::Two as usize].contains_square(E1));
+            assert!(next.board.workers[Player::One as usize].contains_square(E3));
+            assert!(!next.board.workers[Player::One as usize].contains_square(D4));
+        }
+        assert!(found, "expected Minotaur to push off D4 and surface at E1");
+    }
+
+    #[test]
+    fn test_minotaur_wins_by_teleporting_onto_a_level_three_whirlpool() {
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Minotaur)
+                .with_p1_worker(A1)
+                .with_p1_worker(B1)
+                .with_p2_worker(C5)
+                .with_p2_worker(E5)
+                .with_height(E1, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E1],
+        );
+        // D4 empty; Minotaur steps onto it from C5 and surfaces on the level-3 E1 to win.
+        let wins = GodName::Minotaur.to_power().get_winning_moves(&state, Player::Two);
+        let mut found = false;
+        for scored in &wins {
+            let m: MinotaurMove = scored.action.into();
+            if m.move_from_position() == C5 && m.move_to_position() == E1 {
+                found = true;
+                let next = state.next_state(
+                    GodName::Minotaur.to_power(),
+                    GodName::Charybdis.to_power(),
+                    scored.action,
+                );
+                assert_eq!(next.get_winner(), Some(Player::Two));
+            }
+        }
+        assert!(found, "expected a Minotaur portal win onto E1");
+    }
 }

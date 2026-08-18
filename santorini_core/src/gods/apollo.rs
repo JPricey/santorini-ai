@@ -11,7 +11,7 @@ use crate::{
         god_power,
         harpies::slide_position,
         move_helpers::{
-            build_scored_move, get_basic_moves_from_raw_data_with_custom_blockers_no_portal,
+            build_scored_move, displacer_portal_exit, get_basic_moves_from_raw_data_with_custom_blockers_no_portal,
             get_generator_prelude_state, get_worker_start_move_state, is_interact_with_key_squares,
             is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers,
         },
@@ -184,26 +184,6 @@ impl GodMove for ApolloMove {
     }
 }
 
-/// Where a worker that moves onto `entry` actually ends up.
-///
-/// If `entry` is one of Charybdis' whirlpools and the other whirlpool is on the board and free of
-/// every worker except the one making this move, the mover is teleported to that partner. Apollo
-/// is a displacer, so - unlike a plain mover - the *entry* may be occupied: he swaps its occupant
-/// out and still teleports. Only the exit has to be free, which is why the strict "both whirlpools
-/// unoccupied" `get_active_portal` is not what we want here.
-fn apollo_portal_exit(portal: BitBoard, exit_blockers: BitBoard, entry: Square) -> Option<Square> {
-    let entry_mask = BitBoard::as_mask(entry);
-    if portal.count_ones() != 2 || (portal & entry_mask).is_empty() {
-        return None;
-    }
-    let exit = portal ^ entry_mask;
-    if (exit & exit_blockers).is_empty() {
-        Some(exit.lsb())
-    } else {
-        None
-    }
-}
-
 pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
@@ -241,7 +221,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             for entry_pos in worker_moves {
                 let entry_mask = BitBoard::as_mask(entry_pos);
                 let outcome_pos =
-                    apollo_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
+                    displacer_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
 
                 if (BitBoard::as_mask(outcome_pos) & prelude.exactly_level_3 & prelude.win_mask)
                     .is_empty()
@@ -284,7 +264,7 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             // whirlpool then teleports him somewhere else. So the swap always keys off the entry,
             // while everything downstream - build, reach, height - keys off where he ends up.
             let mut worker_end_pos =
-                apollo_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
+                displacer_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
             let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
 
             let is_swap = (entry_mask & prelude.oppo_workers).is_not_empty();
