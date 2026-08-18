@@ -404,12 +404,32 @@ pub(super) fn get_active_portal(
     prelude: &GeneratorPreludeState,
     worker_start_mask: BitBoard,
 ) -> BitBoard {
+    get_active_portal_after_displacement(prelude, worker_start_mask, BitBoard::EMPTY)
+}
+
+/// The portal as seen by a worker whose move also relocates other workers.
+///
+/// "Unoccupied" is judged at the moment the mover *arrives*, which for a displacement god is after
+/// the push/swap/pull has already happened - so a whirlpool the move clears becomes usable, and a
+/// whirlpool the move fills stops working, all within the same turn. This is why the plain
+/// `get_active_portal` (which reads the pre-move board) is only sound for gods that move a single
+/// worker and touch nobody else.
+///
+/// `vacated` is every square a worker leaves during this move - the mover's own start, plus the
+/// start square of anyone it displaces. `newly_filled` is every square a displaced worker is
+/// pushed *onto*. Both are needed: a whirlpool is free only if no worker sits on it once the dust
+/// settles.
+pub(super) fn get_active_portal_after_displacement(
+    prelude: &GeneratorPreludeState,
+    vacated: BitBoard,
+    newly_filled: BitBoard,
+) -> BitBoard {
     let portal = prelude.portal_squares;
     if portal.is_empty() {
         return BitBoard::EMPTY;
     }
 
-    let occupied = prelude.all_workers_and_frozen_mask & !worker_start_mask;
+    let occupied = (prelude.all_workers_and_frozen_mask & !vacated) | newly_filled;
     if (portal & occupied).is_empty() {
         portal
     } else {
