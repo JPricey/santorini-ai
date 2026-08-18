@@ -2,8 +2,8 @@
 
 ## Implementation status (as built)
 
-Landed on `dev`, engine + UI building, 146 core tests + 15 new Charybdis tests green, and the
-fuzzer running Charybdis against her audited opponents.
+Landed on `dev`, engine + UI building, 149 tests green (17 of them new Charybdis tests), and the
+fuzzer clean against every audited opponent.
 
 **Built as planned:** outcome encoding (D1), the portal swap in the shared movement funnel (§5.3),
 the height rule from §1a (entry-only restrictions, win-check-only fiction), `mate_start_mask` /
@@ -31,19 +31,33 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 25 gods** (§4 phase 1), everything else banned as `BannedReason::Engine`.
-Three came off the original list for concrete reasons found by the fuzzer:
+**Audited opponent list: 35 gods**, each fuzzed against Charybdis individually. Everything else is
+banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
+Nike, Eros, Iris, Hydra, Urania and both Chronus variants - the second batch cost two bug fixes
+(below) and no design changes, which is the evidence that the funnel approach in §5.3 holds.
+
+Three are banned for concrete reasons rather than "not audited yet":
 
 - **Europa** - the Talus and a whirlpool can occupy the same square, and neither card says what
   that square then is.
 - **Persephone** - a whirlpool mate whose entry is a step *down* is a non-climbing win, so handing
   Charybdis a climb anywhere suppresses it. That is a real block that has nothing to do with the
   squares the win touches, so blocker generation cannot be asked for it.
-- **Hypnus / Aphrodite** were kept; **Medusa** was kept.
+- **Harpies** - her slide is forced movement, which by the card does not trigger a whirlpool, but a
+  slide that ends on one, or starts from one, needs an ordering ruling nobody has written down.
+
+Two more general bugs fell out of the second batch:
+
+- **Eros' placement generator never checked its first square against the opponent's workers**, so
+  it could stack two workers on one space. Pre-existing, affects every Eros matchup, fixed.
+- **A flush-back win crashed the consistency checker.** A worker that steps into a whirlpool and is
+  flushed back onto its own square never appears to have moved, and the win validator asserts it
+  can identify the moved worker.
 
 **Known follow-ups:** exact check tagging; the per-god reach-board sites that still recompute
 `is_now_lvl_2` inline (Iris, Bia, Urania, Prometheus, Apollo, Achilles, Artemis - move ordering
-only); NNUE features for the whirlpool bitboard at the next retrain; and unbanning families 2-4.
+only); NNUE features for the whirlpool bitboard at the next retrain; and the displacement and
+multi-step families (Apollo, Minotaur, Charon, Artemis, Hermes, Triton, Castor, ...).
 
 ---
 

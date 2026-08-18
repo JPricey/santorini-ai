@@ -189,7 +189,7 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // ordinary way, by climbing to level 3. Everything else - displacement, multi-step movement,
     // hand-rolled destination sets, or a win condition that reads a height delta - needs its own
     // audit, so it is banned until that audit happens.
-    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 25] = [
+    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 35] = [
         GodName::Mortal,
         GodName::Pan,
         GodName::Atlas,
@@ -214,9 +214,21 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         GodName::Polyphemus,
         GodName::Poseidon,
         GodName::Chronus,
+        GodName::Chronus4T,
+        GodName::Chronus3T,
         GodName::Medusa,
+        GodName::Graeae,
+        GodName::Maenads,
+        GodName::Bia,
+        GodName::Nike,
+        GodName::Eros,
+        GodName::Iris,
+        GodName::Hydra,
+        GodName::Urania,
     ];
-    // Two of these are out for concrete reasons rather than "not audited yet". Europa: the Talus
+    // Three of these are out for concrete reasons rather than "not audited yet". Harpies: her
+    // slide is forced movement, which by the card does not trigger a whirlpool, but a slide that
+    // ends on one - or starts from one - needs an ordering ruling nobody has written down. Europa: the Talus
     // and a whirlpool can end up on the same square, and nothing in either card says what that
     // square then is. Persephone: a whirlpool mate whose *entry* is a step down is a non-climbing
     // win, so handing Charybdis a climb anywhere on the board suppresses it - a block that has

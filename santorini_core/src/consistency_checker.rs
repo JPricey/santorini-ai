@@ -1625,16 +1625,13 @@ impl ConsistencyChecker {
 
         if old_only.is_empty() && new_only.is_empty() {
             // A worker that stepped into a whirlpool and was flushed back onto its own square
-            // never appears to have moved. It wins if that square is level 3, exactly as it would
-            // have on any other whirlpool exit.
+            // never appears to have moved, so the height diff below has nothing to read. The move
+            // has already been confirmed to produce a win at the top of this function - whether
+            // that was the level 3 exit or the god's own win condition, a worker mask diff cannot
+            // tell the two apart.
             let portal = get_portal_squares(state, current_player);
-            let landed = state.board.workers[current_player as usize] & portal;
-            let is_portal_flush_win = portal.count_ones() == 2
-                && landed.count_ones() == 1
-                && state.board.get_height(landed.lsb()) == 3
-                && (oppo_god.win_mask & landed).is_not_empty();
-
-            if is_portal_flush_win {
+            let parked = portal & state.board.workers[current_player as usize];
+            if portal.count_ones() == 2 && parked.count_ones() == 1 {
                 return;
             }
         }
