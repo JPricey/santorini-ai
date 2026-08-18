@@ -452,6 +452,9 @@ pub fn harpies_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let final_key_squares = if other_god == GodName::Artemis
         || other_god.is_chronus_variant()
         || other_god == GodName::Stymphalians
+        // Harpies' slides can carry a Triton chain past a non-perimeter square, which is the one
+        // case his blocker board cannot see from the board alone.
+        || other_god == GodName::Triton
     {
         BitBoard::MAIN_SECTION_MASK
     } else {

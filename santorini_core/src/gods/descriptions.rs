@@ -214,6 +214,9 @@ impl GodName {
                 "Once per game at the start of your turn, force to unoccupied corner spaces any \
                  number of opponent Workers that neighbor your Workers."
             }
+            GodName::Triton => {
+                "Each time your Worker moves into a perimeter space, it may immediately move again."
+            }
         }
     }
 }

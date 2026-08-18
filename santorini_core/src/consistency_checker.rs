@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     bitboard::{
-        BETWEEN_MAPPING, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, apply_mapping_to_mask,
+        BETWEEN_MAPPING, BitBoard, INCLUSIVE_NEIGHBOR_MAP, NEIGHBOR_MAP, PERIMETER_SPACES_MASK,
+        apply_mapping_to_mask,
     },
     board::{BoardState, FullGameState},
     fen::{game_state_to_fen, parse_fen},
@@ -21,9 +22,11 @@ use crate::{
         odysseus,
         stymphalians::StymphaliansMove,
         terpsichore::TerpsichoreMove,
+        triton::TritonMove,
     },
     hashing::compute_hash_from_scratch,
     player::Player,
+    square::Square,
 };
 
 /// How many genuinely different ways there are to win, as opposed to how many encoded moves.
@@ -512,6 +515,19 @@ impl ConsistencyChecker {
                         did_any_increase = true;
                     }
                 }
+            } else if active_god.god_name == GodName::Triton {
+                // The climb Persephone demands can happen anywhere in the chain, so it may be
+                // invisible in a start/end height diff - and a chain that walks back onto its own
+                // start square does not show up in the worker masks at all. Read the endpoints off
+                // the move and ask whether a climbing chain joins them.
+                let triton_move: TritonMove = action.into();
+                let reachable = _triton_chain_reachable(
+                    &self.state.board,
+                    triton_move.move_from_position(),
+                    PERIMETER_SPACES_MASK,
+                    oppo_god.win_mask,
+                );
+                did_any_increase = reachable[1].contains_square(triton_move.move_to_position());
             } else if active_god.god_name == GodName::Castor {
                 // TODO: detect this properly
                 return;
@@ -1087,6 +1103,13 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if oppo_god.god_name == GodName::Triton {
+                // Triton's blocker board is the whole reachable stretch of perimeter, because any
+                // square of any path could be the one that matters. Most of those squares block
+                // nothing on their own, which is exactly what this check objects to.
+                continue;
+            }
+
             if oppo_god.god_name == GodName::Minotaur {
                 // TODO: scope this down
                 // Minotaur puts spots that it pushes TO during a mate into the blocker board
@@ -1210,6 +1233,12 @@ impl ConsistencyChecker {
 
         if active_god.god_name == GodName::Stymphalians {
             // We don't bother with check detection on this guy... It's too hard
+            return;
+        }
+
+        if active_god.god_name == GodName::Triton {
+            // Same story: his threats depend on where a chain can walk *after* the build, so there
+            // is no reach board to read them off. See `build_triton`.
             return;
         }
 
@@ -1398,6 +1427,28 @@ impl ConsistencyChecker {
         let new_workers = won_state.board.workers[current_player as usize];
         let old_only = old_workers & !new_workers;
         let new_only = new_workers & !old_workers;
+
+        if active_god.god_name == GodName::Triton && old_only.is_empty() && new_only.is_empty() {
+            // A Triton chain can step off a level 3 square, walk the perimeter and climb straight
+            // back onto it. That is an ordinary level 2 -> 3 climb, but it leaves the worker masks
+            // untouched, so the diff below cannot see the move at all.
+            let triton_move: TritonMove = action.into();
+            let pos = triton_move.move_to_position();
+
+            let is_real_win = state.board.get_height(pos) == 3
+                && (oppo_god.win_mask & BitBoard::as_mask(pos)).is_not_empty()
+                && oppo_god.can_opponent_climb(&state.board, !current_player)
+                && _validate_triton_chain_win(state, oppo_god, pos, pos, 3);
+
+            if !is_real_win {
+                self.errors.push(format!(
+                    "{label}: Triton won without moving a worker: {}. {:?} -> {:?}",
+                    stringed_action, state, won_state,
+                ));
+            }
+            return;
+        }
+
         assert_eq!(
             old_only.count_ones(),
             1,
@@ -1527,6 +1578,12 @@ impl ConsistencyChecker {
             }
         }
 
+        if active_god.god_name == GodName::Triton
+            && _validate_triton_chain_win(state, oppo_god, old_pos, new_pos, new_height)
+        {
+            return;
+        }
+
         if active_god.god_name == GodName::Castor {
             if _validate_castor_double_move_win(state, &won_state, current_player, action, win_mask)
             {
@@ -1588,6 +1645,103 @@ impl ConsistencyChecker {
             }
         }
     }
+}
+
+/// Where a Triton chain starting on `from` can be standing after any number of steps, split by
+/// whether it has climbed at least once on the way (index 1 is "has climbed").
+///
+/// Written against the board alone rather than reusing the generator's walk, so that it is an
+/// independent statement of the rule. It is deliberately permissive about the opposing god: plain
+/// adjacency, no Athena, no Hades - both of which only ever shrink the real reachable set.
+///
+/// `relay_mask` is the set of squares a chain may continue from, normally the perimeter. Against
+/// Harpies a slide carries the worker *past* interior squares and can leave it on a perimeter
+/// square the plain walk would have stopped short of, so there the mask is opened up to everything.
+fn _triton_chain_reachable(
+    board: &BoardState,
+    from: Square,
+    relay_mask: BitBoard,
+    win_mask: BitBoard,
+) -> [BitBoard; 2] {
+    let from_mask = BitBoard::as_mask(from);
+    let blockers = (board.workers[0] | board.workers[1] | board.at_least_level_4()) & !from_mask;
+    let open = !blockers & BitBoard::MAIN_SECTION_MASK;
+    let exactly_level_3 = board.exactly_level_3();
+
+    let mut seen = [from_mask, BitBoard::EMPTY];
+    let mut frontier = seen;
+    let mut reached = [BitBoard::EMPTY; 2];
+
+    while (frontier[0] | frontier[1]).is_not_empty() {
+        let mut next = [BitBoard::EMPTY; 2];
+
+        for climbed in 0..2 {
+            for pos in frontier[climbed] {
+                let height = board.get_height(pos);
+                let mut steps =
+                    NEIGHBOR_MAP[pos as usize] & open & !board.height_map[3.min(height + 1)];
+
+                if height == 2 {
+                    // Climbing to level 3 wins, which both counts as a climb and ends the chain -
+                    // unless the square is one the opposing god does not allow wins on, in which
+                    // case it is an ordinary step and the chain walks on.
+                    let wins = steps & exactly_level_3 & win_mask;
+                    steps &= !wins;
+                    reached[1] |= wins;
+                }
+
+                let climbing = steps & board.height_map[height];
+                let mut arrivals = [BitBoard::EMPTY; 2];
+                if climbed == 1 {
+                    arrivals[1] = steps;
+                } else {
+                    arrivals[1] = climbing;
+                    arrivals[0] = steps & !climbing;
+                }
+
+                for (climbed_after, arrival) in arrivals.into_iter().enumerate() {
+                    reached[climbed_after] |= arrival;
+                    let fresh = arrival & !seen[climbed_after];
+                    seen[climbed_after] |= fresh;
+                    next[climbed_after] |= fresh & relay_mask;
+                }
+            }
+        }
+
+        frontier = next;
+    }
+
+    reached
+}
+
+/// A Triton win is a level 2 -> 3 climb taken from somewhere along a chain, so the square he took
+/// off from need not be anywhere near where the turn started.
+fn _validate_triton_chain_win(
+    state: &FullGameState,
+    oppo_god: StaticGod,
+    old_pos: Square,
+    new_pos: Square,
+    new_height: i32,
+) -> bool {
+    if new_height != 3 {
+        return false;
+    }
+
+    let board = &state.board;
+    let relay_mask = if oppo_god.is_harpies() {
+        BitBoard::MAIN_SECTION_MASK
+    } else {
+        PERIMETER_SPACES_MASK
+    };
+
+    let reachable = _triton_chain_reachable(board, old_pos, relay_mask, oppo_god.win_mask);
+    // A chain only continues from a perimeter space, so anywhere else it can take off from is the
+    // square it started on.
+    let springboards = (reachable[0] | reachable[1] | BitBoard::as_mask(old_pos))
+        & board.exactly_level_2()
+        & (relay_mask | BitBoard::as_mask(old_pos));
+
+    (springboards & NEIGHBOR_MAP[new_pos as usize]).is_not_empty()
 }
 
 fn _test_castor_bad_key_move_blockers(state: &FullGameState) -> bool {
