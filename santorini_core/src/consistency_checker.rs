@@ -1,3 +1,4 @@
+use crate::gods::move_helpers::get_portal_squares;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
@@ -14,6 +15,7 @@ use crate::{
         athena::AthenaMove,
         bellerophon::BellerophonMove,
         castor::CastorMove,
+        charybdis::MAX_WHIRLPOOLS,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_blockers,
         hydra::HydraMove,
@@ -44,6 +46,24 @@ fn count_distinct_wins(god: StaticGod, wins: &Vec<ScoredMove>) -> usize {
         .map(|win| odysseus::strip_displacement(win.action).0)
         .collect::<HashSet<_>>()
         .len()
+}
+
+/// The whirlpools, but only when they would actually teleport somebody.
+///
+/// A whirlpool with a worker parked on it holds the portal shut. The moving worker's own square
+/// does not count - it is vacated before the teleport resolves.
+fn _armed_portal(state: &FullGameState, player: Player, vacated: BitBoard) -> BitBoard {
+    let portal = get_portal_squares(state, player);
+    if portal.is_empty() {
+        return portal;
+    }
+
+    let occupied = (state.board.workers[0] | state.board.workers[1]) & !vacated;
+    if (portal & occupied).is_empty() {
+        portal
+    } else {
+        BitBoard::EMPTY
+    }
 }
 
 pub fn consistency_check(state: &FullGameState) -> Result<(), Vec<String>> {
@@ -103,6 +123,7 @@ impl ConsistencyChecker {
             self.validate_hades_moves(&search_moves);
             self.validate_frozen_moves(&search_moves);
             self.validate_stymphalians_moves(&search_moves);
+            self.validate_charybdis_tokens(&search_moves);
         }
 
         if self.errors.len() == 0 {
@@ -352,6 +373,101 @@ impl ConsistencyChecker {
         }
     }
 
+    /// Whirlpool bookkeeping: only Charybdis places them, only a height change removes them, and
+    /// there are never more than two of them on the board.
+    fn validate_charybdis_tokens(&mut self, actions: &Vec<ScoredMove>) {
+        let current_player = self.state.board.current_player;
+        let (active_god, oppo_god) = self.state.get_active_non_active_gods();
+
+        let (owner, owner_god) = if active_god.is_token_user {
+            (current_player, active_god)
+        } else if oppo_god.is_token_user {
+            (!current_player, oppo_god)
+        } else {
+            return;
+        };
+
+        let before = owner_god.get_token_mask(&self.state.board, owner);
+        let is_owners_turn = owner == current_player;
+
+        if before.count_ones() > MAX_WHIRLPOOLS {
+            self.errors
+                .push(format!("Too many whirlpools on the board: {}", before));
+            return;
+        }
+
+        for action in actions {
+            let action = action.action;
+            let new_state = self.state.next_state(active_god, oppo_god, action);
+            let after = owner_god.get_token_mask(&new_state.board, owner);
+
+            if after.count_ones() > MAX_WHIRLPOOLS {
+                self.errors.push(format!(
+                    "Move left too many whirlpools on the board: {} -> {:?}",
+                    active_god.stringify_move(action),
+                    new_state,
+                ));
+                return;
+            }
+
+            let added = after & !before;
+            let removed = before & !after;
+
+            if added.is_not_empty() && !is_owners_turn {
+                self.errors.push(format!(
+                    "Opponent placed a whirlpool: {} -> {:?}",
+                    active_god.stringify_move(action),
+                    new_state,
+                ));
+                return;
+            }
+
+            if added.count_ones() > 1 {
+                self.errors.push(format!(
+                    "Placed more than one whirlpool in a turn: {} -> {:?}",
+                    active_god.stringify_move(action),
+                    new_state,
+                ));
+                return;
+            }
+
+            for square in removed {
+                if new_state.board.get_height(square) == self.state.board.get_height(square) {
+                    self.errors.push(format!(
+                        "Whirlpool at {} vanished without its square changing height: {} -> {:?}",
+                        square,
+                        active_god.stringify_move(action),
+                        new_state,
+                    ));
+                    return;
+                }
+            }
+
+            for square in after {
+                if new_state.board.get_height(square) >= 4 {
+                    self.errors.push(format!(
+                        "Whirlpool at {} left under a dome: {} -> {:?}",
+                        square,
+                        active_god.stringify_move(action),
+                        new_state,
+                    ));
+                    return;
+                }
+
+                let occupants = new_state.board.workers[0] | new_state.board.workers[1];
+                if added.contains_square(square) && occupants.contains_square(square) {
+                    self.errors.push(format!(
+                        "Placed a whirlpool at {}, which is occupied: {} -> {:?}",
+                        square,
+                        active_god.stringify_move(action),
+                        new_state,
+                    ));
+                    return;
+                }
+            }
+        }
+    }
+
     fn validate_stymphalians_moves(&mut self, actions: &Vec<ScoredMove>) {
         let (active_god, oppo_god) = self.state.get_active_non_active_gods();
 
@@ -408,13 +524,25 @@ impl ConsistencyChecker {
             let old_only = old_workers & !new_workers;
             let new_only = new_workers & !old_workers;
 
+            // Hades restricts the move, and a whirlpool exit is not one: the worker made an
+            // ordinary move onto the *other* whirlpool, and the teleport that followed has no
+            // height delta at all. Judge such a worker on the entry it walked into.
+            let portal = _armed_portal(&self.state, current_player, old_only);
+
             let mut old_heights = Vec::new();
             let mut new_heights = Vec::new();
             for old_pos in old_only {
                 old_heights.push(self.state.board.get_height(old_pos));
             }
             for new_pos in new_only {
-                new_heights.push(new_state.board.get_height(new_pos));
+                let landed = BitBoard::as_mask(new_pos);
+                new_heights.push(if (portal & landed).is_not_empty() {
+                    // Read the entry's height off the *old* board: the build may have landed on it
+                    // since, which would also have returned the whirlpool to Charybdis' supply.
+                    self.state.board.get_height((portal ^ landed).lsb())
+                } else {
+                    new_state.board.get_height(new_pos)
+                });
             }
 
             if old_heights.len() != new_heights.len() {
@@ -545,13 +673,35 @@ impl ConsistencyChecker {
                         > board.get_height(from2);
                 }
             } else {
+                // The climb Persephone demands is the one the worker walks: a whirlpool exit has
+                // no height delta, so a worker that surfaced on a whirlpool is judged on the
+                // entry it stepped into.
+                let portal = _armed_portal(&self.state, current_player, old_only);
+
+                if old_only.is_empty() && new_only.is_empty() {
+                    // A worker standing on one whirlpool can step into the other and be flushed
+                    // straight back to where it started, which leaves the worker masks untouched.
+                    // The climb it made is the step into the far whirlpool, and there is no way to
+                    // see that from a diff.
+                    let both = get_portal_squares(&self.state, current_player);
+                    let parked = both & self.state.board.workers[current_player as usize];
+                    if both.count_ones() == 2 && parked.count_ones() == 1 {
+                        continue;
+                    }
+                }
+
                 let mut old_heights = Vec::new();
                 let mut new_heights = Vec::new();
                 for old_pos in old_only {
                     old_heights.push(self.state.board.get_height(old_pos));
                 }
                 for new_pos in new_only {
-                    new_heights.push(new_state.board.get_height(new_pos));
+                    let landed = BitBoard::as_mask(new_pos);
+                    new_heights.push(if (portal & landed).is_not_empty() {
+                        self.state.board.get_height((portal ^ landed).lsb())
+                    } else {
+                        new_state.board.get_height(new_pos)
+                    });
                 }
 
                 if old_heights.len() != new_heights.len() {
@@ -932,7 +1082,11 @@ impl ConsistencyChecker {
 
         let mut key_moves = BitBoard::EMPTY;
         for other_win_action in other_wins {
-            key_moves |= oppo_god.get_blocker_board(&self.state.board, other_win_action.action);
+            key_moves |= oppo_god.get_blocker_board(
+                &self.state.board,
+                other_win_action.action,
+                get_portal_squares(&self.state, !current_player),
+            );
         }
 
         if key_moves.is_empty() {
@@ -968,6 +1122,17 @@ impl ConsistencyChecker {
             }
 
             if did_block_any {
+                continue;
+            }
+
+            if active_god.is_token_user || oppo_god.is_token_user {
+                // Whirlpool blocks are only sometimes blocks, and telling which is which up front
+                // would mean running the opponent's move generation once per candidate. Dropping a
+                // whirlpool onto the square they want to land on usually flushes them off it - but
+                // not if they can reach the other whirlpool too, since then they just arrive from
+                // the far side. Building on a whirlpool disarms the portal - but not if the exit
+                // was directly reachable anyway. Both directions therefore over-generate here: a
+                // spare candidate defence costs a few nodes, a missing one loses games.
                 continue;
             }
 
@@ -1242,6 +1407,15 @@ impl ConsistencyChecker {
             return;
         }
 
+        if active_god.is_token_user || oppo_god.is_token_user {
+            // Reach boards are computed before the build, but a build that lands on a whirlpool
+            // returns it to Charybdis' supply and a placement can create one - either of which
+            // rewrites which squares are winnable, for both players. Reading the threats off a
+            // reach board therefore cannot be exact here. Move ordering is allowed to be wrong;
+            // legality and win detection are validated as usual.
+            return;
+        }
+
         for (i, action) in search_moves.iter().enumerate() {
             if action.get_is_winning() {
                 continue;
@@ -1449,6 +1623,22 @@ impl ConsistencyChecker {
             return;
         }
 
+        if old_only.is_empty() && new_only.is_empty() {
+            // A worker that stepped into a whirlpool and was flushed back onto its own square
+            // never appears to have moved. It wins if that square is level 3, exactly as it would
+            // have on any other whirlpool exit.
+            let portal = get_portal_squares(state, current_player);
+            let landed = state.board.workers[current_player as usize] & portal;
+            let is_portal_flush_win = portal.count_ones() == 2
+                && landed.count_ones() == 1
+                && state.board.get_height(landed.lsb()) == 3
+                && (oppo_god.win_mask & landed).is_not_empty();
+
+            if is_portal_flush_win {
+                return;
+            }
+        }
+
         assert_eq!(
             old_only.count_ones(),
             1,
@@ -1463,6 +1653,26 @@ impl ConsistencyChecker {
         let new_pos = new_only.lsb();
         let old_height = state.board.get_height(old_pos) as i32;
         let new_height = won_state.board.get_height(new_pos) as i32;
+
+        // A whirlpool exit wins from any height at all: the worker stepped into the *other*
+        // whirlpool - an ordinary move, subject to the ordinary height rules - and was flushed out
+        // onto level 3. The climb rules apply to the entry, so this is checked before Athena.
+        if new_height == 3 {
+            let portal = get_portal_squares(state, current_player);
+            if (portal & new_only).is_not_empty() {
+                let entry = portal ^ new_only;
+                let entry_height = state.board.get_height(entry.lsb()) as i32;
+                let others = (state.board.workers[0] | state.board.workers[1]) & !old_only;
+                let climb = oppo_god.can_opponent_climb(&state.board, !current_player) as i32;
+
+                if (NEIGHBOR_MAP[old_pos as usize] & entry).is_not_empty()
+                    && (entry & others).is_empty()
+                    && entry_height <= old_height + climb
+                {
+                    return;
+                }
+            }
+        }
 
         let is_pan_falling_win =
             active_god.god_name == GodName::Pan && new_height <= old_height - 2;

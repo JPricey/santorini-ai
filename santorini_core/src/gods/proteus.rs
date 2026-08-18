@@ -35,8 +35,8 @@ pub fn _proteus_single_worker_move_gen<const F: MoveGenFlags, const MUST_CLIMB: 
 
     let mut worker_moves = get_basic_moves::<MUST_CLIMB>(&prelude, &worker_start_state);
 
-    if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
-        let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+    if is_mate_only::<F>() || worker_start_state.can_mate {
+        let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
         if push_winning_moves::<F, MortalMove, _>(
             &mut result,
             worker_start_pos,

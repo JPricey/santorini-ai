@@ -505,7 +505,7 @@ fn generate_from_state<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     // the widened check detection below.
     let power_available_next_turn = is_powerless_pass && state.board.god_data[player as usize] == 0;
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     for worker_start_pos in prelude.acting_workers {
@@ -513,9 +513,9 @@ fn generate_from_state<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let mut worker_next_moves =
             get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
 
             let emitted_wins = if is_powerless_pass {
                 powerless_wins[worker_start_pos as usize] |= moves_to_level_3;

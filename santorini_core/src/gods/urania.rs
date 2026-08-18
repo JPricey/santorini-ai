@@ -44,7 +44,7 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(urania_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
+    modify_prelude_for_checking_workers::<F>(prelude.mate_start_mask, &mut prelude);
 
     let mut null_build_blocker = BitBoard::MAIN_SECTION_MASK;
     let movement_map = get_urania_movement_neighbors(&prelude, player);
@@ -69,8 +69,8 @@ fn urania_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     | prelude.all_workers_and_frozen_mask)
         };
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
-            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+        if is_mate_only::<F>() || worker_start_state.can_mate {
+            let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, MortalMove, _>(
                 &mut result,
                 worker_start_pos,

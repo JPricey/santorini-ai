@@ -497,7 +497,7 @@ pub(super) fn morpheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let available_builds = state.board.god_data[player as usize] + 1;
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     for worker_start_pos in prelude.acting_workers {
@@ -505,9 +505,9 @@ pub(super) fn morpheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let mut worker_next_moves =
             get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, MorpheusMove, _>(
                 &mut result,
                 worker_start_pos,
@@ -540,7 +540,10 @@ pub(super) fn morpheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             if is_interact_with_key_squares::<F>()
                 && worker_next_build_state.narrowed_builds.is_empty()
+                && (key_squares & worker_end_move_state.worker_end_mask).is_empty()
             {
+                // No build here can touch a key square - but Morpheus can decline to build at all,
+                // and simply standing on a key square is itself a block, so that move survives.
                 continue;
             }
 

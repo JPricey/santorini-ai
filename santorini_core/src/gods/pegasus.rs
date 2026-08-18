@@ -58,7 +58,7 @@ pub(super) fn pegasus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(pegasus_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
+    modify_prelude_for_checking_workers::<F>(prelude.mate_start_mask, &mut prelude);
 
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
@@ -88,9 +88,9 @@ pub(super) fn pegasus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             },
         };
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, MortalMove, _>(
                 &mut result,
                 worker_start_pos,

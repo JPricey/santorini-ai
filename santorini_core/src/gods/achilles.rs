@@ -260,7 +260,7 @@ fn _achilles_must_climb_not_using_power_but_has_power_available<const F: MoveGen
     result: &mut Vec<ScoredMove>,
 ) -> bool {
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     let check_if_build_on = prelude.exactly_level_1 | prelude.exactly_level_2;
@@ -273,9 +273,9 @@ fn _achilles_must_climb_not_using_power_but_has_power_available<const F: MoveGen
         let worker_next_moves =
             get_worker_next_move_state::<true>(&prelude, &worker_start_state, checkable_mask);
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, AchillesMove, _>(
                 result,
                 worker_start_pos,
@@ -349,7 +349,7 @@ fn _achilles_must_climb_using_power<const F: MoveGenFlags>(
     result: &mut Vec<ScoredMove>,
 ) {
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     for worker_start_pos in prelude.acting_workers {
@@ -378,7 +378,7 @@ fn _achilles_must_climb_using_power<const F: MoveGenFlags>(
         };
 
         let mut same_height_allowed_builds = same_height;
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             for pre_build_pos in same_height {
                 let winning_move = AchillesMove::new_power_winning_move(
                     worker_start_pos,
@@ -593,7 +593,7 @@ fn _achilles_move_gen<
         return result;
     }
 
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     let neighbor_moves_map = prelude.standard_neighbor_map;
@@ -612,9 +612,9 @@ fn _achilles_move_gen<
         let mut worker_next_moves =
             get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, AchillesMove, _>(
                 &mut result,
                 worker_start_pos,

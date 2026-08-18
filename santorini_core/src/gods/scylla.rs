@@ -202,7 +202,7 @@ pub(super) fn scylla_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(scylla_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     let blocked_squares = prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen;
@@ -220,9 +220,9 @@ pub(super) fn scylla_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
         // We don't care about affinity restriction for winning moves
         // against aphrodite we'd always be able to drag her into range so whatever
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_moves_no_affinity_restriction & prelude.exactly_level_3 & prelude.win_mask;
+                worker_moves_no_affinity_restriction & worker_start_state.winnable_squares;
 
             if push_winning_moves::<F, ScyllaMoveMove, _>(
                 &mut result,
@@ -264,7 +264,7 @@ pub(super) fn scylla_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 other_threatening_workers,
                 other_threatening_neighbors,
                 worker_end_move_state.worker_end_pos,
-                worker_end_move_state.is_now_lvl_2,
+                worker_end_move_state.is_mate_capable,
                 worker_next_build_state.unblocked_squares,
             );
 
@@ -332,7 +332,7 @@ pub(super) fn scylla_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     other_threatening_workers,
                     other_threatening_neighbors,
                     worker_end_move_state.worker_end_pos,
-                    worker_end_move_state.is_now_lvl_2,
+                    worker_end_move_state.is_mate_capable,
                     !(all_blockers_after_drag | worker_end_move_state.worker_end_mask),
                 );
 

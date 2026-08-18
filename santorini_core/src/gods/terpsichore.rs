@@ -518,7 +518,7 @@ pub(super) fn terpsichore_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool
     let mut result = persephone_check_result!(terpsichore_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     let non_own_worker_blockers = prelude.domes_and_frozen | prelude.oppo_workers;
     let unblocked_non_own_workers = !non_own_worker_blockers;
 

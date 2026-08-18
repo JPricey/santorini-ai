@@ -40,6 +40,7 @@ export function intersectionMatchType(square: SquareType, action: PlayerAction):
         case PlayerActionTypes.Destroy:
         case PlayerActionTypes.Dome:
         case PlayerActionTypes.SetTalusPosition:
+        case PlayerActionTypes.PlaceWhirlpool:
         case PlayerActionTypes.HeroPower:
         case PlayerActionTypes.HeroActionPlacement:
             return action.value === squareStr ? action.type : null;

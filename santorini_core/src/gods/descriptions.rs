@@ -14,6 +14,13 @@ impl GodName {
             GodName::Mortal => {
                 "No special power."
             }
+            GodName::Charybdis => {
+                "At the end of your turn, you may place a whirlpool on any unoccupied space. \
+                 Whirlpool tokens built on or removed are returned to you. A Worker cannot win by \
+                 moving onto a whirlpool if the other whirlpool is on the board in an unoccupied \
+                 space; instead the Worker is forced to the other whirlpool, and may win as if it \
+                 had moved up to that space."
+            }
             GodName::Pan => "You also win if your Worker moves down two or more levels.",
             GodName::Artemis => {
                 "Your Worker may move one additional time, but not back to its initial space."

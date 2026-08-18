@@ -216,8 +216,8 @@ pub(super) fn eros_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_moves ^= moves_to_eros_wins;
         }
 
-        if worker_start_state.worker_start_height == 2 {
-            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+        if worker_start_state.can_mate {
+            let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, ErosMove, _>(
                 &mut result,
                 worker_start_pos,
@@ -259,19 +259,19 @@ pub(super) fn eros_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let mut can_eros_win = true;
 
             if prelude.is_against_hypnus {
-                if worker_end_move_state.is_now_lvl_2 > 0 && has_lvl_2_others {
+                if worker_end_move_state.is_mate_capable > 0 && has_lvl_2_others {
                     lvl_3_reach_board = other_lvl_2_workers_reach | this_worker_next_turn_moves
                 } else {
                     lvl_3_reach_board = BitBoard::EMPTY
                 }
 
-                can_eros_win = !(worker_end_move_state.is_now_lvl_2 > 0 || has_lvl_2_others)
+                can_eros_win = !(worker_end_move_state.is_mate_capable > 0 || has_lvl_2_others)
             } else {
                 if prelude.is_down_prevented {
-                    can_eros_win = !(worker_end_move_state.is_now_lvl_2 > 0 || has_lvl_2_others);
+                    can_eros_win = !(worker_end_move_state.is_mate_capable > 0 || has_lvl_2_others);
                 }
 
-                if worker_end_move_state.is_now_lvl_2 > 0 {
+                if worker_end_move_state.is_mate_capable > 0 {
                     lvl_3_reach_board = other_lvl_2_workers_reach | this_worker_next_turn_moves
                 } else {
                     lvl_3_reach_board = other_lvl_2_workers_reach

@@ -22,6 +22,7 @@ export const PlayerActionTypes = {
     ForceOpponentWorker: 'force_opponent_worker',
     SetWindDirection: 'set_wind_direction',
     SetTalusPosition: 'set_talus_position',
+    PlaceWhirlpool: 'place_whirlpool',
     HeroPower: 'hero_power',
     HeroActionPlacement: 'hero_action_placement',
     Build: 'build',
@@ -60,6 +61,7 @@ export type PlayerAction =
     | { type: typeof PlayerActionTypes.Destroy; value: string }
     | { type: typeof PlayerActionTypes.Dome; value: string }
     | { type: typeof PlayerActionTypes.SetTalusPosition; value: string }
+    | { type: typeof PlayerActionTypes.PlaceWhirlpool; value: string }
     | { type: typeof PlayerActionTypes.HeroPower; value: string }
     | { type: typeof PlayerActionTypes.HeroActionPlacement; value: string }
     | { type: typeof PlayerActionTypes.SetWindDirection; value: DirectionType | null }
@@ -102,6 +104,8 @@ export function describeActionType(actionType: PlayerActionType): string {
             return `Destroy`;
         case PlayerActionTypes.SetTalusPosition:
             return `Place Talus`;
+        case PlayerActionTypes.PlaceWhirlpool:
+            return `Place Whirlpool`;
         case PlayerActionTypes.HeroPower:
             return `Use Power`;
         case PlayerActionTypes.HeroActionPlacement:
@@ -153,6 +157,7 @@ export function describeAction(action: PlayerAction): string {
         case PlayerActionTypes.Dome:
         case PlayerActionTypes.Destroy:
         case PlayerActionTypes.SetTalusPosition:
+        case PlayerActionTypes.PlaceWhirlpool:
         case PlayerActionTypes.HeroPower:
         case PlayerActionTypes.HeroActionPlacement:
             return `${describeActionType(action.type)} (${action.value})`;

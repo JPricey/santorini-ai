@@ -1,4 +1,5 @@
 use super::search::Heuristic;
+use crate::gods::move_helpers::widen_key_squares_for_portal;
 use crate::{
     bitboard::BitBoard,
     board::{BoardState, FullGameState, GodData, GodPair},
@@ -35,6 +36,7 @@ pub(crate) mod bia;
 pub(crate) mod castor;
 pub(crate) mod charon;
 pub(crate) mod charon_v2;
+pub(crate) mod charybdis;
 pub(crate) mod chronus;
 pub(crate) mod clio;
 pub(crate) mod demeter;
@@ -157,14 +159,16 @@ pub enum GodName {
     Terpsichore = 55,
     Odysseus = 56,
     Triton = 57,
+    Charybdis = 58,
 }
 
-pub const WIP_GODS: [GodName; 5] = [
+pub const WIP_GODS: [GodName; 6] = [
     GodName::Chronus4T,
     GodName::Chronus3T,
     GodName::Terpsichore,
     GodName::Odysseus,
     GodName::Triton,
+    GodName::Charybdis,
 ];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
@@ -247,6 +251,7 @@ pub enum PartialAction {
     Dome(Square),
     Destroy(Square),
     SetTalusPosition(Square),
+    PlaceWhirlpool(Square),
     HeroPower(Square),
     HeroActionPlacement(Square),
     SetWindDirection(Option<Direction>),
@@ -477,6 +482,7 @@ pub struct GodPower {
     _can_opponent_climb_fn: CanOpponentClimbFn,
     _get_frozen_mask: GetDataMask,
     _get_female_worker_mask: GetDataMask,
+    _get_token_mask: GetDataMask,
 
     pub win_mask: BitBoard,
 
@@ -512,6 +518,7 @@ pub struct GodPower {
 
     pub is_aphrodite: bool,
     pub is_persephone: bool,
+    pub is_token_user: bool,
     pub is_preventing_down: bool,
     pub is_placement_priority: bool,
 
@@ -625,6 +632,7 @@ impl GodPower {
         player: Player,
         key_moves: BitBoard,
     ) -> Vec<ScoredMove> {
+        let key_moves = widen_key_squares_for_portal(state, player, key_moves);
         (self._get_scored_win_blockers)(state, player, key_moves)
     }
 
@@ -634,6 +642,7 @@ impl GodPower {
         player: Player,
         key_moves: BitBoard,
     ) -> Vec<ScoredMove> {
+        let key_moves = widen_key_squares_for_portal(state, player, key_moves);
         (self._get_unscored_win_blockers)(state, player, key_moves)
     }
 
@@ -710,13 +719,57 @@ impl GodPower {
         }
     }
 
-    pub fn get_blocker_board(&self, board: &BoardState, action: GenericMove) -> BitBoard {
-        (self._get_blocker_board)(board, action)
+    /// Squares that a winning move depends on, so blocking any of them stops the win.
+    ///
+    /// `portal` carries Charybdis' whirlpools (empty in every other matchup). A win that lands on
+    /// a whirlpool must have arrived through the other one, so both squares are blockers: standing
+    /// on either, or building on either - which returns the token to her supply - defuses it.
+    pub fn get_blocker_board(
+        &self,
+        board: &BoardState,
+        action: GenericMove,
+        portal: BitBoard,
+    ) -> BitBoard {
+        let blockers = (self._get_blocker_board)(board, action);
+
+        if (blockers & portal).is_not_empty() {
+            blockers | portal
+        } else {
+            blockers
+        }
     }
 
     pub fn make_move(&self, board: &mut BoardState, other_god: StaticGod, action: GenericMove) {
+        if !other_god.is_token_user {
+            (self._make_move)(board, action, other_god);
+            board.flip_current_player();
+            return;
+        }
+
+        // Charybdis' whirlpools go back to her supply as soon as anything changes the height of
+        // the square they sit on - a build, a dome, or Ares digging a block back out. She cleans
+        // up after her own turn herself (she may be placing a token on the square she just built),
+        // so this only ever has to handle her opponent's turn.
+        let owner = !board.current_player;
+        let tokens_before = other_god.get_token_mask(board, owner);
+        let heights_before = board.height_map;
+
         (self._make_move)(board, action, other_god);
         board.flip_current_player();
+
+        if tokens_before.is_empty() {
+            return;
+        }
+
+        let mut changed = BitBoard::EMPTY;
+        for height in 0..4 {
+            changed |= heights_before[height] ^ board.height_map[height];
+        }
+
+        let stale = tokens_before & changed & BitBoard::MAIN_SECTION_MASK;
+        if stale.is_not_empty() {
+            board.xor_god_data(owner, stale.0);
+        }
     }
 
     pub fn make_passing_move(&self, board: &mut BoardState) {
@@ -760,6 +813,14 @@ impl GodPower {
 
     pub(super) fn get_female_worker_mask(&self, board: &BoardState, player: Player) -> BitBoard {
         (self._get_female_worker_mask)(board, player)
+    }
+
+    /// Squares holding this god's tokens (Charybdis' whirlpools).
+    ///
+    /// Unlike the frozen mask these squares are fully playable - they redirect whoever steps on
+    /// them - so they are threaded separately into move generation.
+    pub(crate) fn get_token_mask(&self, board: &BoardState, player: Player) -> BitBoard {
+        (self._get_token_mask)(board, player)
     }
 
     pub(super) fn parse_god_data(&self, fen: &str) -> Result<GodData, String> {
@@ -866,6 +927,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     terpsichore::build_terpsichore(),
     odysseus::build_odysseus(),
     triton::build_triton(),
+    charybdis::build_charybdis(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -1017,6 +1079,7 @@ const fn god_power(
         _can_opponent_climb_fn: _default_can_opponent_climb,
         _get_frozen_mask: _default_get_data_mask_fn,
         _get_female_worker_mask: _default_get_data_mask_fn,
+        _get_token_mask: _default_get_data_mask_fn,
 
         _flip_god_data_horizontal: _default_flip_god_data,
         _flip_god_data_vertical: _default_flip_god_data,
@@ -1045,6 +1108,7 @@ const fn god_power(
 
         is_aphrodite: false,
         is_persephone: false,
+        is_token_user: false,
         is_preventing_down: false,
         is_placement_priority: false,
 
@@ -1154,6 +1218,12 @@ impl GodPower {
 
     pub(super) const fn with_get_frozen_mask_fn(mut self, get_frozen_mask_fn: GetDataMask) -> Self {
         self._get_frozen_mask = get_frozen_mask_fn;
+        self
+    }
+
+    pub(super) const fn with_get_token_mask_fn(mut self, get_token_mask_fn: GetDataMask) -> Self {
+        self._get_token_mask = get_token_mask_fn;
+        self.is_token_user = true;
         self
     }
 

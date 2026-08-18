@@ -146,6 +146,7 @@ impl FullGameState {
             let god = state.gods[player as usize];
             god.get_frozen_mask(&state.board, player)
                 | god.get_female_worker_mask(&state.board, player)
+                | god.get_token_mask(&state.board, player)
         }
 
         (

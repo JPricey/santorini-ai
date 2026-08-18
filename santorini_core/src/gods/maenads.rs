@@ -192,9 +192,9 @@ pub(super) fn maenads_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         );
 
         // Win by climbing
-        if worker_start_state.worker_start_height == 2 {
+        if worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, MaenadsMove, _>(
                 &mut result,
                 worker_start_pos,

@@ -161,7 +161,7 @@ fn hippolyta_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(hippolyta_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     let f_worker_mask = BitBoard(state.board.god_data[player as usize]);
@@ -182,8 +182,8 @@ fn hippolyta_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             prelude.all_workers_and_frozen_mask,
         );
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
-            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+        if is_mate_only::<F>() || worker_start_state.can_mate {
+            let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, HippolytaMove, _>(
                 &mut result,
                 worker_start_pos,

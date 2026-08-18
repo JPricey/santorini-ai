@@ -715,7 +715,7 @@ mod tests {
         let wins = triton.get_winning_moves(&state, Player::One);
         assert_eq!(wins.len(), 1);
 
-        let blockers = triton.get_blocker_board(&state.board, wins[0].action);
+        let blockers = triton.get_blocker_board(&state.board, wins[0].action, BitBoard::EMPTY);
         // B1 is the springboard: building it up to a dome, or standing on it, is what stops this.
         assert!(blockers.contains_square(B1));
         assert!(blockers.contains_square(A1));

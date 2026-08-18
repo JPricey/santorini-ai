@@ -276,7 +276,7 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(charon_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     let reverse_neighbor_map = get_reverse_direction_neighbor_map(&prelude);
@@ -309,8 +309,8 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             prelude.affinity_area,
         );
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
-            let mortal_moves_to_level_3 = mortal_moves & prelude.exactly_level_3 & prelude.win_mask;
+        if is_mate_only::<F>() || worker_start_state.can_mate {
+            let mortal_moves_to_level_3 = mortal_moves & worker_start_state.winnable_squares;
 
             if push_winning_moves::<F, CharonMove, _>(
                 &mut result,
@@ -346,12 +346,12 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     other_threatening_workers,
                     other_threatening_neighbors,
                     worker_end_move_state.worker_end_pos,
-                    worker_end_move_state.is_now_lvl_2,
+                    worker_end_move_state.is_mate_capable,
                     unblocked_except_oppo_workers,
                 );
 
                 let final_threatening_workers = other_threatening_workers
-                    | (BitBoard::CONDITIONAL_MASK[worker_end_move_state.is_now_lvl_2 as usize]
+                    | (BitBoard::CONDITIONAL_MASK[worker_end_move_state.is_mate_capable as usize]
                         & worker_end_move_state.worker_end_mask);
 
                 for worker_build_pos in worker_next_build_state.narrowed_builds {
@@ -429,9 +429,9 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 );
             }
 
-            if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+            if is_mate_only::<F>() || worker_start_state.can_mate {
                 let moves_to_level_3 =
-                    moves_after_flip & prelude.exactly_level_3 & prelude.win_mask;
+                    moves_after_flip & worker_start_state.winnable_squares;
 
                 for worker_end_pos in moves_to_level_3 {
                     let new_action = CharonMove::new_charon_winning_flip_move(
@@ -485,12 +485,12 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     other_threatening_workers,
                     other_threatening_neighbors,
                     worker_end_move_state.worker_end_pos,
-                    worker_end_move_state.is_now_lvl_2,
+                    worker_end_move_state.is_mate_capable,
                     unblocked_except_oppo_workers,
                 );
 
                 let final_threatening_workers = other_threatening_workers
-                    | (BitBoard::CONDITIONAL_MASK[worker_end_move_state.is_now_lvl_2 as usize]
+                    | (BitBoard::CONDITIONAL_MASK[worker_end_move_state.is_mate_capable as usize]
                         & worker_end_move_state.worker_end_mask);
 
                 for worker_build_pos in narrowed_builds {

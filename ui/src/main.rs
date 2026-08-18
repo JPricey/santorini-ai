@@ -107,6 +107,7 @@ fn square_for_interaction(action: &PartialAction) -> Option<Square> {
         | PartialAction::SelectWorker(x)
         | PartialAction::Build(x)
         | PartialAction::SetTalusPosition(x)
+        | PartialAction::PlaceWhirlpool(x)
         | PartialAction::Dome(x)
         | PartialAction::HeroPower(x)
         | PartialAction::HeroActionPlacement(x)
@@ -129,6 +130,7 @@ fn partial_action_color(action: &PartialAction) -> egui::Color32 {
         PartialAction::Dome(_) => egui::Color32::PURPLE,
         PartialAction::Destroy(_) => egui::Color32::ORANGE,
         PartialAction::SetTalusPosition(_) => egui::Color32::PURPLE,
+        PartialAction::PlaceWhirlpool(_) => egui::Color32::LIGHT_BLUE,
         PartialAction::EndTurn => egui::Color32::WHITE,
         PartialAction::HeroPower(_) => egui::Color32::GREEN,
         PartialAction::HeroActionPlacement(_) => egui::Color32::GREEN,
@@ -151,6 +153,7 @@ fn partial_action_label(action: &PartialAction) -> String {
         PartialAction::Dome(_) => "Add Dome".to_string(),
         PartialAction::Destroy(_) => "Destroy Block".to_string(),
         PartialAction::SetTalusPosition(_) => "Place Talus".to_string(),
+        PartialAction::PlaceWhirlpool(_) => "Place Whirlpool".to_string(),
         PartialAction::EndTurn => "End Turn".to_string(),
         PartialAction::NoMoves => "Pass".to_string(),
         PartialAction::HeroPower(_) => "Use Hero Power".to_string(),

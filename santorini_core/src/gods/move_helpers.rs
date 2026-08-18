@@ -103,6 +103,18 @@ pub(crate) struct GeneratorPreludeState<'a> {
     pub build_mask: BitBoard,
     pub affinity_area: BitBoard,
 
+    /// Charybdis' two whirlpools, and only when *both* are on the board - a lone whirlpool is an
+    /// ordinary square. Set whichever side owns them, since both players use the portal.
+    pub portal_squares: BitBoard,
+
+    /// Squares a worker could win *from* on its next move.
+    ///
+    /// Normally exactly the level 2 squares. An armed portal whose exit sits on level 3 lets a
+    /// worker win from any height, so this widens to cover that - see `portal_mate_sources`.
+    /// Widening is always safe: it only decides which workers are *considered*, never which moves
+    /// are emitted.
+    pub mate_start_mask: BitBoard,
+
     pub is_against_hypnus: bool,
     pub is_against_harpies: bool,
     pub is_down_prevented: bool,
@@ -149,6 +161,16 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         own_workers
     };
 
+    let portal_squares = get_portal_squares(state, player);
+    // A whirlpool exit sitting on level 3 is a win for whoever can step into the other whirlpool,
+    // from any height at all. Crude over-approximation: consider every worker. This only fires in
+    // positions that actually have an armed level 3 portal.
+    let mate_start_mask = if (portal_squares & exactly_level_3 & win_mask).is_not_empty() {
+        BitBoard::MAIN_SECTION_MASK
+    } else {
+        exactly_level_2
+    };
+
     let can_climb = other_god.can_opponent_climb(board, !player);
 
     let is_down_prevented = other_god.is_preventing_down;
@@ -182,6 +204,9 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
         win_mask,
         build_mask,
         affinity_area,
+
+        portal_squares,
+        mate_start_mask,
 
         is_against_hypnus,
         is_against_harpies,
@@ -252,7 +277,7 @@ pub(super) fn get_basic_acting_workers<const F: MoveGenFlags>(
         acting_workers = hypnus_moveable_worker_filter(&prelude.board, acting_workers)
     }
     if is_mate_only::<F>() {
-        acting_workers &= prelude.exactly_level_2;
+        acting_workers &= prelude.mate_start_mask;
     }
 
     acting_workers
@@ -264,6 +289,17 @@ pub(super) struct WorkerStartMoveState {
     pub worker_start_height: usize,
     pub other_own_workers: BitBoard,
     pub all_non_moving_workers: BitBoard,
+
+    /// Could this worker win on its next move? `worker_start_height == 2`, plus portal mates.
+    pub can_mate: bool,
+
+    /// The level 3 squares this worker actually wins on.
+    ///
+    /// You have to move *up* onto level 3, so normally only a level 2 worker wins anywhere, and
+    /// every other worker wins nowhere - a level 3 worker moving flat to another level 3 square
+    /// has not won. The exception is the whirlpool exit, which wins from any height at all, so a
+    /// worker that cannot climb to level 3 can still win on that one square.
+    pub winnable_squares: BitBoard,
 }
 
 pub(super) struct WorkerNextMoveState {
@@ -281,6 +317,14 @@ pub(super) fn get_worker_start_move_state(
 
     let other_own_workers = prelude.own_workers ^ worker_start_mask;
     let non_moving_workers = prelude.oppo_workers | other_own_workers;
+    let can_mate = (prelude.mate_start_mask & worker_start_mask).is_not_empty();
+
+    let arrival_mask = if worker_start_height == 2 {
+        BitBoard::MAIN_SECTION_MASK
+    } else {
+        get_active_portal(prelude, worker_start_mask)
+    };
+    let winnable_squares = prelude.exactly_level_3 & prelude.win_mask & arrival_mask;
 
     WorkerStartMoveState {
         worker_start_pos,
@@ -288,6 +332,8 @@ pub(super) fn get_worker_start_move_state(
         worker_start_height,
         other_own_workers,
         all_non_moving_workers: non_moving_workers,
+        can_mate,
+        winnable_squares,
     }
 }
 
@@ -308,12 +354,90 @@ pub(super) fn get_worker_next_move_state<const MUST_CLIMB: bool>(
     }
 }
 
+/// Both whirlpools, if Charybdis is in this matchup and both are on the board.
+///
+/// A lone whirlpool is just an ordinary square, so it is reported as no portal at all.
+pub(crate) fn get_portal_squares(state: &FullGameState, player: Player) -> BitBoard {
+    for side in [player, !player] {
+        let god = state.gods[side as usize];
+        if god.is_token_user {
+            let tokens = god.get_token_mask(&state.board, side);
+            return if tokens.count_ones() == 2 {
+                tokens
+            } else {
+                BitBoard::EMPTY
+            };
+        }
+    }
+
+    BitBoard::EMPTY
+}
+
+/// Blocking move generation only keeps moves that touch a key square, which it judges by where a
+/// move *ends*. That misses a whirlpool defence: a worker parked on a whirlpool is holding the
+/// portal shut, and simply stepping off it arms the portal and flushes the opponent off the square
+/// they were about to win on. Rather than teach every generator's narrowing about that, stop
+/// narrowing altogether in the rare positions where it applies.
+pub(crate) fn widen_key_squares_for_portal(
+    state: &FullGameState,
+    player: Player,
+    key_squares: BitBoard,
+) -> BitBoard {
+    let portal = get_portal_squares(state, player);
+    if portal.is_empty() || (portal & key_squares).is_empty() {
+        return key_squares;
+    }
+
+    if (portal & state.board.workers[player as usize]).is_not_empty() {
+        return BitBoard::MAIN_SECTION_MASK;
+    }
+
+    key_squares
+}
+
+/// The portal as seen by one specific worker.
+///
+/// A whirlpool only teleports if the *other* whirlpool is unoccupied. The moving worker's own
+/// square does not count as occupied - it is vacated before the teleport resolves - which is what
+/// lets a worker standing on one whirlpool step into the other and be sent straight back.
+pub(super) fn get_active_portal(
+    prelude: &GeneratorPreludeState,
+    worker_start_mask: BitBoard,
+) -> BitBoard {
+    let portal = prelude.portal_squares;
+    if portal.is_empty() {
+        return BitBoard::EMPTY;
+    }
+
+    let occupied = prelude.all_workers_and_frozen_mask & !worker_start_mask;
+    if (portal & occupied).is_empty() {
+        portal
+    } else {
+        BitBoard::EMPTY
+    }
+}
+
+/// Rewrite a set of destinations so that entering a whirlpool lands on the other one.
+///
+/// If exactly one whirlpool is reachable, swap it for its partner. If both are reachable the set
+/// is unchanged - entering either one lands on the other, so the same two squares are still the
+/// possible outcomes. If neither is reachable there is nothing to do; note that a plain xor would
+/// be wrong here, which is what the count guards against.
+pub(super) fn put_moves_through_portals(moves: BitBoard, portal: BitBoard) -> BitBoard {
+    if (moves & portal).count_ones() == 1 {
+        moves ^ portal
+    } else {
+        moves
+    }
+}
+
 pub(super) struct WorkerEndMoveState {
     pub worker_end_pos: Square,
     pub worker_end_mask: BitBoard,
     pub worker_end_height: usize,
     pub is_improving: bool,
-    pub is_now_lvl_2: u32,
+    /// Whether the worker could win from here next move: level 2, or a portal mate.
+    pub is_mate_capable: u32,
 }
 
 pub(super) fn get_worker_end_move_state<const F: MoveGenFlags>(
@@ -329,14 +453,14 @@ pub(super) fn get_worker_end_move_state<const F: MoveGenFlags>(
     let worker_end_mask = BitBoard::as_mask(worker_end_pos);
     let worker_end_height = prelude.board.get_height(worker_end_pos);
     let is_improving = worker_end_height > worker_start_state.worker_start_height;
-    let is_now_lvl_2 = (worker_end_height == 2) as u32;
+    let is_mate_capable = (prelude.mate_start_mask & worker_end_mask).is_not_empty() as u32;
 
     WorkerEndMoveState {
         worker_end_pos,
         worker_end_mask,
         worker_end_height,
         is_improving,
-        is_now_lvl_2,
+        is_mate_capable,
     }
 }
 
@@ -358,14 +482,14 @@ pub(super) fn get_worker_end_move_state_with_custom_worker_helper<const F: MoveG
     let worker_end_mask = BitBoard::as_mask(worker_end_pos);
     let worker_end_height = prelude.board.get_height(worker_end_pos);
     let is_improving = worker_end_height > worker_start_state.worker_start_height;
-    let is_now_lvl_2 = (worker_end_height == 2) as u32;
+    let is_mate_capable = (prelude.mate_start_mask & worker_end_mask).is_not_empty() as u32;
 
     WorkerEndMoveState {
         worker_end_pos,
         worker_end_mask,
         worker_end_height,
         is_improving,
-        is_now_lvl_2,
+        is_mate_capable,
     }
 }
 
@@ -377,7 +501,7 @@ pub(super) fn get_reach_board_when_can_be_level_3<const F: MoveGenFlags>(
     worker_end_height: usize,
     unblocked_squares: BitBoard,
 ) -> BitBoard {
-    if prelude.is_against_hypnus {
+    if prelude.is_against_hypnus && prelude.portal_squares.is_empty() {
         let next_turn_moves = NEIGHBOR_MAP[worker_end_pos as usize];
 
         if worker_end_height == 3 {
@@ -394,10 +518,20 @@ pub(super) fn get_reach_board_when_can_be_level_3<const F: MoveGenFlags>(
             BitBoard::EMPTY
         }
     } else {
-        let next_turn_moves = prelude.standard_neighbor_map[worker_end_pos as usize];
+        let next_turn_moves = put_moves_through_portals(
+            prelude.standard_neighbor_map[worker_end_pos as usize],
+            prelude.portal_squares,
+        );
 
-        (worker_move_state.other_threatening_neighbors
-            | (next_turn_moves * (worker_end_height == 2) as u32))
+        // `worker_end_height` is passed in rather than read off the board because callers like
+        // Zeus hand us the height *after* building under themselves. Only the portal case, which
+        // does not depend on height at all, comes from the prelude.
+        let is_mate_capable = (worker_end_height == 2
+            || prelude.portal_squares.is_not_empty()
+                && (prelude.mate_start_mask & BitBoard::as_mask(worker_end_pos)).is_not_empty())
+            as u32;
+
+        (worker_move_state.other_threatening_neighbors | (next_turn_moves * is_mate_capable))
             & prelude.win_mask
             & unblocked_squares
     }
@@ -414,7 +548,7 @@ pub(super) fn get_standard_reach_board<const F: MoveGenFlags>(
         worker_move_state.other_threatening_workers,
         worker_move_state.other_threatening_neighbors,
         worker_end_move_state.worker_end_pos,
-        worker_end_move_state.is_now_lvl_2,
+        worker_end_move_state.is_mate_capable,
         unblocked_squares,
     )
 }
@@ -424,18 +558,25 @@ pub(super) fn get_standard_reach_board_from_parts<const F: MoveGenFlags>(
     other_threatening_workers: BitBoard,
     other_threatening_neighbors: BitBoard,
     worker_end_pos: Square,
-    is_now_lvl_2: u32,
+    is_mate_capable: u32,
     unblocked_squares: BitBoard,
 ) -> BitBoard {
-    let next_turn_moves =
-        prelude.standard_neighbor_map[worker_end_pos as usize] & unblocked_squares;
+    // A single worker's next-turn destinations, so the exact swap applies: stepping into one
+    // whirlpool threatens the other, and no longer threatens the one stepped into.
+    let next_turn_moves = put_moves_through_portals(
+        prelude.standard_neighbor_map[worker_end_pos as usize],
+        prelude.portal_squares,
+    ) & unblocked_squares;
 
+    // Hypnus can only freeze the single highest worker, so one threat is not enough - unless the
+    // threat is a portal mate, which can come from a low worker he has no answer to.
     let reach_board = if prelude.is_against_hypnus
-        && (other_threatening_workers.count_ones() + is_now_lvl_2) < 2
+        && prelude.portal_squares.is_empty()
+        && (other_threatening_workers.count_ones() + is_mate_capable) < 2
     {
         BitBoard::EMPTY
     } else {
-        (other_threatening_neighbors | (next_turn_moves * is_now_lvl_2))
+        (other_threatening_neighbors | (next_turn_moves * is_mate_capable))
             & prelude.win_mask
             & unblocked_squares
     };
@@ -450,20 +591,22 @@ pub(super) fn get_standard_reach_board_with_extra_move_map<const F: MoveGenFlags
     worker_end_move_state: &WorkerEndMoveState,
     unblocked_squares: BitBoard,
 ) -> BitBoard {
-    let next_turn_moves = prelude.standard_neighbor_map
-        [worker_end_move_state.worker_end_pos as usize]
-        & wind_map[worker_end_move_state.worker_end_pos as usize]
-        & unblocked_squares;
+    let next_turn_moves = put_moves_through_portals(
+        prelude.standard_neighbor_map[worker_end_move_state.worker_end_pos as usize]
+            & wind_map[worker_end_move_state.worker_end_pos as usize],
+        prelude.portal_squares,
+    ) & unblocked_squares;
 
     let reach_board = if prelude.is_against_hypnus
+        && prelude.portal_squares.is_empty()
         && (worker_move_state.other_threatening_workers.count_ones()
-            + worker_end_move_state.is_now_lvl_2)
+            + worker_end_move_state.is_mate_capable)
             < 2
     {
         BitBoard::EMPTY
     } else {
         (worker_move_state.other_threatening_neighbors
-            | (next_turn_moves * worker_end_move_state.is_now_lvl_2))
+            | (next_turn_moves * worker_end_move_state.is_mate_capable))
             & prelude.win_mask
             & unblocked_squares
     };
@@ -551,16 +694,16 @@ pub(super) fn make_build_only_power_generator<
 ) -> Vec<ScoredMove> {
     let mut result = get_sized_result::<F>();
     let prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     let acting_workers = get_basic_acting_workers::<F>(&prelude);
 
     for worker_start_pos in acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
         let mut worker_next_moves =
             get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, A, _>(
                 &mut result,
                 worker_start_pos,
@@ -749,6 +892,11 @@ pub(super) fn get_limited_moves_given_move_mask<
     worker_start_height: usize,
     blockers: BitBoard,
 ) -> BitBoard {
+    // Whirlpools are applied *after* the height filters and *before* the affinity filter: only the
+    // entry leg of a portal move has a height delta (so Athena, Hades and Persephone all judge the
+    // entry), but the worker physically ends up on the exit square (so Aphrodite judges that).
+    let portal = get_active_portal(prelude, worker_start_mask);
+
     if MUST_CLIMB {
         let height_mask = match worker_start_height {
             0 => prelude.exactly_level_1,
@@ -759,13 +907,14 @@ pub(super) fn get_limited_moves_given_move_mask<
         };
 
         let worker_moves = move_mask & height_mask & !blockers;
-        worker_moves
+        put_moves_through_portals(worker_moves, portal)
     } else {
         let down_allowed_mask = get_down_allowed_mask(prelude, worker_start_height);
 
         let climb_height = get_worker_climb_height_raw(worker_start_height, prelude.can_climb);
         let worker_moves =
             move_mask & down_allowed_mask & !(prelude.board.height_map[climb_height] | blockers);
+        let worker_moves = put_moves_through_portals(worker_moves, portal);
 
         if APPLY_AFFINITY {
             restrict_moves_by_affinity_area(worker_start_mask, worker_moves, prelude.affinity_area)

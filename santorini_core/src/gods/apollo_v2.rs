@@ -28,7 +28,7 @@ pub(super) fn apollo_v2_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(apollo_v2_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     for worker_start_pos in prelude.acting_workers {
@@ -45,8 +45,8 @@ pub(super) fn apollo_v2_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     & prelude.board.height_map[worker_start_state.worker_start_height]),
         );
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
-            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+        if is_mate_only::<F>() || worker_start_state.can_mate {
+            let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
 
             for worker_end_pos in moves_to_level_3.into_iter() {
                 let swap_square =

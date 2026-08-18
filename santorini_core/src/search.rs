@@ -1,3 +1,4 @@
+use crate::gods::move_helpers::get_portal_squares;
 use std::{array, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
@@ -763,7 +764,11 @@ where
     // Don't bother taking the current eval if we're in check - we have to respond to it.
     if let Some(oppo_win) = oppo_win {
         eval = -win_at_ply(ply + 1);
-        let blocker_board = other_god.get_blocker_board(&state.board, oppo_win);
+        let blocker_board = other_god.get_blocker_board(
+            &state.board,
+            oppo_win,
+            get_portal_squares(&state, !state.board.current_player),
+        );
         child_moves = active_god.get_unscored_blocker_moves(
             &state,
             state.board.current_player,
@@ -947,7 +952,11 @@ where
 
         if let Some(oppo_winning_move) = oppo_winning_move {
             remaining_depth += 1;
-            let oppo_blocker_board = other_god.get_blocker_board(&state.board, oppo_winning_move);
+            let oppo_blocker_board = other_god.get_blocker_board(
+                &state.board,
+                oppo_winning_move,
+                get_portal_squares(&state, other_player_idx),
+            );
             Some(oppo_blocker_board)
         } else {
             // TODO: fix all these?

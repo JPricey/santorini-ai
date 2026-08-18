@@ -155,6 +155,8 @@ function actionToFill(actionType: PlayerActionType): string {
         case PlayerActionTypes.Dome:
         case PlayerActionTypes.SetTalusPosition:
             return 'purple'
+        case PlayerActionTypes.PlaceWhirlpool:
+            return 'deepskyblue'
         case PlayerActionTypes.EndTurn:
             return 'white'
         case PlayerActionTypes.NoMoves:

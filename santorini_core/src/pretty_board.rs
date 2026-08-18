@@ -42,7 +42,8 @@ fn _set_pretty_player(state: &FullGameState, player: Player, pretty_player: &mut
     pretty_player.god = state.gods[player as usize].god_name;
     pretty_player.workers = state.board.workers[player as usize].all_squares();
     pretty_player.tokens = (player_god.get_frozen_mask(&state.board, player)
-        | player_god.get_female_worker_mask(&state.board, player))
+        | player_god.get_female_worker_mask(&state.board, player)
+        | player_god.get_token_mask(&state.board, player))
     .all_squares();
     pretty_player.special_text = player_god.pretty_stringify_god_data(&state.board, player);
 }
@@ -159,6 +160,11 @@ pub fn game_state_with_partial_actions(
             }
             PartialAction::SetTalusPosition(square) => {
                 board.set_god_data(current_player, BitBoard::as_mask(square).0 as GodData);
+            }
+            PartialAction::PlaceWhirlpool(square) => {
+                let tokens = BitBoard(board.god_data[current_player as usize])
+                    | BitBoard::as_mask(square);
+                board.set_god_data(current_player, tokens.0 as GodData);
             }
             PartialAction::NoMoves
             | PartialAction::EndTurn

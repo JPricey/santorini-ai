@@ -341,7 +341,7 @@ fn _bellerophon_must_climb_not_using_power<const F: MoveGenFlags>(
             & height_mask
             & !prelude.all_workers_and_frozen_mask;
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             // Standard moves to level 3
             let standard_moves_to_level_3 = worker_moves & prelude.exactly_level_3;
             if push_winning_moves::<F, BellerophonMove, _>(

@@ -269,8 +269,8 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
             prelude.all_workers_and_frozen_mask,
         );
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
-            let moves_to_level_3 = worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+        if is_mate_only::<F>() || worker_start_state.can_mate {
+            let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, AeolusMove, _>(
                 result,
                 worker_start_pos,
@@ -359,7 +359,7 @@ pub(super) fn aeolus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
     let wind_direction_idx = state.board.god_data[player as usize] as usize;
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
+    modify_prelude_for_checking_workers::<F>(prelude.mate_start_mask, &mut prelude);
 
     if wind_direction_idx == 0 {
         for d in 0..=8 {

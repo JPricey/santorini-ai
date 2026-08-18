@@ -8,7 +8,7 @@ use crate::{
         god_power,
         mortal::MortalMove,
         move_helpers::{
-            build_scored_move, get_basic_moves, get_generator_prelude_state,
+            build_scored_move, get_active_portal, get_basic_moves, get_generator_prelude_state,
             get_worker_end_move_state, get_worker_next_build_state, get_worker_start_move_state,
             is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
         },
@@ -25,7 +25,7 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(pan_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2 | prelude.exactly_level_3;
+    let checkable_mask = prelude.mate_start_mask | prelude.exactly_level_3;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
     let wind_neighbor_map = prelude.standard_neighbor_map;
 
@@ -34,25 +34,21 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
         let mut worker_moves = get_basic_moves::<MUST_CLIMB>(&prelude, &worker_start_state);
 
-        if worker_start_state.worker_start_height == 2 {
-            let winning_moves = worker_moves
-                & (prelude.exactly_level_0 | prelude.exactly_level_3)
-                & prelude.win_mask;
+        // Pan's drop win needs a real move down, and a whirlpool exit is not one - using a
+        // whirlpool counts as moving up, so a worker flushed through the portal onto the ground
+        // has not dropped anywhere. It can still win the ordinary way, by surfacing on level 3.
+        let drop_squares = match worker_start_state.worker_start_height {
+            2 => prelude.exactly_level_0,
+            3 => prelude.exactly_level_0 | prelude.exactly_level_1,
+            _ => BitBoard::EMPTY,
+        } & !get_active_portal(&prelude, worker_start_state.worker_start_mask);
 
-            if push_winning_moves::<F, MortalMove, _>(
-                &mut result,
-                worker_start_pos,
-                winning_moves,
-                MortalMove::new_winning_move,
-            ) {
-                return result;
-            }
+        let mut winning_moves = worker_moves & drop_squares & prelude.win_mask;
+        if worker_start_state.can_mate {
+            winning_moves |= worker_moves & worker_start_state.winnable_squares;
+        }
 
-            worker_moves ^= winning_moves;
-        } else if worker_start_state.worker_start_height == 3 {
-            let winning_moves = worker_moves
-                & (prelude.exactly_level_0 | prelude.exactly_level_1)
-                & prelude.win_mask;
+        if winning_moves.is_not_empty() {
             if push_winning_moves::<F, MortalMove, _>(
                 &mut result,
                 worker_start_pos,
@@ -93,7 +89,7 @@ pub(super) fn pan_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             // dont worry about reach 3 vs hypnus because it's not possible to get up there
             if prelude.is_against_hypnus
-                && (other_lvl_2_workers.count_ones() as u32 + worker_end_move_state.is_now_lvl_2)
+                && (other_lvl_2_workers.count_ones() as u32 + worker_end_move_state.is_mate_capable)
                     < 2
             {
                 reach_2 = BitBoard::EMPTY

@@ -183,6 +183,51 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         }
     }
 
+    // Charybdis' whirlpools rewrite where the *opponent's* worker ends up, so every god she faces
+    // has to route its destinations through the portal. That falls out for free for gods whose
+    // movement goes through the shared `get_limited_moves_given_move_mask` funnel and that win the
+    // ordinary way, by climbing to level 3. Everything else - displacement, multi-step movement,
+    // hand-rolled destination sets, or a win condition that reads a height delta - needs its own
+    // audit, so it is banned until that audit happens.
+    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 25] = [
+        GodName::Mortal,
+        GodName::Pan,
+        GodName::Atlas,
+        GodName::Demeter,
+        GodName::Hephaestus,
+        GodName::Prometheus,
+        GodName::Athena,
+        GodName::Hades,
+        GodName::Hera,
+        GodName::Limus,
+        GodName::Hypnus,
+        GodName::Aphrodite,
+        GodName::Morpheus,
+        GodName::Aeolus,
+        GodName::Hestia,
+        GodName::Clio,
+        GodName::Zeus,
+        GodName::Ares,
+        GodName::Selene,
+        GodName::Hippolyta,
+        GodName::Asteria,
+        GodName::Polyphemus,
+        GodName::Poseidon,
+        GodName::Chronus,
+        GodName::Medusa,
+    ];
+    // Two of these are out for concrete reasons rather than "not audited yet". Europa: the Talus
+    // and a whirlpool can end up on the same square, and nothing in either card says what that
+    // square then is. Persephone: a whirlpool mate whose *entry* is a step down is a non-climbing
+    // win, so handing Charybdis a climb anywhere on the board suppresses it - a block that has
+    // nothing to do with the squares the win touches, and so nothing blocker generation can be
+    // asked for.
+    for god in ALL_GODS_BY_ID.iter() {
+        if !CHARYBDIS_AUDITED_OPPONENTS.contains(&god.god_name) {
+            add_matchup(GodName::Charybdis, god.god_name, BannedReason::Engine);
+        }
+    }
+
     // Ban every pair of chronus variants playing each other
     for i in 0..chronus_variants.len() {
         for j in i..chronus_variants.len() {

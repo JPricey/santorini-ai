@@ -316,14 +316,14 @@ fn _iris_get_worker_end_move_state<const F: MoveGenFlags>(
     let worker_end_mask = BitBoard::as_mask(worker_end_pos);
     let worker_end_height = prelude.board.get_height(worker_end_pos);
     let is_improving = worker_end_height > worker_start_state.worker_start_height;
-    let is_now_lvl_2 = (worker_end_height == 2) as u32;
+    let is_mate_capable = (prelude.mate_start_mask & worker_end_mask).is_not_empty() as u32;
 
     WorkerEndMoveState {
         worker_end_pos,
         worker_end_mask,
         worker_end_height,
         is_improving,
-        is_now_lvl_2,
+        is_mate_capable,
     }
 }
 

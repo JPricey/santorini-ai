@@ -184,7 +184,7 @@ pub(super) fn europa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     let mut result = persephone_check_result!(europa_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
-    let checkable_mask = prelude.exactly_level_2;
+    let checkable_mask = prelude.mate_start_mask;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     // At the start of a match the mask may be zero, so don't convert positions into squares
@@ -199,9 +199,9 @@ pub(super) fn europa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
         worker_next_moves.worker_moves &= anti_current_talus_mask;
 
-        if is_mate_only::<F>() || worker_start_state.worker_start_height == 2 {
+        if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
-                worker_next_moves.worker_moves & prelude.exactly_level_3 & prelude.win_mask;
+                worker_next_moves.worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, EuropaMove, _>(
                 &mut result,
                 worker_start_pos,
