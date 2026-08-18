@@ -31,12 +31,25 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 35 gods**, each fuzzed against Charybdis individually. Everything else is
+**Audited opponent list: 34 gods**, each fuzzed against Charybdis individually *and* covered by
+`test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
+matters - see below. Everything else is
 banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
 Nike, Eros, Iris, Hydra, Urania and both Chronus variants - the second batch cost two bug fixes
 (below) and no design changes, which is the evidence that the funnel approach in §5.3 holds.
 
-Three are banned for concrete reasons rather than "not audited yet":
+**Fuzzing cannot clear a god for this power.** A god that never routes destinations through the
+portal emits a move list that is entirely self-consistent - it is simply missing the teleport - so
+every invariant the checker knows about still holds. Ten gods were "cleared" on that basis and the
+clearance meant nothing. The real criterion is whether a god's movement goes through
+`get_limited_moves_given_move_mask`; the test above asserts the observable consequence of that, by
+reading outcomes off the board rather than out of the move encoding (every god packs its move
+struct differently, so decoding `move_to_position` only works for gods sharing Mortal's layout).
+
+Auditing that criterion caught **iris and urania** ignoring whirlpools entirely. Urania is fixed.
+Iris is fixed and then fails differently - see below.
+
+Four are banned for concrete reasons rather than "not audited yet":
 
 - **Europa** - the Talus and a whirlpool can occupy the same square, and neither card says what
   that square then is.
@@ -45,6 +58,15 @@ Three are banned for concrete reasons rather than "not audited yet":
   squares the win touches, so blocker generation cannot be asked for it.
 - **Harpies** - her slide is forced movement, which by the card does not trigger a whirlpool, but a
   slide that ends on one, or starts from one, needs an ordering ruling nobody has written down.
+- **Iris** - she reaches a whirlpool by jumping over a worker, so that worker is a stepping stone
+  and walking it away defuses the win. Key square narrowing matches on where a move *lands*, so it
+  cannot express that block, and the search would miss the defence.
+
+The displacement and multi-step families stay banned. Beyond needing per-step portal handling,
+**Apollo, ApolloV2 and Minotaur** infer *which* worker they displace from the destination square,
+which the swap rewrites - so their moves change meaning silently. And `get_active_portal` reads the
+pre-move board, so any god that relocates an opponent worker mid-turn (Charon, Scylla, Odysseus)
+can arm or disarm the portal in the middle of its own move.
 
 Two more general bugs fell out of the second batch:
 
