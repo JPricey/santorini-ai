@@ -853,3 +853,77 @@ pub(crate) const fn build_poseidon() -> GodPower {
         12412485317668298438,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::fen::game_state_to_fen;
+    use crate::matchup::Matchup;
+    use crate::player::Player;
+    use crate::random_utils::get_random_starting_state;
+    use crate::bitboard::BitBoard;
+    use crate::square::Square;
+    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use super::*;
+
+    fn build_counts(m: PoseidonMove) -> std::collections::HashMap<Square, usize> {
+        let mut c = std::collections::HashMap::new();
+        *c.entry(m.build_position()).or_insert(0) += 1;
+        if let Some(b1) = m.maybe_b1() {
+            *c.entry(b1).or_insert(0) += 1;
+            if let Some(b2) = m.maybe_b2() {
+                *c.entry(b2).or_insert(0) += 1;
+                if let Some(b3) = m.maybe_b3() {
+                    *c.entry(b3).or_insert(0) += 1;
+                }
+            }
+        }
+        c
+    }
+
+    #[test]
+    fn test_poseidon_never_builds_past_a_dome() {
+        // Poseidon builds several times and may target the same square more than once. If the
+        // running height is mistracked, a move can build past a dome, which crashes build_up.
+        let mut rng = StdRng::seed_from_u64(12345);
+        let matchup = Matchup::new(GodName::Poseidon, GodName::Pan);
+
+        for _ in 0..4000 {
+            let mut state = get_random_starting_state(&matchup, &mut rng);
+            // Raise random towers (0..=3, no pre-domes) so builds can reach a dome.
+            let occupied =
+                (state.board.workers[0] | state.board.workers[1]) & BitBoard::MAIN_SECTION_MASK;
+            for sq in BitBoard::MAIN_SECTION_MASK & !occupied {
+                for _ in 0..rng.random_range(0..=3) {
+                    state.board.build_up(sq);
+                }
+            }
+            if state.validation_err().is_err() {
+                continue;
+            }
+
+            let player = state.board.current_player;
+            let poseidon = if state.gods[0].god_name == GodName::Poseidon {
+                if player != Player::One { continue; }
+                state.gods[0]
+            } else {
+                if player != Player::Two { continue; }
+                state.gods[1]
+            };
+
+            for scored in poseidon.get_all_moves(&state, player) {
+                let m: PoseidonMove = scored.action.into();
+                if m.get_is_winning() {
+                    continue;
+                }
+                for (sq, count) in build_counts(m) {
+                    let start = state.board.get_height(sq);
+                    assert!(
+                        start + count <= 4,
+                        "{:?} builds {} on {:?} (starts at {}) -> {}\nposition: {}",
+                        m, count, sq, start, game_state_to_fen(&state), game_state_to_fen(&state)
+                    );
+                }
+            }
+        }
+    }
+}
