@@ -189,7 +189,7 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // ordinary way, by climbing to level 3. Everything else - displacement, multi-step movement,
     // hand-rolled destination sets, or a win condition that reads a height delta - needs its own
     // audit, so it is banned until that audit happens.
-    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 34] = [
+    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 35] = [
         GodName::Mortal,
         GodName::Pan,
         GodName::Atlas,
@@ -224,6 +224,7 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         GodName::Eros,
         GodName::Hydra,
         GodName::Urania,
+        GodName::Apollo,
     ];
     // What makes a god safe to face her is narrow: its movement has to go through
     // `get_limited_moves_given_move_mask`, which is where destinations get routed through the

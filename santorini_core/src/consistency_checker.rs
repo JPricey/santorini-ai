@@ -1657,15 +1657,14 @@ impl ConsistencyChecker {
         if new_height == 3 {
             let portal = get_portal_squares(state, current_player);
             if (portal & new_only).is_not_empty() {
-                let entry = portal ^ new_only;
                 let others = (state.board.workers[0] | state.board.workers[1]) & !old_only;
 
-                // A worker can only be standing on this whirlpool by having been flushed through
-                // from the other one, and that only happens while the other one is free. *How* it
-                // reached the entry square is movement legality - gods jump over workers, wrap
-                // around the board and chain moves to get there - and that is checked elsewhere,
-                // so this deliberately does not second-guess the route.
-                if (entry & others).is_empty() && (oppo_god.win_mask & new_only).is_not_empty() {
+                // The worker is standing on the exit whirlpool, so it was flushed through from the
+                // entry, which needs the exit to have been free. The *entry* may well have been
+                // occupied - a displacer (Apollo, Minotaur) shoves whoever was there out of the
+                // way as it steps on. And *how* it reached the entry is movement legality (jumps,
+                // wraps, chains, swaps), checked elsewhere, so this does not second-guess the route.
+                if (new_only & others).is_empty() && (oppo_god.win_mask & new_only).is_not_empty() {
                     return;
                 }
             }

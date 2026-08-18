@@ -11,7 +11,7 @@ use crate::{
         god_power,
         harpies::slide_position,
         move_helpers::{
-            build_scored_move, get_basic_moves_from_raw_data_with_custom_blockers,
+            build_scored_move, get_basic_moves_from_raw_data_with_custom_blockers_no_portal,
             get_generator_prelude_state, get_worker_start_move_state, is_interact_with_key_squares,
             is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers,
         },
@@ -184,6 +184,26 @@ impl GodMove for ApolloMove {
     }
 }
 
+/// Where a worker that moves onto `entry` actually ends up.
+///
+/// If `entry` is one of Charybdis' whirlpools and the other whirlpool is on the board and free of
+/// every worker except the one making this move, the mover is teleported to that partner. Apollo
+/// is a displacer, so - unlike a plain mover - the *entry* may be occupied: he swaps its occupant
+/// out and still teleports. Only the exit has to be free, which is why the strict "both whirlpools
+/// unoccupied" `get_active_portal` is not what we want here.
+fn apollo_portal_exit(portal: BitBoard, exit_blockers: BitBoard, entry: Square) -> Option<Square> {
+    let entry_mask = BitBoard::as_mask(entry);
+    if portal.count_ones() != 2 || (portal & entry_mask).is_empty() {
+        return None;
+    }
+    let exit = portal ^ entry_mask;
+    if (exit & exit_blockers).is_empty() {
+        Some(exit.lsb())
+    } else {
+        None
+    }
+}
+
 pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     state: &FullGameState,
     player: Player,
@@ -198,7 +218,9 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     for worker_start_pos in prelude.acting_workers {
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
-        let mut worker_moves = get_basic_moves_from_raw_data_with_custom_blockers::<MUST_CLIMB>(
+        // Raw entries, not portal-swapped: Apollo remaps entry->exit himself so he can also
+        // displace whoever stands on the entry whirlpool.
+        let mut worker_moves = get_basic_moves_from_raw_data_with_custom_blockers_no_portal::<MUST_CLIMB>(
             &prelude,
             worker_start_state.worker_start_pos,
             worker_start_state.worker_start_mask,
@@ -206,31 +228,44 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             worker_start_state.other_own_workers | prelude.domes_and_frozen,
         );
 
-        if is_mate_only::<F>() || worker_start_state.can_mate {
-            let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
+        // A worker moving onto a whirlpool ends up on the *other* one, which can be a winning
+        // square at any height at all - so wins are scanned over the move's *outcome*, not its
+        // entry. With no portal on the board this collapses to the old `winnable_squares` scan.
+        let portal = prelude.portal_squares;
+        let exit_blockers =
+            (prelude.own_workers ^ worker_start_state.worker_start_mask) | prelude.oppo_workers;
 
-            for worker_end_pos in moves_to_level_3.into_iter() {
-                let swap_square =
-                    if (BitBoard::as_mask(worker_end_pos) & prelude.oppo_workers).is_empty() {
-                        None
-                    } else {
-                        Some(worker_end_pos)
-                    };
-                let winning_move = ScoredMove::new_winning_move(
-                    ApolloMove::new_apollo_winning_move(
-                        worker_start_pos,
-                        worker_end_pos,
-                        swap_square,
-                    )
-                    .into(),
-                );
-                result.push(winning_move);
+        if is_mate_only::<F>() || worker_start_state.can_mate || portal.is_not_empty() {
+            let mut winning_entries = BitBoard::EMPTY;
+
+            for entry_pos in worker_moves {
+                let entry_mask = BitBoard::as_mask(entry_pos);
+                let outcome_pos =
+                    apollo_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
+
+                if (BitBoard::as_mask(outcome_pos) & prelude.exactly_level_3 & prelude.win_mask)
+                    .is_empty()
+                {
+                    continue;
+                }
+
+                let swap_square = if (entry_mask & prelude.oppo_workers).is_not_empty() {
+                    Some(entry_pos)
+                } else {
+                    None
+                };
+
+                result.push(ScoredMove::new_winning_move(
+                    ApolloMove::new_apollo_winning_move(worker_start_pos, outcome_pos, swap_square)
+                        .into(),
+                ));
+                winning_entries |= entry_mask;
                 if is_stop_on_mate::<F>() {
                     return result;
                 }
             }
 
-            worker_moves ^= moves_to_level_3;
+            worker_moves ^= winning_entries;
         }
 
         if is_mate_only::<F>() {
@@ -242,24 +277,33 @@ pub(super) fn apollo_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_neighbors =
             apply_mapping_to_mask(other_threatening_workers, &prelude.standard_neighbor_map);
 
-        for mut worker_end_pos in worker_moves {
+        for entry_pos in worker_moves {
+            let entry_mask = BitBoard::as_mask(entry_pos);
+
+            // Apollo displaces whoever sits on the square he steps onto (the entry), even when the
+            // whirlpool then teleports him somewhere else. So the swap always keys off the entry,
+            // while everything downstream - build, reach, height - keys off where he ends up.
+            let mut worker_end_pos =
+                apollo_portal_exit(portal, exit_blockers, entry_pos).unwrap_or(entry_pos);
             let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
 
-            let is_swap = (BitBoard::as_mask(worker_end_pos) & prelude.oppo_workers).is_not_empty();
+            let is_swap = (entry_mask & prelude.oppo_workers).is_not_empty();
             let mut final_other_workers = prelude.oppo_workers;
             let mut final_build_mask = prelude.build_mask;
             let mut swap_square = None;
 
             let mut swap_mask = BitBoard::EMPTY;
             if is_swap {
-                final_other_workers ^= worker_end_mask | worker_start_state.worker_start_mask;
+                final_other_workers ^= entry_mask | worker_start_state.worker_start_mask;
                 final_build_mask =
                     prelude.other_god.get_build_mask(final_other_workers) | prelude.exactly_level_3;
-                swap_square = Some(worker_end_pos);
-                swap_mask = BitBoard::as_mask(worker_end_pos);
+                swap_square = Some(entry_pos);
+                swap_mask = entry_mask;
             }
 
             if prelude.is_against_harpies {
+                // Harpies and Charybdis can never both be the opponent, so `portal` is empty here
+                // and `worker_end_pos` is just the entry - the slide behaves exactly as before.
                 worker_end_pos = slide_position(&prelude, worker_start_pos, worker_end_pos);
                 worker_end_mask = BitBoard::as_mask(worker_end_pos);
             }
@@ -336,4 +380,89 @@ pub const fn build_apollo() -> GodPower {
         3394957705078584374,
         7355591628209476781,
     )
+}
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(mut state: FullGameState, player: Player, squares: &[Square]) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    #[test]
+    fn test_apollo_displaces_onto_a_whirlpool_and_teleports() {
+        // Charybdis' worker stands on whirlpool D4; Apollo steps onto D4, shoving her worker to his
+        // own vacated square, and is teleported to the free partner E1.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Apollo)
+                .with_p1_worker(D4)
+                .with_p1_worker(A1)
+                .with_p2_worker(C3)
+                .with_p2_worker(E5)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E1],
+        );
+
+        let apollo = GodName::Apollo.to_power();
+        let mut found = false;
+        for scored in apollo.get_all_moves(&state, Player::Two) {
+            let m: ApolloMove = scored.action.into();
+            if m.get_is_winning() || m.move_from_position() != C3 || m.move_to_position() != E1 {
+                continue;
+            }
+            found = true;
+
+            let next = state.next_state(apollo, GodName::Charybdis.to_power(), scored.action);
+            // Apollo ends on the exit, Charybdis' worker is shoved to Apollo's start, entry empties.
+            assert!(next.board.workers[Player::Two as usize].contains_square(E1));
+            assert!(next.board.workers[Player::One as usize].contains_square(C3));
+            assert!(!next.board.workers[Player::One as usize].contains_square(D4));
+        }
+        assert!(found, "expected Apollo to displace onto D4 and surface at E1");
+    }
+
+    #[test]
+    fn test_apollo_wins_by_teleporting_onto_a_level_three_whirlpool() {
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Apollo)
+                .with_p1_worker(A1)
+                .with_p1_worker(B1)
+                .with_p2_worker(C3)
+                .with_p2_worker(E5)
+                .with_height(E1, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E1],
+        );
+        // E1 is level 3; D4 empty. Apollo steps onto D4 and surfaces on E1 to win.
+        let wins = GodName::Apollo.to_power().get_winning_moves(&state, Player::Two);
+        let mut found = false;
+        for scored in &wins {
+            let m: ApolloMove = scored.action.into();
+            if m.move_from_position() == C3 && m.move_to_position() == E1 {
+                found = true;
+                let next = state.next_state(
+                    GodName::Apollo.to_power(),
+                    GodName::Charybdis.to_power(),
+                    scored.action,
+                );
+                assert_eq!(next.get_winner(), Some(Player::Two));
+            }
+        }
+        assert!(found, "expected an Apollo portal win onto E1");
+    }
 }

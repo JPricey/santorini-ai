@@ -830,7 +830,7 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers_no_affinity<
 ) -> BitBoard {
     let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize];
 
-    get_limited_moves_given_move_mask::<MUST_CLIMB, false>(
+    get_limited_moves_given_move_mask::<MUST_CLIMB, false, true>(
         prelude,
         move_mask,
         BitBoard::EMPTY,
@@ -848,7 +848,27 @@ pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers<const MUST_CLIM
 ) -> BitBoard {
     let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize];
 
-    get_limited_moves_given_move_mask::<MUST_CLIMB, true>(
+    get_limited_moves_given_move_mask::<MUST_CLIMB, true, true>(
+        prelude,
+        move_mask,
+        worker_start_mask,
+        worker_start_height,
+        blockers,
+    )
+}
+
+/// Like `get_basic_moves_from_raw_data_with_custom_blockers`, but leaves whirlpools untouched so
+/// a displacement god can remap the entry to the exit itself. Returns the raw reachable *entries*.
+pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers_no_portal<const MUST_CLIMB: bool>(
+    prelude: &GeneratorPreludeState,
+    worker_start_pos: Square,
+    worker_start_mask: BitBoard,
+    worker_start_height: usize,
+    blockers: BitBoard,
+) -> BitBoard {
+    let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize];
+
+    get_limited_moves_given_move_mask::<MUST_CLIMB, true, false>(
         prelude,
         move_mask,
         worker_start_mask,
@@ -868,7 +888,7 @@ pub(super) fn get_basic_moves_from_with_two_movement_maps<const MUST_CLIMB: bool
     let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize]
         & extra_movement_map[worker_start_pos as usize];
 
-    get_limited_moves_given_move_mask::<MUST_CLIMB, true>(
+    get_limited_moves_given_move_mask::<MUST_CLIMB, true, true>(
         prelude,
         move_mask,
         worker_start_mask,
@@ -905,6 +925,7 @@ pub(super) fn get_down_allowed_mask(
 pub(super) fn get_limited_moves_given_move_mask<
     const MUST_CLIMB: bool,
     const APPLY_AFFINITY: bool,
+    const APPLY_PORTAL: bool,
 >(
     prelude: &GeneratorPreludeState,
     move_mask: BitBoard,
@@ -915,7 +936,15 @@ pub(super) fn get_limited_moves_given_move_mask<
     // Whirlpools are applied *after* the height filters and *before* the affinity filter: only the
     // entry leg of a portal move has a height delta (so Athena, Hades and Persephone all judge the
     // entry), but the worker physically ends up on the exit square (so Aphrodite judges that).
-    let portal = get_active_portal(prelude, worker_start_mask);
+    //
+    // Displacement gods (Apollo, Minotaur) turn this off and remap entries to exits themselves,
+    // because they also have to move whoever was standing on the entry - which the plain swap,
+    // designed for a lone mover, cannot express.
+    let portal = if APPLY_PORTAL {
+        get_active_portal(prelude, worker_start_mask)
+    } else {
+        BitBoard::EMPTY
+    };
 
     if MUST_CLIMB {
         let height_mask = match worker_start_height {
