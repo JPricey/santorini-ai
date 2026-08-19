@@ -411,3 +411,85 @@ pub(crate) const fn build_charon_v2() -> GodPower {
         4632020203302486643,
     )
 }
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// CharonV2's move branch is an ordinary lone move, so it teleports like anyone else.
+    #[test]
+    fn test_charon_v2_teleports_on_his_ordinary_move() {
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::CharonV2)
+                .with_p1_worker(A1)
+                .with_p1_worker(A2)
+                .with_p2_worker(C3)
+                .with_p2_worker(E5)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E1],
+        );
+
+        let god = GodName::CharonV2.to_power();
+        let found = god.get_all_moves(&state, Player::Two).iter().any(|scored| {
+            let m: CharonV2Move = scored.action.into();
+            m.move_from_position() == C3 && m.maybe_move_to_position() == Some(E1)
+        });
+        assert!(found, "stepping into D4 has to surface at E1");
+    }
+
+    /// His flip is an *alternative* to moving - he stays put - so it can never trigger a teleport,
+    /// however the push rearranges the whirlpools.
+    #[test]
+    fn test_charon_v2_never_teleports_on_a_flip() {
+        // Whirlpools C4 and E2, both free, so the portal is armed. Pushing C2 through to C4 fills
+        // one of them, but either way CharonV2 does not move, so he stays on C3.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::CharonV2)
+                .with_p1_worker(C2)
+                .with_p1_worker(A5)
+                .with_p2_worker(C3)
+                .with_p2_worker(A1)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C4, E2],
+        );
+
+        let god = GodName::CharonV2.to_power();
+        let oppo = GodName::Charybdis.to_power();
+        let mut saw_flip = false;
+        for scored in god.get_all_moves(&state, Player::Two) {
+            let m: CharonV2Move = scored.action.into();
+            if m.maybe_move_to_position().is_some() || m.flip_from_position() != C2 {
+                continue;
+            }
+            saw_flip = true;
+            let next = state.next_state(god, oppo, scored.action);
+            assert!(
+                next.board.workers[Player::Two as usize].contains_square(C3),
+                "a flipping CharonV2 does not move, so he cannot be teleported"
+            );
+        }
+        assert!(saw_flip, "expected the C2 -> C4 push to be generated");
+    }
+}
