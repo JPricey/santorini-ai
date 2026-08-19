@@ -14,12 +14,14 @@ use crate::{
         god_power,
         move_helpers::{
             GeneratorPreludeState, build_scored_move,
+            get_active_portal, get_active_portal_after_displacement,
             get_basic_moves_from_raw_data_with_custom_blockers_no_affinity,
             get_generator_prelude_state, get_reverse_direction_neighbor_map,
             get_standard_reach_board_from_parts, get_worker_end_move_state,
             get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
-            is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
-            restrict_moves_by_affinity_area,
+            is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers,
+            push_winning_moves, put_moves_through_portals,
+            restrict_moves_by_affinity_area, winnable_squares_for_arrival,
         },
     },
     persephone_check_result,
@@ -295,19 +297,36 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let other_threatening_neighbors =
             apply_mapping_to_mask(other_threatening_workers, &prelude.standard_neighbor_map);
 
-        let mut base_moves_no_affinity_or_oppo_workers =
-            get_basic_moves_from_raw_data_with_custom_blockers_no_affinity::<MUST_CLIMB>(
+        // Raw entries, not portal-swapped. Charon's flip happens *before* he moves, so it can arm a
+        // portal by pulling a worker off a whirlpool, or disarm one by pulling a worker onto it.
+        // Whether the teleport is available therefore depends on which flip he picks, and the swap
+        // has to be re-applied per flip against post-flip occupancy rather than baked in here.
+        let base_entries_no_affinity_or_oppo_workers =
+            get_basic_moves_from_raw_data_with_custom_blockers_no_affinity::<MUST_CLIMB, false>(
                 &prelude,
                 worker_start_state.worker_start_pos,
+                worker_start_state.worker_start_mask,
                 worker_start_state.worker_start_height,
                 non_oppo_worker_blockers,
             );
 
+        // With no flip nothing is displaced, so this is the ordinary lone-mover portal - the same
+        // one `worker_start_state.winnable_squares` was built from.
+        let no_flip_portal = get_active_portal(&prelude, worker_start_state.worker_start_mask);
+
         let mut mortal_moves = restrict_moves_by_affinity_area(
             worker_start_state.worker_start_mask,
-            base_moves_no_affinity_or_oppo_workers & !prelude.oppo_workers,
+            put_moves_through_portals(
+                base_entries_no_affinity_or_oppo_workers & !prelude.oppo_workers,
+                no_flip_portal,
+            ),
             prelude.affinity_area,
         );
+
+        // Squares he can already win on without flipping anybody. Kept in *outcome* space, and
+        // subtracted per flip below rather than removed from the base: the base is in entry space,
+        // and the same entry can lead somewhere else entirely under a flip that disarms the portal.
+        let mut no_flip_winning_outcomes = BitBoard::EMPTY;
 
         if is_mate_only::<F>() || worker_start_state.can_mate {
             let mortal_moves_to_level_3 = mortal_moves & worker_start_state.winnable_squares;
@@ -322,10 +341,7 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
 
             mortal_moves ^= mortal_moves_to_level_3;
-
-            // If we can win without flipping, then don't let user win by flipping
-            // Yeah it's technically allowed but whatever
-            base_moves_no_affinity_or_oppo_workers ^= mortal_moves_to_level_3;
+            no_flip_winning_outcomes = mortal_moves_to_level_3;
         }
 
         if !is_mate_only::<F>() {
@@ -383,7 +399,10 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         }
 
         if is_mate_only::<F>() {
-            if (base_moves_no_affinity_or_oppo_workers & prelude.exactly_level_3).is_empty() {
+            if (base_entries_no_affinity_or_oppo_workers
+                & (prelude.exactly_level_3 | prelude.portal_squares))
+                .is_empty()
+            {
                 continue;
             }
         }
@@ -392,12 +411,18 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         if is_mate_only::<F>() {
             if prelude.other_god.is_aphrodite {
                 // If we're against aphrodite and only looking for mates, only bother checking if there's actually level 3's available
-                if (base_moves_no_affinity_or_oppo_workers & prelude.exactly_level_3).is_empty() {
+                if (base_entries_no_affinity_or_oppo_workers
+                    & (prelude.exactly_level_3 | prelude.portal_squares))
+                    .is_empty()
+                {
                     continue;
                 }
             } else {
-                // Unless we're against Aphrodite, only consider flips that actually open up level 3 squares
-                possible_flips &= prelude.exactly_level_3;
+                // Unless we're against Aphrodite, only consider flips that actually open up a square
+                // worth winning on. That is normally just the level 3 squares, but pulling a worker
+                // off a *whirlpool* arms the portal, and the mate is then stepping into that
+                // whirlpool - from any height - and surfacing on a level 3 exit.
+                possible_flips &= prelude.exactly_level_3 | prelude.portal_squares;
             }
         }
 
@@ -416,8 +441,19 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             let all_blockers_after_flip = non_oppo_worker_blockers | new_oppo_workers;
             let unblocked_squares_after_flip = !all_blockers_after_flip;
 
-            let mut moves_after_flip =
-                base_moves_no_affinity_or_oppo_workers & unblocked_squares_after_flip;
+            // The flip resolves before Charon moves, so the portal he arrives into is the one left
+            // standing afterwards: dragging a worker off a whirlpool arms it, dragging one onto a
+            // whirlpool disarms it. Both directions change which moves exist and which of them win.
+            let portal_after_flip = get_active_portal_after_displacement(
+                &prelude,
+                worker_start_state.worker_start_mask | flip_start_mask,
+                flip_dest_mask,
+            );
+
+            let mut moves_after_flip = put_moves_through_portals(
+                base_entries_no_affinity_or_oppo_workers & unblocked_squares_after_flip,
+                portal_after_flip,
+            );
 
             if prelude.other_god.is_aphrodite {
                 let new_affinity_area =
@@ -430,8 +466,17 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
             }
 
             if is_mate_only::<F>() || worker_start_state.can_mate {
-                let moves_to_level_3 =
-                    moves_after_flip & worker_start_state.winnable_squares;
+                let winning_outcomes = moves_after_flip
+                    & winnable_squares_for_arrival(
+                        &prelude,
+                        worker_start_state.worker_start_height,
+                        portal_after_flip,
+                    );
+
+                // Every winning square leaves the quiet set, but only the ones the flip actually
+                // opened up are emitted - winning here what he could already win without flipping
+                // is legal, just pointless.
+                let moves_to_level_3 = winning_outcomes & !no_flip_winning_outcomes;
 
                 for worker_end_pos in moves_to_level_3 {
                     let new_action = CharonMove::new_charon_winning_flip_move(
@@ -446,7 +491,7 @@ pub(super) fn charon_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     }
                 }
 
-                moves_after_flip ^= moves_to_level_3;
+                moves_after_flip ^= winning_outcomes;
             }
 
             if is_mate_only::<F>() {
@@ -536,4 +581,161 @@ pub const fn build_charon() -> GodPower {
         15324631767000384691,
         2986174260566155220,
     )
+}
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// Charon's pull resolves before he moves, so pulling a worker off a whirlpool arms the portal
+    /// within the same turn - and the mate that opens up starts from a worker that cannot climb.
+    #[test]
+    fn test_charon_arms_the_portal_by_pulling_a_worker_off_it() {
+        // Whirlpools C5 and B2. C5 is held by a Charybdis worker, so the portal is shut. Charon at
+        // D4 pulls C5 through to E3, freeing C5, then steps onto it and surfaces on B2 at level 3.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Charon)
+                .with_p1_worker(C5)
+                .with_p1_worker(A5)
+                .with_p2_worker(D4)
+                .with_p2_worker(A1)
+                .with_height(B2, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C5, B2],
+        );
+
+        let charon = GodName::Charon.to_power();
+        let wins = charon.get_winning_moves(&state, Player::Two);
+
+        let mut found = false;
+        for scored in &wins {
+            let m: CharonMove = scored.action.into();
+            if m.move_from_position() == D4
+                && m.move_to_position() == B2
+                && m.maybe_flip_from_position() == Some(C5)
+            {
+                found = true;
+                let next =
+                    state.next_state(charon, GodName::Charybdis.to_power(), scored.action);
+                assert_eq!(next.get_winner(), Some(Player::Two));
+                assert!(next.board.workers[Player::Two as usize].contains_square(B2));
+            }
+        }
+        assert!(
+            found,
+            "expected Charon to pull C5 free, enter it, and surface on B2. Wins: {:?}",
+            wins.iter()
+                .map(|m| charon.stringify_move(m.action))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// The mirror case: a pull that parks a worker *onto* a whirlpool shuts the portal down for
+    /// Charon's own move, so the teleport that would otherwise be available is not generated.
+    #[test]
+    fn test_charon_disarms_the_portal_by_pulling_a_worker_onto_it() {
+        // Whirlpools C4 and E2, both free, so the portal is armed. Charon at C3 can pull the
+        // Charybdis worker at C2 through to C4, which shuts the portal.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Charon)
+                .with_p1_worker(C2)
+                .with_p1_worker(A5)
+                .with_p2_worker(C3)
+                .with_p2_worker(A1)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C4, E2],
+        );
+
+        let charon = GodName::Charon.to_power();
+        for scored in charon.get_all_moves(&state, Player::Two) {
+            let m: CharonMove = scored.action.into();
+            if m.maybe_flip_from_position() != Some(C2) {
+                continue;
+            }
+            // C4 is filled by the pulled worker, so it is neither enterable nor a usable exit:
+            // no move on this flip may land on either whirlpool.
+            assert_ne!(
+                m.move_to_position(),
+                C4,
+                "C4 is occupied by the pulled worker"
+            );
+            assert_ne!(
+                m.move_to_position(),
+                E2,
+                "the portal is shut, so nothing should surface on E2"
+            );
+        }
+    }
+
+    /// A flip that shuts the portal changes where an entry *leads*, so the entry stays legal even
+    /// when the same square would have been a winning teleport without the flip. Removing it
+    /// wholesale (which the entry-space bookkeeping used to do) silently loses this move.
+    #[test]
+    fn test_charon_may_still_enter_a_whirlpool_whose_exit_his_flip_just_blocked() {
+        // Whirlpools C2 and D3, both free, so C3 -> C2 would surface on D3 and win. Flipping B3
+        // through to D3 parks a worker on the exit, so the same step onto C2 just lands on C2.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Charon)
+                .with_p1_worker(B3)
+                .with_p1_worker(A5)
+                .with_p2_worker(C3)
+                .with_p2_worker(A1)
+                .with_height(D3, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C2, D3],
+        );
+
+        let charon = GodName::Charon.to_power();
+
+        // Without a flip it is a portal win.
+        assert!(
+            charon
+                .get_winning_moves(&state, Player::Two)
+                .iter()
+                .any(|m| {
+                    let m: CharonMove = m.action.into();
+                    m.move_from_position() == C3
+                        && m.move_to_position() == D3
+                        && m.maybe_flip_from_position().is_none()
+                }),
+            "expected the no-flip portal win onto D3"
+        );
+
+        // With the flip blocking the exit, stepping onto C2 is an ordinary quiet move.
+        let found = charon.get_all_moves(&state, Player::Two).iter().any(|m| {
+            let m: CharonMove = m.action.into();
+            !m.get_is_winning()
+                && m.maybe_flip_from_position() == Some(B3)
+                && m.move_from_position() == C3
+                && m.move_to_position() == C2
+        });
+        assert!(
+            found,
+            "flipping B3 onto D3 shuts the portal, so C3 -> C2 has to stay available"
+        );
+    }
 }

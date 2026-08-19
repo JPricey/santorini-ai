@@ -319,12 +319,11 @@ pub(super) fn get_worker_start_move_state(
     let non_moving_workers = prelude.oppo_workers | other_own_workers;
     let can_mate = (prelude.mate_start_mask & worker_start_mask).is_not_empty();
 
-    let arrival_mask = if worker_start_height == 2 {
-        BitBoard::MAIN_SECTION_MASK
-    } else {
-        get_active_portal(prelude, worker_start_mask)
-    };
-    let winnable_squares = prelude.exactly_level_3 & prelude.win_mask & arrival_mask;
+    let winnable_squares = winnable_squares_for_arrival(
+        prelude,
+        worker_start_height,
+        get_active_portal(prelude, worker_start_mask),
+    );
 
     WorkerStartMoveState {
         worker_start_pos,
@@ -459,6 +458,27 @@ pub(super) fn displacer_portal_exit(
     } else {
         None
     }
+}
+
+/// The level 3 squares a lone mover starting at `worker_start_height` actually wins on, given the
+/// portal it will arrive into.
+///
+/// You have to move *up* onto level 3, so normally only a level 2 worker wins anywhere. The
+/// exception is the whirlpool exit, which wins from any height. `active_portal` is the portal as
+/// judged at the moment the mover arrives - for a god that relocates workers first, that is the
+/// post-displacement portal, which is why this takes it as an argument instead of recomputing it.
+pub(super) fn winnable_squares_for_arrival(
+    prelude: &GeneratorPreludeState,
+    worker_start_height: usize,
+    active_portal: BitBoard,
+) -> BitBoard {
+    let arrival_mask = if worker_start_height == 2 {
+        BitBoard::MAIN_SECTION_MASK
+    } else {
+        active_portal
+    };
+
+    prelude.exactly_level_3 & prelude.win_mask & arrival_mask
 }
 
 /// Rewrite a set of destinations so that entering a whirlpool lands on the other one.
@@ -844,20 +864,29 @@ pub(super) fn get_basic_moves_from_raw_data<const MUST_CLIMB: bool>(
     )
 }
 
+/// The affinity filter is skipped, but `worker_start_mask` is still required: the portal test needs
+/// it to know that the mover's own square is empty by the time it arrives, so a worker *standing* on
+/// a whirlpool can still teleport off it.
+///
+/// `APPLY_PORTAL=false` returns the raw reachable *entries*, for a god whose turn relocates other
+/// workers before it moves - it has to re-judge the portal against post-displacement occupancy and
+/// apply the swap itself.
 pub(super) fn get_basic_moves_from_raw_data_with_custom_blockers_no_affinity<
     const MUST_CLIMB: bool,
+    const APPLY_PORTAL: bool,
 >(
     prelude: &GeneratorPreludeState,
     worker_start_pos: Square,
+    worker_start_mask: BitBoard,
     worker_start_height: usize,
     blockers: BitBoard,
 ) -> BitBoard {
     let move_mask = prelude.standard_neighbor_map[worker_start_pos as usize];
 
-    get_limited_moves_given_move_mask::<MUST_CLIMB, false, true>(
+    get_limited_moves_given_move_mask::<MUST_CLIMB, false, APPLY_PORTAL>(
         prelude,
         move_mask,
-        BitBoard::EMPTY,
+        worker_start_mask,
         worker_start_height,
         blockers,
     )

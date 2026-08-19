@@ -211,9 +211,10 @@ pub(super) fn scylla_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         let worker_start_state = get_worker_start_move_state(&prelude, worker_start_pos);
 
         let mut worker_moves_no_affinity_restriction =
-            get_basic_moves_from_raw_data_with_custom_blockers_no_affinity::<MUST_CLIMB>(
+            get_basic_moves_from_raw_data_with_custom_blockers_no_affinity::<MUST_CLIMB, true>(
                 &prelude,
                 worker_start_state.worker_start_pos,
+                worker_start_state.worker_start_mask,
                 worker_start_state.worker_start_height,
                 blocked_squares,
             );
@@ -310,6 +311,13 @@ pub(super) fn scylla_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 let worker_end_move_state =
                     get_worker_end_move_state::<F>(&prelude, &worker_start_state, worker_move_pos);
 
+                // A worker standing on one whirlpool can step onto the other and be flushed straight
+                // back to where it started. It never vacates that square, so there is nothing to
+                // drag the opponent into - the drag would stack two workers on it.
+                if worker_end_move_state.worker_end_pos == worker_start_pos {
+                    continue;
+                }
+
                 let all_possible_builds = NEIGHBOR_MAP
                     [worker_end_move_state.worker_end_pos as usize]
                     & !(all_blockers_after_drag)
@@ -373,4 +381,132 @@ pub const fn build_scylla() -> GodPower {
         12345678901234567890,
         9876543210987654321,
     )
+}
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// Scylla's drag target is the square she *vacated*, which the teleport never touches - so the
+    /// three-square outcome is mover-on-exit, dragged-worker-on-her-start, entry empty.
+    #[test]
+    fn test_scylla_drags_into_her_start_after_teleporting() {
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Scylla)
+                .with_p1_worker(B3)
+                .with_p1_worker(A1)
+                .with_p2_worker(C3)
+                .with_p2_worker(E5)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E1],
+        );
+
+        let scylla = GodName::Scylla.to_power();
+        let mut found = false;
+        for scored in scylla.get_all_moves(&state, Player::Two) {
+            let m: ScyllaMoveMove = scored.action.into();
+            if m.get_is_winning()
+                || m.move_from_position() != C3
+                || m.move_to_position() != E1
+                || m.maybe_drag_from_position() != Some(B3)
+            {
+                continue;
+            }
+            found = true;
+
+            let next = state.next_state(scylla, GodName::Charybdis.to_power(), scored.action);
+            // Scylla surfaces on the exit, the dragged worker takes her vacated start, D4 is empty.
+            assert!(next.board.workers[Player::Two as usize].contains_square(E1));
+            assert!(next.board.workers[Player::One as usize].contains_square(C3));
+            assert!(!next.board.workers[Player::One as usize].contains_square(B3));
+            assert!(!next.board.workers[Player::Two as usize].contains_square(D4));
+        }
+        assert!(
+            found,
+            "expected Scylla to step onto D4, surface at E1, and drag B3 into C3"
+        );
+    }
+
+    /// A worker standing on one whirlpool steps onto the other and is flushed straight back. It
+    /// never vacates its square, so no drag may be attached - that would stack two workers on it.
+    #[test]
+    fn test_scylla_cannot_drag_when_flushed_back_to_her_start() {
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Scylla)
+                .with_p1_worker(D3)
+                .with_p1_worker(A1)
+                .with_p2_worker(D4)
+                .with_p2_worker(A5)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E4],
+        );
+
+        // Scylla stands on D4 and E4 is free, so stepping onto E4 flushes her back to D4.
+        for scored in GodName::Scylla.to_power().get_all_moves(&state, Player::Two) {
+            let m: ScyllaMoveMove = scored.action.into();
+            if m.move_from_position() == D4 && m.move_to_position() == D4 {
+                assert_eq!(
+                    m.maybe_drag_from_position(),
+                    None,
+                    "a flushed-back Scylla never vacates her square, so she cannot drag into it"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_scylla_wins_by_teleporting_onto_a_level_three_whirlpool() {
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Scylla)
+                .with_p1_worker(A1)
+                .with_p1_worker(B1)
+                .with_p2_worker(C3)
+                .with_p2_worker(E5)
+                .with_height(E1, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[D4, E1],
+        );
+
+        let wins = GodName::Scylla
+            .to_power()
+            .get_winning_moves(&state, Player::Two);
+        let mut found = false;
+        for scored in &wins {
+            let m: ScyllaMoveMove = scored.action.into();
+            if m.move_from_position() == C3 && m.move_to_position() == E1 {
+                found = true;
+                let next = state.next_state(
+                    GodName::Scylla.to_power(),
+                    GodName::Charybdis.to_power(),
+                    scored.action,
+                );
+                assert_eq!(next.get_winner(), Some(Player::Two));
+            }
+        }
+        assert!(found, "expected a Scylla portal win onto E1");
+    }
 }

@@ -2,8 +2,8 @@
 
 ## Implementation status (as built)
 
-Landed on `dev`, engine + UI building, 157 tests green, and the fuzzer clean against every audited
-opponent (37 gods, including the first three displacement gods - see "Displacement family" below).
+Landed on `dev`, engine + UI building, 163 tests green, and the fuzzer clean against every audited
+opponent (39 gods, including five displacement gods - see "Displacement family" below).
 
 **Built as planned:** outcome encoding (D1), the portal swap in the shared movement funnel (§5.3),
 the height rule from §1a (entry-only restrictions, win-check-only fiction), `mate_start_mask` /
@@ -31,13 +31,14 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 37 gods**, each fuzzed against Charybdis individually *and* covered by
+**Audited opponent list: 39 gods**, each fuzzed against Charybdis individually *and* covered by
 `test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
 matters - see below. Everything else is
 banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
 Nike, Eros, Iris, Hydra, Urania and both Chronus variants - that batch cost two bug fixes
 (below) and no design changes, which is the evidence that the funnel approach in §5.3 holds - plus
-the first three displacement gods, **Apollo, Minotaur and ApolloV2** (see "Displacement family" below).
+five displacement gods, **Apollo, Minotaur, ApolloV2, Scylla and Charon** (see "Displacement family"
+below).
 
 **Fuzzing cannot clear a god for this power.** A god that never routes destinations through the
 portal emits a move list that is entirely self-consistent - it is simply missing the teleport - so
@@ -71,7 +72,7 @@ Two more general bugs fell out of that batch:
   flushed back onto its own square never appears to have moved, and the win validator asserts it
   can identify the moved worker.
 
-### Displacement family (Apollo, Minotaur, ApolloV2 done; the rest next)
+### Displacement family (Apollo, Minotaur, ApolloV2, Scylla, Charon done; the rest next)
 
 A displacer stepping onto a whirlpool is a **three-square outcome**: the mover teleports to the
 exit, the displaced worker goes where the god's rule sends it, and the entry empties. Two pieces of
@@ -85,8 +86,17 @@ shared machinery were wrong for this, and both are now fixed:
 - **`get_active_portal` is too strict** - it disarms when *either* whirlpool is occupied. A
   displacer only needs the *exit* free, since it clears the entry as it steps on. `displacer_portal_exit`
   encodes that (only the exit is checked), and the win validator no longer requires the entry empty,
-  only the exit. (The pre-committed `get_active_portal_after_displacement` primitive turned out not
-  to be the right shape and is currently unused - a per-entry exit is what displacers actually need.)
+  only the exit. (The pre-committed `get_active_portal_after_displacement` primitive is not the
+  right shape for a *stepping* displacer - a per-entry exit is what those need - but it turned out
+  to be exactly right for the **pull** family, see Charon below.)
+
+**The displacement family splits in two, by when the displacement resolves.** A god that displaces
+by *stepping onto* the victim (Apollo, Minotaur) needs the per-entry `displacer_portal_exit`. A god
+that relocates somebody *before or after* its own move (Charon pulls first, Scylla drags after) is
+still a lone mover at the moment it teleports - it just needs the portal judged against the right
+board. That is `get_active_portal_after_displacement(vacated, newly_filled)`, plus
+`winnable_squares_for_arrival`, which recomputes the win mask from the portal a move will actually
+arrive into rather than the one the prelude saw.
 
 Per-god notes:
 
@@ -104,17 +114,47 @@ Per-god notes:
   Its reach board already went through the portal-aware `get_standard_reach_board_from_parts`, so
   that needed nothing. Three `ApolloMove` accessors were widened to `pub(crate)` so the test can
   live in `apollo_v2.rs`.
+- **Scylla** was nearly free, because her drag target is the square she *vacated* - which the
+  teleport never touches - so `make_move` was already correct and she stays a lone mover for portal
+  purposes. Two gaps: the shared `_no_affinity` helper dropped `worker_start_mask`, which wrongly
+  disarmed the portal whenever the mover was itself standing on a whirlpool (it only ever reached
+  Scylla and Charon, both banned, so no audited god was affected); and a worker flushed *back to its
+  own square* never vacates it, so the drag had to be suppressed there or it stacks two workers.
+- **Charon** is the first god whose displacement changes the portal *before* he moves, so whether
+  the teleport exists depends on which flip he picks: pulling a worker off a whirlpool arms the
+  portal, pulling one onto a whirlpool shuts it. His base move set is therefore raw entries, with
+  the swap and the winnable-square mask recomputed per flip. Three bugs fell out, two found by the
+  fuzzer and one by re-reading:
+  - His MATE_ONLY narrowing kept only flips that vacate a **level 3** square. A flip that frees a
+    *whirlpool* also opens a mate - from a worker at any height - so it now keeps
+    `exactly_level_3 | portal_squares`.
+  - **A general win-validator bug**: the checker judged "was the exit free" on the *pre-move* board,
+    so it rejected any portal win whose exit had been cleared earlier in the same move. It now asks
+    which workers held the square both before and after, matched per player.
+  - His "don't win by flipping what you could win without flipping" prune removed the winning
+    *entry* from the base set. In entry space that is wrong: the same entry leads somewhere else
+    under a flip that shuts the portal, so a legal quiet move was silently lost. Now tracked in
+    outcome space instead.
 
-Each has a targeted displacement-outcome test and a portal-win test, and each fuzzed clean 300s.
-The routing guard test caught a double-swap bug mid-development that the fuzzer could not (a missing
-teleport still produces a self-consistent move list).
+Each has targeted displacement-outcome and portal-win tests, and each fuzzed clean 300s against
+Charybdis plus an off-portal run. The routing guard test caught a double-swap bug mid-development
+that the fuzzer could not (a missing teleport still produces a self-consistent move list).
 
 **Still banned, in rough order of expected difficulty:**
 
-- **Charon / CharonV2, Scylla, Nemesis, Jason, Achilles, Theseus, Odysseus** - each relocates a
-  worker and needs the same entry-vs-outcome split, plus a per-god check that its own encoding can
-  carry a displacement source distinct from where the mover lands (Apollo could, Minotaur needed the
-  geometry trick; some of these may need a move-struct field).
+- **CharonV2** - either moves normally or pushes *instead of* moving, so only the ordinary-move
+  branch can teleport. Should be close to free now Charon is done.
+- **Achilles** - not a displacer at all: he builds before *and* after moving, so his pre-move build
+  can return a whirlpool to supply and disarm the portal mid-turn. Same shape as Prometheus, which
+  is already audited.
+- **Theseus** - *removes* a worker rather than relocating one; removal can free a whirlpool, so it
+  needs the same post-displacement portal treatment as Charon's pull.
+- **Jason** - *places* an extra worker before taking his turn with it; a placement onto a whirlpool
+  shuts the portal, so again post-displacement portal state, and the placed worker is the mover.
+- **Odysseus** - mass forced relocation to corners at the start of the turn. Same shape as Charon's
+  pull but with an arbitrary number of simultaneous relocations feeding `vacated`/`newly_filled`.
+- **Nemesis** - swaps *every* worker on the board at once. The hardest of this group: the mover's
+  own start square moves too, so "vacated" and "the mover" are both rewritten.
 - **Hermes, Triton, Pegasus, Castor, Proteus, Bellerophon, Stymphalians** - multi-step movers; the
   portal is a teleport *edge* that must apply at each step, which turns "reachable set" into a graph
   traversal. Hardest; several may stay banned a while.

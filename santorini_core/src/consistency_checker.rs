@@ -1657,14 +1657,19 @@ impl ConsistencyChecker {
         if new_height == 3 {
             let portal = get_portal_squares(state, current_player);
             if (portal & new_only).is_not_empty() {
-                let others = (state.board.workers[0] | state.board.workers[1]) & !old_only;
+                // The exit has to be free at the moment the mover arrives, which is not the same as
+                // free before the move: anyone the move relocated first has already left. Charon
+                // pulls a worker off the exit before he steps, and Apollo and Minotaur shove the
+                // occupant of the *entry* aside as they step on. So "still in the way" means a
+                // worker that held the square both before and after - matched per player, since the
+                // mover itself ends up standing there.
+                let stayed_put = (state.board.workers[0] & won_state.board.workers[0])
+                    | (state.board.workers[1] & won_state.board.workers[1]);
+                let blocking = new_only & stayed_put & !old_only;
 
-                // The worker is standing on the exit whirlpool, so it was flushed through from the
-                // entry, which needs the exit to have been free. The *entry* may well have been
-                // occupied - a displacer (Apollo, Minotaur) shoves whoever was there out of the
-                // way as it steps on. And *how* it reached the entry is movement legality (jumps,
-                // wraps, chains, swaps), checked elsewhere, so this does not second-guess the route.
-                if (new_only & others).is_empty() && (oppo_god.win_mask & new_only).is_not_empty() {
+                // How it reached the entry is movement legality (jumps, wraps, chains, swaps),
+                // checked elsewhere, so this does not second-guess the route.
+                if blocking.is_empty() && (oppo_god.win_mask & new_only).is_not_empty() {
                     return;
                 }
             }
