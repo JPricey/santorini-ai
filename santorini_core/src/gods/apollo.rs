@@ -70,11 +70,11 @@ impl ApolloMove {
         Self(data)
     }
 
-    fn move_from_position(&self) -> Square {
+    pub(crate) fn move_from_position(&self) -> Square {
         Square::from((self.0 as u8) & LOWER_POSITION_MASK)
     }
 
-    fn move_to_position(&self) -> Square {
+    pub(crate) fn move_to_position(&self) -> Square {
         Square::from((self.0 >> POSITION_WIDTH) as u8 & LOWER_POSITION_MASK)
     }
 
@@ -95,7 +95,7 @@ impl ApolloMove {
         }
     }
 
-    fn get_is_winning(&self) -> bool {
+    pub(crate) fn get_is_winning(&self) -> bool {
         (self.0 & MOVE_IS_WINNING_MASK) != 0
     }
 }

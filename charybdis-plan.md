@@ -2,8 +2,8 @@
 
 ## Implementation status (as built)
 
-Landed on `dev`, engine + UI building, 155 tests green, and the fuzzer clean against every audited
-opponent (36 gods, including the first two displacement gods - see "Displacement family" below).
+Landed on `dev`, engine + UI building, 157 tests green, and the fuzzer clean against every audited
+opponent (37 gods, including the first three displacement gods - see "Displacement family" below).
 
 **Built as planned:** outcome encoding (D1), the portal swap in the shared movement funnel (§5.3),
 the height rule from §1a (entry-only restrictions, win-check-only fiction), `mate_start_mask` /
@@ -31,13 +31,13 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 36 gods**, each fuzzed against Charybdis individually *and* covered by
+**Audited opponent list: 37 gods**, each fuzzed against Charybdis individually *and* covered by
 `test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
 matters - see below. Everything else is
 banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
 Nike, Eros, Iris, Hydra, Urania and both Chronus variants - that batch cost two bug fixes
 (below) and no design changes, which is the evidence that the funnel approach in §5.3 holds - plus
-the first two displacement gods, **Apollo and Minotaur** (see "Displacement family" below).
+the first three displacement gods, **Apollo, Minotaur and ApolloV2** (see "Displacement family" below).
 
 **Fuzzing cannot clear a god for this power.** A god that never routes destinations through the
 portal emits a move list that is entirely self-consistent - it is simply missing the teleport - so
@@ -71,7 +71,7 @@ Two more general bugs fell out of that batch:
   flushed back onto its own square never appears to have moved, and the win validator asserts it
   can identify the moved worker.
 
-### Displacement family (Apollo, Minotaur done; the rest next)
+### Displacement family (Apollo, Minotaur, ApolloV2 done; the rest next)
 
 A displacer stepping onto a whirlpool is a **three-square outcome**: the mover teleports to the
 exit, the displaced worker goes where the god's rule sends it, and the entry empties. Two pieces of
@@ -96,6 +96,14 @@ Per-god notes:
   is always straight, so the origin is `BETWEEN_MAPPING[from][push_to]` - read off the geometry,
   unchanged for an ordinary push and correct for a teleported one. No move-struct change; the
   `make_move` change touches every Minotaur game, so it was also fuzzed 150s vs all opponents.
+- **ApolloV2** was the mechanical follow-on Apollo promised: the same `ApolloMove` struct and
+  `make_move` (so no off-portal re-fuzz was needed, only a 300s Charybdis run plus a 60s off-portal
+  sanity run), the same `no_portal` + `displacer_portal_exit` rewrite in the generator. Its one
+  wrinkle is the V2 "can't swap up" blocker (`oppo_workers & height_map[start_height]`), which is
+  kept verbatim - it filters entries and never touches whirlpool squares, which can't be occupied.
+  Its reach board already went through the portal-aware `get_standard_reach_board_from_parts`, so
+  that needed nothing. Three `ApolloMove` accessors were widened to `pub(crate)` so the test can
+  live in `apollo_v2.rs`.
 
 Each has a targeted displacement-outcome test and a portal-win test, and each fuzzed clean 300s.
 The routing guard test caught a double-swap bug mid-development that the fuzzer could not (a missing
@@ -103,8 +111,6 @@ teleport still produces a self-consistent move list).
 
 **Still banned, in rough order of expected difficulty:**
 
-- **ApolloV2** - same shape as Apollo (displacement inferred from the destination the swap
-  rewrites); should be quick now the pattern and helpers exist.
 - **Charon / CharonV2, Scylla, Nemesis, Jason, Achilles, Theseus, Odysseus** - each relocates a
   worker and needs the same entry-vs-outcome split, plus a per-god check that its own encoding can
   carry a displacement source distinct from where the mover lands (Apollo could, Minotaur needed the
@@ -740,3 +746,4 @@ a consistency-checker assertion).
 - **Placement-phase question**: whirlpools are placed "at the end of your turn"; I am assuming
   worker-placement turns don't count, so the board starts with zero tokens and the first can appear
   at the end of Charybdis's first real turn. Confirm.
+    -> yes.
