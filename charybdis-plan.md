@@ -2,8 +2,8 @@
 
 ## Implementation status (as built)
 
-Landed on `dev`, engine + UI building, 149 tests green (17 of them new Charybdis tests), and the
-fuzzer clean against every audited opponent.
+Landed on `dev`, engine + UI building, 155 tests green, and the fuzzer clean against every audited
+opponent (36 gods, including the first two displacement gods - see "Displacement family" below).
 
 **Built as planned:** outcome encoding (D1), the portal swap in the shared movement funnel (§5.3),
 the height rule from §1a (entry-only restrictions, win-check-only fiction), `mate_start_mask` /
@@ -31,12 +31,13 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 34 gods**, each fuzzed against Charybdis individually *and* covered by
+**Audited opponent list: 36 gods**, each fuzzed against Charybdis individually *and* covered by
 `test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
 matters - see below. Everything else is
 banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
-Nike, Eros, Iris, Hydra, Urania and both Chronus variants - the second batch cost two bug fixes
-(below) and no design changes, which is the evidence that the funnel approach in §5.3 holds.
+Nike, Eros, Iris, Hydra, Urania and both Chronus variants - that batch cost two bug fixes
+(below) and no design changes, which is the evidence that the funnel approach in §5.3 holds - plus
+the first two displacement gods, **Apollo and Minotaur** (see "Displacement family" below).
 
 **Fuzzing cannot clear a god for this power.** A god that never routes destinations through the
 portal emits a move list that is entirely self-consistent - it is simply missing the teleport - so
@@ -62,13 +63,7 @@ Four are banned for concrete reasons rather than "not audited yet":
   and walking it away defuses the win. Key square narrowing matches on where a move *lands*, so it
   cannot express that block, and the search would miss the defence.
 
-The displacement and multi-step families stay banned. Beyond needing per-step portal handling,
-**Apollo, ApolloV2 and Minotaur** infer *which* worker they displace from the destination square,
-which the swap rewrites - so their moves change meaning silently. And `get_active_portal` reads the
-pre-move board, so any god that relocates an opponent worker mid-turn (Charon, Scylla, Odysseus)
-can arm or disarm the portal in the middle of its own move.
-
-Two more general bugs fell out of the second batch:
+Two more general bugs fell out of that batch:
 
 - **Eros' placement generator never checked its first square against the opponent's workers**, so
   it could stack two workers on one space. Pre-existing, affects every Eros matchup, fixed.
@@ -76,10 +71,66 @@ Two more general bugs fell out of the second batch:
   flushed back onto its own square never appears to have moved, and the win validator asserts it
   can identify the moved worker.
 
-**Known follow-ups:** exact check tagging; the per-god reach-board sites that still recompute
+### Displacement family (Apollo, Minotaur done; the rest next)
+
+A displacer stepping onto a whirlpool is a **three-square outcome**: the mover teleports to the
+exit, the displaced worker goes where the god's rule sends it, and the entry empties. Two pieces of
+shared machinery were wrong for this, and both are now fixed:
+
+- **The funnel's portal swap** (`get_limited_moves_given_move_mask`, §5.3) remaps entry->exit for a
+  *lone* mover. For a displacer it double-applies *and* discards the entry the god still needs to
+  displace. A new `APPLY_PORTAL` const generic (default true) lets a displacer take the **raw
+  entries** and remap them itself via the shared `displacer_portal_exit(portal, exit_blockers,
+  entry)`, keying displacement off the entry and build/reach/height/win off the exit.
+- **`get_active_portal` is too strict** - it disarms when *either* whirlpool is occupied. A
+  displacer only needs the *exit* free, since it clears the entry as it steps on. `displacer_portal_exit`
+  encodes that (only the exit is checked), and the win validator no longer requires the entry empty,
+  only the exit. (The pre-committed `get_active_portal_after_displacement` primitive turned out not
+  to be the right shape and is currently unused - a per-entry exit is what displacers actually need.)
+
+Per-god notes:
+
+- **Apollo** needed no move-struct change: it already stores `swap_from` separately from `move_to`,
+  so the three-square outcome encodes as `move_to = exit`, `swap_from = entry`.
+- **Minotaur** assumed the pushed worker sat on `move_to`, which the teleport breaks. But the push
+  is always straight, so the origin is `BETWEEN_MAPPING[from][push_to]` - read off the geometry,
+  unchanged for an ordinary push and correct for a teleported one. No move-struct change; the
+  `make_move` change touches every Minotaur game, so it was also fuzzed 150s vs all opponents.
+
+Each has a targeted displacement-outcome test and a portal-win test, and each fuzzed clean 300s.
+The routing guard test caught a double-swap bug mid-development that the fuzzer could not (a missing
+teleport still produces a self-consistent move list).
+
+**Still banned, in rough order of expected difficulty:**
+
+- **ApolloV2** - same shape as Apollo (displacement inferred from the destination the swap
+  rewrites); should be quick now the pattern and helpers exist.
+- **Charon / CharonV2, Scylla, Nemesis, Jason, Achilles, Theseus, Odysseus** - each relocates a
+  worker and needs the same entry-vs-outcome split, plus a per-god check that its own encoding can
+  carry a displacement source distinct from where the mover lands (Apollo could, Minotaur needed the
+  geometry trick; some of these may need a move-struct field).
+- **Hermes, Triton, Pegasus, Castor, Proteus, Bellerophon, Stymphalians** - multi-step movers; the
+  portal is a teleport *edge* that must apply at each step, which turns "reachable set" into a graph
+  traversal. Hardest; several may stay banned a while.
+
+**Other known follow-ups:** exact check tagging; the per-god reach-board sites that still recompute
 `is_now_lvl_2` inline (Iris, Bia, Urania, Prometheus, Apollo, Achilles, Artemis - move ordering
-only); NNUE features for the whirlpool bitboard at the next retrain; and the displacement and
-multi-step families (Apollo, Minotaur, Charon, Artemis, Hermes, Triton, Castor, ...).
+only); and NNUE features for the whirlpool bitboard at the next retrain (she still proxies Mortal,
+so she plays legally but evaluates blind to whirlpools - the biggest single lever on her strength).
+
+### The crash hunt (separate investigation, no Charybdis bug)
+
+While looking into a reported "engine crash during play", built `search_fuzzer` (a bin that plays
+whole games by *searching* each move - the ordinary fuzzer only plays random moves and never calls
+`negamax_search`, so it cannot see search-path crashes). It reproduced a `build_up`-on-dome abort,
+which turned out to be a **bug in the tool, not the engine**: on a lost position the engine returns
+`action == NULL_MOVE` paired with a winner-set `child_state`, and re-applying that NULL action
+builds garbage. Every real consumer (native UI, web app, battler) uses `child_state`, not the
+action, so none crash. With the tool fixed to consume `child_state`, extensive tall-board search
+hunts found nothing. No engine bug was found; if the user's crash recurs it needs the god/matchup
+and any panic text. Latent footgun worth noting: the engine hands back a NULL action on lost
+positions, which is a landmine for any future consumer that applies `.action` instead of
+`.child_state`.
 
 ---
 
