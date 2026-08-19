@@ -2,12 +2,12 @@
 
 ## Implementation status (as built)
 
-Landed on `dev`, engine + UI building, 165 tests green, and the fuzzer clean against every audited
-opponent (39 gods, including six displacement gods - see "Displacement family" below).
+Landed on `dev`, engine + UI building, 169 tests green, and the fuzzer clean against every audited
+opponent (41 gods, including six displacement gods and both pre-build gods - see below).
 
-**Prometheus was un-audited and re-banned** after this pass found him generating illegal teleports -
-see "The pre-build family" below. He is the only audited god that was ever wrong, and the bug was
-invisible to the fuzzer, which is the second time that blind spot has bitten.
+**Prometheus was briefly re-banned** when this pass found him generating illegal teleports, then
+fixed along with Achilles - see "The pre-build family". He is the only audited god that was ever
+wrong, and the bug was invisible to the fuzzer, which is the second time that blind spot has bitten.
 
 **Built as planned:** outcome encoding (D1), the portal swap in the shared movement funnel (§5.3),
 the height rule from §1a (entry-only restrictions, win-check-only fiction), `mate_start_mask` /
@@ -35,14 +35,14 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 39 gods**, each fuzzed against Charybdis individually *and* covered by
+**Audited opponent list: 41 gods**, each fuzzed against Charybdis individually *and* covered by
 `test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
 matters - see below. Everything else is
 banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
 Nike, Eros, Hydra, Urania and both Chronus variants - that batch cost two bug fixes
 (below) and no design changes, which is the evidence that the funnel approach in §5.3 holds - plus
 six displacement gods, **Apollo, Minotaur, ApolloV2, Scylla, Charon and CharonV2** (see
-"Displacement family" below). Prometheus was removed from the list, see below.
+"Displacement family" below), and both pre-build gods, **Prometheus and Achilles**.
 
 **Fuzzing cannot clear a god for this power.** A god that never routes destinations through the
 portal emits a move list that is entirely self-consistent - it is simply missing the teleport - so
@@ -168,41 +168,54 @@ that the fuzzer could not (a missing teleport still produces a self-consistent m
 only); and NNUE features for the whirlpool bitboard at the next retrain (she still proxies Mortal,
 so she plays legally but evaluates blind to whirlpools - the biggest single lever on her strength).
 
-### The pre-build family (Prometheus re-banned, Achilles still banned)
+### The pre-build family (Prometheus and Achilles, both fixed)
 
 Exactly two gods build **before** they move: Prometheus and Achilles. That ordering interacts with
 whirlpools in a way nothing else does, because a build that lands on a whirlpool **returns that
 token to Charybdis' supply** (§5.6) - so a pre-build can destroy the portal that the same turn's
 move was about to use.
 
-Prometheus had been audited and shipped. He is wrong, in two ways, and both come from the same
-category error: **his pre-build path filters the already-swapped destination set by height.**
+Prometheus had been audited and shipped, and was wrong. Both symptoms came from one category error:
+**the pre-build path filtered the already-swapped destination set by height.**
 
-1. **He uses a portal he just destroyed.** Repro:
-   `0000000000000000000000000/2/charybdis[C3,E5]:A1,A2/prometheus:B3,E1` generates `^C3 B3>E5^D4` -
-   pre-build on whirlpool C3 (returning that token, leaving a lone whirlpool and therefore no
-   portal), then teleport B3 -> E5 anyway. E5 was never adjacent to B3. Illegal move, shipped.
-2. **He drops legal pre-build moves**, because the "cannot move up" restriction is judged on the
-   *outcome* rather than the entry leg it belongs to (§1a). Repro:
+1. **He used a portal he had just destroyed.**
+   `0000000000000000000000000/2/charybdis[C3,E5]:A1,A2/prometheus:B3,E1` generated `^C3 B3>E5^D4` -
+   pre-build on whirlpool C3, leaving a lone whirlpool and therefore no portal, then teleport
+   B3 -> E5 anyway. E5 was never adjacent to B3.
+2. **He dropped legal pre-build moves**, because "cannot move up" was judged on the *outcome* rather
+   than the entry leg it belongs to (§1a).
    `0000200000000000000000000/2/charybdis[C3,E5]:A1,A2/prometheus:B3,E1` - whirlpools C3 (level 0)
-   and E5 (level 2), worker on B3. Stepping flat into C3 and surfacing on E5 is not a climb, so it
-   is legal with a pre-build; the generator emits 3 plain moves onto E5 and **zero** pre-build
-   ones, because it measures the height of E5 instead of C3.
+   and E5 (level 2). Stepping flat into C3 and surfacing on E5 is not a climb, so it is legal with a
+   pre-build; he emitted 3 plain moves onto E5 and **zero** pre-build ones. Now 18.
 
-Neither is visible to the fuzzer: an extra teleport and a missing teleport both produce perfectly
-self-consistent move lists. This is the same blind spot recorded at the top of this document, and it
-is now the *second* real bug it has hidden - the routing guard test only checks that a god's plain
-move routes through the portal, which Prometheus does.
+Neither was visible to the fuzzer: an extra teleport and a missing teleport both produce
+self-consistent move lists, and the routing guard only checks a god's *plain* move, which Prometheus
+routed correctly all along.
 
-The fix for both is the same reformulation, and Achilles wants it too: **build the pre-build
-destination set in *entry* space** - apply the height rules to the entry square, then apply the swap
-last, with the portal treated as disarmed for exactly those pre-builds that land on a whirlpool
-(`get_active_portal` if the pre-build misses the tokens, `EMPTY` if it hits one). Wins then come from
-`winnable_squares_for_arrival` against that per-pre-build portal. The involution property of
-`put_moves_through_portals` (applying it twice returns the raw entries) makes recovering the entry
-set cheap if that is easier than plumbing a second `get_basic_moves` call.
+**The fix, for both gods: build the pre-build destination set in *entry* space and apply the swap
+last**, with the portal treated as disarmed for exactly those pre-builds that land on a whirlpool.
+Off-portal it is a strict no-op - `active_portal` is empty, entries and outcomes coincide, and the
+second `get_basic_moves` walk is skipped entirely - which is what makes the change safe to make in
+a hot path.
 
-Until that lands, both are `BannedReason::Engine`.
+Achilles needed two things Prometheus did not:
+
+- **He keeps his climb after the power build**, so a winning square can appear in his pre-build move
+  set. That must never be emitted as a quiet move, or the win goes unrecorded - `make_move` would
+  just build and move. His pre-build outcomes are therefore split into winning and quiet squares.
+  (Every such win turns out to also be available *without* the power build, since from level 2 every
+  buildable height is already a legal step, so this is a guard rather than a new source of moves.)
+- **A pre-existing bug of his own, exposed by the portal.** His signature power mate - build a level
+  2 square up to 3, then step onto it - is only a win from level 2. `MATE_ONLY` used to guarantee
+  that for free, because only level 2 workers were ever acting workers. The portal widens
+  `mate_start_mask` to *every* worker (§5.4), so a level 1 worker was being handed a two-level
+  climb: `1111110100202103213111102/2/charybdis[A2,E2]:E4/achilles:B3,A1` produced `^B2 A1>B2#`.
+  The height is now checked explicitly. **This one the fuzzer did catch**, because an impossible
+  climb is not self-consistent - unlike a wrong teleport.
+
+The routing guard test also had to be relaxed: it asserted that no worker ends on the whirlpool it
+entered, which a pre-build god can legitimately do once it has handed that token back. It now only
+reads moves that leave both whirlpools standing.
 
 **The rest of the audited list was swept for the same pattern** - taking the post-swap outcome set
 and re-filtering it by a rule that belongs to the entry leg. Prometheus and Achilles are the only

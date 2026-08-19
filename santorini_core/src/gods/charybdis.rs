@@ -970,11 +970,20 @@ mod tests {
         let active = state.gods[player as usize];
         let oppo = state.gods[!player as usize];
         let before = state.board.workers[player as usize];
+        let whirlpools_before = state.board.god_data[!player as usize];
 
         let mut res = BitBoard::EMPTY;
         for scored in active.get_all_moves(state, player) {
             let next = state.next_state(active, oppo, scored.action);
             let after = next.board.workers[player as usize];
+
+            // Only moves that leave both whirlpools standing say anything about the portal. A god
+            // that builds before it moves (Prometheus, Achilles) can hand a token back and then
+            // legitimately stand on the square that used to teleport, which is a different
+            // question from whether its destinations route through the portal at all.
+            if next.board.god_data[!player as usize] != whirlpools_before {
+                continue;
+            }
 
             let vacated = before & !after;
             let arrived = after & !before;

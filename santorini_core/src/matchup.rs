@@ -189,12 +189,14 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // ordinary way, by climbing to level 3. Everything else - displacement, multi-step movement,
     // hand-rolled destination sets, or a win condition that reads a height delta - needs its own
     // audit, so it is banned until that audit happens.
-    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 39] = [
+    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 41] = [
         GodName::Mortal,
         GodName::Pan,
         GodName::Atlas,
         GodName::Demeter,
         GodName::Hephaestus,
+        GodName::Prometheus,
+        GodName::Achilles,
         GodName::Athena,
         GodName::Hades,
         GodName::Hera,
@@ -237,22 +239,14 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // Note that fuzzing cannot clear them - a missing teleport produces a self-consistent move
     // list, so the consistency checker sees nothing wrong.
     //
-    // Prometheus is out because he builds *before* he moves, and a pre-build that lands on a
-    // whirlpool returns that token to Charybdis' supply - leaving a lone whirlpool, which is an
-    // ordinary square with no teleport. His pre-build path filters the *already swapped* set by
-    // height, so it neither notices the portal it just broke nor judges the height rules on the
-    // entry leg the way the card requires. He was audited before this was understood; the fuzzer
-    // cannot see either symptom, since both an extra teleport and a missing one still produce a
-    // self-consistent move list. Two repros:
-    //   `0000000000000000000000000/2/charybdis[C3,E5]:A1,A2/prometheus:B3,E1` generates
-    //   `^C3 B3>E5^D4` - it pre-builds the portal away, then teleports through it anyway.
-    //   `0000200000000000000000000/2/charybdis[C3,E5]:A1,A2/prometheus:B3,E1` emits 3 plain moves
-    //   onto E5 but no pre-build ones, because the no-climb test reads E5's height instead of the
-    //   height of C3, the square he actually steps on.
-    // Achilles has the same pre-build shape and is banned for the same reason; both want the
-    // destination set built in *entry* space with the swap applied last.
+    // Prometheus and Achilles build *before* they move, which is the one ordering that can
+    // destroy a portal mid-turn: a build landing on a whirlpool hands that token back, and a lone
+    // whirlpool is an ordinary square. Both used to filter the already-swapped destination set by
+    // height, which both used a portal they had just removed and judged the height rules on the
+    // exit instead of the entry leg they belong to. Both now build that set in *entry* space and
+    // apply the swap last, per pre-build. Kept in mind if a third pre-build god ever appears.
     //
-    // Four more are out for concrete reasons rather than "not audited yet". Harpies: her
+    // Four are out for concrete reasons rather than "not audited yet". Harpies: her
     // slide is forced movement, which by the card does not trigger a whirlpool, but a slide that
     // ends on one - or starts from one - needs an ordering ruling nobody has written down. Europa: the Talus
     // and a whirlpool can end up on the same square, and nothing in either card says what that

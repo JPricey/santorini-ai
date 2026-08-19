@@ -14,10 +14,12 @@ use crate::{
         god_power,
         harpies::prometheus_slide,
         move_helpers::{
-            WorkerNextMoveState, build_scored_move, get_basic_moves, get_generator_prelude_state,
-            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
-            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
-            modify_prelude_for_checking_workers, push_winning_moves,
+            WorkerNextMoveState, build_scored_move, get_active_portal, get_basic_moves,
+            get_basic_moves_from_raw_data_with_custom_blockers_no_portal,
+            get_generator_prelude_state, get_standard_reach_board, get_worker_end_move_state,
+            get_worker_next_build_state, get_worker_start_move_state, is_interact_with_key_squares,
+            is_mate_only, modify_prelude_for_checking_workers, push_winning_moves,
+            put_moves_through_portals, winnable_squares_for_arrival,
         },
     },
     persephone_check_result,
@@ -264,6 +266,25 @@ fn _prometheus_move_gen<
 
         let mut worker_moves = get_basic_moves::<MUST_CLIMB>(&prelude, &worker_start_state);
 
+        // Height rules are judged on the square the worker actually steps onto - the *entry* leg of
+        // a portal move, never the exit it is then flushed to. The pre-build filters below have to
+        // work on raw entries for that reason, with the swap applied afterwards and per pre-build:
+        // a pre-build that lands on a whirlpool returns that token to Charybdis' supply, leaving a
+        // lone whirlpool and so no portal to swap through at all.
+        let active_portal = get_active_portal(&prelude, worker_start_state.worker_start_mask);
+        let raw_entries = if active_portal.is_empty() {
+            // No portal: entries and outcomes are the same squares, so skip the second walk.
+            worker_moves
+        } else {
+            get_basic_moves_from_raw_data_with_custom_blockers_no_portal::<MUST_CLIMB>(
+                &prelude,
+                worker_start_state.worker_start_pos,
+                worker_start_state.worker_start_mask,
+                worker_start_state.worker_start_height,
+                prelude.all_workers_and_frozen_mask,
+            )
+        };
+
         if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 = worker_moves & worker_start_state.winnable_squares;
             if push_winning_moves::<F, _, _>(
@@ -292,9 +313,9 @@ fn _prometheus_move_gen<
             NEIGHBOR_MAP[worker_start_pos as usize] & unblocked_squares & prelude.build_mask;
 
         if !MUST_CLIMB {
-            // Can't go up
+            // Can't go up. Measured on the entry, which is the square he steps on.
             let pre_build_worker_moves =
-                worker_moves & !prelude.board.height_map[worker_start_state.worker_start_height];
+                raw_entries & !prelude.board.height_map[worker_start_state.worker_start_height];
 
             let moveable_ontop_of_prebuild = if worker_start_state.worker_start_height == 0 {
                 BitBoard::EMPTY
@@ -327,7 +348,8 @@ fn _prometheus_move_gen<
             let dests_reachable_either_way = pre_build_worker_moves & moveable_ontop_of_prebuild;
 
             // Precompute harpies slides for each neighboring dest, whether or not the pre-build
-            // was there
+            // was there. Harpies and Charybdis can never both be the opponent, so `active_portal`
+            // is empty here and these destinations are entries and outcomes alike.
             let mut slide_ends = [(Square::A5, Square::A5); 25];
             if AGAINST_HARPIES {
                 for dest in pre_build_worker_moves | moveable_ontop_of_prebuild {
@@ -343,8 +365,32 @@ fn _prometheus_move_gen<
             for pre_build_pos in pre_build_locations {
                 let pre_build_mask = BitBoard::as_mask(pre_build_pos);
 
-                let worker_moves_with_pre_build = pre_build_worker_moves & !pre_build_mask
+                let entries_with_pre_build = pre_build_worker_moves & !pre_build_mask
                     | pre_build_mask & moveable_ontop_of_prebuild;
+
+                let worker_moves_with_pre_build = if active_portal.is_empty() {
+                    entries_with_pre_build
+                } else {
+                    // Building on a whirlpool hands that token back, and one whirlpool is just an
+                    // ordinary square - so this pre-build may have shut the portal it was about to
+                    // use.
+                    let portal_now = if (pre_build_mask & prelude.portal_squares).is_not_empty() {
+                        BitBoard::EMPTY
+                    } else {
+                        active_portal
+                    };
+
+                    // A whirlpool exit on level 3 wins from any height, so it is never a quiet
+                    // move. The matching win is always reachable without pre-building too - the
+                    // entry is the same flat or downward step either way - so it is left to the
+                    // plain win path above rather than encoded a second time here.
+                    put_moves_through_portals(entries_with_pre_build, portal_now)
+                        & !winnable_squares_for_arrival(
+                            &prelude,
+                            worker_start_state.worker_start_height,
+                            portal_now,
+                        )
+                };
 
                 for worker_dest_pos in worker_moves_with_pre_build.into_iter() {
                     let mut worker_end_pos = worker_dest_pos;
@@ -575,4 +621,100 @@ pub const fn build_prometheus() -> GodPower {
         7255800742029900355,
         11420172211286930201,
     )
+}
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// A pre-build that lands on a whirlpool hands that token back, leaving a lone whirlpool - and
+    /// one whirlpool is an ordinary square. The portal it was about to use no longer exists.
+    #[test]
+    fn test_prometheus_cannot_use_a_portal_his_pre_build_destroyed() {
+        // Whirlpools C3 and E5. B3 neighbours C3 only, so with the portal armed C3 surfaces at E5.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Prometheus)
+                .with_p1_worker(A1)
+                .with_p1_worker(A2)
+                .with_p2_worker(B3)
+                .with_p2_worker(E1)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C3, E5],
+        );
+
+        let god = GodName::Prometheus.to_power();
+        let oppo = GodName::Charybdis.to_power();
+
+        for scored in god.get_all_moves(&state, Player::Two) {
+            let m: PrometheusMove = scored.action.into();
+            if m.pre_build_position() != Some(C3) {
+                continue;
+            }
+            let next = state.next_state(god, oppo, scored.action);
+            assert!(
+                !next.board.workers[Player::Two as usize].contains_square(E5),
+                "pre-building on C3 returns that whirlpool, so nothing can teleport to E5: {:?}",
+                m
+            );
+        }
+    }
+
+    /// The "cannot move up" restriction belongs to the entry leg. Stepping flat into a whirlpool
+    /// and being flushed to a higher exit is not a climb, so it survives a pre-build.
+    #[test]
+    fn test_prometheus_judges_the_no_climb_rule_on_the_entry() {
+        // C3 is level 0 like B3, so entering it is flat. E5 is level 2 - higher, but the teleport
+        // leg has no height delta, and E5 is not level 3 so this is not a win either.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Prometheus)
+                .with_p1_worker(A1)
+                .with_p1_worker(A2)
+                .with_p2_worker(B3)
+                .with_p2_worker(E1)
+                .with_height(E5, 2)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C3, E5],
+        );
+
+        let god = GodName::Prometheus.to_power();
+        let oppo = GodName::Charybdis.to_power();
+
+        let mut with_pre_build = 0;
+        for scored in god.get_all_moves(&state, Player::Two) {
+            let m: PrometheusMove = scored.action.into();
+            let next = state.next_state(god, oppo, scored.action);
+            if next.board.workers[Player::Two as usize].contains_square(E5)
+                && m.pre_build_position().is_some_and(|p| p != C3 && p != E5)
+            {
+                with_pre_build += 1;
+            }
+        }
+
+        assert!(
+            with_pre_build > 0,
+            "a flat step into C3 surfacing on E5 is not a climb, so pre-build variants must exist"
+        );
+    }
 }

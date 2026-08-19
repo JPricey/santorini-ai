@@ -14,10 +14,13 @@ use crate::{
         god_power,
         harpies::prometheus_slide,
         move_helpers::{
-            WorkerNextMoveState, build_scored_move, get_generator_prelude_state, get_sized_result,
-            get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
-            get_worker_next_move_state, get_worker_start_move_state, is_interact_with_key_squares,
-            is_mate_only, is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
+            WorkerNextMoveState, build_scored_move, get_active_portal,
+            get_basic_moves_from_raw_data_with_custom_blockers_no_portal,
+            get_generator_prelude_state, get_sized_result, get_standard_reach_board,
+            get_worker_end_move_state, get_worker_next_build_state, get_worker_next_move_state,
+            get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
+            is_stop_on_mate, modify_prelude_for_checking_workers, push_winning_moves,
+            put_moves_through_portals, winnable_squares_for_arrival,
         },
     },
     player::Player,
@@ -612,6 +615,7 @@ fn _achilles_move_gen<
         let mut worker_next_moves =
             get_worker_next_move_state::<MUST_CLIMB>(&prelude, &worker_start_state, checkable_mask);
 
+        let mut plain_wins = BitBoard::EMPTY;
         if is_mate_only::<F>() || worker_start_state.can_mate {
             let moves_to_level_3 =
                 worker_next_moves.worker_moves & worker_start_state.winnable_squares;
@@ -624,7 +628,26 @@ fn _achilles_move_gen<
                 return result;
             }
             worker_next_moves.worker_moves ^= moves_to_level_3;
+            plain_wins = moves_to_level_3;
         }
+
+        // The power build lands before the move, so it is judged against the square the worker
+        // steps *onto* - the entry leg - and it can also return a whirlpool to Charybdis' supply,
+        // leaving a lone whirlpool and no portal at all. Both mean the power path has to work on
+        // raw entries and apply the swap itself, per build.
+        let active_portal = get_active_portal(&prelude, worker_start_state.worker_start_mask);
+        let base_entries = if active_portal.is_empty() {
+            // No portal: entries and outcomes are the same squares, wins already removed above.
+            worker_next_moves.worker_moves
+        } else {
+            get_basic_moves_from_raw_data_with_custom_blockers_no_portal::<MUST_CLIMB>(
+                &prelude,
+                worker_start_state.worker_start_pos,
+                worker_start_state.worker_start_mask,
+                worker_start_state.worker_start_height,
+                prelude.all_workers_and_frozen_mask,
+            )
+        };
 
         let other_threatening_workers =
             worker_start_state.other_own_workers & prelude.exactly_level_2;
@@ -638,40 +661,14 @@ fn _achilles_move_gen<
             let mut pre_build_locations =
                 NEIGHBOR_MAP[worker_start_pos as usize] & unblocked_squares & prelude.build_mask;
 
-            if is_mate_only::<F>()
-                || worker_start_state.worker_start_height == 2 && prelude.can_climb
-            {
-                let mate_builds = pre_build_locations
-                    & prelude.exactly_level_2
-                    & prelude.win_mask
-                    & worker_next_moves.worker_moves;
-
-                for pre_build_pos in mate_builds {
-                    let winning_move = AchillesMove::new_power_winning_move(
-                        worker_start_pos,
-                        pre_build_pos,
-                        pre_build_pos,
-                    );
-                    result.push(build_scored_move::<F, _>(winning_move, false, false));
-                    if is_stop_on_mate::<F>() {
-                        return result;
-                    }
-                }
-
-                if is_mate_only::<F>() {
-                    continue;
-                }
-
-                // TODO: technically you should be allowed to not win from here. Whatever.
-                pre_build_locations ^= mate_builds;
-            }
-
-            // Where the worker may step once the power build has been spent on a given square
+            // Which squares the worker may step onto once the power build has been spent on a
+            // given square. These are *entries*; the loops below swap them for the squares he
+            // actually ends up on, using whatever portal that particular build left standing.
             let moves_with_power_build_on = |pre_build_pos: Square| {
                 let pre_build_mask = BitBoard::as_mask(pre_build_pos);
                 let pre_build_height = prelude.board.get_height(pre_build_pos);
 
-                let mut power_worker_moves = worker_next_moves.worker_moves;
+                let mut power_worker_moves = base_entries;
                 if pre_build_height >= 3
                     || pre_build_height + (!prelude.can_climb as usize)
                         > worker_start_state.worker_start_height
@@ -688,6 +685,52 @@ fn _achilles_move_gen<
 
                 power_worker_moves
             };
+
+            // Building a level 2 square up to 3 and stepping onto it is only a win from level 2.
+            // MATE_ONLY used to guarantee that on its own, because only level 2 workers were ever
+            // considered acting workers - but an armed portal widens `mate_start_mask` to every
+            // worker, so the height has to be checked here explicitly or a level 1 worker gets a
+            // two-level climb handed to it.
+            let can_climb_onto_power_build =
+                worker_start_state.worker_start_height == 2 && prelude.can_climb;
+
+            if is_mate_only::<F>() || can_climb_onto_power_build {
+                // He builds this square up to 3 and then steps onto it, so it has to be a legal
+                // *entry*. Building on it also settles the portal question: if it was a whirlpool
+                // the token has just gone back, so nothing teleports him off it.
+                let mate_builds = if can_climb_onto_power_build {
+                    pre_build_locations
+                        & prelude.exactly_level_2
+                        & prelude.win_mask
+                        & base_entries
+                } else {
+                    BitBoard::EMPTY
+                };
+
+                for pre_build_pos in mate_builds {
+                    let winning_move = AchillesMove::new_power_winning_move(
+                        worker_start_pos,
+                        pre_build_pos,
+                        pre_build_pos,
+                    );
+                    result.push(build_scored_move::<F, _>(winning_move, false, false));
+                    if is_stop_on_mate::<F>() {
+                        return result;
+                    }
+                }
+
+                if is_mate_only::<F>() {
+                    // Every portal win available after a power build is also available without
+                    // one: the build cannot make a whirlpool enterable that was not already (from
+                    // level 2 every buildable height is a legal step), so the plain scan above has
+                    // already found it. The quiet loop below still splits wins out of its move set
+                    // rather than trusting that, so a win is never silently demoted to a build.
+                    continue;
+                }
+
+                // TODO: technically you should be allowed to not win from here. Whatever.
+                pre_build_locations ^= mate_builds;
+            }
 
             // Where harpies pushes the worker depends only on its destination, and on whether
             // the power build landed on that destination - not on where else it could have gone.
@@ -707,7 +750,47 @@ fn _achilles_move_gen<
             for pre_build_pos in pre_build_locations {
                 let pre_build_mask = BitBoard::as_mask(pre_build_pos);
 
-                for worker_dest_pos in moves_with_power_build_on(pre_build_pos) {
+                let power_build_entries = moves_with_power_build_on(pre_build_pos);
+                let power_build_moves = if active_portal.is_empty() {
+                    power_build_entries
+                } else {
+                    // Building on a whirlpool hands that token back, and a lone whirlpool is an
+                    // ordinary square - so this build may have shut the portal it was about to use.
+                    let portal_now = if (pre_build_mask & prelude.portal_squares).is_not_empty() {
+                        BitBoard::EMPTY
+                    } else {
+                        active_portal
+                    };
+                    let outcomes = put_moves_through_portals(power_build_entries, portal_now);
+
+                    // Unlike Prometheus, Achilles may still climb after his power build, so a build
+                    // that shuts the portal can open a win with no equivalent among the plain ones:
+                    // the whirlpool that would have flushed him off level 3 is now just a level 3
+                    // square he can step up onto. Emit those, and drop every winning square from
+                    // the quiet set either way.
+                    let winning = outcomes
+                        & winnable_squares_for_arrival(
+                            &prelude,
+                            worker_start_state.worker_start_height,
+                            portal_now,
+                        );
+
+                    for worker_end_pos in winning & !plain_wins {
+                        let winning_move = AchillesMove::new_power_winning_move(
+                            worker_start_pos,
+                            worker_end_pos,
+                            pre_build_pos,
+                        );
+                        result.push(build_scored_move::<F, _>(winning_move, false, false));
+                        if is_stop_on_mate::<F>() {
+                            return result;
+                        }
+                    }
+
+                    outcomes & !winning
+                };
+
+                for worker_dest_pos in power_build_moves {
                     let mut worker_end_pos = worker_dest_pos;
                     let mut worker_end_mask = BitBoard::as_mask(worker_end_pos);
                     let mut worker_end_height = prelude.board.get_height(worker_end_pos)
@@ -1016,5 +1099,101 @@ mod tests {
         }
 
         crate::consistency_checker::consistency_check(&state).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// A portal win reached *after* a power build must never be emitted as a quiet move. The
+    /// build happens first, so the teleport is still live, and a worker flushed onto level 3 has
+    /// won - if that move were scored as an ordinary build-and-move the win would go unrecorded.
+    #[test]
+    fn test_achilles_never_emits_a_post_power_build_portal_win_as_a_quiet_move() {
+        // Whirlpools C3 (level 0) and E5 (level 3). B3 neighbours C3 only, so stepping flat into
+        // C3 flushes him onto E5 and wins, whatever he power-built first.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Achilles)
+                .with_p1_worker(A1)
+                .with_p1_worker(A2)
+                .with_p2_worker(B3)
+                .with_p2_worker(E1)
+                .with_height(E5, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C3, E5],
+        );
+
+        let god = GodName::Achilles.to_power();
+        let oppo = GodName::Charybdis.to_power();
+
+        let mut saw_one = false;
+        for scored in god.get_all_moves(&state, Player::Two) {
+            let m: AchillesMove = scored.action.into();
+            let next = state.next_state(god, oppo, scored.action);
+            if !next.board.workers[Player::Two as usize].contains_square(E5) {
+                continue;
+            }
+            saw_one = true;
+            assert_eq!(
+                next.get_winner(),
+                Some(Player::Two),
+                "landing on the level 3 exit is a win, so {:?} must be flagged as one",
+                m
+            );
+        }
+        assert!(saw_one, "expected at least one move surfacing on E5");
+    }
+
+    /// Building a level 2 square up to 3 and stepping onto it only wins from level 2. MATE_ONLY
+    /// used to guarantee that by only ever considering level 2 workers, but an armed portal widens
+    /// the acting-worker set to every height, so a level 1 worker must not be handed the climb.
+    #[test]
+    fn test_achilles_power_mate_still_requires_standing_on_level_two() {
+        // A1 is level 1 and B2 is level 2. Building B2 to 3 would be a two-level climb from A1.
+        // The portal (A2 at level 3, E2 free) is what drags A1 into mate generation at all.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Achilles)
+                .with_p1_worker(E4)
+                .with_p1_worker(E5)
+                .with_p2_worker(A1)
+                .with_p2_worker(B3)
+                .with_height(A1, 1)
+                .with_height(B2, 2)
+                .with_height(A2, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[A2, E2],
+        );
+
+        let god = GodName::Achilles.to_power();
+        for scored in god.get_winning_moves(&state, Player::Two) {
+            let m: AchillesMove = scored.action.into();
+            assert!(
+                !(m.move_to_position() == B2 && m.pre_build_position() == Some(B2)),
+                "A1 is level 1, so building B2 up to 3 and climbing on is a two level jump"
+            );
+        }
     }
 }
