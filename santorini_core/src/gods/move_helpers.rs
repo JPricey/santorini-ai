@@ -75,6 +75,37 @@ pub(super) fn build_scored_move<const F: MoveGenFlags, T: Into<GenericMove>>(
     }
 }
 
+/// Squares a worker may step onto, indexed by the height it is currently standing on. Folds in
+/// Athena's climb ban and Hades' fall ban so that a walk over the board does not have to consult
+/// either. Used by the gods whose turn is a chain of steps, where the per-step legality test runs
+/// often enough to be worth reducing to one mask lookup.
+pub(super) fn get_step_masks(prelude: &GeneratorPreludeState) -> [BitBoard; 4] {
+    let height_map = &prelude.board.height_map;
+
+    if prelude.is_down_prevented {
+        [
+            !height_map[1],
+            height_map[0] & !height_map[2],
+            height_map[1] & !height_map[3],
+            height_map[2] & !height_map[3],
+        ]
+    } else if prelude.can_climb {
+        [
+            !height_map[1],
+            !height_map[2],
+            !height_map[3],
+            !height_map[3],
+        ]
+    } else {
+        [
+            !height_map[0],
+            !height_map[1],
+            !height_map[2],
+            !height_map[3],
+        ]
+    }
+}
+
 pub(super) fn get_sized_result<const F: MoveGenFlags>() -> Vec<ScoredMove> {
     let capacity = if is_mate_only::<F>() { 1 } else { 128 };
     Vec::with_capacity(capacity)
@@ -83,6 +114,7 @@ pub(super) fn get_sized_result<const F: MoveGenFlags>() -> Vec<ScoredMove> {
 pub(crate) struct GeneratorPreludeState<'a> {
     pub board: &'a BoardState,
     pub key_squares: BitBoard,
+    pub player: Player,
     pub other_god: StaticGod,
 
     pub exactly_level_0: BitBoard,
@@ -164,6 +196,7 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
     GeneratorPreludeState {
         board,
         key_squares,
+        player,
         other_god,
 
         exactly_level_0,

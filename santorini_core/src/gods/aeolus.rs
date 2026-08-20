@@ -231,10 +231,14 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
                     break;
                 }
             }
-        } else if other_god == GodName::Triton {
-            // Triton's win is a walk around the perimeter, so the wind can cut it anywhere along
-            // the way - there is no one key square whose wind shadow decides it. Every wind change
-            // counts as an interaction.
+        } else if other_god == GodName::Triton
+            || (other_god == GodName::Atalanta
+                && prelude.board.god_data[!prelude.player as usize] == 0)
+        {
+            // Their wins are walks over the board, so the wind can cut one anywhere along the way -
+            // there is no one key square whose wind shadow decides it. Every wind change counts as
+            // an interaction. Atalanta only walks while she still holds her power; once it is spent
+            // she is a mortal and falls through to the ordinary test below.
             did_interact_with_wind = true;
         } else if other_god == GodName::Stymphalians {
             // See if any key squares would be impacted by the wind. There will be false positives

@@ -11,6 +11,7 @@ use crate::{
         GodName, StaticGod,
         achilles::AchillesMove,
         ares::AresMove,
+        atalanta::AtalantaMove,
         athena::AthenaMove,
         bellerophon::BellerophonMove,
         castor::CastorMove,
@@ -521,13 +522,32 @@ impl ConsistencyChecker {
                 // start square does not show up in the worker masks at all. Read the endpoints off
                 // the move and ask whether a climbing chain joins them.
                 let triton_move: TritonMove = action.into();
-                let reachable = _triton_chain_reachable(
+                let reachable = _chain_reachable(
                     &self.state.board,
                     triton_move.move_from_position(),
                     PERIMETER_SPACES_MASK,
                     oppo_god.win_mask,
                 );
                 did_any_increase = reachable[1].contains_square(triton_move.move_to_position());
+            } else if active_god.god_name == GodName::Atalanta {
+                // Same story once she spends the power, except her chain relays off every square.
+                // A move that leaves the power in hand is a single ordinary step, so there the
+                // endpoints tell the whole story.
+                let atalanta_move: AtalantaMove = action.into();
+                let from = atalanta_move.move_from_position();
+                let to = atalanta_move.move_to_position();
+
+                did_any_increase = if atalanta_move.is_use_power() {
+                    let reachable = _chain_reachable(
+                        &self.state.board,
+                        from,
+                        BitBoard::MAIN_SECTION_MASK,
+                        oppo_god.win_mask,
+                    );
+                    reachable[1].contains_square(to)
+                } else {
+                    self.state.board.get_height(to) > self.state.board.get_height(from)
+                };
             } else if active_god.god_name == GodName::Castor {
                 // TODO: detect this properly
                 return;
@@ -1110,6 +1130,14 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if oppo_god.god_name == GodName::Atalanta
+                && self.state.board.god_data[!current_player as usize] == 0
+            {
+                // Same, only wider: with the power still in hand her paths are not confined to the
+                // perimeter, so the blocker board is everything she can reach.
+                continue;
+            }
+
             if oppo_god.god_name == GodName::Minotaur {
                 // TODO: scope this down
                 // Minotaur puts spots that it pushes TO during a mate into the blocker board
@@ -1242,6 +1270,14 @@ impl ConsistencyChecker {
             return;
         }
 
+        // While Atalanta still holds her power her threats have the same shape, so the flags are
+        // left unset and comparing them to ground truth would only report that. The wins reachable
+        // from each resulting position are still worth validating, so this skips the comparison
+        // rather than the whole pass. Once the power is spent she is a mortal and the flags are
+        // exact again. See `build_atalanta`.
+        let skip_check_flag_comparison = active_god.god_name == GodName::Atalanta
+            && self.state.board.god_data[current_player as usize] == 0;
+
         for (i, action) in search_moves.iter().enumerate() {
             if action.get_is_winning() {
                 continue;
@@ -1275,7 +1311,7 @@ impl ConsistencyChecker {
                     (false, "".to_owned())
                 };
 
-            if is_check_flag != is_real_checker {
+            if is_check_flag != is_real_checker && !skip_check_flag_comparison {
                 if is_real_checker && active_god.god_name == GodName::Maenads {
                     // maenads dancing kills...
                     // TODO: include these
@@ -1428,22 +1464,33 @@ impl ConsistencyChecker {
         let old_only = old_workers & !new_workers;
         let new_only = new_workers & !old_workers;
 
-        if active_god.god_name == GodName::Triton && old_only.is_empty() && new_only.is_empty() {
-            // A Triton chain can step off a level 3 square, walk the perimeter and climb straight
-            // back onto it. That is an ordinary level 2 -> 3 climb, but it leaves the worker masks
-            // untouched, so the diff below cannot see the move at all.
-            let triton_move: TritonMove = action.into();
-            let pos = triton_move.move_to_position();
+        if (active_god.god_name == GodName::Triton || active_god.god_name == GodName::Atalanta)
+            && old_only.is_empty()
+            && new_only.is_empty()
+        {
+            // A chain can step off a level 3 square, walk away and climb straight back onto it.
+            // That is an ordinary level 2 -> 3 climb, but it leaves the worker masks untouched, so
+            // the diff below cannot see the move at all.
+            let (pos, base_relay_mask) = if active_god.god_name == GodName::Triton {
+                let triton_move: TritonMove = action.into();
+                (triton_move.move_to_position(), PERIMETER_SPACES_MASK)
+            } else {
+                let atalanta_move: AtalantaMove = action.into();
+                (
+                    atalanta_move.move_to_position(),
+                    BitBoard::MAIN_SECTION_MASK,
+                )
+            };
 
             let is_real_win = state.board.get_height(pos) == 3
                 && (oppo_god.win_mask & BitBoard::as_mask(pos)).is_not_empty()
                 && oppo_god.can_opponent_climb(&state.board, !current_player)
-                && _validate_triton_chain_win(state, oppo_god, pos, pos, 3);
+                && _validate_chain_win(state, oppo_god, pos, pos, 3, base_relay_mask);
 
             if !is_real_win {
                 self.errors.push(format!(
-                    "{label}: Triton won without moving a worker: {}. {:?} -> {:?}",
-                    stringed_action, state, won_state,
+                    "{label}: {:?} won without moving a worker: {}. {:?} -> {:?}",
+                    active_god.god_name, stringed_action, state, won_state,
                 ));
             }
             return;
@@ -1579,9 +1626,34 @@ impl ConsistencyChecker {
         }
 
         if active_god.god_name == GodName::Triton
-            && _validate_triton_chain_win(state, oppo_god, old_pos, new_pos, new_height)
+            && _validate_chain_win(
+                state,
+                oppo_god,
+                old_pos,
+                new_pos,
+                new_height,
+                PERIMETER_SPACES_MASK,
+            )
         {
             return;
+        }
+
+        // A win of hers that leaves the power in hand is a plain mortal climb, already covered
+        // above; only the ones that spent it need the chain walk.
+        if active_god.god_name == GodName::Atalanta {
+            let atalanta_move: AtalantaMove = action.into();
+            if atalanta_move.is_use_power()
+                && _validate_chain_win(
+                    state,
+                    oppo_god,
+                    old_pos,
+                    new_pos,
+                    new_height,
+                    BitBoard::MAIN_SECTION_MASK,
+                )
+            {
+                return;
+            }
         }
 
         if active_god.god_name == GodName::Castor {
@@ -1647,17 +1719,19 @@ impl ConsistencyChecker {
     }
 }
 
-/// Where a Triton chain starting on `from` can be standing after any number of steps, split by
-/// whether it has climbed at least once on the way (index 1 is "has climbed").
+/// Where a chain of steps starting on `from` can be standing after any number of them, split by
+/// whether it has climbed at least once on the way (index 1 is "has climbed"). Shared by the gods
+/// whose turn is such a chain - Triton, who relays off the perimeter, and Atalanta, who relays off
+/// anywhere once she spends her power.
 ///
 /// Written against the board alone rather than reusing the generator's walk, so that it is an
 /// independent statement of the rule. It is deliberately permissive about the opposing god: plain
 /// adjacency, no Athena, no Hades - both of which only ever shrink the real reachable set.
 ///
-/// `relay_mask` is the set of squares a chain may continue from, normally the perimeter. Against
-/// Harpies a slide carries the worker *past* interior squares and can leave it on a perimeter
-/// square the plain walk would have stopped short of, so there the mask is opened up to everything.
-fn _triton_chain_reachable(
+/// `relay_mask` is the set of squares a chain may continue from. Against Harpies a slide carries the
+/// worker *past* interior squares and can leave it on a square the plain walk would have stopped
+/// short of, so there the mask is opened up to everything.
+fn _chain_reachable(
     board: &BoardState,
     from: Square,
     relay_mask: BitBoard,
@@ -1714,14 +1788,18 @@ fn _triton_chain_reachable(
     reached
 }
 
-/// A Triton win is a level 2 -> 3 climb taken from somewhere along a chain, so the square he took
+/// A chain win is a level 2 -> 3 climb taken from somewhere along the chain, so the square it took
 /// off from need not be anywhere near where the turn started.
-fn _validate_triton_chain_win(
+///
+/// `base_relay_mask` is where the chain may continue from when the opponent is not Harpies: the
+/// perimeter for Triton, the whole board for Atalanta.
+fn _validate_chain_win(
     state: &FullGameState,
     oppo_god: StaticGod,
     old_pos: Square,
     new_pos: Square,
     new_height: i32,
+    base_relay_mask: BitBoard,
 ) -> bool {
     if new_height != 3 {
         return false;
@@ -1731,11 +1809,11 @@ fn _validate_triton_chain_win(
     let relay_mask = if oppo_god.is_harpies() {
         BitBoard::MAIN_SECTION_MASK
     } else {
-        PERIMETER_SPACES_MASK
+        base_relay_mask
     };
 
-    let reachable = _triton_chain_reachable(board, old_pos, relay_mask, oppo_god.win_mask);
-    // A chain only continues from a perimeter space, so anywhere else it can take off from is the
+    let reachable = _chain_reachable(board, old_pos, relay_mask, oppo_god.win_mask);
+    // A chain only continues from a relay square, so anywhere else it can take off from is the
     // square it started on.
     let springboards = (reachable[0] | reachable[1] | BitBoard::as_mask(old_pos))
         & board.exactly_level_2()

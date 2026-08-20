@@ -217,6 +217,9 @@ impl GodName {
             GodName::Triton => {
                 "Each time your Worker moves into a perimeter space, it may immediately move again."
             }
+            GodName::Atalanta => {
+                "Once per game, your Worker may move any number of additional times."
+            }
         }
     }
 }

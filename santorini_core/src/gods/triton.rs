@@ -13,7 +13,7 @@ use crate::{
         god_power,
         harpies::slide_position_with_custom_blockers,
         move_helpers::{
-            GeneratorPreludeState, build_scored_move, get_generator_prelude_state,
+            build_scored_move, get_generator_prelude_state, get_step_masks,
             get_worker_start_move_state, is_interact_with_key_squares, is_mate_only,
             is_stop_on_mate,
         },
@@ -222,35 +222,6 @@ fn get_chain_reachable_squares(
     }
 
     reached
-}
-
-/// Squares a worker may step onto, indexed by the height it is standing on. Folds in Athena's climb
-/// ban and Hades' fall ban so the chain walk itself stays simple.
-fn get_step_masks(prelude: &GeneratorPreludeState) -> [BitBoard; 4] {
-    let height_map = &prelude.board.height_map;
-
-    if prelude.is_down_prevented {
-        [
-            !height_map[1],
-            height_map[0] & !height_map[2],
-            height_map[1] & !height_map[3],
-            height_map[2] & !height_map[3],
-        ]
-    } else if prelude.can_climb {
-        [
-            !height_map[1],
-            !height_map[2],
-            !height_map[3],
-            !height_map[3],
-        ]
-    } else {
-        [
-            !height_map[0],
-            !height_map[1],
-            !height_map[2],
-            !height_map[3],
-        ]
-    }
 }
 
 pub(super) fn triton_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
