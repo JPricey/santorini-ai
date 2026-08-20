@@ -2,9 +2,9 @@
 
 ## Implementation status (as built)
 
-Landed on `dev`, engine + UI building, 173 tests green, and the fuzzer clean against every audited
-opponent (44 gods, including six displacement gods, both pre-build gods, and the removal,
-placement and mass-forcing gods - see below).
+Landed on `dev`, engine + UI building, 174 tests green, and the fuzzer clean against every audited
+opponent (45 gods). **The whole displacement family is done** - every god that relocates, removes
+or places a worker now faces her. What is left is the multi-step movers and four concrete rulings.
 
 **Prometheus was briefly re-banned** when this pass found him generating illegal teleports, then
 fixed along with Achilles - see "The pre-build family". He is the only audited god that was ever
@@ -36,7 +36,7 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 44 gods**, each fuzzed against Charybdis individually *and* covered by
+**Audited opponent list: 45 gods**, each fuzzed against Charybdis individually *and* covered by
 `test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
 matters - see below. Everything else is
 banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
@@ -150,22 +150,33 @@ Each has targeted displacement-outcome and portal-win tests, and each fuzzed cle
 Charybdis plus an off-portal run. The routing guard test caught a double-swap bug mid-development
 that the fuzzer could not (a missing teleport still produces a self-consistent move list).
 
-**Still banned, in rough order of expected difficulty:**
+**Still banned:**
 
-- **Nemesis** - swaps *every* worker on the board at once. The last of this group, and the hardest:
-  the mover's own start square moves too, so "vacated" and "the mover" are both rewritten.
-  Odysseus' materialise-the-displaced-board trick is the thing to try first.
-- **Hermes, Triton, Pegasus, Castor, Proteus, Bellerophon, Stymphalians** - multi-step movers; the
-  portal is a teleport *edge* that must apply at each step, which turns "reachable set" into a graph
-  traversal. Hardest; several may stay banned a while.
+Thirteen matchups, all `BannedReason::Engine`, in two groups.
+
+- **Nine multi-step movers: Artemis, Hermes, Triton, Pegasus, Castor, Proteus, Bellerophon,
+  Stymphalians, Terpsichore.** The portal is a teleport *edge* that must apply at each step, which
+  turns "reachable set" into a graph traversal. This is the whole remaining engine debt, and the
+  hardest of it - several may stay banned a while. Two things learned from the displacement family
+  transfer directly: generate from a *materialised* post-step board where that is affordable (the
+  Odysseus trick), and check what `get_blocker_board` returns for every winning encoding, since a
+  move that does not decompose into from/to silently yields a garbage blocker board (the Jason
+  trap).
+- **Four concrete rulings: Harpies, Europa, Persephone, Iris**, for the reasons given above. These
+  are not "not audited yet" - each needs a decision, not an implementation.
 
 **Other known follow-ups:** exact check tagging; the per-god reach-board sites that still recompute
 `is_now_lvl_2` inline (Iris, Bia, Urania, Prometheus, Apollo, Achilles, Artemis - move ordering
 only); and NNUE features for the whirlpool bitboard at the next retrain (she still proxies Mortal,
 so she plays legally but evaluates blind to whirlpools - the biggest single lever on her strength).
 
-### Removal, placement and mass forcing (Theseus, Jason, Odysseus)
+### Removal, placement, mass forcing and the whole-board swap
 
+- **Nemesis** was free, and the "hardest of the group" guess was wrong. His swap resolves *after*
+  he has moved and built, so he is an ordinary lone mover at the moment he teleports, and
+  `make_move` reads the swapped worker's square as `move_to_position` - which is the exit, so the
+  teleport is already accounted for. The swap itself is forced movement, which by rule 6 never
+  triggers a whirlpool, so a worker swapped *onto* one simply stands there.
 - **Theseus** was free. His kill is read off where he *ends*, so it resolves after the move and he
   is an ordinary lone mover at the moment he teleports - the Scylla shape. Unbanned with a test and
   a clean 300s fuzz, no generator change.

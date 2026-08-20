@@ -770,3 +770,85 @@ pub const fn build_nemesis() -> GodPower {
         8706614857531094214,
     )
 }
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// Nemesis' swap resolves after he has moved and built, so he is an ordinary lone mover at the
+    /// moment he teleports - and the swap itself is forced movement, which by the card never
+    /// triggers a whirlpool. So a worker swapped *onto* a whirlpool simply stands there.
+    #[test]
+    fn test_nemesis_teleports_himself_but_the_swap_does_not() {
+        // Whirlpools C3 and E1. B3 steps into C3 and surfaces on E1; the swap then trades his
+        // workers with Charybdis', which parks one of hers on E1 without flushing her anywhere.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Nemesis)
+                .with_p1_worker(E5)
+                .with_p1_worker(D5)
+                .with_p2_worker(B3)
+                .with_p2_worker(A1)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C3, E1],
+        );
+
+        let god = GodName::Nemesis.to_power();
+        let oppo = GodName::Charybdis.to_power();
+
+        let mut plain_teleport = false;
+        let mut swapped_onto_whirlpool = false;
+
+        for scored in god.get_all_moves(&state, Player::Two) {
+            let next = state.next_state(god, oppo, scored.action);
+            let mine = next.board.workers[Player::Two as usize];
+            let theirs = next.board.workers[Player::One as usize];
+
+            // He stepped into C3 and came out at E1, without the swap.
+            if mine.contains_square(E1) && !theirs.contains_square(E1) {
+                plain_teleport = true;
+                assert!(!mine.contains_square(C3));
+            }
+
+            // The swap put one of hers on E1. Forced movement does not teleport, so she stays put
+            // rather than being flushed to C3, and both whirlpools are still on the board.
+            if theirs.contains_square(E1) {
+                swapped_onto_whirlpool = true;
+                assert!(
+                    !mine.contains_square(E1),
+                    "the swap moved him off the exit, so he cannot still be on it"
+                );
+                assert_eq!(
+                    next.board.god_data[Player::One as usize].count_ones(),
+                    2,
+                    "nothing changed a whirlpool's height, so both tokens stay on the board"
+                );
+            }
+        }
+
+        assert!(plain_teleport, "expected B3 to step into C3 and surface on E1");
+        assert!(
+            swapped_onto_whirlpool,
+            "expected a swap that parks a Charybdis worker on the E1 whirlpool"
+        );
+    }
+}
