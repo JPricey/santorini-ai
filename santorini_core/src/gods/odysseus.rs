@@ -930,3 +930,68 @@ mod tests {
         )));
     }
 }
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// Odysseus forces workers to corners *before* he moves, so a forcing that drags a worker off a
+    /// whirlpool arms the portal for his own turn. He gets this for free by generating from a
+    /// materialised post-displacement state, so the whole prelude - portal included - is recomputed
+    /// against the board he will actually move on.
+    #[test]
+    fn test_odysseus_arms_the_portal_by_forcing_a_worker_off_it() {
+        // Whirlpools C3 and E1. Charybdis' worker sits on C3, holding the portal shut. She
+        // neighbours an Odysseus worker, so he can fling her to a free corner - after which
+        // stepping into C3 surfaces on E1.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Odysseus)
+                .with_p1_worker(C3)
+                .with_p1_worker(A5)
+                .with_p2_worker(C4)
+                .with_p2_worker(B3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C3, E1],
+        );
+
+        let god = GodName::Odysseus.to_power();
+        let oppo = GodName::Charybdis.to_power();
+
+        let mut found = false;
+        for scored in god.get_all_moves(&state, Player::Two) {
+            let next = state.next_state(god, oppo, scored.action);
+            // Someone of his surfaced on E1, and nobody is left standing on C3.
+            if next.board.workers[Player::Two as usize].contains_square(E1)
+                && !next.board.workers[Player::One as usize].contains_square(C3)
+            {
+                found = true;
+                assert!(!next.board.workers[Player::Two as usize].contains_square(C3));
+            }
+        }
+
+        assert!(
+            found,
+            "expected Odysseus to fling the C3 worker away and then teleport through C3 to E1"
+        );
+    }
+}

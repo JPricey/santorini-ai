@@ -2,8 +2,9 @@
 
 ## Implementation status (as built)
 
-Landed on `dev`, engine + UI building, 169 tests green, and the fuzzer clean against every audited
-opponent (41 gods, including six displacement gods and both pre-build gods - see below).
+Landed on `dev`, engine + UI building, 173 tests green, and the fuzzer clean against every audited
+opponent (44 gods, including six displacement gods, both pre-build gods, and the removal,
+placement and mass-forcing gods - see below).
 
 **Prometheus was briefly re-banned** when this pass found him generating illegal teleports, then
 fixed along with Achilles - see "The pre-build family". He is the only audited god that was ever
@@ -35,7 +36,7 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
-**Audited opponent list: 41 gods**, each fuzzed against Charybdis individually *and* covered by
+**Audited opponent list: 44 gods**, each fuzzed against Charybdis individually *and* covered by
 `test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
 matters - see below. Everything else is
 banned as `BannedReason::Engine`. Beyond the phase 1 set this now includes Graeae, Maenads, Bia,
@@ -151,14 +152,9 @@ that the fuzzer could not (a missing teleport still produces a self-consistent m
 
 **Still banned, in rough order of expected difficulty:**
 
-- **Theseus** - *removes* a worker rather than relocating one; removal can free a whirlpool, so it
-  needs the same post-displacement portal treatment as Charon's pull.
-- **Jason** - *places* an extra worker before taking his turn with it; a placement onto a whirlpool
-  shuts the portal, so again post-displacement portal state, and the placed worker is the mover.
-- **Odysseus** - mass forced relocation to corners at the start of the turn. Same shape as Charon's
-  pull but with an arbitrary number of simultaneous relocations feeding `vacated`/`newly_filled`.
-- **Nemesis** - swaps *every* worker on the board at once. The hardest of this group: the mover's
-  own start square moves too, so "vacated" and "the mover" are both rewritten.
+- **Nemesis** - swaps *every* worker on the board at once. The last of this group, and the hardest:
+  the mover's own start square moves too, so "vacated" and "the mover" are both rewritten.
+  Odysseus' materialise-the-displaced-board trick is the thing to try first.
 - **Hermes, Triton, Pegasus, Castor, Proteus, Bellerophon, Stymphalians** - multi-step movers; the
   portal is a teleport *edge* that must apply at each step, which turns "reachable set" into a graph
   traversal. Hardest; several may stay banned a while.
@@ -167,6 +163,35 @@ that the fuzzer could not (a missing teleport still produces a self-consistent m
 `is_now_lvl_2` inline (Iris, Bia, Urania, Prometheus, Apollo, Achilles, Artemis - move ordering
 only); and NNUE features for the whirlpool bitboard at the next retrain (she still proxies Mortal,
 so she plays legally but evaluates blind to whirlpools - the biggest single lever on her strength).
+
+### Removal, placement and mass forcing (Theseus, Jason, Odysseus)
+
+- **Theseus** was free. His kill is read off where he *ends*, so it resolves after the move and he
+  is an ordinary lone mover at the moment he teleports - the Scylla shape. Unbanned with a test and
+  a clean 300s fuzz, no generator change.
+- **Odysseus** was free, for a reason worth copying: his generator *materialises* the
+  post-displacement board (`displaced_state`) and generates from that, so the entire prelude -
+  `portal_squares`, `get_active_portal`, `winnable_squares` - is recomputed against the board he
+  actually moves on. That is what Charon had to be taught by hand. His blocker board was already
+  written in terms of real from/to squares plus the corners the move uses, so the Jason trap below
+  did not apply. Unbanned with a test and a clean 300s fuzz, no generator change.
+- **Jason** needed a move-struct change, the first of this whole effort. His hero *appears* on the
+  board rather than moving, and the encoding stores where it ends up rather than where it was
+  placed (placements reaching the same square are the same move). The generator carried the comment
+  *"A placed worker starts on the ground, so it can never reach level 3 in one move"* - which the
+  portal falsifies, since a whirlpool exit wins from any height. Three things followed:
+  - **A win that was not a win.** Three moves landed the hero on a level 3 exit and none was
+    flagged; mate generation found nothing, because the whole power path was gated behind
+    `!is_mate_only`. Now there is a winning-placement encoding, `make_move` adds the worker and
+    sets the winner, and the power path runs under MATE_ONLY when a portal is on the board.
+  - **The win validator could not read it.** It asserts it can identify the worker that moved, and
+    a hero win vacates nothing. It now recognises a placement landing on a free level 3 exit.
+  - **Blocking it needed both halves.** `get_blocker_board` returned `move_mask()`, which for a
+    hero move reads two unset fields - it was handing back square A5. Blocking a hero portal win
+    means disarming the portal *or* standing on the square he would have been placed on, and the
+    encoding deliberately does not record which placement was used, so the blocker board offers
+    every ground level perimeter square along with the exit (the shared hook widens that to the
+    whole portal). Both blocks came from the fuzzer, one after the other.
 
 ### The pre-build family (Prometheus and Achilles, both fixed)
 

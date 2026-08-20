@@ -15,6 +15,7 @@ use crate::{
             get_generator_prelude_state, get_sized_result, get_standard_reach_board,
             get_worker_end_move_state, get_worker_next_move_state, get_worker_start_move_state,
             is_interact_with_key_squares, is_mate_only, push_winning_moves,
+            get_active_portal, is_stop_on_mate, winnable_squares_for_arrival,
         },
     },
     player::Player,
@@ -69,10 +70,18 @@ impl JasonMove {
     }
 
     fn new_winning_move(move_from_position: Square, move_to_position: Square) -> Self {
-        // A placed worker starts on the ground, so it can never reach level 3 in one move
         let data: MoveData = ((move_from_position as MoveData) << MOVE_FROM_POSITION_OFFSET)
             | ((move_to_position as MoveData) << MOVE_TO_POSITION_OFFSET)
             | (NO_PLACEMENT << PLACE_POSITION_OFFSET)
+            | MOVE_IS_WINNING_MASK;
+        Self(data)
+    }
+
+    /// A placed worker starts on the ground, so it can only reach level 3 in one move through a
+    /// whirlpool: it steps into one, and the exit flushes it out onto level 3 from any height.
+    /// Like every power move this stores where the worker ends up rather than where it was placed.
+    fn new_power_winning_move(end_position: Square) -> Self {
+        let data: MoveData = ((end_position as MoveData) << PLACE_POSITION_OFFSET)
             | MOVE_IS_WINNING_MASK;
         Self(data)
     }
@@ -140,6 +149,9 @@ impl GodMove for JasonMove {
         _other_god: StaticGod,
     ) -> Vec<FullAction> {
         if self.get_is_winning() {
+            if let Some(place_pos) = self.maybe_place_position() {
+                return vec![vec![PartialAction::HeroActionPlacement(place_pos)]];
+            }
             return vec![vec![
                 PartialAction::SelectWorker(self.move_from_position()),
                 PartialAction::MoveWorker(self.move_to_position().into()),
@@ -162,8 +174,14 @@ impl GodMove for JasonMove {
 
     fn make_move(self, board: &mut BoardState, player: Player, _other_god: StaticGod) {
         if self.get_is_winning() {
-            let worker_move_mask = self.move_mask();
-            board.worker_xor(player, worker_move_mask);
+            if let Some(place_pos) = self.maybe_place_position() {
+                // Won with the hero: the worker appears at its destination, and there is no build
+                // because the game is already over.
+                board.set_god_data(player, 1);
+                board.worker_xor(player, place_pos.to_board());
+            } else {
+                board.worker_xor(player, self.move_mask());
+            }
             board.set_winner(player);
             return;
         }
@@ -179,8 +197,24 @@ impl GodMove for JasonMove {
         }
     }
 
-    fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
-        self.move_mask()
+    fn get_blocker_board(self, board: &BoardState) -> BitBoard {
+        if let Some(place_pos) = self.maybe_place_position() {
+            // A hero move has no from/to - the worker simply appears where it ends up - so
+            // `move_mask` would read two unset fields. For a hero *win* the landing square is the
+            // whirlpool exit, which is what lets the shared hook widen this to the whole portal:
+            // building on either token hands it back and the teleport stops existing.
+            //
+            // Standing on the square he would have been placed on also stops it, and the encoding
+            // deliberately does not record which one that was - placements that reach the same
+            // destination are the same move. So offer every square he could have been placed on.
+            // Over-broad key squares cost search nodes; missing ones lose forced defences.
+            let occupied = board.workers[0] | board.workers[1] | board.at_least_level_4();
+            let placements = PERIMETER_SPACES_MASK & board.exactly_level_0() & !occupied;
+
+            place_pos.to_board() | placements
+        } else {
+            self.move_mask()
+        }
     }
 
     fn get_history_idx(self, board: &BoardState) -> usize {
@@ -219,11 +253,17 @@ fn jason_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         return result;
     }
 
-    if has_power_available && !is_mate_only::<F>() {
+    // The power path used to be skipped entirely under MATE_ONLY, on the grounds that a worker
+    // placed on the ground can never reach level 3. A whirlpool exit can, so it has to run.
+    if has_power_available && (!is_mate_only::<F>() || prelude.portal_squares.is_not_empty()) {
         if prelude.is_against_harpies {
-            add_hero_power_moves_vs_harpies::<F>(&prelude, &mut result);
-        } else {
-            add_hero_power_moves_vs_non_harpies::<F, false>(&prelude, &mut result);
+            // Harpies and Charybdis can never both be the opponent, so there is no portal here and
+            // the old reasoning still holds: this path has no wins to find.
+            if !is_mate_only::<F>() {
+                add_hero_power_moves_vs_harpies::<F>(&prelude, &mut result);
+            }
+        } else if add_hero_power_moves_vs_non_harpies::<F, false>(&prelude, &mut result) {
+            return result;
         }
     }
 
@@ -377,10 +417,11 @@ fn add_standard_moves<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     false
 }
 
+/// Returns true if the caller should stop generating (a mate was found under STOP_ON_MATE).
 fn add_hero_power_moves_vs_non_harpies<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     prelude: &GeneratorPreludeState,
     result: &mut Vec<ScoredMove>,
-) {
+) -> bool {
     let unblocked_squares = !(prelude.all_workers_and_frozen_mask | prelude.domes_and_frozen);
     let buildable_squares = unblocked_squares & prelude.build_mask;
     let valid_placements = PERIMETER_SPACES_MASK & prelude.exactly_level_0 & unblocked_squares;
@@ -402,6 +443,12 @@ fn add_hero_power_moves_vs_non_harpies<const F: MoveGenFlags, const MUST_CLIMB: 
         let worker_moves =
             get_basic_moves_from_raw_data::<MUST_CLIMB>(prelude, init_pos, place_mask, 0);
 
+        // The hero lands on the ground, so climbing to level 3 is out of reach - but a whirlpool
+        // exit wins from any height at all, so stepping into one whirlpool and being flushed onto
+        // a level 3 partner is a win. Judged per placement, since the square he is placed on is
+        // vacated as he steps off it and so does not hold the portal shut.
+        let winnable = winnable_squares_for_arrival(prelude, 0, get_active_portal(prelude, place_mask));
+
         for move_to in worker_moves {
             let move_to_mask = move_to.to_board();
 
@@ -409,6 +456,20 @@ fn add_hero_power_moves_vs_non_harpies<const F: MoveGenFlags, const MUST_CLIMB: 
                 continue;
             }
             seen_move_to |= move_to_mask;
+
+            if (move_to_mask & winnable).is_not_empty() {
+                result.push(ScoredMove::new_winning_move(
+                    JasonMove::new_power_winning_move(move_to).into(),
+                ));
+                if is_stop_on_mate::<F>() {
+                    return true;
+                }
+                continue;
+            }
+
+            if is_mate_only::<F>() {
+                continue;
+            }
 
             let all_possible_builds = NEIGHBOR_MAP[move_to as usize] & buildable_squares;
             let mut narrowed_builds = all_possible_builds;
@@ -436,6 +497,8 @@ fn add_hero_power_moves_vs_non_harpies<const F: MoveGenFlags, const MUST_CLIMB: 
             }
         }
     }
+
+    false
 }
 
 fn add_hero_power_moves_vs_harpies<const F: MoveGenFlags>(
@@ -951,5 +1014,100 @@ mod tests {
             "Expected to check many states, only checked {}",
             states_checked,
         );
+    }
+}
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// The hero lands on the ground, which used to mean he could never reach level 3 in one move.
+    /// A whirlpool exit wins from any height, so he can - and the win has to be found by mate
+    /// generation, not emitted as an ordinary build-and-move.
+    #[test]
+    fn test_jason_hero_wins_through_a_whirlpool() {
+        // Whirlpools B1 (level 0) and E5 (level 3). Placing on the level 0 perimeter square A1 and
+        // stepping into B1 flushes the hero out onto E5.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Jason)
+                .with_p1_worker(C3)
+                .with_p1_worker(C4)
+                .with_p2_worker(A5)
+                .with_p2_worker(A4)
+                .with_height(E5, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[B1, E5],
+        );
+
+        let god = GodName::Jason.to_power();
+        let oppo = GodName::Charybdis.to_power();
+
+        let wins = god.get_winning_moves(&state, Player::Two);
+        assert_eq!(wins.len(), 1, "expected exactly one hero portal win");
+
+        let next = state.next_state(god, oppo, wins[0].action);
+        assert_eq!(next.get_winner(), Some(Player::Two));
+        assert!(next.board.workers[Player::Two as usize].contains_square(E5));
+        // The hero really is a third worker, and the power is spent.
+        assert_eq!(next.board.workers[Player::Two as usize].count_ones(), 3);
+        assert_eq!(next.board.god_data[Player::Two as usize], 1);
+
+        // And no move may land him on the exit without being flagged as a win.
+        for board in god.get_all_next_states(&state) {
+            let next = FullGameState::new(board, state.gods.clone());
+            if next.board.workers[Player::Two as usize].contains_square(E5) {
+                assert_eq!(next.get_winner(), Some(Player::Two));
+            }
+        }
+    }
+
+    /// Blocking a hero portal win means either disarming the portal or standing on the square he
+    /// would have been placed on - and the encoding does not record which placement was used, so
+    /// the blocker board has to offer all of them.
+    #[test]
+    fn test_jason_hero_win_blockers_cover_the_portal_and_the_placements() {
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Jason)
+                .with_p1_worker(C3)
+                .with_p1_worker(C4)
+                .with_p2_worker(A5)
+                .with_p2_worker(A4)
+                .with_height(E5, 3)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[B1, E5],
+        );
+
+        let god = GodName::Jason.to_power();
+        let wins = god.get_winning_moves(&state, Player::Two);
+        let portal = crate::gods::move_helpers::get_portal_squares(&state, Player::Two);
+        let blockers = god.get_blocker_board(&state.board, wins[0].action, portal);
+
+        // Both whirlpools: building on either hands the token back and the teleport stops existing.
+        assert!(blockers.contains_square(B1));
+        assert!(blockers.contains_square(E5));
+        // And A1, the ground level perimeter square he steps into B1 from.
+        assert!(blockers.contains_square(A1));
     }
 }

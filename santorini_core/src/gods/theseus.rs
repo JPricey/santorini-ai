@@ -400,3 +400,68 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod charybdis_portal_tests {
+    use crate::board::{GameStateBuilder, GodData};
+    use crate::gods::GodName;
+    use crate::player::Player;
+    use crate::square::Square::*;
+
+    use super::*;
+
+    fn with_whirlpools(
+        mut state: FullGameState,
+        player: Player,
+        squares: &[Square],
+    ) -> FullGameState {
+        let mut mask = BitBoard::EMPTY;
+        for s in squares {
+            mask |= BitBoard::as_mask(*s);
+        }
+        state.board.set_god_data(player, mask.0 as GodData);
+        state
+    }
+
+    /// Theseus' kill resolves after he moves - the kill range is read off where he *ends* - so he
+    /// is an ordinary lone mover at the moment he teleports, and may kill from the exit square.
+    #[test]
+    fn test_theseus_teleports_then_kills_from_the_exit() {
+        // Whirlpools C3 and E3. Theseus steps into C3 from B3 and surfaces on E3 at level 0, which
+        // puts him two levels below the Charybdis worker on E4 - so he may remove it.
+        let state = with_whirlpools(
+            GameStateBuilder::new(GodName::Charybdis, GodName::Theseus)
+                .with_p1_worker(E4)
+                .with_p1_worker(A1)
+                .with_p2_worker(B3)
+                .with_p2_worker(A5)
+                .with_height(E4, 2)
+                .with_current_player(Player::Two)
+                .build(),
+            Player::One,
+            &[C3, E3],
+        );
+
+        let god = GodName::Theseus.to_power();
+        let oppo = GodName::Charybdis.to_power();
+
+        let mut found = false;
+        for scored in god.get_all_moves(&state, Player::Two) {
+            let next = state.next_state(god, oppo, scored.action);
+            if !next.board.workers[Player::Two as usize].contains_square(E3) {
+                continue;
+            }
+            if next.board.workers[Player::One as usize].contains_square(E4) {
+                continue;
+            }
+            found = true;
+            // He surfaced on the exit, and the worker he was two below is gone.
+            assert!(!next.board.workers[Player::Two as usize].contains_square(C3));
+        }
+
+        assert!(
+            found,
+            "expected Theseus to surface on E3 and remove the E4 worker from there"
+        );
+    }
+}

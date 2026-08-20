@@ -1636,6 +1636,22 @@ impl ConsistencyChecker {
             }
         }
 
+        if old_only.is_empty() && new_only.count_ones() == 1 {
+            // Jason's hero *appears* on the board instead of moving, so nothing was vacated and
+            // there is no height delta to read. He is placed on the ground, so the only level 3 he
+            // can reach in one move is a whirlpool exit - which wins from any height at all.
+            let portal = get_portal_squares(state, current_player);
+            let landed = new_only;
+            let is_free_portal_exit = (portal & landed).is_not_empty()
+                && won_state.board.get_height(landed.lsb()) == 3
+                && (oppo_god.win_mask & landed).is_not_empty()
+                && ((portal ^ landed) & state.board.workers[!current_player as usize]).is_empty();
+
+            if active_god.god_name == GodName::Jason && is_free_portal_exit {
+                return;
+            }
+        }
+
         assert_eq!(
             old_only.count_ones(),
             1,
