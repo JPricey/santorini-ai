@@ -185,83 +185,52 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
 
     // Charybdis' whirlpools rewrite where the *opponent's* worker ends up, so every god she faces
     // has to route its destinations through the portal. That falls out for free for gods whose
-    // movement goes through the shared `get_limited_moves_given_move_mask` funnel and that win the
-    // ordinary way, by climbing to level 3. Everything else - displacement, multi-step movement,
-    // hand-rolled destination sets, or a win condition that reads a height delta - needs its own
-    // audit, so it is banned until that audit happens.
-    const CHARYBDIS_AUDITED_OPPONENTS: [GodName; 45] = [
-        GodName::Mortal,
-        GodName::Pan,
-        GodName::Atlas,
-        GodName::Demeter,
-        GodName::Hephaestus,
-        GodName::Prometheus,
-        GodName::Achilles,
-        GodName::Athena,
-        GodName::Hades,
-        GodName::Hera,
-        GodName::Limus,
-        GodName::Hypnus,
-        GodName::Aphrodite,
-        GodName::Morpheus,
-        GodName::Aeolus,
-        GodName::Hestia,
-        GodName::Clio,
-        GodName::Zeus,
-        GodName::Ares,
-        GodName::Selene,
-        GodName::Hippolyta,
-        GodName::Asteria,
-        GodName::Polyphemus,
-        GodName::Poseidon,
-        GodName::Chronus,
-        GodName::Chronus4T,
-        GodName::Chronus3T,
-        GodName::Medusa,
-        GodName::Graeae,
-        GodName::Maenads,
-        GodName::Bia,
-        GodName::Nike,
-        GodName::Eros,
-        GodName::Hydra,
-        GodName::Urania,
-        GodName::Apollo,
-        GodName::Minotaur,
-        GodName::ApolloV2,
-        GodName::Scylla,
-        GodName::Charon,
-        GodName::CharonV2,
-        GodName::Theseus,
-        GodName::Jason,
-        GodName::Odysseus,
-        GodName::Nemesis,
+    // movement goes through the shared `get_limited_moves_given_move_mask` funnel, which is where
+    // destinations get routed through it. What is left needs its own audit, and note that fuzzing
+    // cannot supply one: a god that simply never teleports emits a move list that is entirely
+    // self-consistent, so the consistency checker sees nothing wrong. The real criterion is
+    // `test_every_audited_opponent_routes_moves_through_the_portal`, which reads outcomes off the
+    // board rather than out of the move encoding.
+    //
+    // Everything not listed here has been audited and fuzzed against her. Adding a *new* god
+    // therefore leaves it playable by default, so audit it before shipping - or add it below.
+    const CHARYBDIS_BANNED_OPPONENTS: [GodName; 14] = [
+        // Multi-step movers. The portal is a teleport *edge* that has to apply at every step,
+        // which turns "reachable set" into a graph traversal - the whole remaining engine debt.
+        GodName::Artemis,
+        GodName::Hermes,
+        GodName::Triton,
+        GodName::Pegasus,
+        GodName::Castor,
+        GodName::Proteus,
+        GodName::Bellerophon,
+        GodName::Stymphalians,
+        GodName::Terpsichore,
+        // These four need a rules decision rather than an implementation.
+        //
+        // Harpies: her slide is forced movement, which by the card does not trigger a whirlpool,
+        // but a slide that ends on one - or starts from one - needs an ordering ruling nobody has
+        // written down.
+        GodName::Harpies,
+        // Europa: the Talus and a whirlpool can end up on the same square, and nothing in either
+        // card says what that square then is.
+        GodName::Europa,
+        // Persephone: a whirlpool mate whose *entry* is a step down is a non-climbing win, so
+        // handing Charybdis a climb anywhere on the board suppresses it - a block that has nothing
+        // to do with the squares the win touches, and so nothing blocker generation can be asked
+        // for.
+        GodName::Persephone,
+        // Iris: she reaches a whirlpool by jumping *over* a worker, so that worker is a stepping
+        // stone and walking it away defuses the win. Key square narrowing matches on where a move
+        // lands, so it cannot express that block and the search would miss the defence.
+        GodName::Iris,
+        // And herself: two sets of whirlpools would be on the board at once, but a portal is
+        // defined as *the* pair of tokens, and `get_portal_squares` only ever reads one player's.
+        GodName::Charybdis,
     ];
-    // What makes a god safe to face her is narrow: its movement has to go through
-    // `get_limited_moves_given_move_mask`, which is where destinations get routed through the
-    // portal. Gods that build a destination set by hand, walk it in several steps, or relocate an
-    // opponent's worker mid-turn all need their own handling and are banned until they get it.
-    // Note that fuzzing cannot clear them - a missing teleport produces a self-consistent move
-    // list, so the consistency checker sees nothing wrong.
-    //
-    // Prometheus and Achilles build *before* they move, which is the one ordering that can
-    // destroy a portal mid-turn: a build landing on a whirlpool hands that token back, and a lone
-    // whirlpool is an ordinary square. Both used to filter the already-swapped destination set by
-    // height, which both used a portal they had just removed and judged the height rules on the
-    // exit instead of the entry leg they belong to. Both now build that set in *entry* space and
-    // apply the swap last, per pre-build. Kept in mind if a third pre-build god ever appears.
-    //
-    // Four are out for concrete reasons rather than "not audited yet". Harpies: her
-    // slide is forced movement, which by the card does not trigger a whirlpool, but a slide that
-    // ends on one - or starts from one - needs an ordering ruling nobody has written down. Europa: the Talus
-    // and a whirlpool can end up on the same square, and nothing in either card says what that
-    // square then is. Persephone: a whirlpool mate whose *entry* is a step down is a non-climbing
-    // win, so handing Charybdis a climb anywhere on the board suppresses it - a block that has
-    // nothing to do with the squares the win touches, and so nothing blocker generation can be
-    // asked for.
-    for god in ALL_GODS_BY_ID.iter() {
-        if !CHARYBDIS_AUDITED_OPPONENTS.contains(&god.god_name) {
-            add_matchup(GodName::Charybdis, god.god_name, BannedReason::Engine);
-        }
+
+    for &god_name in CHARYBDIS_BANNED_OPPONENTS.iter() {
+        add_matchup(GodName::Charybdis, god_name, BannedReason::Engine);
     }
 
     // Ban every pair of chronus variants playing each other

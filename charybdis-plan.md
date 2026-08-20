@@ -36,6 +36,13 @@ render as tokens on both UIs, alongside the Talus and female-worker markers.
 - **A general Morpheus bug fell out**: he could decline to build, but blocking generation dropped
   his zero-build moves whenever no build could touch a key square. Fixed for all matchups.
 
+**`matchup.rs` lists the bans, not the clearances.** It used to carry a
+`CHARYBDIS_AUDITED_OPPONENTS` allowlist; now that 45 of 59 gods are cleared, `CHARYBDIS_BANNED_OPPONENTS`
+is both shorter and self-documenting - each entry sits next to the reason it is there. The trade-off
+is the default direction: a newly added god is now **playable** against her unless someone bans it,
+where before it was banned until someone cleared it. The comment says so, and the routing guard test
+covers every unbanned god, so a new god that skips the portal fails a test rather than shipping.
+
 **Audited opponent list: 45 gods**, each fuzzed against Charybdis individually *and* covered by
 `test_every_audited_opponent_routes_moves_through_the_portal`, which is the check that actually
 matters - see below. Everything else is
@@ -152,7 +159,7 @@ that the fuzzer could not (a missing teleport still produces a self-consistent m
 
 **Still banned:**
 
-Thirteen matchups, all `BannedReason::Engine`, in two groups.
+Fourteen matchups, all `BannedReason::Engine`, in three groups (see `CHARYBDIS_BANNED_OPPONENTS`).
 
 - **Nine multi-step movers: Artemis, Hermes, Triton, Pegasus, Castor, Proteus, Bellerophon,
   Stymphalians, Terpsichore.** The portal is a teleport *edge* that must apply at each step, which
@@ -164,6 +171,10 @@ Thirteen matchups, all `BannedReason::Engine`, in two groups.
   trap).
 - **Four concrete rulings: Harpies, Europa, Persephone, Iris**, for the reasons given above. These
   are not "not audited yet" - each needs a decision, not an implementation.
+- **The mirror, Charybdis vs Charybdis.** Two sets of whirlpools would be on the board at once, but
+  a portal is defined as *the* pair of tokens and `get_portal_squares` only ever reads one player's.
+  This was banned before as a side effect of her not appearing in her own allowlist; it is now
+  explicit.
 
 **Other known follow-ups:** exact check tagging; the per-god reach-board sites that still recompute
 `is_now_lvl_2` inline (Iris, Bia, Urania, Prometheus, Apollo, Achilles, Artemis - move ordering
