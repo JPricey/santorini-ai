@@ -540,7 +540,10 @@ pub(super) fn morpheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 
             if is_interact_with_key_squares::<F>()
                 && worker_next_build_state.narrowed_builds.is_empty()
+                && (key_squares & worker_end_move_state.worker_end_mask).is_empty()
             {
+                // No build here can touch a key square - but Morpheus can decline to build at all,
+                // and simply standing on a key square is itself a block, so that move survives.
                 continue;
             }
 

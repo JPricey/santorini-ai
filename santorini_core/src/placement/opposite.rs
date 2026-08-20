@@ -82,7 +82,14 @@ const RIGHT: BitBoard = BitBoard(0b10000_10000_10000_10000_10000);
 
 const BOT_RIGHT: BitBoard = RIGHT.bit_or(BOT);
 
-fn _add_placements(a: Square, b_board: BitBoard, res: &mut Vec<GenericMove>) {
+fn _add_placements(a: Square, open_squares: BitBoard, b_board: BitBoard, res: &mut Vec<GenericMove>) {
+    // `a` is a fixed corner of the pairing rather than something iterated out of a mask, so it
+    // needs its own occupancy check - without it these placements will happily stack a worker on
+    // top of one the opponent already placed.
+    if !open_squares.contains_square(a) {
+        return;
+    }
+
     for b in b_board {
         let action = OppositeWorkerPlacement::new(a, b);
         res.push(action.into());
@@ -102,17 +109,17 @@ impl WorkerPlacementMove for OppositeWorkerPlacement {
 
         let mut res = Vec::with_capacity(49);
 
-        _add_placements(Square::A5, open_squares & BOT_RIGHT, &mut res);
+        _add_placements(Square::A5, open_squares, open_squares & BOT_RIGHT, &mut res);
 
-        _add_placements(Square::B5, open_squares & BOT, &mut res);
-        _add_placements(Square::C5, open_squares & BOT, &mut res);
-        _add_placements(Square::D5, open_squares & BOT, &mut res);
-        _add_placements(Square::E5, open_squares & BOT, &mut res);
+        _add_placements(Square::B5, open_squares, open_squares & BOT, &mut res);
+        _add_placements(Square::C5, open_squares, open_squares & BOT, &mut res);
+        _add_placements(Square::D5, open_squares, open_squares & BOT, &mut res);
+        _add_placements(Square::E5, open_squares, open_squares & BOT, &mut res);
 
-        _add_placements(Square::A4, open_squares & RIGHT, &mut res);
-        _add_placements(Square::A3, open_squares & RIGHT, &mut res);
-        _add_placements(Square::A2, open_squares & RIGHT, &mut res);
-        _add_placements(Square::A1, open_squares & RIGHT, &mut res);
+        _add_placements(Square::A4, open_squares, open_squares & RIGHT, &mut res);
+        _add_placements(Square::A3, open_squares, open_squares & RIGHT, &mut res);
+        _add_placements(Square::A2, open_squares, open_squares & RIGHT, &mut res);
+        _add_placements(Square::A1, open_squares, open_squares & RIGHT, &mut res);
 
         debug_assert!(res.len() <= 49);
 
