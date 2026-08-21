@@ -510,6 +510,18 @@ impl BoardState {
         self.height_lookup[build_position as usize] -= 1;
     }
 
+    /// Strips every block off a square, leaving it at ground level. A worker standing there rides
+    /// it down; the square keeps whatever occupies it.
+    pub fn raze(&mut self, build_position: Square) {
+        let build_mask = BitBoard::as_mask(build_position);
+        let current_height = self.get_height(build_position);
+        for h in 0..current_height {
+            self.height_map[h] ^= build_mask;
+            self.hash ^= ZOBRIST_HEIGHT_RANDOMS[h][build_position as usize];
+        }
+        self.height_lookup[build_position as usize] = 0;
+    }
+
     pub fn double_unbuild(&mut self, build_position: Square) {
         let build_mask = BitBoard::as_mask(build_position);
         let current_height = self.get_height(build_position) - 1;

@@ -220,6 +220,10 @@ impl GodName {
             GodName::Atalanta => {
                 "Once per game, your Worker may move any number of additional times."
             }
+            GodName::Medea => {
+                "Once per game at the end of your turn, remove all blocks from under a Worker \
+                 neighboring either of your Workers."
+            }
         }
     }
 }

@@ -19,6 +19,7 @@ use crate::{
         harpies::slide_position_with_custom_blockers,
         hydra::HydraMove,
         jason::JasonMove,
+        medea::MedeaMove,
         mortal::MortalMove,
         odysseus,
         stymphalians::StymphaliansMove,
@@ -409,13 +410,22 @@ impl ConsistencyChecker {
             let old_only = old_workers & !new_workers;
             let new_only = new_workers & !old_workers;
 
+            // Medea's raze happens after the move and can drop the square she landed on to the
+            // ground, which reads as a descent in an end-of-turn diff even though the step itself
+            // climbed. Hades governs the step, so measure both endpoints on the pre-move board.
+            let arrival_board = if active_god.god_name == GodName::Medea {
+                &self.state.board
+            } else {
+                &new_state.board
+            };
+
             let mut old_heights = Vec::new();
             let mut new_heights = Vec::new();
             for old_pos in old_only {
                 old_heights.push(self.state.board.get_height(old_pos));
             }
             for new_pos in new_only {
-                new_heights.push(new_state.board.get_height(new_pos));
+                new_heights.push(arrival_board.get_height(new_pos));
             }
 
             if old_heights.len() != new_heights.len() {
@@ -564,6 +574,15 @@ impl ConsistencyChecker {
                     did_any_increase |= board.get_height(terpsichore_move.move_to_position_2())
                         > board.get_height(from2);
                 }
+            } else if active_god.god_name == GodName::Medea {
+                // Her raze lands after the move and may strip the square she just climbed onto,
+                // which hides the climb from an end-of-turn height diff. Both endpoints are in the
+                // move, and she never builds on the square she lands on, so the pre-move board
+                // settles it exactly.
+                let medea_move: MedeaMove = action.into();
+                let board = &self.state.board;
+                did_any_increase = board.get_height(medea_move.move_to_position())
+                    > board.get_height(medea_move.move_from_position());
             } else {
                 let mut old_heights = Vec::new();
                 let mut new_heights = Vec::new();
