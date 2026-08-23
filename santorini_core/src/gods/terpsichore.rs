@@ -14,7 +14,7 @@ use crate::{
             get_harpy_double_move_first_steps,
         },
         move_helpers::{
-            GeneratorPreludeState, build_scored_move,
+            GeneratorPreludeState, build_scored_move, can_vacate_a_win_square,
             get_basic_moves_from_raw_data_with_custom_blockers, get_generator_prelude_state,
             get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
             get_worker_next_move_state, get_worker_start_move_state, is_interact_with_key_squares,
@@ -356,6 +356,8 @@ fn emit_double_move_with_builds<const F: MoveGenFlags>(
         BitBoard::EMPTY
     };
     let reach = reach1 | reach2;
+    let climbers =
+        (w1_end_mask * (end_height_1 == 2) as u32) | (w2_end_mask * (end_height_2 == 2) as u32);
 
     let moves_hit_key = (workers_after_mask & key_squares).is_not_empty();
     let is_improving = (end_height_1 == 1 && end_height_1 > start_height_1)
@@ -393,9 +395,6 @@ fn emit_double_move_with_builds<const F: MoveGenFlags>(
 
             let both_mask = b1_mask | b2_mask;
 
-            // Check detection allows own workers to sit on lvl-3 win squares — we assume
-            // a vacate-and-climb is feasible without verifying the vacator has a legal
-            // move out. Cheaper, and false positives are tolerated by the search.
             let is_check = {
                 let (final_lvl_3, new_domes) = if b1 == b2 {
                     let lvl_3 =
@@ -410,7 +409,22 @@ fn emit_double_move_with_builds<const F: MoveGenFlags>(
                 };
                 let obstacles = non_own_worker_blockers | new_domes;
                 let reachable = final_lvl_3 & !obstacles & prelude.win_mask;
-                (reach & reachable).is_not_empty()
+                let check_board = reach & reachable;
+
+                // A win square one of her own workers is standing on only counts while that worker
+                // can step off it - she moves both workers, but she cannot swap them.
+                if (check_board & !workers_after_mask).is_not_empty() {
+                    true
+                } else {
+                    can_vacate_a_win_square(
+                        prelude,
+                        check_board & workers_after_mask,
+                        climbers,
+                        workers_after_mask,
+                        obstacles,
+                        final_lvl_3,
+                    )
+                }
             };
 
             let new_action =
@@ -770,6 +784,48 @@ mod tests {
     use crate::{board::GameStateBuilder, move_verifier::MoveVerifier, square::Square::*};
 
     use super::*;
+
+    /// Every non-winning move's check flag, against what a win search from the resulting position
+    /// actually finds.
+    fn assert_check_flags_are_exact(fen: &str) {
+        let state = crate::fen::parse_fen(fen).unwrap();
+        let player = state.board.current_player;
+        let (active_god, oppo_god) = state.get_active_non_active_gods();
+
+        for scored in active_god.get_moves_for_search(&state, player) {
+            if scored.action.get_is_winning() {
+                continue;
+            }
+
+            let mut check_state = state.next_state(active_god, oppo_god, scored.action);
+            oppo_god.make_passing_move(&mut check_state.board);
+            let really_threatens = !active_god
+                .get_winning_moves(&check_state, player)
+                .is_empty();
+
+            assert_eq!(
+                scored.action.get_is_check(),
+                really_threatens,
+                "{} in {fen}",
+                active_god.stringify_move(scored.action)
+            );
+        }
+    }
+
+    #[test]
+    fn test_terpsichore_does_not_flag_a_check_that_needs_a_swap() {
+        // She lands one worker on level 3 and the other on level 2 beside it, which reads as "the
+        // one in the way steps off and the other climbs onto it". Here the vacator's only free
+        // neighbour is the climber's own square, so the two would have to swap - which her own
+        // move generator already refuses to emit.
+        assert_check_flags_are_exact("0232244443424424412323433/2/mortal:A5,B5/terpsichore:E2,D1");
+    }
+
+    #[test]
+    fn test_terpsichore_still_flags_a_check_the_vacator_can_deliver() {
+        // Same shape with open board behind the worker on level 3, so the threat is real.
+        assert_check_flags_are_exact("0000000000003000020001000/1/terpsichore:B1,C3/mortal:E5,E4");
+    }
 
     #[test]
     fn test_terpsichore_does_not_emit_simultaneous_worker_swap() {

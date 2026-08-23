@@ -663,6 +663,54 @@ pub(super) fn restrict_moves_by_affinity_area(
     }
 }
 
+/// Whether a level 3 square that one of his *own* workers is standing on is a threat he can
+/// actually carry out.
+///
+/// A turn that moves two workers can send one onto the square the other has just left, which is the
+/// only reason such a square counts as reachable at all. What no turn can do is swap the pair: if
+/// the worker in the way has nowhere to step but the climber's own square, neither of them can go
+/// first and the threat is imaginary. Castor and Terpsichore, the two gods that move both workers
+/// at once, read their check flags through here.
+///
+/// Everything is measured at the *end* of the turn being scored: `blocked_wins` are the level 3 win
+/// squares his own workers are standing on, `climbers` his level 2 workers, `own_workers_after`
+/// where all of his workers have ended up, and `blockers` everything that is not one of them -
+/// including any square his builds have just domed. `final_level_3` is the level 3 set after those
+/// builds.
+pub(super) fn can_vacate_a_win_square(
+    prelude: &GeneratorPreludeState,
+    blocked_wins: BitBoard,
+    climbers: BitBoard,
+    own_workers_after: BitBoard,
+    blockers: BitBoard,
+    final_level_3: BitBoard,
+) -> bool {
+    for blocked in blocked_wins {
+        let neighbors = prelude.standard_neighbor_map[blocked as usize];
+        if (neighbors & climbers).is_empty() {
+            continue;
+        }
+
+        // Excluding every one of his own workers is what rules out the swap: the climber is one of
+        // them, and any worker not moving this turn is an obstacle in its own right.
+        //
+        // Against Harpies the vacator gets carried past the square it steps onto, but a slide still
+        // begins with a free neighbor, so "is there one" remains the right question.
+        let mut escapes = neighbors & !blockers & !own_workers_after;
+        if prelude.is_down_prevented {
+            // The worker in the way stands on level 3, so Hades leaves it nothing but level 3 to
+            // step onto - everything higher is a dome.
+            escapes &= final_level_3;
+        }
+
+        if escapes.is_not_empty() {
+            return true;
+        }
+    }
+
+    false
+}
+
 pub(super) fn get_basic_moves<const MUST_CLIMB: bool>(
     prelude: &GeneratorPreludeState,
     worker_start_state: &WorkerStartMoveState,

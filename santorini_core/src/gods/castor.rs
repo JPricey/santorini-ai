@@ -14,7 +14,7 @@ use crate::{
             get_harpy_double_move_first_steps,
         },
         move_helpers::{
-            GeneratorPreludeState, build_scored_move,
+            GeneratorPreludeState, build_scored_move, can_vacate_a_win_square,
             get_basic_moves_from_raw_data_with_custom_blockers, get_generator_prelude_state,
             get_standard_reach_board, get_worker_end_move_state, get_worker_next_build_state,
             get_worker_next_move_state, get_worker_start_move_state, is_interact_with_key_squares,
@@ -724,6 +724,11 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                 unblocked_non_own_workers,
             );
 
+            let own_workers_after =
+                worker_start_state.other_own_workers | worker_end_move_state.worker_end_mask;
+            let climbers = worker_next_moves.other_threatening_workers
+                | (worker_end_move_state.worker_end_mask * worker_end_move_state.is_now_lvl_2);
+
             for worker_build_pos in worker_next_build_state.narrowed_builds {
                 let new_action = CastorMove::new_basic_move(
                     worker_start_pos,
@@ -735,7 +740,22 @@ pub(super) fn castor_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
                     let final_level_3 = (prelude.exactly_level_2 & build_mask)
                         | (prelude.exactly_level_3 & !build_mask);
                     let check_board = reach_board & final_level_3;
-                    check_board.is_not_empty()
+
+                    // The reach board deliberately treats squares under his own workers as
+                    // reachable, since a double move can vacate one. That only holds while the
+                    // worker in the way has somewhere to go.
+                    if (check_board & !own_workers_after).is_not_empty() {
+                        true
+                    } else {
+                        can_vacate_a_win_square(
+                            &prelude,
+                            check_board & own_workers_after,
+                            climbers,
+                            own_workers_after,
+                            non_own_worker_blockers | (prelude.exactly_level_3 & build_mask),
+                            final_level_3,
+                        )
+                    }
                 };
 
                 result.push(build_scored_move::<F, _>(
@@ -1032,9 +1052,72 @@ pub const fn build_castor() -> GodPower {
 
 #[cfg(test)]
 mod tests {
-    use crate::fen::parse_fen;
+    use crate::{fen::parse_fen, square::Square::*};
 
     use super::*;
+
+    /// Every non-winning move's check flag, against what a win search from the resulting position
+    /// actually finds.
+    fn assert_check_flags_are_exact(fen: &str) {
+        let state = parse_fen(fen).unwrap();
+        let player = state.board.current_player;
+        let (active_god, oppo_god) = state.get_active_non_active_gods();
+
+        for scored in active_god.get_moves_for_search(&state, player) {
+            if scored.action.get_is_winning() {
+                continue;
+            }
+
+            let mut check_state = state.next_state(active_god, oppo_god, scored.action);
+            oppo_god.make_passing_move(&mut check_state.board);
+            let really_threatens = !active_god
+                .get_winning_moves(&check_state, player)
+                .is_empty();
+
+            assert_eq!(
+                scored.action.get_is_check(),
+                really_threatens,
+                "{} in {fen}",
+                active_god.stringify_move(scored.action)
+            );
+        }
+    }
+
+    #[test]
+    fn test_castor_does_not_flag_a_check_that_needs_a_swap() {
+        // Both of these end with one worker on a level 3 square and the other on level 2 beside it,
+        // which the reach board reads as "the one in the way can step aside and the other climbs".
+        // It cannot: the vacator's only free neighbour is the climber's own square, so the pair
+        // would have to swap, and no double move can do that.
+        assert_check_flags_are_exact("1101014213433313143224421/1/castor:B3,A1/mortal:B2,E2");
+        assert_check_flags_are_exact("4212034243444440044323432/2/mortal:E5,B2/castor:E2,E1");
+    }
+
+    #[test]
+    fn test_castor_still_flags_a_check_the_vacator_can_deliver() {
+        // Same shape, but the worker on C3 has open board behind it. B1>C2 leaves C2 on level 2
+        // beside a level 3 square its partner is standing on, and next turn C3 steps off and C2
+        // climbs onto it - so the flag has to stay on.
+        let fen = "0000000000003000020001000/1/castor:B1,C3/mortal:E5,E4";
+        assert_check_flags_are_exact(fen);
+
+        let state = parse_fen(fen).unwrap();
+        let castor = GodName::Castor.to_power();
+
+        let mut saw_vacate_check = false;
+        for scored in castor.get_moves_for_search(&state, Player::One) {
+            let action: CastorMove = scored.action.into();
+            if action.maybe_move_from_position_1() != Some(B1)
+                || action.move_to_position_1() != C2
+                || action.maybe_move_from_position_2().is_some()
+            {
+                continue;
+            }
+            saw_vacate_check = true;
+            assert!(scored.action.get_is_check(), "{:?}", action);
+        }
+        assert!(saw_vacate_check);
+    }
 
     #[test]
     fn test_castor_wins_move_out_of_eachothers_way_1() {
