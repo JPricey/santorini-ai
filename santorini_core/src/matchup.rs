@@ -169,6 +169,10 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // opponent workers. Hydra is the only god whose worker count grows past that.
     add_matchup(GodName::Odysseus, GodName::Hydra, BannedReason::Engine);
 
+    // Siren's song names each worker it drags by bit position in a 5 bit mask, so it can only
+    // address 5 opponent workers. Hydra is the only god whose worker count grows past that.
+    add_matchup(GodName::Siren, GodName::Hydra, BannedReason::Engine);
+
     // We don't represent non-complete domes, so ban any domer vs chronus
     let chronus_variants = [GodName::Chronus, GodName::Chronus4T, GodName::Chronus3T];
     let domers = [

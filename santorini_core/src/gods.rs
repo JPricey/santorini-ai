@@ -75,6 +75,7 @@ pub(crate) mod prometheus;
 pub(crate) mod proteus;
 pub(crate) mod scylla;
 pub(crate) mod selene;
+pub(crate) mod siren;
 pub(crate) mod stymphalians;
 pub(crate) mod theseus;
 pub(crate) mod triton;
@@ -83,6 +84,22 @@ pub(crate) mod zeus;
 pub(crate) mod terpsichore;
 
 pub type StaticGod = &'static GodPower;
+
+/// Which rigid motions of the board carry a position to an equivalent one.
+///
+/// Every symmetry here has to be one the *whole* position survives, god data included, because it
+/// is used to fold equivalent positions together - deduplicating opening placements, seeding the
+/// transposition table, and multiplying NNUE training examples.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum BoardSymmetry {
+    /// The full dihedral group of the square: eight flips and rotations.
+    Full,
+    /// The left-right mirror only. A god whose power names a fixed compass direction pins the
+    /// board's orientation - Siren's song always blows down the screen, and only a horizontal flip
+    /// leaves "down" pointing down. Aeolus is not in this bucket: his wind is *stored*, so a flip
+    /// can turn it along with everything else.
+    HorizontalOnly,
+}
 
 #[derive(
     Clone,
@@ -161,9 +178,10 @@ pub enum GodName {
     Triton = 57,
     Atalanta = 58,
     Medea = 59,
+    Siren = 60,
 }
 
-pub const WIP_GODS: [GodName; 7] = [
+pub const WIP_GODS: [GodName; 8] = [
     GodName::Chronus4T,
     GodName::Chronus3T,
     GodName::Terpsichore,
@@ -171,6 +189,7 @@ pub const WIP_GODS: [GodName; 7] = [
     GodName::Triton,
     GodName::Atalanta,
     GodName::Medea,
+    GodName::Siren,
 ];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
@@ -520,6 +539,8 @@ pub struct GodPower {
     pub is_persephone: bool,
     pub is_preventing_down: bool,
     pub is_placement_priority: bool,
+
+    pub symmetry: BoardSymmetry,
 
     _get_wind_idx: GetWindIdxFn,
 
@@ -874,6 +895,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     triton::build_triton(),
     atalanta::build_atalanta(),
     medea::build_medea(),
+    siren::build_siren(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -1056,6 +1078,8 @@ const fn god_power(
         is_preventing_down: false,
         is_placement_priority: false,
 
+        symmetry: BoardSymmetry::Full,
+
         hash1,
         hash2,
     }
@@ -1102,6 +1126,11 @@ impl GodPower {
 
     pub(super) const fn with_is_preventing_down(mut self) -> Self {
         self.is_preventing_down = true;
+        self
+    }
+
+    pub(super) const fn with_symmetry(mut self, symmetry: BoardSymmetry) -> Self {
+        self.symmetry = symmetry;
         self
     }
 

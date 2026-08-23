@@ -6,7 +6,10 @@ use strum::IntoEnumIterator;
 use crate::{
     bitboard::BitBoard,
     fen::{game_state_to_fen, parse_fen},
-    gods::{BoardStateWithAction, GameStateWithAction, GodName, StaticGod, generic::GenericMove},
+    gods::{
+        BoardStateWithAction, BoardSymmetry, GameStateWithAction, GodName, StaticGod,
+        generic::GenericMove,
+    },
     hashing::{
         HashType, ZOBRIST_DATA_RANDOMS, ZOBRIST_HEIGHT_RANDOMS, ZOBRIST_PLAYER_TWO,
         ZOBRIST_WORKER_RANDOMS, compute_hash_from_scratch_for_board,
@@ -902,23 +905,39 @@ impl BoardState {
         result
     }
 
+    /// Every board equivalent to this one under the symmetry group the two gods leave intact.
+    ///
+    /// A single god pinning the board's orientation pins it for both sides, so the narrower group
+    /// wins.
     pub fn get_all_permutations<const INCLUDE_SELF: bool>(
         &self,
         gods: GodPair,
         base_hash: HashType,
     ) -> Vec<Self> {
-        let horz = self._flip_horz_clone(gods);
-        let vert = self._flip_vertical_clone(gods);
-        let hv = horz._flip_vertical_clone(gods);
-        let trans = self._transpose_clone(gods);
-        let th = trans._flip_horz_clone(gods);
-        let tv = trans._flip_vertical_clone(gods);
-        let tvh = th._flip_vertical_clone(gods);
+        let is_orientation_pinned = gods[0].symmetry == BoardSymmetry::HorizontalOnly
+            || gods[1].symmetry == BoardSymmetry::HorizontalOnly;
 
-        let mut res = if INCLUDE_SELF {
-            vec![self.clone(), horz, vert, hv, trans, th, tv, tvh]
+        let horz = self._flip_horz_clone(gods);
+
+        let mut res = if is_orientation_pinned {
+            if INCLUDE_SELF {
+                vec![self.clone(), horz]
+            } else {
+                vec![horz]
+            }
         } else {
-            vec![horz, vert, hv, trans, th, tv, tvh]
+            let vert = self._flip_vertical_clone(gods);
+            let hv = horz._flip_vertical_clone(gods);
+            let trans = self._transpose_clone(gods);
+            let th = trans._flip_horz_clone(gods);
+            let tv = trans._flip_vertical_clone(gods);
+            let tvh = th._flip_vertical_clone(gods);
+
+            if INCLUDE_SELF {
+                vec![self.clone(), horz, vert, hv, trans, th, tv, tvh]
+            } else {
+                vec![horz, vert, hv, trans, th, tv, tvh]
+            }
         };
 
         for board in &mut res {

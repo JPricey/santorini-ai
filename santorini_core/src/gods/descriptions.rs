@@ -224,6 +224,10 @@ impl GodName {
                 "Once per game at the end of your turn, remove all blocks from under a Worker \
                  neighboring either of your Workers."
             }
+            GodName::Siren => {
+                "Instead of moving, you may force one or more opponent Workers one space down the \
+                 board into unoccupied spaces at any level, then build with any of your Workers."
+            }
         }
     }
 }
