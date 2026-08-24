@@ -237,7 +237,7 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // always covers all of them and Eris' power is switched off for the whole game. Hermes and
     // Castor can do the same at will, which is a strategic dimension rather than a bug; being able
     // to do nothing else is not.
-    add_matchup(GodName::Eris, GodName::Terpsichore, BannedReason::Game);
+    add_matchup(GodName::Eris, GodName::Terpsichore, BannedReason::Engine);
 
     // Circe stealing Eris' power would have Circe puppeting Eris' Workers, while the off-limits
     // record - which under Circe's rules lives in the owner's slot and is read through
