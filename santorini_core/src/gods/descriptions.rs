@@ -232,6 +232,11 @@ impl GodName {
                 "You may move and build with an opponent's Worker this turn instead of your own, \
                  as long as it is not a Worker they moved on their most recent turn."
             }
+            GodName::Gaea => {
+                "Setup: 2 extra Workers start on your God Power card. Whenever any Worker builds a \
+                 dome, you may place one of them on an unoccupied ground level space neighboring \
+                 that dome."
+            }
         }
     }
 }

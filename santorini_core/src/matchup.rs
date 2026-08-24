@@ -210,6 +210,9 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         GodName::Stymphalians,
         // Tokens already placed on the board and owned by their builder.
         GodName::Clio,
+        // Workers on a card are a physical supply, and Circe placed two ordinary Workers of her
+        // own. The same argument as Clio's tokens, one step further along.
+        GodName::Gaea,
         // Female Worker. Circe has none, so Selene's dome clause simply has no referent, and
         // inventing one is not worth the matchup. Hippolyta would in fact work as-is - her
         // restriction is global with a single exemption, so Circe just has no exemption - but
@@ -243,6 +246,25 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // record - which under Circe's rules lives in the owner's slot and is read through
     // `data_player` - would describe the wrong player's turns entirely.
     add_matchup(GodName::Eris, GodName::Circe, BannedReason::Engine);
+
+    // Gaea answers a dome with a Worker off her card, so she grows to four. Board Game Arena
+    // bans the same four, and each is a ban this implementation wanted anyway.
+    //
+    // Atlas and Selene dome at any level, which would hand her both extra Workers whenever they
+    // liked. Nemesis' swap is written for "your Workers and the opponent's Workers", which has no
+    // meaning at four against two - `_validate_playable_player` already demands exactly two a side
+    // for Hypnus and the female Worker gods against him. Circe is banned above, with the rest of
+    // the powers whose apparatus cannot change hands.
+    add_matchup(GodName::Gaea, GodName::Atlas, BannedReason::Game);
+    add_matchup(GodName::Gaea, GodName::Selene, BannedReason::Game);
+    add_matchup(GodName::Gaea, GodName::Nemesis, BannedReason::Game);
+
+    // The mirror is a cost ban rather than a rules one: two Gaeas resolve perfectly well - a
+    // single dome simply owes a placement to both of them - but it means eight Workers on a 25
+    // square board and a placement multiplier on both sides' turns. Note that the hook's guard
+    // would have to become per-slot to support it: Gaea A doming on her own turn skips the hook
+    // entirely, so Gaea B would silently never learn the square was domed.
+    add_matchup(GodName::Gaea, GodName::Gaea, BannedReason::Engine);
 
     // Ban every pair of chronus variants playing each other
     for i in 0..chronus_variants.len() {

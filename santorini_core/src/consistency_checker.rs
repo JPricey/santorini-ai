@@ -17,6 +17,7 @@ use crate::{
         castor::CastorMove,
         chronus::dome_count_to_win,
         circe::CIRCE_STEAL_BIT,
+        gaea::GaeaMove,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_blockers,
         hydra::HydraMove,
@@ -48,6 +49,24 @@ fn count_distinct_wins(god: StaticGod, wins: &Vec<ScoredMove>) -> usize {
         .map(|win| odysseus::strip_displacement(win.action).0)
         .collect::<HashSet<_>>()
         .len()
+}
+
+/// The one Worker a Gaea move actually moves, as a (vacated, arrived) pair.
+///
+/// Her placements are not moves - they come off her card rather than from a square - and the
+/// square one of them lands on may be the very square the mover just left, which hides the move
+/// from an end of turn diff completely. The Hades and Aphrodite checks both pair vacated squares
+/// with arrived ones, so for her they read the move instead of the board.
+///
+/// A Worker she placed at the top of the turn and then moved is a genuine move of a Worker that
+/// was standing on the board when it happened, so it is reported like any other.
+fn gaea_move_diff(action: GenericMove) -> (BitBoard, BitBoard) {
+    let gaea_move = GaeaMove::from(action);
+
+    (
+        BitBoard::as_mask(gaea_move.move_from_position()),
+        BitBoard::as_mask(gaea_move.move_to_position()),
+    )
 }
 
 pub fn consistency_check(state: &FullGameState) -> Result<(), Vec<String>> {
@@ -409,8 +428,11 @@ impl ConsistencyChecker {
             let new_state = self.state.next_state(active_god, oppo_god, action);
             let new_workers = new_state.board.workers[current_player as usize];
 
-            let old_only = old_workers & !new_workers;
-            let new_only = new_workers & !old_workers;
+            let (old_only, new_only) = if active_god.god_name == GodName::Gaea {
+                gaea_move_diff(action)
+            } else {
+                (old_workers & !new_workers, new_workers & !old_workers)
+            };
 
             // Medea's raze happens after the move and can drop the square she landed on to the
             // ground, which reads as a descent in an end-of-turn diff even though the step itself
@@ -480,6 +502,12 @@ impl ConsistencyChecker {
         // Jason's power adds a worker rather than moving one, hiding the climb from the diff below
         if active_god_name == GodName::Jason {
             self.validate_jason_persephone_moves(actions);
+            return;
+        }
+
+        // Gaea's placements do the same, and hers can arrive two at a time
+        if active_god_name == GodName::Gaea {
+            self.validate_gaea_persephone_moves(actions);
             return;
         }
 
@@ -709,6 +737,50 @@ impl ConsistencyChecker {
         }
     }
 
+    /// Gaea may decline every placement, so Persephone cannot force a Worker off her card just to
+    /// find a climb - but any placement she does make is judged on the board it produces.
+    fn validate_gaea_persephone_moves(&mut self, actions: &Vec<ScoredMove>) {
+        let board = &self.state.board;
+
+        // Per set of deferred placements: whether it offers a climb, and one flat move if it has
+        // one. The set is what picks out the board the move was generated on.
+        let mut scenarios = HashMap::<u32, (bool, Option<GenericMove>)>::new();
+
+        for action in actions {
+            let action = action.action;
+            let gaea_move: GaeaMove = action.into();
+
+            let did_climb = action.get_is_winning()
+                || board.get_height(gaea_move.move_to_position())
+                    > board.get_height(gaea_move.move_from_position());
+
+            let entry = scenarios
+                .entry(gaea_move.deferred_placement_mask().0)
+                .or_insert((false, None));
+            if did_climb {
+                entry.0 = true;
+            } else if entry.1.is_none() {
+                entry.1 = Some(action);
+            }
+        }
+
+        let base_climbs = scenarios.get(&0).is_some_and(|(climbs, _)| *climbs);
+
+        let offender = scenarios.iter().find_map(|(deferred, (climbs, flat))| {
+            let must_climb = base_climbs || (*deferred != 0 && *climbs);
+            if must_climb { *flat } else { None }
+        });
+
+        if let Some(offender) = offender {
+            let (active_god, _) = self.state.get_active_non_active_gods();
+            self.errors.push(format!(
+                "Vs Persephone, gaea generated a non-climbing move ({}) alongside a climb she was obliged to take: {:?}",
+                active_god.stringify_move(offender),
+                self.state
+            ));
+        }
+    }
+
     fn validate_aphrodite_moves(&mut self, actions: &Vec<ScoredMove>) {
         let current_player = self.state.board.current_player;
         let (active_god, oppo_god) = self.state.get_active_non_active_gods();
@@ -763,12 +835,15 @@ impl ConsistencyChecker {
                 old_affinity_area
             };
 
-            let old_only = old_workers & !new_workers;
+            let (old_only, new_only) = if active_god.god_name == GodName::Gaea {
+                gaea_move_diff(action)
+            } else {
+                (old_workers & !new_workers, new_workers & !old_workers)
+            };
+
             if (old_only & starting_affinity_area).is_empty() {
                 continue;
             }
-
-            let new_only = new_workers & !old_workers;
 
             if old_only.count_ones() != new_only.count_ones() {
                 self.errors.push(format!(

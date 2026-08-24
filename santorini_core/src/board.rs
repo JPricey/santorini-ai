@@ -8,7 +8,7 @@ use crate::{
     fen::{game_state_to_fen, parse_fen},
     gods::{
         BoardStateWithAction, BoardSymmetry, GameStateWithAction, GodName, StaticGod,
-        circe::CIRCE_STEAL_BIT, generic::GenericMove,
+        circe::CIRCE_STEAL_BIT, gaea::{GAEA_EXTRA_WORKERS, GAEA_SPENT_WORKER_MASK, gaea_workers_spent}, generic::GenericMove,
     },
     hashing::{
         HashType, ZOBRIST_DATA_RANDOMS, ZOBRIST_HEIGHT_RANDOMS, ZOBRIST_PLAYER_TWO,
@@ -463,7 +463,51 @@ impl BoardState {
     /// somebody did.
     pub fn on_turn_advanced(&mut self, before: &BoardState, gods: GodPair) {
         self.update_eris_memory(before, gods);
+        self.update_gaea_pending_domes(before, gods);
         self.update_circe_steal(gods);
+    }
+
+    /// Record the domes the opponent just raised, so Gaea can answer each with a Worker.
+    ///
+    /// Read as a diff of the dome map rather than as a callback inside `build_up`. That function
+    /// is the hottest in the engine and has no `GodPair` to ask whether Gaea is even in the game,
+    /// and exact ordering would buy nothing anyway: the turn is one atomic `make_move`, so knowing
+    /// the dome landed mid-turn would not let her act mid-turn. The diff costs one AND-NOT and
+    /// catches every way a dome can appear - Atlas at ground level, Medusa building over a
+    /// petrified Worker, Polyphemus' pair - without any of them knowing she exists.
+    ///
+    /// Only the opponent's domes are recorded. Her own resolve inside her own move, where the
+    /// build *is* the end of her turn, and recording them here would pay her twice for one dome.
+    /// The Workers still on her card live in the same slot and are carried across untouched.
+    fn update_gaea_pending_domes(&mut self, before: &BoardState, gods: GodPair) {
+        let gaea = if gods[0].is_gaea {
+            Player::One
+        } else if gods[1].is_gaea {
+            Player::Two
+        } else {
+            return;
+        };
+
+        if before.current_player == gaea {
+            return;
+        }
+
+        // A won position has no next turn for her to place on, and a dome that ends the game -
+        // Chronus completing his towers - owes her nothing. Matches `update_circe_steal`.
+        if self.get_winner().is_some() {
+            return;
+        }
+
+        let spent = self.god_data[gaea as usize] & GAEA_SPENT_WORKER_MASK;
+        let newly_domed = if gaea_workers_spent(spent) == GAEA_EXTRA_WORKERS {
+            // Her card is empty, so nothing is owed. Storing the domes anyway would only spread
+            // one position over several hashes.
+            0
+        } else {
+            (self.height_map[3] & !before.height_map[3]).0
+        };
+
+        self.set_god_data(gaea, spent | newly_domed);
     }
 
     /// Record which of the opponent's Workers they just moved, so Eris cannot puppet those.

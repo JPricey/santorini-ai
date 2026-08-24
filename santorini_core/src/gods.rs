@@ -45,6 +45,7 @@ pub mod descriptions;
 pub(crate) mod eris;
 pub(crate) mod eros;
 pub(crate) mod europa;
+pub(crate) mod gaea;
 pub mod generic;
 pub(crate) mod graeae;
 pub(crate) mod hades;
@@ -184,9 +185,10 @@ pub enum GodName {
     Siren = 60,
     Circe = 61,
     Eris = 62,
+    Gaea = 63,
 }
 
-pub const WIP_GODS: [GodName; 10] = [
+pub const WIP_GODS: [GodName; 11] = [
     GodName::Chronus4T,
     GodName::Chronus3T,
     GodName::Terpsichore,
@@ -197,6 +199,7 @@ pub const WIP_GODS: [GodName; 10] = [
     GodName::Siren,
     GodName::Circe,
     GodName::Eris,
+    GodName::Gaea,
 ];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
@@ -550,6 +553,7 @@ pub struct GodPower {
     pub is_aphrodite: bool,
     pub is_circe: bool,
     pub is_eris: bool,
+    pub is_gaea: bool,
     pub is_persephone: bool,
     pub is_preventing_down: bool,
     pub is_placement_priority: bool,
@@ -933,6 +937,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     siren::build_siren(),
     circe::build_circe(),
     eris::build_eris(),
+    gaea::build_gaea(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -1113,6 +1118,7 @@ const fn god_power(
         is_aphrodite: false,
         is_circe: false,
         is_eris: false,
+        is_gaea: false,
         is_persephone: false,
         is_preventing_down: false,
         is_placement_priority: false,
@@ -1165,6 +1171,11 @@ impl GodPower {
 
     pub(super) const fn with_is_eris(mut self) -> Self {
         self.is_eris = true;
+        self
+    }
+
+    pub(super) const fn with_is_gaea(mut self) -> Self {
+        self.is_gaea = true;
         self
     }
 
