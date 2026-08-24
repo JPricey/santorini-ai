@@ -8,8 +8,9 @@ use crate::{
     nnue::NNUE_MORPHEUS_MAX_BLOCKS_INCLUSIVE,
     placement::{
         PlacementType, common::WorkerPlacementMove, female::FemaleWorkerPlacement,
-        opposite::OppositeWorkerPlacement, perimeter::PerimeterWorkerPlacement,
-        standard::StandardWorkerPlacement, three_worker::ThreeWorkerPlacement,
+        get_starting_placement_state, opposite::OppositeWorkerPlacement,
+        perimeter::PerimeterWorkerPlacement, standard::StandardWorkerPlacement,
+        three_worker::ThreeWorkerPlacement,
     },
     player::Player,
     square::Square,
@@ -37,6 +38,7 @@ pub(crate) mod castor;
 pub(crate) mod charon;
 pub(crate) mod charon_v2;
 pub(crate) mod chronus;
+pub(crate) mod circe;
 pub(crate) mod clio;
 pub(crate) mod demeter;
 pub mod descriptions;
@@ -77,11 +79,11 @@ pub(crate) mod scylla;
 pub(crate) mod selene;
 pub(crate) mod siren;
 pub(crate) mod stymphalians;
+pub(crate) mod terpsichore;
 pub(crate) mod theseus;
 pub(crate) mod triton;
 pub(crate) mod urania;
 pub(crate) mod zeus;
-pub(crate) mod terpsichore;
 
 pub type StaticGod = &'static GodPower;
 
@@ -179,9 +181,10 @@ pub enum GodName {
     Atalanta = 58,
     Medea = 59,
     Siren = 60,
+    Circe = 61,
 }
 
-pub const WIP_GODS: [GodName; 8] = [
+pub const WIP_GODS: [GodName; 9] = [
     GodName::Chronus4T,
     GodName::Chronus3T,
     GodName::Terpsichore,
@@ -190,6 +193,7 @@ pub const WIP_GODS: [GodName; 8] = [
     GodName::Atalanta,
     GodName::Medea,
     GodName::Siren,
+    GodName::Circe,
 ];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
@@ -467,8 +471,13 @@ fn _default_can_opponent_climb(_board: &BoardState, _player: Player) -> bool {
     true
 }
 
-pub(super) type MakePassingMoveFn = fn(&mut BoardState);
-fn _default_passing_move(_board: &mut BoardState) {
+/// Clears whatever "I did this on my last turn" flag a god carries.
+///
+/// Only Athena and Nike register one - everything else has no such state and takes the no-op.
+/// The `Player` names the slot to clear rather than assuming `current_player`, because Circe
+/// holding a stolen power leaves that power's flag in its owner's slot.
+pub(super) type MakePassingMoveFn = fn(&mut BoardState, Player);
+fn _default_passing_move(_board: &mut BoardState, _player: Player) {
     // Noop
 }
 
@@ -536,6 +545,7 @@ pub struct GodPower {
     pub placement_type: PlacementType,
 
     pub is_aphrodite: bool,
+    pub is_circe: bool,
     pub is_persephone: bool,
     pub is_preventing_down: bool,
     pub is_placement_priority: bool,
@@ -573,7 +583,7 @@ impl GodPower {
 
     pub fn get_next_states_interactive(&self, state: &FullGameState) -> Vec<BoardStateWithAction> {
         let active_player = state.board.current_player;
-        let other_god = state.gods[!active_player as usize];
+        let other_god = state.get_god_for_player(!active_player);
         let all_moves = (self._get_all_moves)(state, active_player, BitBoard::EMPTY);
 
         // Lose due to no moves
@@ -592,6 +602,7 @@ impl GodPower {
             .flat_map(|action| {
                 let mut result_state = state.board.clone();
                 self.make_move(&mut result_state, other_god, action.action);
+                result_state.update_circe_steal(state.gods);
                 let action_paths = (self._get_actions_for_move)(
                     &state.board,
                     action.action,
@@ -612,13 +623,14 @@ impl GodPower {
 
     pub fn get_all_next_states(&self, state: &FullGameState) -> Vec<BoardState> {
         let current_player = state.board.current_player;
-        let other_god = state.gods[!current_player as usize];
+        let other_god = state.get_god_for_player(!current_player);
         let board = &state.board;
         (self._get_all_moves)(state, current_player, BitBoard::EMPTY)
             .into_iter()
             .map(|action| {
                 let mut result_state = board.clone();
                 self.make_move(&mut result_state, other_god, action.action);
+                result_state.update_circe_steal(state.gods);
                 result_state
             })
             .collect()
@@ -705,6 +717,15 @@ impl GodPower {
             player,
             new_state.gods[!player as usize],
         );
+        // The last placement hands over to the first real turn, which is the first moment Circe
+        // can steal. Earlier placements must not resolve it - a side that has not placed yet
+        // trivially has no neighbouring Workers.
+        if matches!(
+            get_starting_placement_state(&new_state.board, new_state.gods),
+            Ok(None)
+        ) {
+            new_state.board.update_circe_steal(new_state.gods);
+        }
         new_state
     }
 
@@ -747,8 +768,18 @@ impl GodPower {
     }
 
     pub fn make_passing_move(&self, board: &mut BoardState) {
-        (self._make_passing_move)(board);
+        let player = board.data_player(board.current_player);
+        (self._make_passing_move)(board, player);
         board.flip_current_player();
+    }
+
+    /// Clear this god's timed flag, if it has one, in `player`'s slot.
+    ///
+    /// Used when Circe takes or returns a power: the flag describes a turn its new holder did not
+    /// play, so it cannot carry over. Shares its implementation with the passing move, which
+    /// needs exactly the same "you did not move up last turn" reset.
+    pub fn reset_timed_god_data(&self, board: &mut BoardState, player: Player) {
+        (self._make_passing_move)(board, player);
     }
 
     pub fn stringify_move(&self, action: GenericMove) -> String {
@@ -896,6 +927,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     atalanta::build_atalanta(),
     medea::build_medea(),
     siren::build_siren(),
+    circe::build_circe(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -1074,6 +1106,7 @@ const fn god_power(
         win_mask: BitBoard::MAIN_SECTION_MASK,
 
         is_aphrodite: false,
+        is_circe: false,
         is_persephone: false,
         is_preventing_down: false,
         is_placement_priority: false,
@@ -1116,6 +1149,11 @@ impl GodPower {
 
     pub(super) const fn with_is_aphrodite(mut self) -> Self {
         self.is_aphrodite = true;
+        self
+    }
+
+    pub(super) const fn with_is_circe(mut self) -> Self {
+        self.is_circe = true;
         self
     }
 

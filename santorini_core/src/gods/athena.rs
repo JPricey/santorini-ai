@@ -132,7 +132,10 @@ impl GodMove for AthenaMove {
         let build_position = self.build_position();
         board.build_up(build_position);
 
-        board.set_god_data(player, self.get_is_stopping_climbing() as GodData);
+        board.set_god_data(
+            board.data_player(player),
+            self.get_is_stopping_climbing() as GodData,
+        );
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
@@ -253,12 +256,12 @@ pub(super) fn athena_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     result
 }
 
-fn athena_passing_move(board: &mut BoardState) {
-    board.set_god_data(board.current_player, 0);
+fn athena_passing_move(board: &mut BoardState, player: Player) {
+    board.set_god_data(player, 0);
 }
 
 fn can_opponent_climb(board: &BoardState, player: Player) -> bool {
-    board.god_data[player as usize] == 0
+    board.god_data[board.data_player(player) as usize] == 0
 }
 
 fn parse_god_data(data: &str) -> Result<GodData, String> {

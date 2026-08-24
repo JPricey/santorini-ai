@@ -159,7 +159,10 @@ impl GodMove for EuropaMove {
         board.build_up(build_position);
 
         if let Some(talus_pos) = self.talus_position() {
-            board.set_god_data(player, BitBoard::as_mask(talus_pos).0 as GodData);
+            board.set_god_data(
+                board.data_player(player),
+                BitBoard::as_mask(talus_pos).0 as GodData,
+            );
         }
     }
 
@@ -188,7 +191,8 @@ pub(super) fn europa_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);
 
     // At the start of a match the mask may be zero, so don't convert positions into squares
-    let current_talus_mask = BitBoard(state.board.god_data[player as usize]);
+    let current_talus_mask =
+        BitBoard(state.board.god_data[state.board.data_player(player) as usize]);
     // let current_talus_pos = current_talus_mask.0.trailing_zeros();
     let anti_current_talus_mask = !current_talus_mask;
 
@@ -336,7 +340,7 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
 }
 
 fn get_frozen_mask(board: &BoardState, player: Player) -> BitBoard {
-    BitBoard(board.god_data[player as usize])
+    BitBoard(board.god_data[board.data_player(player) as usize])
 }
 
 fn flip_horizontal(god_data: GodData) -> GodData {

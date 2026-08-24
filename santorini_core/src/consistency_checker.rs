@@ -15,6 +15,8 @@ use crate::{
         athena::AthenaMove,
         bellerophon::BellerophonMove,
         castor::CastorMove,
+        chronus::dome_count_to_win,
+        circe::CIRCE_STEAL_BIT,
         generic::{CHECK_SENTINEL_SCORE, GenericMove, MOVE_DATA_MAIN_SECTION, ScoredMove},
         harpies::slide_position_with_custom_blockers,
         hydra::HydraMove,
@@ -941,6 +943,27 @@ impl ConsistencyChecker {
         }
     }
 
+    /// Whether the move leading to `next` hands Circe's borrowed power over, or hands it back.
+    ///
+    /// The steal is recomputed from the opponent's Worker adjacency at the top of each Circe
+    /// turn, so this compares the steal in force now against the one `next` will produce. Answers
+    /// false whenever Circe is not in the matchup.
+    fn circe_steal_will_flip(&self, next: &FullGameState) -> bool {
+        let Some(circe_idx) = self.state.gods.iter().position(|god| god.is_circe) else {
+            return false;
+        };
+
+        let circe = if circe_idx == 0 {
+            Player::One
+        } else {
+            Player::Two
+        };
+        let stealing_now = self.state.board.god_data[circe_idx] & CIRCE_STEAL_BIT != 0;
+        let stealing_next = next.board.workers_are_separated(!circe);
+
+        stealing_now != stealing_next
+    }
+
     fn check_wins_on_end_only(&mut self, label: &str, actions: &Vec<ScoredMove>) -> bool {
         for (i, action) in actions.iter().enumerate() {
             if action.get_is_winning() {
@@ -974,9 +997,19 @@ impl ConsistencyChecker {
             key_moves |= oppo_god.get_blocker_board(&self.state.board, other_win_action.action);
         }
 
+        // A Chronus who already has his towers up wins on his next move whatever it is, and his
+        // blocker board is empty by construction because nothing can undo a dome. Normally he
+        // wins the moment the last one goes up and the game stops there; Circe makes the position
+        // reachable, by stripping his power for the turn the tower was completed on and handing
+        // it back afterwards. The win is real and genuinely unblockable.
+        let oppo_already_has_towers = dome_count_to_win(oppo_god.god_name)
+            .is_some_and(|needed| self.state.board.height_map[3].count_ones() >= needed);
+
         if key_moves.is_empty() {
-            self.errors
-                .push("Opponent had wins, with no blocker board".to_owned());
+            if !oppo_already_has_towers {
+                self.errors
+                    .push("Opponent had wins, with no blocker board".to_owned());
+            }
             return;
         }
 
@@ -1157,6 +1190,15 @@ impl ConsistencyChecker {
                 continue;
             }
 
+            if self.state.gods[!current_player as usize].is_circe {
+                // Blocking Circe need not touch her winning move at all - reuniting your own
+                // Workers takes your power back off her, which can freeze or forbid the win
+                // outright. Generation gives up the key-square narrowing against her for exactly
+                // that reason (see `get_generator_prelude_state`), so what it emits is a superset
+                // that includes plenty of moves which block nothing.
+                continue;
+            }
+
             if oppo_god.god_name == GodName::Minotaur {
                 // TODO: scope this down
                 // Minotaur puts spots that it pushes TO during a mate into the blocker board
@@ -1318,19 +1360,37 @@ impl ConsistencyChecker {
             }
 
             let mut check_state = self.state.next_state(active_god, oppo_god, action.action);
+
+            // Circe re-decides which power she holds from the opponent's Worker adjacency at the
+            // top of each of her turns. A move that separates or reunites those Workers therefore
+            // changes which passives are in force on the turn the threatened win would actually
+            // be played - and check detection reads the passives off the position as it stands,
+            // one steal-state too early. Making it exact would mean re-deriving the whole prelude
+            // per destination square, in the hot path, for every matchup; the flag is a search
+            // heuristic, so the imprecision is priced in the same way it is for Aphrodite below.
+            let steal_will_flip = self.circe_steal_will_flip(&check_state);
+
             oppo_god.make_passing_move(&mut check_state.board);
-            let wins_from_check_state = active_god.get_winning_moves(&check_state, current_player);
+            check_state.board.update_circe_steal(check_state.gods);
+
+            // Read the gods back off `check_state` rather than reusing the root's. For every god
+            // but Circe the pair is fixed and this is the same pointer; with Circe in play the
+            // two moves just made can have handed a power over, and judging the resulting wins
+            // against the powers in force two plies ago reports failures that are not real.
+            let (check_active_god, check_oppo_god) = check_state.get_active_non_active_gods();
+            let wins_from_check_state =
+                check_active_god.get_winning_moves(&check_state, current_player);
             let (is_real_checker, real_checker_str) =
                 if let Some(first_win) = wins_from_check_state.first() {
                     (
                         true,
-                        format!(" ({})", active_god.stringify_move(first_win.action)),
+                        format!(" ({})", check_active_god.stringify_move(first_win.action)),
                     )
                 } else {
                     (false, "".to_owned())
                 };
 
-            if is_check_flag != is_real_checker && !skip_check_flag_comparison {
+            if is_check_flag != is_real_checker && !skip_check_flag_comparison && !steal_will_flip {
                 if is_real_checker && active_god.god_name == GodName::Maenads {
                     // maenads dancing kills...
                     // TODO: include these
@@ -1419,8 +1479,8 @@ impl ConsistencyChecker {
                     &format!("FromCheckState > {} ({:?})", stringed_action, check_state),
                     &check_state,
                     current_player,
-                    active_god,
-                    oppo_god,
+                    check_active_god,
+                    check_oppo_god,
                     winning_action.action,
                 );
             }

@@ -4,11 +4,11 @@ use colored::Colorize;
 use strum::IntoEnumIterator;
 
 use crate::{
-    bitboard::BitBoard,
+    bitboard::{BitBoard, NEIGHBOR_MAP},
     fen::{game_state_to_fen, parse_fen},
     gods::{
         BoardStateWithAction, BoardSymmetry, GameStateWithAction, GodName, StaticGod,
-        generic::GenericMove,
+        circe::CIRCE_STEAL_BIT, generic::GenericMove,
     },
     hashing::{
         HashType, ZOBRIST_DATA_RANDOMS, ZOBRIST_HEIGHT_RANDOMS, ZOBRIST_PLAYER_TWO,
@@ -126,12 +126,14 @@ impl FullGameState {
     ) -> FullGameState {
         let mut result = self.clone();
         god.make_move(&mut result.board, other_god, action);
+        result.board.update_circe_steal(result.gods);
         result
     }
 
     pub fn next_state_passing(&self, god: StaticGod) -> FullGameState {
         let mut result = self.clone();
         god.make_passing_move(&mut result.board);
+        result.board.update_circe_steal(result.gods);
         result
     }
 
@@ -184,6 +186,7 @@ impl FullGameState {
                 .map(|a| {
                     let mut state_clone = self.clone();
                     active_god.make_move(&mut state_clone.board, other_god, a.action);
+                    state_clone.board.update_circe_steal(state_clone.gods);
                     (state_clone, a.action)
                 })
                 .collect()
@@ -235,15 +238,63 @@ impl FullGameState {
         }
     }
 
+    /// The powers actually in force this turn, which is what every rules question should ask.
+    ///
+    /// Identical to `self.gods` except while Circe is stealing, when the pair is swapped: she
+    /// holds the opponent's power and they are reduced to a Mortal for their own turn. Swapping
+    /// the whole `GodPower` pointer rather than delegating a move generator is what makes the
+    /// borrowed power arrive intact - `win_mask`, `placement_type`, `is_persephone`,
+    /// `is_aphrodite` and the rest are plain fields the prelude reads straight off the struct,
+    /// and they all come along for free.
+    ///
+    /// `self.gods` stays nominal, and remains the right thing for anything that identifies the
+    /// *game* rather than the turn: the FEN, the matchup, [`Self::base_hash`], and the NNUE
+    /// feature set.
+    pub fn effective_gods(&self) -> GodPair {
+        // Discriminate on `god_data` rather than on the gods: it is part of the `BoardState` this
+        // call already has in hand, where reaching into a `GodPower` for `is_circe` risks a cold
+        // line on a path that runs at every node. No other god writes bit 31, so its absence in
+        // both slots means the pair is nominal - whether or not Circe is even in the game.
+        if (self.board.god_data[0] | self.board.god_data[1]) & CIRCE_STEAL_BIT == 0 {
+            return self.gods;
+        }
+
+        // The bit says a steal is on, but confirm there is still a Circe to own it: the
+        // consistency checker substitutes a Mortal into a god slot to ask "what if this side had
+        // no power", and that can leave the flag behind with nobody holding it.
+        let circe_idx = if self.gods[0].is_circe {
+            0
+        } else if self.gods[1].is_circe {
+            1
+        } else {
+            return self.gods;
+        };
+        let owner_idx = 1 - circe_idx;
+        let mut result = self.gods;
+        result[circe_idx] = self.gods[owner_idx];
+        result[owner_idx] = GodName::Mortal.to_power();
+        result
+    }
+
     pub fn get_active_non_active_gods(&self) -> (StaticGod, StaticGod) {
         self.get_player_non_player_gods(self.board.current_player)
     }
 
     pub fn get_player_non_player_gods(&self, player: Player) -> (StaticGod, StaticGod) {
-        (self.gods[player as usize], self.gods[!player as usize])
+        let gods = self.effective_gods();
+        (gods[player as usize], gods[!player as usize])
     }
 
     pub fn get_god_for_player(&self, player: Player) -> StaticGod {
+        self.effective_gods()[player as usize]
+    }
+
+    /// The god `player` was dealt, ignoring any Circe steal in progress.
+    ///
+    /// This is what identifies the *game* rather than the turn, so it is what the FEN records -
+    /// round-tripping a position through the effective pair would rewrite Circe out of her own
+    /// game. Rules questions want [`Self::get_god_for_player`] instead.
+    pub fn nominal_god_for_player(&self, player: Player) -> StaticGod {
         self.gods[player as usize]
     }
 
@@ -366,6 +417,71 @@ impl BoardState {
     pub fn flip_current_player(&mut self) {
         self.current_player = !self.current_player;
         self.hash ^= ZOBRIST_PLAYER_TWO;
+    }
+
+    /// Whose `god_data` slot holds the state of the power `player` is currently using.
+    ///
+    /// Normally your own. The exception is Circe: a stolen power keeps its state in its owner's
+    /// slot for the whole game - there is only ever one pile of Morpheus coins and one Talus
+    /// token - so while she is stealing, her reads and writes redirect to the opponent.
+    ///
+    /// This works without knowing who is playing Circe because [`CIRCE_STEAL_BIT`] is bit 31 and
+    /// no other god writes there: the slot carrying it is hers, and its presence *is* the steal.
+    ///
+    /// [`CIRCE_STEAL_BIT`]: crate::gods::circe::CIRCE_STEAL_BIT
+    #[inline(always)]
+    pub fn data_player(&self, player: Player) -> Player {
+        if self.god_data[player as usize] & CIRCE_STEAL_BIT != 0 {
+            !player
+        } else {
+            player
+        }
+    }
+
+    /// Whether no two of `player`'s Workers are adjacent - the condition Circe checks at the top
+    /// of her turn. Vacuously true for a lone Worker, which Hydra can produce.
+    pub fn workers_are_separated(&self, player: Player) -> bool {
+        let workers = self.workers[player as usize] & BitBoard::MAIN_SECTION_MASK;
+        for worker in workers {
+            if (NEIGHBOR_MAP[worker as usize] & workers).is_not_empty() {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// Resolve Circe's steal for the turn that is about to start.
+    ///
+    /// Called once per turn transition, *after* the player has flipped, so that the position a
+    /// generator is handed already knows which power each side is holding. A no-op unless the
+    /// player to move is Circe.
+    ///
+    /// When the power changes hands in either direction, the owner's timed flag is cleared: a
+    /// flag meaning "I moved up on my last turn" is meaningless to a holder who did not play that
+    /// turn. Accumulated apparatus - Morpheus' coins, Aeolus' wind, Europa's Talus - is left
+    /// alone, because it has no such expiry.
+    pub fn update_circe_steal(&mut self, gods: GodPair) {
+        let circe = self.current_player;
+        if !gods[circe as usize].is_circe {
+            return;
+        }
+
+        // A won position has no next turn to resolve a steal for, and handing the power over
+        // anyway would rewrite which passives the winning move is judged against.
+        if self.get_winner().is_some() {
+            return;
+        }
+
+        let owner = !circe;
+        let is_stealing = self.workers_are_separated(owner);
+        let was_stealing = self.god_data[circe as usize] & CIRCE_STEAL_BIT != 0;
+        if is_stealing == was_stealing {
+            return;
+        }
+
+        gods[owner as usize].reset_timed_god_data(self, owner);
+        self.xor_god_data(circe, CIRCE_STEAL_BIT);
     }
 
     pub fn get_height(&self, position: Square) -> usize {
@@ -584,6 +700,16 @@ impl BoardState {
             return Err(format!("Player {:?} has workers on domes", player));
         }
 
+        // Bit 31 belongs to Circe alone. `data_player` and `effective_gods` both read a steal off
+        // its presence without consulting the gods at all, so a god that reached that high would
+        // silently redirect its own state into the other player's slot.
+        if !_god.is_circe && self.god_data[player_idx] & CIRCE_STEAL_BIT != 0 {
+            return Err(format!(
+                "{:?} set bit 31 of its god data, which is reserved for Circe's steal flag",
+                _god.god_name
+            ));
+        }
+
         Ok(())
     }
 
@@ -715,7 +841,13 @@ impl BoardState {
             }
         }
 
-        if own_god.god_name == GodName::Hydra {
+        // Circe borrowing Hydra's power grows *her* side, and those Workers stay when the power
+        // goes back - so the cap has to follow the power she can hold, not the one she is holding
+        // this turn.
+        let can_grow_workers = own_god.god_name == GodName::Hydra
+            || (own_god.is_circe && other_god.god_name == GodName::Hydra);
+
+        if can_grow_workers {
             if worker_count > 11 {
                 return Err(format!(
                     "Player {:?} has too many workers as hydra ({})",

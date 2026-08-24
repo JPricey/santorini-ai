@@ -126,12 +126,12 @@ pub(super) fn nike_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     result
 }
 
-fn nike_passing_move(board: &mut BoardState) {
-    board.set_god_data(board.current_player, 0);
+fn nike_passing_move(board: &mut BoardState, player: Player) {
+    board.set_god_data(player, 0);
 }
 
 fn can_opponent_climb(board: &BoardState, player: Player) -> bool {
-    board.god_data[player as usize] == 0
+    board.god_data[board.data_player(player) as usize] == 0
 }
 
 fn parse_god_data(data: &str) -> Result<GodData, String> {

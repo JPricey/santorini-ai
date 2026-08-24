@@ -515,7 +515,7 @@ fn achilles_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    if state.gods[!player as usize].is_harpies() {
+    if state.get_god_for_player(!player).is_harpies() {
         _achilles_move_gen::<F, MUST_CLIMB, true>(state, player, key_squares)
     } else {
         _achilles_move_gen::<F, MUST_CLIMB, false>(state, player, key_squares)

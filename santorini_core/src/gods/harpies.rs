@@ -444,7 +444,7 @@ pub fn harpies_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
     player: Player,
     key_squares: BitBoard,
 ) -> Vec<ScoredMove> {
-    let other_god = state.gods[!player as usize].god_name;
+    let other_god = state.get_god_for_player(!player).god_name;
     // Block detection vs multi-step movers (artemis, stymphalians) can get pretty complicated...
     // just try every move.
     // Chronus can win on his build, not his move. Instead of checking for ways to block his moves,

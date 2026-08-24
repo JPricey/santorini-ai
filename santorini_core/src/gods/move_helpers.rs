@@ -148,7 +148,23 @@ pub(super) fn get_generator_prelude_state<'a, const F: MoveGenFlags>(
     key_squares: BitBoard,
 ) -> GeneratorPreludeState<'a> {
     let board = &state.board;
-    let other_god = state.gods[!player as usize];
+    let other_god = state.get_god_for_player(!player);
+
+    // Facing Circe, a move can defuse a threat without going anywhere near it: she re-decides
+    // which power she holds from your Worker adjacency at the top of her turn, so pulling your
+    // Workers back together takes your power off her, and that can freeze or forbid the very move
+    // that was about to win. Blocks like that touch no key square, so the narrowing has to be
+    // given up - the same trade Harpies makes against multi-step movers.
+    //
+    // Only the player facing Circe needs it. Circe's own blockers narrow as normal: the steal is
+    // fixed when her turn begins and nothing she does during it can change the power her opponent
+    // will hold on the turn they were threatening to win.
+    let key_squares = if is_interact_with_key_squares::<F>() && state.gods[!player as usize].is_circe
+    {
+        BitBoard::MAIN_SECTION_MASK
+    } else {
+        key_squares
+    };
 
     let exactly_level_0 = board.exactly_level_0();
     let exactly_level_1 = board.exactly_level_1();
@@ -891,7 +907,7 @@ macro_rules! persephone_check_result {
         key_squares: $key_squares:ident,
         MUST_CLIMB: $MUST_CLIMB:ident
     ) => {
-        if $state.gods[!$player as usize].is_persephone && !MUST_CLIMB {
+        if $state.get_god_for_player(!$player).is_persephone && !MUST_CLIMB {
             let result = $move_gen::<F, true>($state, $player, $key_squares);
             if result.len() > 0 {
                 return result;

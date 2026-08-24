@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::FullGameState,
-    gods::generic::{GenericMove, KILLER_MATCH_SCORE, MoveScore},
+    gods::{
+        StaticGod,
+        generic::{GenericMove, KILLER_MATCH_SCORE, MoveScore},
+    },
     move_picker::{MovePicker, MovePickerStage},
     nnue::LabeledAccumulator,
     placement::{PlacementState, get_starting_placement_state},
@@ -57,8 +60,14 @@ pub struct BestSearchResult {
 }
 
 impl BestSearchResult {
+    /// `mover_god` is the god that *encoded* `action`, which the caller has to hand over rather
+    /// than let this read it back off `state`. `state` is the position after the move, and with
+    /// Circe in play the power can change hands across it: a move Morpheus made while stripped of
+    /// his power is a mortal move, but if it reunited his Workers he has that power back in the
+    /// child, and decoding a mortal move as a Morpheus one reads garbage squares out of it.
     pub fn new(
         state: FullGameState,
+        mover_god: StaticGod,
         action: GenericMove,
         is_placement_action: bool,
         score: Heuristic,
@@ -67,9 +76,9 @@ impl BestSearchResult {
         trigger: BestMoveTrigger,
     ) -> Self {
         let action_str = if is_placement_action {
-            state.get_other_god().stringify_placement_move(action)
+            mover_god.stringify_placement_move(action)
         } else {
-            state.get_other_god().stringify_move(action)
+            mover_god.stringify_move(action)
         };
 
         BestSearchResult {
@@ -376,7 +385,9 @@ where
     {
         let mut best_child_state = root_state.clone();
 
-        if let Some(starting_mode) = starting_mode {
+        // Resolved against the root, before the move: with Circe in play the power can change
+        // hands across it, and this is the god that encoded `best_action`.
+        let active_god = if let Some(starting_mode) = starting_mode {
             let (active_god, other_god) =
                 root_state.get_player_non_player_gods(starting_mode.next_placement);
             active_god.make_placement_move(
@@ -385,13 +396,19 @@ where
                 starting_mode.next_placement,
                 other_god,
             );
+            active_god
         } else {
             let (active_god, other_god) = root_state.get_active_non_active_gods();
             active_god.make_move(&mut best_child_state.board, other_god, tt_entry.best_action);
-        }
+            best_child_state
+                .board
+                .update_circe_steal(best_child_state.gods);
+            active_god
+        };
 
         let new_best_move = BestSearchResult::new(
             best_child_state,
+            active_god,
             tt_entry.best_action,
             starting_mode.is_some(),
             tt_entry.score,
@@ -408,6 +425,7 @@ where
         if let Some((next_state, next_action)) = all_next_states.last() {
             let new_best_move = BestSearchResult::new(
                 next_state.clone(),
+                root_state.get_active_god(),
                 next_action.clone(),
                 starting_mode.is_some(),
                 -INFINITY,
@@ -476,6 +494,7 @@ where
 
             let empty_losing_move = BestSearchResult::new(
                 losing_board,
+                root_state.get_active_god(),
                 GenericMove::NULL_MOVE,
                 false,
                 -win_at_ply(0),
@@ -657,6 +676,7 @@ where
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
                     child_state.clone(),
+                    active_god,
                     best_action.into(),
                     true,
                     score,
@@ -943,11 +963,19 @@ where
 
     let key_squares = if is_in_check {
         let passed_state = state.next_state_passing(active_god);
-        let oppo_winning_move = other_god.get_any_winning_move(&passed_state, other_player_idx);
+
+        // Resolve against the passed position rather than this one. Passing hands the turn over,
+        // and if the player receiving it is Circe her steal is re-decided right there - so the
+        // power threatening us may not be the one `other_god` names, and generating the threat
+        // with the wrong power would read the wrong moves and then decode them wrongly too.
+        let passed_other_god = passed_state.get_god_for_player(other_player_idx);
+        let oppo_winning_move =
+            passed_other_god.get_any_winning_move(&passed_state, other_player_idx);
 
         if let Some(oppo_winning_move) = oppo_winning_move {
             remaining_depth += 1;
-            let oppo_blocker_board = other_god.get_blocker_board(&state.board, oppo_winning_move);
+            let oppo_blocker_board =
+                passed_other_god.get_blocker_board(&state.board, oppo_winning_move);
             Some(oppo_blocker_board)
         } else {
             // TODO: fix all these?
@@ -983,6 +1011,7 @@ where
 
                 let new_best_move = BestSearchResult::new(
                     child_state.clone(),
+                    active_god,
                     best_action,
                     false,
                     score,
@@ -1014,6 +1043,7 @@ where
 
             let new_best_move = BestSearchResult::new(
                 winning_state,
+                active_god,
                 winning_action,
                 false,
                 score,
@@ -1285,6 +1315,7 @@ where
             if NT::ROOT && (!should_stop || should_stop && search_state.best_move.is_none()) {
                 let new_best_move = BestSearchResult::new(
                     child_state.clone(),
+                    active_god,
                     best_action,
                     false,
                     score,

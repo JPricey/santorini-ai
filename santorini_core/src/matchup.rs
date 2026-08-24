@@ -187,6 +187,43 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
         }
     }
 
+    // Circe borrows the opponent's power outright, so she can only face powers whose apparatus
+    // can change hands. Board Game Arena bans her against the same set for the same reason, and
+    // every ban below is one of theirs except where noted.
+    let circe_banned = [
+        // Once per game. A single use cannot be jointly owned - Circe would burn a power its
+        // owner may never get to use at all.
+        GodName::Achilles,
+        GodName::Atalanta,
+        GodName::Bellerophon,
+        GodName::Jason,
+        GodName::Medea,
+        GodName::Odysseus,
+        GodName::Polyphemus,
+        GodName::Theseus,
+        // Worker count or placement fixed at setup. Circe placed two ordinary Workers, so the
+        // power is either meaningless or unfair in her hands.
+        GodName::Eros,
+        GodName::Graeae,
+        GodName::Proteus,
+        // Not on BGA's list, but ThreeWorkers for the same reason as Graeae and Proteus.
+        GodName::Stymphalians,
+        // Tokens already placed on the board and owned by their builder.
+        GodName::Clio,
+        // Female Worker. Circe has none, so Selene's dome clause simply has no referent, and
+        // inventing one is not worth the matchup. Hippolyta would in fact work as-is - her
+        // restriction is global with a single exemption, so Circe just has no exemption - but
+        // she is banned alongside Selene to keep "no female Worker god" a single rule.
+        GodName::Selene,
+        GodName::Hippolyta,
+    ];
+    for banned in circe_banned {
+        add_matchup(GodName::Circe, banned, BannedReason::Game);
+    }
+
+    // Mutual stealing has no fixed point.
+    add_matchup(GodName::Circe, GodName::Circe, BannedReason::Game);
+
     // Ban every pair of chronus variants playing each other
     for i in 0..chronus_variants.len() {
         for j in i..chronus_variants.len() {

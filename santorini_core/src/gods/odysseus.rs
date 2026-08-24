@@ -662,7 +662,7 @@ pub(super) fn odysseus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         return result;
     }
 
-    let other_god = state.gods[!player as usize];
+    let other_god = state.get_god_for_player(!player);
     let forcible = get_forcible_workers(&state.board, player, other_god);
     let free_corners = get_free_corners(&state.board, player, other_god);
     if forcible.is_empty() || free_corners.is_empty() {

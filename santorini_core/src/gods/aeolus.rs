@@ -64,7 +64,7 @@ impl GodMove for AeolusMove {
 
         board.build_up(self.build_position());
 
-        board.set_god_data(player, self.wind_direction_idx() as u32);
+        board.set_god_data(board.data_player(player), self.wind_direction_idx() as u32);
     }
 
     fn get_blocker_board(self, _board: &BoardState) -> BitBoard {
@@ -233,7 +233,7 @@ fn aeolus_move_gen_with_next_wind_direction<const F: MoveGenFlags, const MUST_CL
             }
         } else if other_god == GodName::Triton
             || (other_god == GodName::Atalanta
-                && prelude.board.god_data[!prelude.player as usize] == 0)
+                && prelude.board.god_data[prelude.board.data_player(!prelude.player) as usize] == 0)
         {
             // Their wins are walks over the board, so the wind can cut one anywhere along the way -
             // there is no one key square whose wind shadow decides it. Every wind change counts as
@@ -361,7 +361,8 @@ pub(super) fn aeolus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 ) -> Vec<ScoredMove> {
     let mut result = persephone_check_result!(aeolus_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
-    let wind_direction_idx = state.board.god_data[player as usize] as usize;
+    let wind_direction_idx =
+        state.board.god_data[state.board.data_player(player) as usize] as usize;
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     modify_prelude_for_checking_workers::<F>(prelude.exactly_level_2, &mut prelude);
 
@@ -424,7 +425,7 @@ fn pretty_stringify_god_data(board: &BoardState, player: Player) -> Option<Strin
 }
 
 fn get_wind_idx(board: &BoardState, player: Player) -> usize {
-    board.god_data[player as usize] as usize
+    board.god_data[board.data_player(player) as usize] as usize
 }
 
 fn flip_horizontal(data: GodData) -> GodData {

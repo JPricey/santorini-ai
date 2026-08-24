@@ -17,7 +17,7 @@ fn player_section_string(state: &FullGameState, player: Player) -> String {
         result += "#";
     }
 
-    let god = state.get_god_for_player(player);
+    let god = state.nominal_god_for_player(player);
     result += god.god_name.into();
 
     let god_data = state.board.god_data[player as usize];

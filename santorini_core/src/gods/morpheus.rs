@@ -98,11 +98,12 @@ impl GodMove for MorpheusMove {
             return;
         }
 
-        let old_avaiable_builds = board.god_data[player as usize];
+        let data_player = board.data_player(player);
+        let old_avaiable_builds = board.god_data[data_player as usize];
 
         let mut build_bits = self.0 & BUILD_SECTION_MASK;
         if build_bits.count_ones() == 0 {
-            board.set_god_data(player, old_avaiable_builds + 1);
+            board.set_god_data(data_player, old_avaiable_builds + 1);
             // No builds
         } else if build_bits.count_ones() == 1 {
             // single build at the direction of the bit index
@@ -163,7 +164,7 @@ impl GodMove for MorpheusMove {
                     }
                 }
             }
-            board.set_god_data(player, new_available_builds);
+            board.set_god_data(data_player, new_available_builds);
         }
     }
 
@@ -495,7 +496,7 @@ pub(super) fn morpheus_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
 ) -> Vec<ScoredMove> {
     let mut result = persephone_check_result!(morpheus_move_gen, state: state, player: player, key_squares: key_squares, MUST_CLIMB: MUST_CLIMB);
 
-    let available_builds = state.board.god_data[player as usize] + 1;
+    let available_builds = state.board.god_data[state.board.data_player(player) as usize] + 1;
     let mut prelude = get_generator_prelude_state::<F>(state, player, key_squares);
     let checkable_mask = prelude.exactly_level_2;
     modify_prelude_for_checking_workers::<F>(checkable_mask, &mut prelude);

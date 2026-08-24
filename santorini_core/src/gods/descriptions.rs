@@ -11,9 +11,7 @@ impl GodName {
     /// A one or two sentence description of this god's power.
     pub const fn description(self) -> &'static str {
         match self {
-            GodName::Mortal => {
-                "No special power."
-            }
+            GodName::Mortal => "No special power.",
             GodName::Pan => "You also win if your Worker moves down two or more levels.",
             GodName::Artemis => {
                 "Your Worker may move one additional time, but not back to its initial space."
@@ -194,9 +192,7 @@ impl GodName {
                 "Once per game, before moving, place your extra Worker on an unoccupied \
                  ground-level perimeter space, then take your turn with that Worker."
             }
-            GodName::Achilles => {
-                "Once per game, your Worker builds both before and after moving."
-            }
+            GodName::Achilles => "Once per game, your Worker builds both before and after moving.",
             GodName::Stymphalians => {
                 "Place three Workers. Your Worker must move two or three times, and cannot end its \
                  move on a space neighboring where it started."
@@ -223,6 +219,10 @@ impl GodName {
             GodName::Medea => {
                 "Once per game at the end of your turn, remove all blocks from under a Worker \
                  neighboring either of your Workers."
+            }
+            GodName::Circe => {
+                "At the start of your turn, if an opponent's Workers do not neighbor each other, \
+                 you alone have use of their power until your next turn."
             }
             GodName::Siren => {
                 "Instead of moving, you may force one or more opponent Workers one space down the \

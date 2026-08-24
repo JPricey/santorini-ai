@@ -617,7 +617,7 @@ fn stymphalians_move_gen<const F: MoveGenFlags, const MUST_CLIMB: bool>(
         return stymphalians_vs_persephone_must_climb::<F>(state, player, key_squares);
     }
 
-    if state.gods[!player as usize].is_harpies() {
+    if state.get_god_for_player(!player).is_harpies() {
         return stymphalians_move_gen_vs_harpies::<F, MUST_CLIMB>(state, player, key_squares);
     }
 

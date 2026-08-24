@@ -30,6 +30,16 @@ const CHRONUS_DOME_COUNT_TO_WIN: u32 = 5;
 const CHRONUS_4T_DOME_COUNT_TO_WIN: u32 = 4;
 const CHRONUS_3T_DOME_COUNT_TO_WIN: u32 = 3;
 
+/// How many complete towers this variant needs on the board to win, if it is a Chronus at all.
+pub fn dome_count_to_win(god_name: GodName) -> Option<u32> {
+    match god_name {
+        GodName::Chronus => Some(CHRONUS_DOME_COUNT_TO_WIN),
+        GodName::Chronus4T => Some(CHRONUS_4T_DOME_COUNT_TO_WIN),
+        GodName::Chronus3T => Some(CHRONUS_3T_DOME_COUNT_TO_WIN),
+        _ => None,
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ChronusMove(pub MoveData);
 
