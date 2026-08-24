@@ -42,6 +42,7 @@ pub(crate) mod circe;
 pub(crate) mod clio;
 pub(crate) mod demeter;
 pub mod descriptions;
+pub(crate) mod eris;
 pub(crate) mod eros;
 pub(crate) mod europa;
 pub mod generic;
@@ -182,9 +183,10 @@ pub enum GodName {
     Medea = 59,
     Siren = 60,
     Circe = 61,
+    Eris = 62,
 }
 
-pub const WIP_GODS: [GodName; 9] = [
+pub const WIP_GODS: [GodName; 10] = [
     GodName::Chronus4T,
     GodName::Chronus3T,
     GodName::Terpsichore,
@@ -194,6 +196,7 @@ pub const WIP_GODS: [GodName; 9] = [
     GodName::Medea,
     GodName::Siren,
     GodName::Circe,
+    GodName::Eris,
 ];
 // counted_array!(pub const WIP_GODS: [GodName; _] = []);
 
@@ -546,6 +549,7 @@ pub struct GodPower {
 
     pub is_aphrodite: bool,
     pub is_circe: bool,
+    pub is_eris: bool,
     pub is_persephone: bool,
     pub is_preventing_down: bool,
     pub is_placement_priority: bool,
@@ -602,7 +606,7 @@ impl GodPower {
             .flat_map(|action| {
                 let mut result_state = state.board.clone();
                 self.make_move(&mut result_state, other_god, action.action);
-                result_state.update_circe_steal(state.gods);
+                result_state.on_turn_advanced(&state.board, state.gods);
                 let action_paths = (self._get_actions_for_move)(
                     &state.board,
                     action.action,
@@ -630,7 +634,7 @@ impl GodPower {
             .map(|action| {
                 let mut result_state = board.clone();
                 self.make_move(&mut result_state, other_god, action.action);
-                result_state.update_circe_steal(state.gods);
+                result_state.on_turn_advanced(board, state.gods);
                 result_state
             })
             .collect()
@@ -928,6 +932,7 @@ counted_array!(pub const ALL_GODS_BY_ID: [GodPower; _] = [
     medea::build_medea(),
     siren::build_siren(),
     circe::build_circe(),
+    eris::build_eris(),
 ]);
 
 pub const fn god_name_to_nnue_size(god_name: GodName) -> usize {
@@ -1107,6 +1112,7 @@ const fn god_power(
 
         is_aphrodite: false,
         is_circe: false,
+        is_eris: false,
         is_persephone: false,
         is_preventing_down: false,
         is_placement_priority: false,
@@ -1154,6 +1160,11 @@ impl GodPower {
 
     pub(super) const fn with_is_circe(mut self) -> Self {
         self.is_circe = true;
+        self
+    }
+
+    pub(super) const fn with_is_eris(mut self) -> Self {
+        self.is_eris = true;
         self
     }
 

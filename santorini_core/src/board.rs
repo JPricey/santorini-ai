@@ -126,7 +126,7 @@ impl FullGameState {
     ) -> FullGameState {
         let mut result = self.clone();
         god.make_move(&mut result.board, other_god, action);
-        result.board.update_circe_steal(result.gods);
+        result.board.on_turn_advanced(&self.board, result.gods);
         result
     }
 
@@ -186,7 +186,7 @@ impl FullGameState {
                 .map(|a| {
                     let mut state_clone = self.clone();
                     active_god.make_move(&mut state_clone.board, other_god, a.action);
-                    state_clone.board.update_circe_steal(state_clone.gods);
+                    state_clone.board.on_turn_advanced(&self.board, state_clone.gods);
                     (state_clone, a.action)
                 })
                 .collect()
@@ -449,6 +449,50 @@ impl BoardState {
         }
 
         true
+    }
+
+    /// Everything that has to happen the moment one turn ends and the next begins.
+    ///
+    /// `self` is the board after the move; `before` is the board the move was played on, which is
+    /// what the two hooks below need and cannot reconstruct. Both are written from the point of
+    /// view of the player about to move, so this runs *after* `flip_current_player`.
+    ///
+    /// Only real turns go through here. A passing move is a search fiction rather than a turn, and
+    /// a placement is not a move, so both keep calling [`Self::update_circe_steal`] on its own -
+    /// Circe's steal is a function of the position alone, while Eris' memory is a record of what
+    /// somebody did.
+    pub fn on_turn_advanced(&mut self, before: &BoardState, gods: GodPair) {
+        self.update_eris_memory(before, gods);
+        self.update_circe_steal(gods);
+    }
+
+    /// Record which of the opponent's Workers they just moved, so Eris cannot puppet those.
+    ///
+    /// Stored in *Eris'* slot rather than theirs: the opponent's slot belongs to the opponent's
+    /// god, and this is her bookkeeping about them. Her slot holds nothing else, so a plain
+    /// overwrite is right - each of their turns replaces the whole record.
+    ///
+    /// A Worker counts as moved if it ends the turn somewhere it did not begin it, which is the
+    /// destination side of the diff. Turns Eris plays herself are skipped outright: a puppet move
+    /// moves their Worker, but they did not move it, and neither did they when one of her own
+    /// moves displaced it.
+    fn update_eris_memory(&mut self, before: &BoardState, gods: GodPair) {
+        let eris = if gods[0].is_eris {
+            Player::One
+        } else if gods[1].is_eris {
+            Player::Two
+        } else {
+            return;
+        };
+
+        let mover = before.current_player;
+        if mover == eris {
+            return;
+        }
+
+        let after = self.workers[mover as usize] & BitBoard::MAIN_SECTION_MASK;
+        let moved = after & !(before.workers[mover as usize] & BitBoard::MAIN_SECTION_MASK);
+        self.set_god_data(eris, moved.0 as GodData);
     }
 
     /// Resolve Circe's steal for the turn that is about to start.

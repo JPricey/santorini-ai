@@ -228,6 +228,10 @@ impl GodName {
                 "Instead of moving, you may force one or more opponent Workers one space down the \
                  board into unoccupied spaces at any level, then build with any of your Workers."
             }
+            GodName::Eris => {
+                "You may move and build with an opponent's Worker this turn instead of your own, \
+                 as long as it is not a Worker they moved on their most recent turn."
+            }
         }
     }
 }

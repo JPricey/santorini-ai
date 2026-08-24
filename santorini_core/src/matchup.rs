@@ -224,6 +224,26 @@ pub const BANNED_MATCHUPS: LazyCell<HashMap<Matchup, BannedReason>> = LazyCell::
     // Mutual stealing has no fixed point.
     add_matchup(GodName::Circe, GodName::Circe, BannedReason::Game);
 
+    // Eris borrows the opponent's Workers rather than their power, so almost everything is
+    // playable. Three are not.
+    //
+    // Persephone is structural rather than a balance call, and is banned on Board Game Arena too:
+    // she demands that one of the acting player's Workers climb, and a puppet turn moves none of
+    // Eris' own Workers, so the demand has no referent. Her other two official bans - Hecate and
+    // Tartarus - are not in this engine.
+    add_matchup(GodName::Eris, GodName::Persephone, BannedReason::Game);
+
+    // Terpsichore must move both her Workers every turn, so the record of what she moved last turn
+    // always covers all of them and Eris' power is switched off for the whole game. Hermes and
+    // Castor can do the same at will, which is a strategic dimension rather than a bug; being able
+    // to do nothing else is not.
+    add_matchup(GodName::Eris, GodName::Terpsichore, BannedReason::Game);
+
+    // Circe stealing Eris' power would have Circe puppeting Eris' Workers, while the off-limits
+    // record - which under Circe's rules lives in the owner's slot and is read through
+    // `data_player` - would describe the wrong player's turns entirely.
+    add_matchup(GodName::Eris, GodName::Circe, BannedReason::Engine);
+
     // Ban every pair of chronus variants playing each other
     for i in 0..chronus_variants.len() {
         for j in i..chronus_variants.len() {

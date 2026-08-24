@@ -402,7 +402,7 @@ where
             active_god.make_move(&mut best_child_state.board, other_god, tt_entry.best_action);
             best_child_state
                 .board
-                .update_circe_steal(best_child_state.gods);
+                .on_turn_advanced(&root_state.board, best_child_state.gods);
             active_god
         };
 

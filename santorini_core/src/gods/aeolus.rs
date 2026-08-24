@@ -505,7 +505,16 @@ mod tests {
             ))
             .unwrap();
 
-            let moves = god.get_all_moves(&state, Player::One);
+            let mut moves = god.get_all_moves(&state, Player::One);
+
+            // Eris may also move Aeolus' own Workers, which are standing in the open rather than
+            // walled in. The wind applies to those exactly as it does to hers - see
+            // `eris::tests::wind_applies_to_puppet_moves` - so what this test is asking about is
+            // the Worker of her own that the wall has pinned.
+            if god_name == GodName::Eris {
+                moves.retain(|m| !crate::gods::eris::ErisMove::from(m.action).get_is_puppet());
+            }
+
             for action in &moves {
                 eprintln!("{:?} {}", god_name, god.stringify_move(action.action));
             }
